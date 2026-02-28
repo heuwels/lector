@@ -88,13 +88,34 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
   };
 
   // Wrap words in clickable spans
+  // Afrikaans word pattern: includes accented chars (ê, ë, ô, û, î, ï, á, é) and 'n
   const renderText = (text: string) => {
-    const parts = text.split(/(\s+|[^\w\s]+)/);
+    // Split keeping words with accents and 'n together
+    // Match: 'n (with straight or curly quotes), words with accents, or regular words
+    const wordPattern = /['ʼ''`]n\b|[\wêëéèôöûüîïáà]+/gi;
+    const parts: { text: string; isWord: boolean }[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = wordPattern.exec(text)) !== null) {
+      // Add any non-word text before this match
+      if (match.index > lastIndex) {
+        parts.push({ text: text.slice(lastIndex, match.index), isWord: false });
+      }
+      // Add the word
+      parts.push({ text: match[0], isWord: true });
+      lastIndex = match.index + match[0].length;
+    }
+    // Add any remaining text
+    if (lastIndex < text.length) {
+      parts.push({ text: text.slice(lastIndex), isWord: false });
+    }
+
     const colors = isDarkMode ? darkStateColors : stateColors;
 
     return parts.map((part, i) => {
-      if (/^\w+$/.test(part)) {
-        const state = getWordState(part);
+      if (part.isWord) {
+        const state = getWordState(part.text);
         const colorClass = state ? colors[state] : colors.new;
 
         return (
@@ -102,15 +123,15 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
             key={i}
             onClick={(e) => {
               const sentence = findSentence(e.currentTarget);
-              onWordClick(part, sentence);
+              onWordClick(part.text, sentence);
             }}
             className={`cursor-pointer rounded px-0.5 hover:ring-2 hover:ring-blue-400 ${colorClass}`}
           >
-            {part}
+            {part.text}
           </span>
         );
       }
-      return <span key={i}>{part}</span>;
+      return <span key={i}>{part.text}</span>;
     });
   };
 

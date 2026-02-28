@@ -34,10 +34,27 @@ export default function SentenceModeReader({
   const currentSentence = sentences[currentIndex] || '';
 
   // Parse sentence into words while preserving punctuation
+  // Handles Afrikaans: 'n (any quote style), accented chars (ê, ë, ô, û, î, ï, á, é)
   const tokens = useMemo(() => {
-    // Split by word boundaries while keeping punctuation attached
-    const regex = /(\s+|[^\s\w])/;
-    return currentSentence.split(regex).filter(Boolean);
+    const result: string[] = [];
+    const wordPattern = /['ʼ''`]n\b|[\wêëéèôöûüîïáà]+/gi;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = wordPattern.exec(currentSentence)) !== null) {
+      // Add any non-word text before this match
+      if (match.index > lastIndex) {
+        const between = currentSentence.slice(lastIndex, match.index);
+        if (between) result.push(between);
+      }
+      result.push(match[0]);
+      lastIndex = match.index + match[0].length;
+    }
+    // Add remaining text
+    if (lastIndex < currentSentence.length) {
+      result.push(currentSentence.slice(lastIndex));
+    }
+    return result.filter(Boolean);
   }, [currentSentence]);
 
   const handlePrevSentence = useCallback(() => {
@@ -78,8 +95,8 @@ export default function SentenceModeReader({
 
   const handleWordClick = useCallback(
     (word: string) => {
-      // Clean the word (remove punctuation for lookup)
-      const cleanWord = word.replace(/[^\w\s]/g, '').trim();
+      // Clean the word (keep accented chars, remove other punctuation)
+      const cleanWord = word.replace(/[^\wêëéèôöûüîïáà']/gi, '').trim();
       if (cleanWord) {
         onWordClick(cleanWord, currentSentence);
       }
@@ -87,7 +104,8 @@ export default function SentenceModeReader({
     [onWordClick, currentSentence]
   );
 
-  const isWord = (token: string) => /\w/.test(token);
+  // Check if token is a word (including Afrikaans 'n and accented chars)
+  const isWord = (token: string) => /^['ʼ''`]n$/i.test(token) || /[\wêëéèôöûüîïáà]/i.test(token);
 
   return (
     <div className="flex flex-col h-full">

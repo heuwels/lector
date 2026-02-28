@@ -132,55 +132,65 @@ export default function Reader({ book, onWordClick, onClose, refreshTrigger = 0 
         const text = textNode.textContent || '';
         const fragment = doc.createDocumentFragment();
 
-        // Split into words and non-words
-        const parts = text.split(/(\s+|[^\w\s]+)/);
+        // Afrikaans word pattern: 'n (with any quote style), words with accents
+        const wordPattern = /['ʼ''`]n\b|[\wêëéèôöûüîïáà]+/gi;
+        let lastIndex = 0;
+        let match;
 
-        for (const part of parts) {
-          if (/^\w+$/.test(part)) {
-            // It's a word - wrap in span
-            const span = doc.createElement('span');
-            span.textContent = part;
-            span.className = 'afr-word';
-            span.style.cssText = 'cursor: pointer; border-radius: 2px; padding: 0 1px;';
-
-            // Apply word state styling
-            const state = getWordState(part);
-            if (state) {
-              const colors = isDarkMode ? darkStateColors : stateColors;
-              span.style.cssText += colors[state];
-            } else {
-              // New word (not in db)
-              const colors = isDarkMode ? darkStateColors : stateColors;
-              span.style.cssText += colors.new;
-            }
-
-            // Add click handler
-            span.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-
-              // Find the surrounding sentence
-              const sentence = findSurroundingSentence(span, doc);
-
-              // Blur iframe to allow parent to receive keyboard events
-              (document.activeElement as HTMLElement)?.blur?.();
-
-              onWordClick(part, sentence);
-            });
-
-            // Add hover effect
-            span.addEventListener('mouseenter', () => {
-              span.style.outline = '2px solid #60a5fa';
-            });
-            span.addEventListener('mouseleave', () => {
-              span.style.outline = 'none';
-            });
-
-            fragment.appendChild(span);
-          } else {
-            // It's whitespace or punctuation - keep as text
-            fragment.appendChild(doc.createTextNode(part));
+        while ((match = wordPattern.exec(text)) !== null) {
+          // Add any non-word text before this match
+          if (match.index > lastIndex) {
+            fragment.appendChild(doc.createTextNode(text.slice(lastIndex, match.index)));
           }
+
+          const word = match[0];
+
+          // Create word span
+          const span = doc.createElement('span');
+          span.textContent = word;
+          span.className = 'afr-word';
+          span.style.cssText = 'cursor: pointer; border-radius: 2px; padding: 0 1px;';
+
+          // Apply word state styling
+          const state = getWordState(word);
+          if (state) {
+            const colors = isDarkMode ? darkStateColors : stateColors;
+            span.style.cssText += colors[state];
+          } else {
+            // New word (not in db)
+            const colors = isDarkMode ? darkStateColors : stateColors;
+            span.style.cssText += colors.new;
+          }
+
+          // Add click handler
+          span.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Find the surrounding sentence
+            const sentence = findSurroundingSentence(span, doc);
+
+            // Blur iframe to allow parent to receive keyboard events
+            (document.activeElement as HTMLElement)?.blur?.();
+
+            onWordClick(word, sentence);
+          });
+
+          // Add hover effect
+          span.addEventListener('mouseenter', () => {
+            span.style.outline = '2px solid #60a5fa';
+          });
+          span.addEventListener('mouseleave', () => {
+            span.style.outline = 'none';
+          });
+
+          fragment.appendChild(span);
+          lastIndex = match.index + word.length;
+        }
+
+        // Add any remaining text after the last match
+        if (lastIndex < text.length) {
+          fragment.appendChild(doc.createTextNode(text.slice(lastIndex)));
         }
 
         parent.replaceChild(fragment, textNode);
