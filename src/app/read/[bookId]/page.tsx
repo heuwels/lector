@@ -13,7 +13,7 @@ import {
   updateVocabState,
   incrementDailyStat,
 } from '@/lib/db';
-import { translateWord } from '@/lib/claude';
+import { translateWord, translatePhrase } from '@/lib/claude';
 import { lookupWord } from '@/lib/dictionary';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -79,7 +79,9 @@ export default function ReadPage({
 
   // Handle word click from reader
   const handleWordClick = useCallback(async (word: string, sentence: string) => {
-    // Check if word already exists in vocab
+    const isPhrase = word.includes(' ');
+
+    // Check if word/phrase already exists in vocab
     const existingEntry = await getVocabByText(word.toLowerCase());
     const hasTranslation = existingEntry?.translation && existingEntry.translation.length > 0;
 
@@ -88,7 +90,7 @@ export default function ReadPage({
       word,
       sentence,
       translation: hasTranslation ? existingEntry.translation : null,
-      partOfSpeech: null,
+      partOfSpeech: isPhrase ? 'phrase' : null,
       isLoading: !hasTranslation,
       error: null,
       existingEntry: existingEntry || null,
@@ -97,36 +99,56 @@ export default function ReadPage({
     // Track lookup
     await incrementDailyStat('dictionaryLookups');
 
-    // If no existing translation, check dictionary first, then fall back to API
+    // If no existing translation, check dictionary first (for single words), then fall back to API
     if (!hasTranslation) {
-      // First check the local dictionary (2000 common words)
-      const dictionaryEntry = lookupWord(word);
-
-      if (dictionaryEntry) {
-        // Found in dictionary - use it immediately (no API call needed)
-        setWordPanel((prev) => ({
-          ...prev,
-          translation: dictionaryEntry.translation,
-          partOfSpeech: dictionaryEntry.partOfSpeech || null,
-          isLoading: false,
-        }));
-      } else {
-        // Not in dictionary - fall back to Claude API
+      if (isPhrase) {
+        // Phrases always use the API
         try {
-          const result = await translateWord(word, sentence);
+          const result = await translatePhrase(word, sentence);
           setWordPanel((prev) => ({
             ...prev,
             translation: result.translation,
-            partOfSpeech: result.partOfSpeech || null,
+            partOfSpeech: 'phrase',
             isLoading: false,
           }));
         } catch (err) {
-          console.error('Translation error:', err);
+          console.error('Phrase translation error:', err);
           setWordPanel((prev) => ({
             ...prev,
             isLoading: false,
-            error: 'Failed to translate word. Add ANTHROPIC_API_KEY to settings for uncommon words.',
+            error: 'Failed to translate phrase. Check API key in settings.',
           }));
+        }
+      } else {
+        // Single word - check local dictionary first
+        const dictionaryEntry = lookupWord(word);
+
+        if (dictionaryEntry) {
+          // Found in dictionary - use it immediately (no API call needed)
+          setWordPanel((prev) => ({
+            ...prev,
+            translation: dictionaryEntry.translation,
+            partOfSpeech: dictionaryEntry.partOfSpeech || null,
+            isLoading: false,
+          }));
+        } else {
+          // Not in dictionary - fall back to Claude API
+          try {
+            const result = await translateWord(word, sentence);
+            setWordPanel((prev) => ({
+              ...prev,
+              translation: result.translation,
+              partOfSpeech: result.partOfSpeech || null,
+              isLoading: false,
+            }));
+          } catch (err) {
+            console.error('Translation error:', err);
+            setWordPanel((prev) => ({
+              ...prev,
+              isLoading: false,
+              error: 'Failed to translate word. Add ANTHROPIC_API_KEY to settings for uncommon words.',
+            }));
+          }
         }
       }
     }
@@ -141,10 +163,11 @@ export default function ReadPage({
   const saveWordToVocab = useCallback(async () => {
     if (!wordPanel.translation) return;
 
+    const isPhrase = wordPanel.word.includes(' ');
     const entry: VocabEntry = {
       id: wordPanel.existingEntry?.id || uuidv4(),
       text: wordPanel.word.toLowerCase(),
-      type: 'word',
+      type: isPhrase ? 'phrase' : 'word',
       sentence: wordPanel.sentence,
       translation: wordPanel.translation,
       state: wordPanel.existingEntry?.state || 'level1',

@@ -92,7 +92,7 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
   const renderText = (text: string) => {
     // Split keeping words with accents and 'n together
     // Match: 'n (with straight or curly quotes), words with accents, or regular words
-    const wordPattern = /['ʼ''`]n\b|[\wêëéèôöûüîïáà]+/gi;
+    const wordPattern = /['‘’ʼ`]n\b|[\wêëéèôöûüîïáà]+/gi;
     const parts: { text: string; isWord: boolean }[] = [];
     let lastIndex = 0;
     let match;
@@ -137,6 +137,20 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
 
   const content = book.textContent || new TextDecoder().decode(book.fileData);
 
+  // Handle text selection for phrases
+  const handleMouseUp = useCallback(() => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
+
+    const selectedText = selection.toString().trim();
+    // Only treat as phrase if it has spaces (multiple words)
+    if (selectedText && selectedText.includes(' ')) {
+      const sentence = findSentence(selection.anchorNode?.parentElement as HTMLElement);
+      selection.removeAllRanges();
+      onWordClick(selectedText, sentence);
+    }
+  }, [onWordClick]);
+
   return (
     <div className="flex flex-col h-full bg-[#fefefe] dark:bg-zinc-900">
       {/* Header */}
@@ -167,6 +181,7 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
       <div
         ref={containerRef}
         onScroll={handleScroll}
+        onMouseUp={handleMouseUp}
         className="flex-1 overflow-auto"
       >
         <article className="max-w-[32em] mx-auto px-8 py-12 prose prose-zinc dark:prose-invert

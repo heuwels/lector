@@ -37,7 +37,7 @@ export default function SentenceModeReader({
   // Handles Afrikaans: 'n (any quote style), accented chars (ê, ë, ô, û, î, ï, á, é)
   const tokens = useMemo(() => {
     const result: string[] = [];
-    const wordPattern = /['ʼ''`]n\b|[\wêëéèôöûüîïáà]+/gi;
+    const wordPattern = /['‘’ʼ`]n\b|[\wêëéèôöûüîïáà]+/gi;
     let lastIndex = 0;
     let match;
 
@@ -105,7 +105,7 @@ export default function SentenceModeReader({
   );
 
   // Check if token is a word (including Afrikaans 'n and accented chars)
-  const isWord = (token: string) => /^['ʼ''`]n$/i.test(token) || /[\wêëéèôöûüîïáà]/i.test(token);
+  const isWord = (token: string) => /^['‘’ʼ`]n$/i.test(token) || /[\wêëéèôöûüîïáà]/i.test(token);
 
   return (
     <div className="flex flex-col h-full">

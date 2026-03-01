@@ -107,6 +107,33 @@ export default function Reader({ book, onWordClick, onClose, refreshTrigger = 0 
     [] // No dependencies - uses ref
   );
 
+  // Find the sentence containing an element
+  const findSurroundingSentence = useCallback((element: HTMLElement, doc: Document): string => {
+    // Get the parent paragraph or block element
+    let block = element.parentElement;
+    while (block && !['P', 'DIV', 'SECTION', 'ARTICLE', 'LI', 'TD', 'TH'].includes(block.tagName)) {
+      block = block.parentElement;
+    }
+
+    if (!block) {
+      block = element.parentElement;
+    }
+
+    const text = block?.textContent || '';
+
+    // Try to find the sentence containing this word
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    const wordText = element.textContent || '';
+
+    for (const sentence of sentences) {
+      if (sentence.includes(wordText)) {
+        return sentence.trim();
+      }
+    }
+
+    return text.trim();
+  }, []);
+
   // Wrap words in spans for click detection
   const wrapWordsInSpans = useCallback(
     (contents: Contents) => {
@@ -133,7 +160,7 @@ export default function Reader({ book, onWordClick, onClose, refreshTrigger = 0 
         const fragment = doc.createDocumentFragment();
 
         // Afrikaans word pattern: 'n (with any quote style), words with accents
-        const wordPattern = /['ʼ''`]n\b|[\wêëéèôöûüîïáà]+/gi;
+        const wordPattern = /['‘’ʼ`]n\b|[\wêëéèôöûüîïáà]+/gi;
         let lastIndex = 0;
         let match;
 
@@ -195,36 +222,38 @@ export default function Reader({ book, onWordClick, onClose, refreshTrigger = 0 
 
         parent.replaceChild(fragment, textNode);
       }
+
+      // Add mouseup listener for phrase selection
+      doc.addEventListener('mouseup', () => {
+        const selection = doc.getSelection();
+        if (!selection || selection.isCollapsed) return;
+
+        const selectedText = selection.toString().trim();
+        // Only treat as phrase if it has spaces (multiple words)
+        if (selectedText && selectedText.includes(' ')) {
+          // Find the surrounding sentence for context
+          const range = selection.getRangeAt(0);
+          const container = range.commonAncestorContainer;
+          const element = container.nodeType === Node.TEXT_NODE
+            ? container.parentElement
+            : container as HTMLElement;
+
+          if (element) {
+            const sentence = findSurroundingSentence(element, doc);
+
+            // Clear selection
+            selection.removeAllRanges();
+
+            // Blur iframe to allow parent to receive keyboard events
+            (document.activeElement as HTMLElement)?.blur?.();
+
+            onWordClick(selectedText, sentence);
+          }
+        }
+      });
     },
-    [getWordState, isDarkMode, onWordClick]
+    [getWordState, isDarkMode, onWordClick, findSurroundingSentence]
   );
-
-  // Find the sentence containing an element
-  const findSurroundingSentence = (element: HTMLElement, doc: Document): string => {
-    // Get the parent paragraph or block element
-    let block = element.parentElement;
-    while (block && !['P', 'DIV', 'SECTION', 'ARTICLE', 'LI', 'TD', 'TH'].includes(block.tagName)) {
-      block = block.parentElement;
-    }
-
-    if (!block) {
-      block = element.parentElement;
-    }
-
-    const text = block?.textContent || '';
-
-    // Try to find the sentence containing this word
-    const sentences = text.split(/(?<=[.!?])\s+/);
-    const wordText = element.textContent || '';
-
-    for (const sentence of sentences) {
-      if (sentence.includes(wordText)) {
-        return sentence.trim();
-      }
-    }
-
-    return text.trim();
-  };
 
   // Extract sentences from current chapter
   const extractSentences = useCallback((rendition: Rendition): string[] => {
