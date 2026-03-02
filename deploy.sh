@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-REGISTRY="registry.home.lukeboyle.com:5000"
+REGISTRY="registry.home.lukeboyle.com"
 IMAGE_NAME="afrikaans-reader"
 VERSION="${1:-$(git describe --tags --always --dirty)}"
 
