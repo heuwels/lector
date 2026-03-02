@@ -119,6 +119,8 @@ export async function addBasicCard(
   translation: string,
   wordMeaning: string
 ): Promise<number> {
+  console.log(`[Anki] Adding basic card to deck "${deckName}" for word "${targetWord}"`);
+
   await ensureDeckExists(deckName);
 
   // Highlight the target word in the sentence
@@ -127,7 +129,7 @@ export async function addBasicCard(
     "<b>$1</b>"
   );
 
-  const noteId = await ankiRequest<number>("addNote", {
+  const noteId = await ankiRequest<number | null>("addNote", {
     note: {
       deckName,
       modelName: "Basic",
@@ -136,13 +138,18 @@ export async function addBasicCard(
         Back: `${translation}<br><br><b>${targetWord}</b> = ${wordMeaning}`,
       },
       options: {
-        allowDuplicate: false,
-        duplicateScope: "deck",
+        allowDuplicate: true, // Allow duplicates - same word from different sentences is fine
       },
       tags: ["afrikaans-reader", "vocabulary"],
     },
   });
 
+  // AnkiConnect returns null if the note couldn't be added
+  if (noteId === null) {
+    throw new Error("Failed to add note - check that 'Basic' note type exists with 'Front' and 'Back' fields");
+  }
+
+  console.log(`[Anki] Successfully added basic note with ID: ${noteId}`);
   return noteId;
 }
 
