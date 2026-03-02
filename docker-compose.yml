@@ -1,6 +1,6 @@
 services:
   afrikaans-reader:
-    build: .
+    image: registry.home.lukeboyle.com/afrikaans-reader:latest
     container_name: afrikaans-reader
     restart: unless-stopped
     ports:
@@ -9,8 +9,6 @@ services:
       - NODE_ENV=production
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
-      # Persist IndexedDB data via browser, no server-side data needed
-      # Add any future server-side data directories here
       - ./data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
