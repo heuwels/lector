@@ -15,6 +15,7 @@ import {
 } from '@/lib/db';
 import { translateWord, translatePhrase } from '@/lib/claude';
 import { lookupWord } from '@/lib/dictionary';
+import { speak } from '@/lib/tts';
 import { v4 as uuidv4 } from 'uuid';
 
 interface WordPanelState {
@@ -386,6 +387,19 @@ export default function ReadPage({
                   <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
                     {wordPanel.word}
                   </span>
+                  <button
+                    onClick={() => {
+                      // Limit to ~15 words for phrases
+                      const words = wordPanel.word.split(/\s+/).slice(0, 15);
+                      speak(words.join(' '));
+                    }}
+                    className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                    title="Listen to word"
+                  >
+                    <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
+                  </button>
                   {wordPanel.partOfSpeech && (
                     <span className="text-xs text-zinc-500 dark:text-zinc-400 italic">
                       {wordPanel.partOfSpeech}
@@ -409,6 +423,25 @@ export default function ReadPage({
                     {wordPanel.existingEntry.state}
                   </div>
                 )}
+                {/* Sentence with speaker button */}
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-md">
+                    {wordPanel.sentence}
+                  </span>
+                  <button
+                    onClick={() => {
+                      // Limit to ~15 words
+                      const words = wordPanel.sentence.split(/\s+/).slice(0, 15);
+                      speak(words.join(' '));
+                    }}
+                    className="p-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors flex-shrink-0"
+                    title="Listen to sentence"
+                  >
+                    <svg className="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Level buttons (LingQ-style) */}
