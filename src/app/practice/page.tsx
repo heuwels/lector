@@ -435,7 +435,7 @@ export default function PracticePage() {
   };
 
   // Handle next sentence
-  const handleNext = async () => {
+  const handleNext = useCallback(async () => {
     // Track recently used words for anti-clumping (keep last 10)
     if (current) {
       setRecentWords(prev => {
@@ -462,7 +462,22 @@ export default function PracticePage() {
     } else {
       setState('complete');
     }
-  };
+  }, [current, queue, retryQueue, todayCount, loadNextSentence, fetchNewSentences]);
+
+  // Handle Enter key in feedback state to go to next sentence
+  useEffect(() => {
+    if (state !== 'feedback') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state, handleNext]);
 
   // Handle add to Anki
   const handleAddToAnki = async () => {
