@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 interface ImportDropdownProps {
   onFileImport: () => void;
   onUrlImport: () => void;
+  onPasteImport: () => void;
   disabled?: boolean;
   isImporting?: boolean;
 }
@@ -12,6 +13,7 @@ interface ImportDropdownProps {
 export default function ImportDropdown({
   onFileImport,
   onUrlImport,
+  onPasteImport,
   disabled = false,
   isImporting = false,
 }: ImportDropdownProps) {
@@ -60,6 +62,11 @@ export default function ImportDropdown({
   const handleUrlClick = () => {
     setIsOpen(false);
     onUrlImport();
+  };
+
+  const handlePasteClick = () => {
+    setIsOpen(false);
+    onPasteImport();
   };
 
   return (
@@ -131,6 +138,20 @@ export default function ImportDropdown({
               />
             </svg>
             Import from URL
+          </button>
+          <button
+            onClick={handlePasteClick}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+          >
+            <svg className="h-5 w-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
+            Paste Text
           </button>
         </div>
       )}

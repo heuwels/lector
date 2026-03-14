@@ -7,6 +7,7 @@ import StatsCard from '@/components/StatsCard';
 import BookCard from '@/components/BookCard';
 import ImportDropdown from '@/components/ImportDropdown';
 import WebImportModal from '@/components/WebImportModal';
+import PasteImportModal from '@/components/PasteImportModal';
 import {
   getAllBooks,
   saveBook,
@@ -24,6 +25,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [isWebImportOpen, setIsWebImportOpen] = useState(false);
+  const [isPasteImportOpen, setIsPasteImportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -182,6 +184,28 @@ export default function Home() {
     }
   }
 
+  async function handlePasteImportSave(article: { title: string; author: string; content: string }) {
+    const newBook: Book = {
+      id: uuidv4(),
+      title: article.title,
+      author: article.author,
+      coverUrl: undefined,
+      fileData: new ArrayBuffer(0),
+      fileType: 'markdown',
+      textContent: article.content,
+      progress: {
+        chapter: 0,
+        scrollPosition: 0,
+        percentComplete: 0,
+      } as BookProgress,
+      createdAt: new Date(),
+      lastReadAt: new Date(),
+    };
+
+    await saveBook(newBook);
+    setBooks((prev) => [newBook, ...prev]);
+  }
+
   async function handleWebImportSave(article: { title: string; author: string; content: string }) {
     const newBook: Book = {
       id: uuidv4(),
@@ -268,6 +292,7 @@ export default function Home() {
             <ImportDropdown
               onFileImport={handleImportClick}
               onUrlImport={() => setIsWebImportOpen(true)}
+              onPasteImport={() => setIsPasteImportOpen(true)}
               isImporting={isImporting}
             />
             <input
@@ -283,6 +308,11 @@ export default function Home() {
             isOpen={isWebImportOpen}
             onClose={() => setIsWebImportOpen(false)}
             onSave={handleWebImportSave}
+          />
+          <PasteImportModal
+            isOpen={isPasteImportOpen}
+            onClose={() => setIsPasteImportOpen(false)}
+            onSave={handlePasteImportSave}
           />
 
           {books.length > 0 ? (

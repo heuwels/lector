@@ -215,7 +215,7 @@ Respond with:
 ### Stretch (Future)
 1. Known words tracking
 2. Whisper integration for podcasts
-3. Web article import
+3. Web article import enhancements
 4. Daily study tracking webhook
 
 ### Daily Study Tracking
@@ -260,3 +260,75 @@ Recommended: Option A (explicit ping) — simplest, works even offline, easy to 
 - Claude API key needed for translations (store in localStorage or env)
 - AnkiConnect plugin must be installed in Anki desktop
 - No backend needed — fully client-side except API calls
+
+---
+
+## Import Roadmap
+
+### URL Import Enhancements
+
+Current URL import works but may fail on JS-heavy sites and strips formatting inconsistently.
+
+**Better content extraction**
+- Swap or supplement current parser with [mozilla/readability](https://github.com/mozilla/readability) (same engine as Firefox Reader View)
+- Add JSDOM for server-side HTML parsing to strip ads, nav, footers
+
+**Handle JS-rendered pages**
+- Optional Playwright/Puppeteer fetch path in the API route, triggered when initial fetch returns no readable content
+
+**Metadata extraction**
+- Pull `og:title`, `og:author`, `article:author` meta tags to auto-populate modal fields
+
+**Afrikaans news source presets**
+- Quick-import shortcuts for known Afrikaans sources: Netwerk24, Die Burger, Volksblad
+- Preset list in the URL modal
+
+---
+
+### Whisper Podcast Transcription
+
+Much Afrikaans content is audio-first (podcasts, sermons, radio). Goal: import audio for reading/vocab practice.
+
+**Phase 1: Manual audio upload**
+- Add "Transcribe Audio" option in `ImportDropdown`
+- Accepts `.mp3`, `.m4a`, `.wav`, `.ogg`
+- `POST /api/transcribe` sends to OpenAI Whisper API with `language: "af"`
+- Returns transcript as markdown text → creates a book entry
+
+**Phase 2: Podcast URL**
+- Accept a podcast episode URL or RSS feed URL
+- Fetch audio server-side → pipe through Whisper
+- Auto-populate title from podcast RSS metadata
+
+**Phase 3: Background processing**
+- Transcription takes 30–120s for a full episode
+- Show "processing" state on library card with polling
+- Browser notification or in-app alert when done
+
+**API shape:**
+```
+POST /api/transcribe
+  body: FormData { audio: File, hint?: string }
+  → { transcript: string, duration: number, language: string }
+```
+
+**Notes:**
+- `language: "af"` improves Whisper accuracy significantly
+- `prompt` param can seed common Afrikaans words to reduce errors
+- Cost: ~$0.006/min — a 30min episode ≈ $0.18
+- Cache transcripts by audio hash to avoid re-processing
+
+**Dependencies:**
+```bash
+npm install openai        # Whisper API client
+npm install formidable    # multipart form handling
+```
+
+---
+
+### Other Backlog
+
+- **YouTube**: Pull Afrikaans auto-subs via `yt-dlp`, import as text
+- **Clipboard shortcut**: Send selected text directly to reader via browser extension or bookmarklet
+- **Anki export**: Export vocab list as `.apkg` deck file
+- **Sphere Guardian push**: HTTP endpoint on sphere-guardian server so the app can notify it when a session completes (instead of sphere-guardian polling)
