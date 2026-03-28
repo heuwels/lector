@@ -421,15 +421,13 @@ export async function getNewSentencesByCollection(
 }
 
 export async function getCollectionCounts(): Promise<Record<ClozeCollection, { total: number; due: number; mastered: number }>> {
-  // This would need a dedicated stats endpoint
-  // For now, return empty counts
-  return {
-    top500: { total: 0, due: 0, mastered: 0 },
-    top1000: { total: 0, due: 0, mastered: 0 },
-    top2000: { total: 0, due: 0, mastered: 0 },
-    mined: { total: 0, due: 0, mastered: 0 },
-    random: { total: 0, due: 0, mastered: 0 },
-  };
+  const res = await fetch('/api/cloze/counts');
+  return res.json();
+}
+
+export async function getStreak(): Promise<{ streak: number; practicedToday: boolean }> {
+  const res = await fetch('/api/stats/streak');
+  return res.json();
 }
 
 // Migration function - no-op for server storage

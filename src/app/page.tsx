@@ -170,7 +170,8 @@ export default function Home() {
       }
       // PDF metadata extraction could be added later if needed
 
-      await saveBook(newBook);
+      const serverId = await saveBook(newBook);
+      newBook.id = serverId;
       setBooks((prev) => [newBook, ...prev]);
     } catch (error) {
       console.error('Error importing file:', error);
@@ -202,7 +203,8 @@ export default function Home() {
       lastReadAt: new Date(),
     };
 
-    await saveBook(newBook);
+    const serverId = await saveBook(newBook);
+    newBook.id = serverId;
     setBooks((prev) => [newBook, ...prev]);
   }
 
@@ -212,7 +214,7 @@ export default function Home() {
       title: article.title,
       author: article.author,
       coverUrl: undefined,
-      fileData: new ArrayBuffer(0), // No file data for web imports
+      fileData: new ArrayBuffer(0),
       fileType: 'markdown',
       textContent: article.content,
       progress: {
@@ -224,7 +226,8 @@ export default function Home() {
       lastReadAt: new Date(),
     };
 
-    await saveBook(newBook);
+    const serverId = await saveBook(newBook);
+    newBook.id = serverId;
     setBooks((prev) => [newBook, ...prev]);
   }
 

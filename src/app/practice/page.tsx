@@ -19,6 +19,7 @@ import {
   updateWordState,
 } from '@/lib/data-layer';
 import { speak, isTTSAvailable } from '@/lib/tts';
+import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
 import { addClozeCard, isAnkiConnected } from '@/lib/anki';
 
 const ANKI_CLOZE_DECK_SETTING_KEY = 'afrikaans-reader-anki-cloze-deck';
@@ -50,16 +51,10 @@ function getFuzzyStatus(userInput: string, correctWord: string): FuzzyStatus {
   const input = normalize(userInput);
   const correct = normalize(correctWord);
 
-  // Exact match
   if (input === correct) return 'match';
-
-  // Check if input is a prefix of the correct word (on track, but not too long)
   if (input.length <= correct.length && correct.startsWith(input)) return 'partial';
-
-  // Input is longer than correct word — wrong
   if (input.length > correct.length) return 'wrong';
 
-  // Check if they share a common prefix of at least 2 chars (typo tolerance)
   const commonPrefixLength = [...input].findIndex((char, i) => correct[i] !== char);
   if (commonPrefixLength >= 2 && commonPrefixLength >= input.length * 0.6) return 'partial';
 
@@ -70,11 +65,11 @@ function getFuzzyStatus(userInput: string, correctWord: string): FuzzyStatus {
 function calculateNextReview(mastery: ClozeMasteryLevel): Date {
   const now = new Date();
   const intervals: Record<ClozeMasteryLevel, number> = {
-    0: 0,     // Review immediately (same session)
-    25: 1,    // 1 day
-    50: 3,    // 3 days
-    75: 7,    // 1 week
-    100: 14,  // 2 weeks
+    0: 0,
+    25: 1,
+    50: 3,
+    75: 7,
+    100: 14,
   };
   const days = intervals[mastery];
   return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
@@ -92,7 +87,55 @@ function calculatePoints(mastery: ClozeMasteryLevel): number {
   return pointsMap[mastery];
 }
 
+// Generate distractors from the queue/pool of cloze words
+function generateDistractors(
+  correctWord: string,
+  pool: ClozeSentence[],
+): string[] {
+  const correctNorm = normalize(correctWord);
+  const correctLen = correctNorm.length;
+
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+  seen.add(correctNorm);
+
+  for (const s of pool) {
+    const norm = normalize(s.clozeWord);
+    if (!seen.has(norm) && norm.length > 0) {
+      seen.add(norm);
+      candidates.push(s.clozeWord);
+    }
+  }
+
+  // Sort by length similarity to the correct word
+  candidates.sort((a, b) => {
+    const diffA = Math.abs(normalize(a).length - correctLen);
+    const diffB = Math.abs(normalize(b).length - correctLen);
+    return diffA - diffB;
+  });
+
+  // Pick top candidates then shuffle
+  const topCandidates = candidates.slice(0, Math.min(12, candidates.length));
+  for (let i = topCandidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [topCandidates[i], topCandidates[j]] = [topCandidates[j], topCandidates[i]];
+  }
+
+  return topCandidates.slice(0, 3);
+}
+
+// Shuffle array (Fisher-Yates)
+function shuffle<T>(arr: T[]): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 type PracticeState = 'setup' | 'loading' | 'practicing' | 'feedback' | 'complete';
+type PracticeMode = 'type' | 'mc';
 
 const ROUND_SIZES = [10, 20, 30, 40, 50] as const;
 type RoundSize = typeof ROUND_SIZES[number];
@@ -123,6 +166,15 @@ export default function PracticePage() {
   const [ttsSupported, setTtsSupported] = useState(false);
   const [ankiConnected, setAnkiConnected] = useState(false);
   const [seeded, setSeeded] = useState(false);
+
+  // Practice mode
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>('type');
+
+  // Multiple choice state
+  const [mcOptions, setMcOptions] = useState<string[]>([]);
+  const [mcSelected, setMcSelected] = useState<number | null>(null);
+  const [mcCorrectIdx, setMcCorrectIdx] = useState<number>(0);
+  const [mcLocked, setMcLocked] = useState(false);
 
   // Collection state
   const [selectedCollection, setSelectedCollection] = useState<ClozeCollection>('top500');
@@ -159,6 +211,12 @@ export default function PracticePage() {
       const stats = await getTodayStats();
       setPoints(stats.points);
 
+      // Load saved practice mode
+      const savedMode = localStorage.getItem('cloze-practice-mode');
+      if (savedMode === 'mc' || savedMode === 'type') {
+        setPracticeMode(savedMode);
+      }
+
       await migrateClozeSentences();
       await seedSentenceBank();
       setSeeded(true);
@@ -167,6 +225,30 @@ export default function PracticePage() {
       setCollectionCounts(counts);
     };
     init();
+  }, []);
+
+  // Save practice mode to localStorage when it changes
+  const handleSetPracticeMode = useCallback((mode: PracticeMode) => {
+    setPracticeMode(mode);
+    localStorage.setItem('cloze-practice-mode', mode);
+  }, []);
+
+  // Generate MC options when current sentence or queue changes
+  const generateMcOptionsForSentence = useCallback((sentence: ClozeSentence, sentenceQueue: ClozeSentence[]) => {
+    const distractors = generateDistractors(sentence.clozeWord, sentenceQueue);
+    // Pad with fallback words if not enough distractors
+    const fallbacks = ['die', 'het', 'van', 'wat', 'nie', 'kan', 'sal', 'met'];
+    while (distractors.length < 3) {
+      const fb = fallbacks.find(w => normalize(w) !== normalize(sentence.clozeWord) && !distractors.some(d => normalize(d) === normalize(w)));
+      if (fb) distractors.push(fb);
+      else break;
+    }
+    const options = shuffle([sentence.clozeWord, ...distractors.slice(0, 3)]);
+    const correctIdx = options.findIndex(o => normalize(o) === normalize(sentence.clozeWord));
+    setMcOptions(options);
+    setMcCorrectIdx(correctIdx);
+    setMcSelected(null);
+    setMcLocked(false);
   }, []);
 
   // Start a round
@@ -178,7 +260,6 @@ export default function PracticePage() {
     setRecentWords([]);
 
     try {
-      // Load due sentences first, then new ones to fill the round
       const dueSentences = await getClozeSentencesByCollection(selectedCollection, roundSize, []);
 
       let sentences = dueSentences;
@@ -187,7 +268,7 @@ export default function PracticePage() {
         sentences = [...sentences, ...newSentences];
       }
 
-      // Shuffle to avoid clusters of the same cloze word
+      // Shuffle to avoid clusters
       for (let i = sentences.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [sentences[i], sentences[j]] = [sentences[j], sentences[i]];
@@ -224,9 +305,16 @@ export default function PracticePage() {
     setShowingAnswer(false);
     setState('practicing');
 
-    // Focus input after state update
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, []);
+    // Generate MC options if in MC mode
+    if (practiceMode === 'mc') {
+      generateMcOptionsForSentence(nextSentence, sentenceQueue);
+    }
+
+    // Focus input after state update (only in type mode)
+    if (practiceMode === 'type') {
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [practiceMode, generateMcOptionsForSentence]);
 
   // Handle hint - reveal next letter
   const handleHint = useCallback(() => {
@@ -234,7 +322,6 @@ export default function PracticePage() {
     const correctWord = normalize(current.sentence.clozeWord);
     const nextHintCount = Math.min(hintLetters + 1, correctWord.length);
     setHintLetters(nextHintCount);
-    // Pre-fill the input with hint letters
     setUserAnswer(correctWord.slice(0, nextHintCount));
     inputRef.current?.focus();
   }, [current, hintLetters]);
@@ -243,7 +330,7 @@ export default function PracticePage() {
   const handleShowAnswer = useCallback(() => {
     if (!current) return;
     setShowingAnswer(true);
-    // Add to retry queue (will see it again later)
+    playIncorrectSound();
     setRetryQueue(prev => [...prev, current.sentence]);
   }, [current]);
 
@@ -278,7 +365,6 @@ export default function PracticePage() {
     if (remainingQueue.length > 0) {
       loadNextSentence(remainingQueue);
     } else if (retryQueue.length > 0) {
-      // Process retry queue
       const nextRetry = retryQueue[0];
       setRetryQueue(prev => prev.slice(1));
       loadNextSentence([nextRetry]);
@@ -287,12 +373,19 @@ export default function PracticePage() {
     }
   }, [queue, retryQueue, loadNextSentence]);
 
-  // Handle answer submission
-  const handleSubmit = async () => {
-    if (!current || !userAnswer.trim()) return;
+  // Core submission logic (shared between type and MC modes)
+  const processAnswer = async (submittedAnswer: string) => {
+    if (!current) return;
 
-    const isCorrect = checkAnswer(userAnswer.trim(), current.sentence.clozeWord);
+    const isCorrect = checkAnswer(submittedAnswer, current.sentence.clozeWord);
     const previousMastery = current.sentence.masteryLevel;
+
+    // Sound effects
+    if (isCorrect) {
+      playCorrectSound();
+    } else {
+      playIncorrectSound();
+    }
 
     let newMastery: ClozeMasteryLevel;
     if (isCorrect) {
@@ -321,11 +414,10 @@ export default function PracticePage() {
       setPoints((prev) => prev + earnedPoints);
     }
 
-    // Set feedback data
     setFeedbackData({
       isCorrect,
       correctWord: current.sentence.clozeWord,
-      userAnswer: userAnswer.trim(),
+      userAnswer: submittedAnswer,
       translation: current.sentence.translation,
       points: earnedPoints,
       newMastery,
@@ -334,15 +426,84 @@ export default function PracticePage() {
 
     setState('feedback');
 
-    // Auto-play audio on correct answer
     if (isCorrect) {
       speak(current.sentence.sentence);
     }
   };
 
+  // Handle answer submission (type mode)
+  const handleSubmit = async () => {
+    if (!current || !userAnswer.trim()) return;
+    await processAnswer(userAnswer.trim());
+  };
+
+  // Handle MC option selection
+  const handleMcSelect = useCallback((index: number) => {
+    if (mcLocked || !current) return;
+    setMcSelected(index);
+    setMcLocked(true);
+
+    const selectedWord = mcOptions[index];
+    const isCorrect = index === mcCorrectIdx;
+
+    // Sound effects immediately on selection
+    if (isCorrect) {
+      playCorrectSound();
+    } else {
+      playIncorrectSound();
+    }
+
+    // Delay then submit (without duplicate sound)
+    const delay = isCorrect ? 600 : 1200;
+    setTimeout(async () => {
+      if (!current) return;
+
+      const previousMastery = current.sentence.masteryLevel;
+      let newMastery: ClozeMasteryLevel;
+      if (isCorrect) {
+        newMastery = Math.min(previousMastery + 25, 100) as ClozeMasteryLevel;
+      } else {
+        newMastery = 0;
+      }
+
+      const earnedPoints = isCorrect ? calculatePoints(previousMastery) : 0;
+      const nextReview = calculateNextReview(newMastery);
+
+      await updateClozeAfterReview(current.sentence.id, isCorrect, newMastery, nextReview);
+      if (newMastery === 100) {
+        await updateWordState(current.sentence.clozeWord, 'known');
+      }
+      await incrementDailyStat('clozePracticed');
+      if (earnedPoints > 0) {
+        await incrementDailyStat('points', earnedPoints);
+      }
+
+      setRoundProgress((prev) => prev + 1);
+      if (isCorrect) setRoundCorrect((prev) => prev + 1);
+      if (earnedPoints > 0) {
+        setPoints((prev) => prev + earnedPoints);
+      }
+
+      setFeedbackData({
+        isCorrect,
+        correctWord: current.sentence.clozeWord,
+        userAnswer: selectedWord,
+        translation: current.sentence.translation,
+        points: earnedPoints,
+        newMastery,
+        previousMastery,
+      });
+
+      setState('feedback');
+
+      if (isCorrect) {
+        speak(current.sentence.sentence);
+      }
+    }, delay);
+  }, [mcLocked, current, mcOptions, mcCorrectIdx]);
+
   // Handle next sentence
   const handleNext = useCallback(async () => {
-    // Track recently used words for anti-clumping (keep last 10)
     if (current) {
       setRecentWords(prev => {
         const updated = [current.sentence.clozeWord.toLowerCase(), ...prev].slice(0, 10);
@@ -356,7 +517,6 @@ export default function PracticePage() {
     if (remainingQueue.length > 0) {
       loadNextSentence(remainingQueue);
     } else if (retryQueue.length > 0) {
-      // Process retry queue first
       const retryList = [...retryQueue];
       setRetryQueue([]);
       setQueue(retryList);
@@ -366,7 +526,7 @@ export default function PracticePage() {
     }
   }, [current, queue, retryQueue, loadNextSentence]);
 
-  // Handle Enter key in feedback state or showing-answer state
+  // Handle keyboard shortcuts
   useEffect(() => {
     if (state === 'feedback') {
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -382,26 +542,47 @@ export default function PracticePage() {
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [state, showingAnswer, handleNext, handleContinueAfterShow]);
+    if (state === 'practicing' && practiceMode === 'mc' && !mcLocked && !showingAnswer) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // Number keys 1-4 for MC selection
+        if (e.key >= '1' && e.key <= '4') {
+          const idx = parseInt(e.key) - 1;
+          if (idx < mcOptions.length) {
+            e.preventDefault();
+            handleMcSelect(idx);
+          }
+        }
+        // Space to trigger TTS in MC mode
+        if (e.key === ' ') {
+          e.preventDefault();
+          if (current) speak(current.sentence.sentence);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+    // Space to trigger TTS in type mode when input is not focused
+    if (state === 'practicing' && practiceMode === 'type' && !showingAnswer) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === ' ' && document.activeElement !== inputRef.current) {
+          e.preventDefault();
+          if (current) speak(current.sentence.sentence);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [state, showingAnswer, handleNext, handleContinueAfterShow, practiceMode, mcLocked, mcOptions, handleMcSelect, current]);
 
   // Handle add to Anki
   const handleAddToAnki = async () => {
-    console.log('[Anki] handleAddToAnki called', {
-      hasCurrent: !!current,
-      hasFeedback: !!feedbackData,
-      isCorrect: feedbackData?.isCorrect,
-      isAddingToAnki,
-      ankiAdded
-    });
     if (!current || !feedbackData || !feedbackData.isCorrect || isAddingToAnki || ankiAdded) {
-      console.log('[Anki] Returning early from handleAddToAnki');
       return;
     }
 
     setIsAddingToAnki(true);
     setAnkiError(null);
     try {
-      // Get cloze deck name from settings or use default
       const deckName = localStorage.getItem(ANKI_CLOZE_DECK_SETTING_KEY) || DEFAULT_ANKI_CLOZE_DECK;
 
       await addClozeCard(
@@ -409,7 +590,7 @@ export default function PracticePage() {
         current.sentence.sentence,
         current.sentence.clozeWord,
         current.sentence.translation,
-        current.sentence.clozeWord // Word meaning could be enhanced with translation
+        current.sentence.clozeWord
       );
       setAnkiAdded(true);
     } catch (error) {
@@ -434,7 +615,7 @@ export default function PracticePage() {
       <NavHeader />
 
       <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Setup screen — choose round size and collection */}
+        {/* Setup screen */}
         {state === 'setup' && (
           <div className="py-8">
             <h1 className="mb-8 text-2xl font-bold text-zinc-900 dark:text-zinc-50 text-center">Cloze Practice</h1>
@@ -484,6 +665,33 @@ export default function PracticePage() {
                     {size}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Mode toggle */}
+            <div className="mb-8">
+              <label className="mb-3 block text-sm font-medium text-zinc-600 dark:text-zinc-400">Mode</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleSetPracticeMode('type')}
+                  className={`flex-1 rounded-xl py-3 text-base font-semibold transition-all ${
+                    practiceMode === 'type'
+                      ? 'bg-blue-500 text-white shadow-md scale-105'
+                      : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  Type
+                </button>
+                <button
+                  onClick={() => handleSetPracticeMode('mc')}
+                  className={`flex-1 rounded-xl py-3 text-base font-semibold transition-all ${
+                    practiceMode === 'mc'
+                      ? 'bg-blue-500 text-white shadow-md scale-105'
+                      : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  Multiple Choice
+                </button>
               </div>
             </div>
 
@@ -556,11 +764,11 @@ export default function PracticePage() {
 
             return (
               <div>
-                {/* Sentence with inline input */}
+                {/* Sentence with inline input or blank */}
                 <div className="mb-6">
                   <div className="mb-4 flex items-center justify-between">
                     <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                      Fill in the blank
+                      {practiceMode === 'mc' ? 'Choose the correct word' : 'Fill in the blank'}
                     </span>
                     <button
                       type="button"
@@ -578,38 +786,46 @@ export default function PracticePage() {
                       <span key={i}>
                         {i > 0 && ' '}
                         {i === current.sentence.clozeIndex ? (
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            value={userAnswer}
-                            onChange={(e) => setUserAnswer(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                if (fuzzyStatus === 'match') {
-                                  handleSubmit();
-                                } else {
-                                  // Show answer and retry later
-                                  handleShowAnswer();
+                          practiceMode === 'type' ? (
+                            <input
+                              ref={inputRef}
+                              type="text"
+                              value={userAnswer}
+                              onChange={(e) => setUserAnswer(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (fuzzyStatus === 'match') {
+                                    handleSubmit();
+                                  } else {
+                                    handleShowAnswer();
+                                  }
                                 }
-                              }
-                            }}
-                            autoComplete="off"
-                            autoCapitalize="off"
-                            autoCorrect="off"
-                            spellCheck={false}
-                            placeholder="..."
-                            disabled={showingAnswer}
-                            className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium outline-none transition-all
-                              focus:ring-2 focus:ring-offset-1
-                              ${inputColorClass}
-                              ${fuzzyStatus === 'match' ? 'text-green-700 dark:text-green-300 focus:ring-green-400' : ''}
-                              ${fuzzyStatus === 'partial' ? 'text-green-600 dark:text-green-400 focus:ring-green-400' : ''}
-                              ${fuzzyStatus === 'wrong' ? 'text-red-600 dark:text-red-400 focus:ring-red-400' : ''}
-                              ${fuzzyStatus === 'empty' ? 'text-zinc-900 dark:text-zinc-100 focus:ring-blue-400' : ''}
-                            `}
-                            style={{ minWidth: `${Math.max(word.length * 0.7, 4)}ch` }}
-                          />
+                              }}
+                              autoComplete="off"
+                              autoCapitalize="off"
+                              autoCorrect="off"
+                              spellCheck={false}
+                              placeholder="..."
+                              disabled={showingAnswer}
+                              className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium outline-none transition-all
+                                focus:ring-2 focus:ring-offset-1
+                                ${inputColorClass}
+                                ${fuzzyStatus === 'match' ? 'text-green-700 dark:text-green-300 focus:ring-green-400' : ''}
+                                ${fuzzyStatus === 'partial' ? 'text-green-600 dark:text-green-400 focus:ring-green-400' : ''}
+                                ${fuzzyStatus === 'wrong' ? 'text-red-600 dark:text-red-400 focus:ring-red-400' : ''}
+                                ${fuzzyStatus === 'empty' ? 'text-zinc-900 dark:text-zinc-100 focus:ring-blue-400' : ''}
+                              `}
+                              style={{ minWidth: `${Math.max(word.length * 0.7, 4)}ch` }}
+                            />
+                          ) : (
+                            <span
+                              className="inline-block rounded-lg border-2 border-blue-400 bg-blue-50 px-3 py-1 text-center text-xl font-bold text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"
+                              style={{ minWidth: `${Math.max(word.length * 0.7, 4)}ch` }}
+                            >
+                              _____
+                            </span>
+                          )
                         ) : (
                           word
                         )}
@@ -622,8 +838,8 @@ export default function PracticePage() {
                   </p>
                 </div>
 
-                {/* Showing answer overlay */}
-                {showingAnswer && (
+                {/* Showing answer overlay (type mode only) */}
+                {showingAnswer && practiceMode === 'type' && (
                   <div className="mb-4 rounded-xl bg-amber-50 border-2 border-amber-200 p-4 dark:bg-amber-950/30 dark:border-amber-800">
                     <p className="text-center text-lg font-medium text-amber-800 dark:text-amber-200">
                       The answer was: <span className="font-bold">{current.sentence.clozeWord}</span>
@@ -643,10 +859,43 @@ export default function PracticePage() {
                   </div>
                 )}
 
-                {/* Buttons */}
-                {!showingAnswer && (
+                {/* Multiple choice options */}
+                {practiceMode === 'mc' && (
+                  <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {mcOptions.map((option, idx) => {
+                      let btnClass = 'border-zinc-200 bg-zinc-50 text-zinc-900 hover:bg-zinc-100 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700';
+
+                      if (mcSelected !== null) {
+                        if (idx === mcCorrectIdx) {
+                          btnClass = 'border-green-500 bg-green-50 text-green-800 dark:border-green-400 dark:bg-green-950/50 dark:text-green-200';
+                        } else if (idx === mcSelected) {
+                          btnClass = 'border-red-500 bg-red-50 text-red-800 dark:border-red-400 dark:bg-red-950/50 dark:text-red-200';
+                        } else {
+                          btnClass = 'border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500';
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleMcSelect(idx)}
+                          disabled={mcLocked}
+                          className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left text-lg font-medium transition-all active:scale-[0.98] ${btnClass}`}
+                        >
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-sm font-bold text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                            {idx + 1}
+                          </span>
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Type mode buttons */}
+                {practiceMode === 'type' && !showingAnswer && (
                   <div className="flex justify-center gap-3">
-                    {/* Hint button */}
                     <button
                       type="button"
                       onClick={handleHint}
@@ -655,8 +904,6 @@ export default function PracticePage() {
                     >
                       Hint ({hintLetters > 0 ? `${hintLetters} letter${hintLetters > 1 ? 's' : ''}` : '?'})
                     </button>
-
-                    {/* Check/Submit button */}
                     <button
                       type="button"
                       onClick={fuzzyStatus === 'match' ? handleSubmit : handleShowAnswer}
@@ -667,6 +914,22 @@ export default function PracticePage() {
                         }`}
                     >
                       {fuzzyStatus === 'match' ? 'Submit' : 'Check'}
+                    </button>
+                  </div>
+                )}
+
+                {/* TTS hint (MC mode) */}
+                {practiceMode === 'mc' && !mcLocked && ttsSupported && (
+                  <div className="flex justify-center mb-2">
+                    <button
+                      type="button"
+                      onClick={handleSpeak}
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      </svg>
+                      Listen (Space)
                     </button>
                   </div>
                 )}
@@ -689,7 +952,6 @@ export default function PracticePage() {
           {/* Feedback state */}
           {state === 'feedback' && current && feedbackData && (
             <div>
-              {/* Show the full sentence with highlighted word */}
               <div className="mb-4">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
@@ -726,13 +988,11 @@ export default function PracticePage() {
                     </span>
                   ))}
                 </p>
-                {/* English translation */}
                 <p className="mt-2 text-base text-zinc-500 dark:text-zinc-400 italic">
                   {current.sentence.translation}
                 </p>
               </div>
 
-              {/* Feedback component */}
               <ClozeFeedback
                 isCorrect={feedbackData.isCorrect}
                 correctWord={feedbackData.correctWord}

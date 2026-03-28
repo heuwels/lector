@@ -1,4 +1,8 @@
-// AnkiConnect API client — proxied through /api/anki (server-side)
+// AnkiConnect API client — direct browser-to-local connection
+// AnkiConnect must be running on localhost:8765
+// In Anki: Tools > Add-ons > AnkiConnect > Config, ensure webCorsOriginList includes "*" or your app origin
+
+const ANKI_CONNECT_URL = 'http://localhost:8765';
 
 interface AnkiConnectResponse<T = unknown> {
   result: T;
@@ -14,20 +18,20 @@ interface CardInfo {
 }
 
 /**
- * Make a request via the server-side AnkiConnect proxy
+ * Make a request directly to AnkiConnect on localhost
  */
 async function ankiRequest<T>(
   action: string,
   params?: Record<string, unknown>
 ): Promise<T> {
-  const response = await fetch('/api/anki', {
+  const response = await fetch(ANKI_CONNECT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, params }),
+    body: JSON.stringify({ action, version: 6, params }),
   });
 
   if (!response.ok) {
-    throw new Error(`AnkiConnect proxy error: ${response.status}`);
+    throw new Error(`AnkiConnect error: ${response.status}`);
   }
 
   const data = (await response.json()) as AnkiConnectResponse<T>;
@@ -44,9 +48,13 @@ async function ankiRequest<T>(
  */
 export async function isAnkiConnected(): Promise<boolean> {
   try {
-    const res = await fetch('/api/anki');
-    const data = await res.json();
-    return data.connected === true;
+    const response = await fetch(ANKI_CONNECT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'version', version: 6 }),
+    });
+    const data = await response.json();
+    return data.result != null && data.error == null;
   } catch {
     return false;
   }
@@ -56,9 +64,7 @@ export async function isAnkiConnected(): Promise<boolean> {
  * Get all deck names from Anki
  */
 export async function getDeckNames(): Promise<string[]> {
-  const res = await fetch('/api/anki');
-  const data = await res.json();
-  return data.decks ?? [];
+  return ankiRequest<string[]>('deckNames');
 }
 
 /**
