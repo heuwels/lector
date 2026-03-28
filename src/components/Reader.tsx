@@ -326,14 +326,14 @@ export default function Reader({ book, onWordClick, onClose, refreshTrigger = 0 
         // Clean, readable typography
         rendition.themes.default({
           body: `
-            font-family: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif !important;
-            font-size: ${isMobile ? '20px' : '24px'} !important;
-            line-height: ${isMobile ? '1.9' : '2'} !important;
+            font-family: 'Literata', Georgia, serif !important;
+            font-size: ${isMobile ? '22px' : '24px'} !important;
+            line-height: 1.9 !important;
             padding: ${isMobile ? '24px 20px' : '48px 32px'} !important;
-            max-width: 32em !important;
+            max-width: 28em !important;
             margin: 0 auto !important;
             color: ${isDarkMode ? '#e4e4e7' : '#3f3f46'} !important;
-            background-color: ${isDarkMode ? '#18181b' : '#fefefe'} !important;
+            background-color: ${isDarkMode ? '#18181b' : '#faf8f5'} !important;
             text-rendering: optimizeLegibility !important;
             -webkit-font-smoothing: antialiased !important;
             letter-spacing: 0.01em !important;

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   const now = new Date().toISOString();
 
-  let query = 'SELECT * FROM clozeSentences WHERE nextReview <= ?';
+  let query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND (blacklisted = 0 OR blacklisted IS NULL)';
   const params: unknown[] = [now];
 
   if (collection) {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     params.push(...excludeWords.map(w => w.toLowerCase()));
   }
 
-  query += ' ORDER BY nextReview ASC, wordRank DESC LIMIT ?';
+  query += ' ORDER BY RANDOM() LIMIT ?';
   params.push(limit);
 
   const sentences = db.prepare(query).all(...params) as ClozeSentenceRow[];

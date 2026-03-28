@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "fetch-sentences": "npx tsx scripts/fetch-sentences.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

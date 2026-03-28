@@ -370,6 +370,24 @@ export async function bulkSaveClozeSentences(sentences: ClozeSentence[]): Promis
   });
 }
 
+// Seed the cloze database from the static sentence bank (no-op if already seeded)
+export async function seedSentenceBank(): Promise<{ seeded: number; total: number }> {
+  const check = await fetch('/api/cloze/seed');
+  const { needsSeed } = await check.json();
+  if (!needsSeed) return { seeded: 0, total: 0 };
+
+  const res = await fetch('/api/cloze/seed', { method: 'POST' });
+  return res.json();
+}
+
+export async function blacklistClozeSentence(id: string): Promise<void> {
+  await fetch(`/api/cloze/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ blacklisted: 1 }),
+  });
+}
+
 export async function getClozeSentencesByCollection(
   collection: ClozeCollection,
   limit: number = 20,

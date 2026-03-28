@@ -152,7 +152,7 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
   }, [onWordClick]);
 
   return (
-    <div className="flex flex-col h-full bg-[#fefefe] dark:bg-zinc-900">
+    <div className="flex flex-col h-full bg-[#faf8f5] dark:bg-zinc-900">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-700">
         <button
@@ -184,10 +184,11 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
         onMouseUp={handleMouseUp}
         className="flex-1 overflow-auto"
       >
-        <article className="max-w-[32em] mx-auto px-8 py-12 prose prose-zinc dark:prose-invert
-          prose-p:text-2xl prose-p:leading-relaxed prose-p:text-zinc-700 dark:prose-p:text-zinc-300
+        <article className="max-w-[28em] mx-auto px-8 py-16 prose prose-zinc dark:prose-invert
+          prose-p:text-2xl prose-p:leading-[1.9] prose-p:text-zinc-700 dark:prose-p:text-zinc-300
           prose-headings:font-sans prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100
-          prose-li:text-xl prose-li:leading-relaxed">
+          prose-li:text-xl prose-li:leading-relaxed"
+          style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}>
           <ReactMarkdown
             components={{
               p: ({ children }) => <p>{typeof children === 'string' ? renderText(children) : children}</p>,

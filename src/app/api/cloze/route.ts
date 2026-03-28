@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const word = searchParams.get('word');
   const limit = parseInt(searchParams.get('limit') || '100');
 
-  let query = 'SELECT * FROM clozeSentences WHERE 1=1';
+  let query = 'SELECT * FROM clozeSentences WHERE (blacklisted = 0 OR blacklisted IS NULL)';
   const params: unknown[] = [];
 
   if (collection) {

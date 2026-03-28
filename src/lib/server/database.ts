@@ -78,6 +78,7 @@ function getDb(): DatabaseType {
       lastReviewed TEXT,
       timesCorrect INTEGER DEFAULT 0,
       timesIncorrect INTEGER DEFAULT 0,
+      blacklisted INTEGER DEFAULT 0,
       FOREIGN KEY (vocabEntryId) REFERENCES vocab(id) ON DELETE SET NULL
     );
     CREATE INDEX IF NOT EXISTS idx_cloze_collection ON clozeSentences(collection);
@@ -107,6 +108,11 @@ function getDb(): DatabaseType {
   const cols = _db.prepare("PRAGMA table_info(dailyStats)").all() as { name: string }[];
   if (!cols.some(c => c.name === 'sessionStartedAt')) {
     _db.exec('ALTER TABLE dailyStats ADD COLUMN sessionStartedAt TEXT');
+  }
+
+  const clozeCols = _db.prepare("PRAGMA table_info(clozeSentences)").all() as { name: string }[];
+  if (!clozeCols.some(c => c.name === 'blacklisted')) {
+    _db.exec('ALTER TABLE clozeSentences ADD COLUMN blacklisted INTEGER DEFAULT 0');
   }
 
   return _db;
@@ -185,6 +191,7 @@ export interface ClozeSentenceRow {
   lastReviewed: string | null;
   timesCorrect: number;
   timesIncorrect: number;
+  blacklisted: number;
 }
 
 export interface DailyStatsRow {
