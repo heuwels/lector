@@ -1,6 +1,6 @@
 services:
   afrikaans-reader:
-    image: registry.home.lukeboyle.com/afrikaans-reader:latest
+    image: ghcr.io/3stacks/afrikaans-reader:latest
     container_name: afrikaans-reader
     restart: unless-stopped
     ports:

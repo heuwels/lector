@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-REGISTRY="registry.home.lukeboyle.com"
+REGISTRY="ghcr.io/3stacks"
 IMAGE_NAME="afrikaans-reader"
 VERSION="${1:-$(git describe --tags --always --dirty)}"
 

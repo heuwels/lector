@@ -83,8 +83,18 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
   };
 
   const findSentence = (element: HTMLElement): string => {
-    let block = element.closest('p, li, blockquote, h1, h2, h3, h4, h5, h6');
-    return block?.textContent || '';
+    const block = element.closest('p, li, blockquote, h1, h2, h3, h4, h5, h6');
+    const text = block?.textContent || '';
+    const wordText = element.textContent || '';
+
+    // Split paragraph into sentences and find the one containing this word
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    for (const sentence of sentences) {
+      if (sentence.includes(wordText)) {
+        return sentence.trim();
+      }
+    }
+    return text.trim();
   };
 
   // Wrap words in clickable spans
