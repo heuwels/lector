@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import NavHeader from "@/components/NavHeader";
 import { getDeckNames, isAnkiConnected } from "@/lib/anki";
 import { getTTSMode, setTTSMode, isGoogleTTSConfigured, speak, type TTSMode } from "@/lib/tts";
 import {
@@ -530,9 +531,10 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 sm:ml-56">
+      <NavHeader />
+      {/* Header — mobile only, desktop uses sidebar */}
+      <header className="sm:hidden sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/80">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link
             href="/"

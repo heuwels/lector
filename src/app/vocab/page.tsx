@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import NavHeader from "@/components/NavHeader";
 import VocabList from "@/components/VocabList";
 import {
   type VocabEntry,
@@ -554,9 +555,10 @@ export default function VocabPage() {
   }, [entries, ankiConnected, ankiDeck]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      {/* Header */}
-      <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 sm:ml-56">
+      <NavHeader />
+      {/* Header — mobile only, desktop uses sidebar */}
+      <header className="sm:hidden border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">

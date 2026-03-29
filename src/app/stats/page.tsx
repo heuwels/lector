@@ -7,9 +7,10 @@ import {
   getAllBooks,
   getStatsForDateRange,
   getAllClozeSentences,
+  getCollectionCounts,
   type DailyStats,
   type WordState,
-  type Book,
+  type ClozeCollection,
 } from '@/lib/data-layer';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
 import VocabGrowthChart from '@/components/VocabGrowthChart';
@@ -30,6 +31,7 @@ interface StatsData {
   dailyStats: DailyStats[];
   vocabGrowth: Array<{ date: string; known: number; learning: number; total: number }>;
   activityData: Array<{ date: string; count: number }>;
+  collectionCounts: Record<ClozeCollection, { total: number; due: number; mastered: number }>;
 }
 
 // Stat card component
@@ -46,35 +48,24 @@ function StatCard({
   icon?: React.ReactNode;
   color?: 'blue' | 'green' | 'yellow' | 'purple' | 'orange' | 'pink';
 }) {
-  const colorClasses = {
-    blue: 'from-blue-500/20 to-blue-600/10 border-blue-500/30',
-    green: 'from-green-500/20 to-green-600/10 border-green-500/30',
-    yellow: 'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30',
-    purple: 'from-purple-500/20 to-purple-600/10 border-purple-500/30',
-    orange: 'from-orange-500/20 to-orange-600/10 border-orange-500/30',
-    pink: 'from-pink-500/20 to-pink-600/10 border-pink-500/30',
-  };
-
   const textColors = {
-    blue: 'text-blue-400',
-    green: 'text-green-400',
-    yellow: 'text-yellow-400',
-    purple: 'text-purple-400',
-    orange: 'text-orange-400',
-    pink: 'text-pink-400',
+    blue: 'text-blue-600 dark:text-blue-400',
+    green: 'text-green-600 dark:text-green-400',
+    yellow: 'text-yellow-600 dark:text-yellow-400',
+    purple: 'text-purple-600 dark:text-purple-400',
+    orange: 'text-orange-600 dark:text-orange-400',
+    pink: 'text-pink-600 dark:text-pink-400',
   };
 
   return (
-    <div
-      className={`bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-6 transition-transform hover:scale-[1.02]`}
-    >
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 transition-transform hover:scale-[1.02]">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-slate-400 text-sm font-medium">{label}</p>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">{label}</p>
           <p className={`text-4xl font-bold mt-1 ${textColors[color]}`}>
             {typeof value === 'number' ? value.toLocaleString() : value}
           </p>
-          {sublabel && <p className="text-slate-500 text-sm mt-1">{sublabel}</p>}
+          {sublabel && <p className="text-zinc-400 dark:text-zinc-500 text-sm mt-1">{sublabel}</p>}
         </div>
         {icon && <div className={`${textColors[color]} opacity-60`}>{icon}</div>}
       </div>
@@ -85,20 +76,20 @@ function StatCard({
 // Word state breakdown component
 function WordStateBreakdown({ byState }: { byState: Record<WordState, number> }) {
   const states: { key: WordState; label: string; color: string; bgColor: string }[] = [
-    { key: 'known', label: 'Known', color: 'text-green-400', bgColor: 'bg-green-500' },
-    { key: 'level4', label: 'Level 4', color: 'text-green-300', bgColor: 'bg-green-400' },
-    { key: 'level3', label: 'Level 3', color: 'text-yellow-300', bgColor: 'bg-yellow-400' },
-    { key: 'level2', label: 'Level 2', color: 'text-yellow-400', bgColor: 'bg-yellow-500' },
-    { key: 'level1', label: 'Level 1', color: 'text-orange-400', bgColor: 'bg-orange-500' },
-    { key: 'new', label: 'New', color: 'text-blue-400', bgColor: 'bg-blue-500' },
-    { key: 'ignored', label: 'Ignored', color: 'text-slate-400', bgColor: 'bg-slate-500' },
+    { key: 'known', label: 'Known', color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-500' },
+    { key: 'level4', label: 'Level 4', color: 'text-green-500 dark:text-green-300', bgColor: 'bg-green-400' },
+    { key: 'level3', label: 'Level 3', color: 'text-yellow-500 dark:text-yellow-300', bgColor: 'bg-yellow-400' },
+    { key: 'level2', label: 'Level 2', color: 'text-yellow-600 dark:text-yellow-400', bgColor: 'bg-yellow-500' },
+    { key: 'level1', label: 'Level 1', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-500' },
+    { key: 'new', label: 'New', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-500' },
+    { key: 'ignored', label: 'Ignored', color: 'text-zinc-500 dark:text-zinc-400', bgColor: 'bg-zinc-400 dark:bg-zinc-500' },
   ];
 
   const total = Object.values(byState).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="bg-slate-900 rounded-xl p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">Words by State</h3>
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6">
+      <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Words by State</h3>
       <div className="space-y-3">
         {states.map(({ key, label, color, bgColor }) => {
           const count = byState[key] || 0;
@@ -107,11 +98,11 @@ function WordStateBreakdown({ byState }: { byState: Record<WordState, number> })
             <div key={key}>
               <div className="flex justify-between text-sm mb-1">
                 <span className={color}>{label}</span>
-                <span className="text-slate-400">
+                <span className="text-zinc-500 dark:text-zinc-400">
                   {count.toLocaleString()} ({percentage.toFixed(1)}%)
                 </span>
               </div>
-              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                 <div
                   className={`h-full ${bgColor} rounded-full transition-all duration-500`}
                   style={{ width: `${percentage}%` }}
@@ -138,21 +129,100 @@ function ClozeStats({
   const accuracy = attempts > 0 ? (correct / attempts) * 100 : 0;
 
   return (
-    <div className="bg-slate-900 rounded-xl p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">Cloze Practice</h3>
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6">
+      <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Cloze Practice</h3>
       <div className="grid grid-cols-2 gap-4">
-        <div className="text-center p-4 bg-slate-800/50 rounded-lg">
-          <div className="text-3xl font-bold text-purple-400">{attempts.toLocaleString()}</div>
-          <div className="text-sm text-slate-400 mt-1">Sentences Practiced</div>
+        <div className="text-center p-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg">
+          <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">{attempts.toLocaleString()}</div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Sentences Practiced</div>
         </div>
-        <div className="text-center p-4 bg-slate-800/50 rounded-lg">
-          <div className="text-3xl font-bold text-green-400">{accuracy.toFixed(1)}%</div>
-          <div className="text-sm text-slate-400 mt-1">Accuracy</div>
+        <div className="text-center p-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg">
+          <div className="text-3xl font-bold text-green-600 dark:text-green-400">{accuracy.toFixed(1)}%</div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Accuracy</div>
         </div>
-        <div className="text-center p-4 bg-slate-800/50 rounded-lg col-span-2">
-          <div className="text-3xl font-bold text-yellow-400">{points.toLocaleString()}</div>
-          <div className="text-sm text-slate-400 mt-1">Total Points</div>
+        <div className="text-center p-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg col-span-2">
+          <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{points.toLocaleString()}</div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Total Points</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Sentence mastery component
+function SentenceMastery({
+  collectionCounts,
+}: {
+  collectionCounts: Record<ClozeCollection, { total: number; due: number; mastered: number }>;
+}) {
+  const collectionLabels: Record<string, string> = {
+    top500: 'Top 500',
+    top1000: 'Top 1000',
+    top2000: 'Top 2000',
+    mined: 'Mined',
+    random: 'Random',
+  };
+
+  const collections = Object.entries(collectionCounts).filter(
+    ([, counts]) => counts.total > 0
+  );
+
+  const overallTotal = collections.reduce((sum, [, c]) => sum + c.total, 0);
+  const overallMastered = collections.reduce((sum, [, c]) => sum + c.mastered, 0);
+  const overallPercentage = overallTotal > 0 ? (overallMastered / overallTotal) * 100 : 0;
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Sentence Mastery</h3>
+        <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+          {overallPercentage.toFixed(1)}% overall
+        </span>
+      </div>
+
+      {/* Overall progress bar */}
+      <div className="mb-6">
+        <div className="flex justify-between text-sm mb-1">
+          <span className="text-zinc-500 dark:text-zinc-400">
+            {overallMastered.toLocaleString()} / {overallTotal.toLocaleString()} mastered
+          </span>
+        </div>
+        <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+            style={{ width: `${overallPercentage}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Per-collection breakdown */}
+      <div className="space-y-4">
+        {collections.map(([collection, counts]) => {
+          const pct = counts.total > 0 ? (counts.mastered / counts.total) * 100 : 0;
+          return (
+            <div key={collection}>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-zinc-700 dark:text-zinc-300 font-medium">
+                  {collectionLabels[collection] || collection}
+                </span>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  {counts.mastered} / {counts.total} ({pct.toFixed(0)}%)
+                </span>
+              </div>
+              <div className="h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500/80 rounded-full transition-all duration-500"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              {counts.due > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                  {counts.due} due for review
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -251,11 +321,13 @@ export default function StatsPage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        // Get vocab stats
-        const vocabStats = await getVocabStats();
+        // Get vocab stats, books, and collection counts in parallel
+        const [vocabStats, books, collectionCounts] = await Promise.all([
+          getVocabStats(),
+          getAllBooks(),
+          getCollectionCounts(),
+        ]);
 
-        // Get all books
-        const books = await getAllBooks();
         const completedBooks = books.filter((b) => b.progress.percentComplete >= 100);
 
         // Get all daily stats for the past year
@@ -285,7 +357,6 @@ export default function StatsPage() {
         }));
 
         // Build vocab growth data (cumulative over time)
-        // We'll simulate growth data based on daily stats
         const sortedDailyStats = [...dailyStats].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         );
@@ -340,6 +411,7 @@ export default function StatsPage() {
           dailyStats,
           vocabGrowth,
           activityData,
+          collectionCounts,
         });
       } catch (error) {
         console.error('Failed to load stats:', error);
@@ -353,10 +425,10 @@ export default function StatsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Loading your stats...</p>
+          <p className="text-zinc-500 dark:text-zinc-400">Loading your stats...</p>
         </div>
       </div>
     );
@@ -364,10 +436,10 @@ export default function StatsPage() {
 
   if (!stats) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-400 mb-4">Failed to load statistics</p>
-          <Link href="/" className="text-blue-400 hover:underline">
+          <p className="text-red-500 dark:text-red-400 mb-4">Failed to load statistics</p>
+          <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">
             Return home
           </Link>
         </div>
@@ -376,40 +448,18 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="text-slate-400 hover:text-white transition-colors">
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
-              </svg>
-            </Link>
-            <h1 className="text-2xl font-bold">Your Statistics</h1>
-          </div>
-          <div className="text-sm text-slate-400">
-            {new Date().toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Date subtitle */}
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
+          {new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </p>
+
         {/* Top stat cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <StatCard
@@ -515,7 +565,7 @@ export default function StatsPage() {
         </div>
 
         {/* Detailed breakdowns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <WordStateBreakdown byState={stats.byState} />
           <ClozeStats
             attempts={stats.totalClozeAttempts}
@@ -523,6 +573,9 @@ export default function StatsPage() {
             points={stats.totalPoints}
           />
         </div>
+
+        {/* Sentence Mastery */}
+        <SentenceMastery collectionCounts={stats.collectionCounts} />
       </main>
     </div>
   );
