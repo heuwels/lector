@@ -138,7 +138,7 @@ export default function ActivityHeatmap({
   }, [data]);
 
   return (
-    <div className="bg-zinc-100 dark:bg-slate-900 rounded-xl p-6">
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Activity</h3>
         <div className="text-sm text-zinc-500 dark:text-slate-400">
