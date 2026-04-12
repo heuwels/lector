@@ -6,12 +6,12 @@ import NavHeader from "@/components/NavHeader";
 import VocabList from "@/components/VocabList";
 import {
   type VocabEntry,
-  type Book,
+  type Collection,
   type WordState,
   updateVocabState,
   getVocabStats,
   getAllVocab,
-  getAllBooks,
+  getAllCollections,
   deleteVocabEntry,
   markVocabPushedToAnki,
 } from "@/lib/data-layer";
@@ -299,7 +299,7 @@ function VocabStats({
 
 export default function VocabPage() {
   const [entries, setEntries] = useState<VocabEntry[]>([]);
-  const [books, setBooks] = useState<Book[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [stats, setStats] = useState<{
     total: number;
     byState: Record<WordState, number>;
@@ -327,13 +327,13 @@ export default function VocabPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [vocabData, booksData, statsData] = await Promise.all([
+      const [vocabData, collectionsData, statsData] = await Promise.all([
         getAllVocab(),
-        getAllBooks(),
+        getAllCollections(),
         getVocabStats(),
       ]);
       setEntries(vocabData);
-      setBooks(booksData);
+      setCollections(collectionsData);
       setStats(statsData);
     } catch (error) {
       console.error("Failed to load data:", error);
@@ -681,7 +681,7 @@ export default function VocabPage() {
         {/* Vocabulary List - exclude ignored words */}
         <VocabList
           entries={entries.filter(e => e.state !== 'ignored')}
-          books={books}
+          collections={collections}
           onEntryClick={handleEntryClick}
           onExportToAnki={handleExportToAnki}
           onMarkAsKnown={handleMarkAsKnown}

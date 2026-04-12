@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useCallback, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Reader from '@/components/Reader';
 import MarkdownReader from '@/components/MarkdownReader';
 import {
-  type Book,
+  type Lesson,
+  type LessonSummary,
   type VocabEntry,
-  getBook,
+  getLesson,
+  getLessonsForCollection,
   saveVocab,
   getVocabByText,
   updateVocabState,
@@ -34,10 +35,11 @@ export default function ReadPage({
 }: {
   params: Promise<{ bookId: string }>;
 }) {
-  const { bookId } = use(params);
+  const { bookId: lessonId } = use(params);
   const router = useRouter();
 
-  const [book, setBook] = useState<Book | null>(null);
+  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [siblings, setSiblings] = useState<LessonSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [readerRefreshTrigger, setReaderRefreshTrigger] = useState(0);
@@ -54,39 +56,43 @@ export default function ReadPage({
     existingEntry: null,
   });
 
-  // Load book from IndexedDB
+  // Load lesson
   useEffect(() => {
-    async function loadBook() {
+    async function loadLesson() {
       try {
         setIsLoading(true);
-        const loadedBook = await getBook(bookId);
+        const loadedLesson = await getLesson(lessonId);
 
-        if (!loadedBook) {
-          setError('Book not found');
+        if (!loadedLesson) {
+          setError('Lesson not found');
           return;
         }
 
-        setBook(loadedBook);
+        setLesson(loadedLesson);
+
+        // Load sibling lessons for prev/next navigation
+        if (loadedLesson.collectionId) {
+          const allLessons = await getLessonsForCollection(loadedLesson.collectionId);
+          setSiblings(allLessons);
+        }
       } catch (err) {
-        console.error('Error loading book:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load book');
+        console.error('Error loading lesson:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load lesson');
       } finally {
         setIsLoading(false);
       }
     }
 
-    loadBook();
-  }, [bookId]);
+    loadLesson();
+  }, [lessonId]);
 
   // Handle word click from reader
   const handleWordClick = useCallback(async (word: string, sentence: string) => {
     const isPhrase = word.includes(' ');
 
-    // Auto-play TTS for word/phrase (limit to 15 words)
     const wordsToSpeak = word.split(/\s+/).slice(0, 15).join(' ');
     speak(wordsToSpeak);
 
-    // Check if word/phrase already exists in vocab
     const existingEntry = await getVocabByText(word.toLowerCase());
     const hasTranslation = existingEntry?.translation && existingEntry.translation.length > 0;
 
@@ -101,13 +107,10 @@ export default function ReadPage({
       existingEntry: existingEntry || null,
     });
 
-    // Track lookup
     await incrementDailyStat('dictionaryLookups');
 
-    // If no existing translation, check dictionary first (for single words), then fall back to API
     if (!hasTranslation) {
       if (isPhrase) {
-        // Phrases always use the API
         try {
           const result = await translatePhrase(word, sentence);
           setWordPanel((prev) => ({
@@ -125,11 +128,9 @@ export default function ReadPage({
           }));
         }
       } else {
-        // Single word - check local dictionary first
         const dictionaryEntry = lookupWord(word);
 
         if (dictionaryEntry) {
-          // Found in dictionary - use it immediately (no API call needed)
           setWordPanel((prev) => ({
             ...prev,
             translation: dictionaryEntry.translation,
@@ -137,7 +138,6 @@ export default function ReadPage({
             isLoading: false,
           }));
         } else {
-          // Not in dictionary - fall back to Claude API
           try {
             const result = await translateWord(word, sentence);
             setWordPanel((prev) => ({
@@ -159,12 +159,10 @@ export default function ReadPage({
     }
   }, []);
 
-  // Close word panel
   const closeWordPanel = useCallback(() => {
     setWordPanel((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  // Save word to vocabulary
   const saveWordToVocab = useCallback(async () => {
     if (!wordPanel.translation) return;
 
@@ -178,7 +176,7 @@ export default function ReadPage({
       state: wordPanel.existingEntry?.state || 'level1',
       stateUpdatedAt: new Date(),
       reviewCount: wordPanel.existingEntry?.reviewCount || 0,
-      bookId: bookId,
+      bookId: lessonId,
       createdAt: wordPanel.existingEntry?.createdAt || new Date(),
       pushedToAnki: wordPanel.existingEntry?.pushedToAnki || false,
       ankiNoteId: wordPanel.existingEntry?.ankiNoteId,
@@ -191,15 +189,13 @@ export default function ReadPage({
       ...prev,
       existingEntry: entry,
     }));
-    setReaderRefreshTrigger(prev => prev + 1); // Refresh reader highlighting
-  }, [wordPanel, bookId]);
+    setReaderRefreshTrigger(prev => prev + 1);
+  }, [wordPanel, lessonId]);
 
-  // Mark word as known
   const markAsKnown = useCallback(async () => {
     let entryId = wordPanel.existingEntry?.id;
 
     if (!entryId) {
-      // No existing entry - create one first
       const newId = uuidv4();
       const entry: VocabEntry = {
         id: newId,
@@ -207,29 +203,26 @@ export default function ReadPage({
         type: 'word',
         sentence: wordPanel.sentence,
         translation: wordPanel.translation || '',
-        state: 'known', // Set directly to known
+        state: 'known',
         stateUpdatedAt: new Date(),
         reviewCount: 0,
-        bookId: bookId,
+        bookId: lessonId,
         createdAt: new Date(),
         pushedToAnki: false,
       };
       await saveVocab(entry);
       entryId = newId;
     } else {
-      // Update existing entry to known
       await updateVocabState(entryId, 'known');
     }
 
     await incrementDailyStat('wordsMarkedKnown');
-    setReaderRefreshTrigger(prev => prev + 1); // Refresh reader highlighting
+    setReaderRefreshTrigger(prev => prev + 1);
     closeWordPanel();
-  }, [wordPanel, bookId, closeWordPanel]);
+  }, [wordPanel, lessonId, closeWordPanel]);
 
-  // Ignore word (proper nouns, etc)
   const ignoreWord = useCallback(async () => {
     if (!wordPanel.existingEntry) {
-      // Save as ignored
       const entry: VocabEntry = {
         id: uuidv4(),
         text: wordPanel.word.toLowerCase(),
@@ -239,7 +232,7 @@ export default function ReadPage({
         state: 'ignored',
         stateUpdatedAt: new Date(),
         reviewCount: 0,
-        bookId: bookId,
+        bookId: lessonId,
         createdAt: new Date(),
         pushedToAnki: false,
       };
@@ -248,18 +241,16 @@ export default function ReadPage({
       await updateVocabState(wordPanel.existingEntry.id, 'ignored');
     }
 
-    setReaderRefreshTrigger(prev => prev + 1); // Refresh reader highlighting
+    setReaderRefreshTrigger(prev => prev + 1);
     closeWordPanel();
-  }, [wordPanel, bookId, closeWordPanel]);
+  }, [wordPanel, lessonId, closeWordPanel]);
 
-  // Set word to specific level (1-4)
   const setWordLevel = useCallback(async (level: 1 | 2 | 3 | 4) => {
     if (!wordPanel.translation) return;
 
     const state = `level${level}` as 'level1' | 'level2' | 'level3' | 'level4';
 
     if (!wordPanel.existingEntry) {
-      // Create new entry with this level
       const entry: VocabEntry = {
         id: uuidv4(),
         text: wordPanel.word.toLowerCase(),
@@ -269,7 +260,7 @@ export default function ReadPage({
         state,
         stateUpdatedAt: new Date(),
         reviewCount: 0,
-        bookId: bookId,
+        bookId: lessonId,
         createdAt: new Date(),
         pushedToAnki: false,
       };
@@ -277,7 +268,6 @@ export default function ReadPage({
       await incrementDailyStat('newWordsSaved');
       setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
     } else {
-      // Update existing entry
       await updateVocabState(wordPanel.existingEntry.id, state);
       setWordPanel((prev) => ({
         ...prev,
@@ -286,21 +276,27 @@ export default function ReadPage({
     }
 
     setReaderRefreshTrigger(prev => prev + 1);
-  }, [wordPanel, bookId]);
+  }, [wordPanel, lessonId]);
 
-  // Handle close
   const handleClose = useCallback(() => {
-    router.push('/');
-  }, [router]);
+    if (lesson?.collectionId) {
+      router.push(`/collection/${lesson.collectionId}`);
+    } else {
+      router.push('/');
+    }
+  }, [router, lesson]);
+
+  // Navigate to prev/next lesson in collection
+  const currentIndex = siblings.findIndex(l => l.id === lessonId);
+  const prevLesson = currentIndex > 0 ? siblings[currentIndex - 1] : null;
+  const nextLesson = currentIndex < siblings.length - 1 ? siblings[currentIndex + 1] : null;
 
   // Focus word panel and handle keyboard when it opens
   useEffect(() => {
     if (!wordPanel.isOpen) return;
 
-    // Focus the panel
     wordPanelRef.current?.focus();
 
-    // Also add window listener in capture phase to stop propagation
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       if (key === 'escape') {
@@ -330,24 +326,22 @@ export default function ReadPage({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [wordPanel.isOpen, wordPanel.existingEntry, wordPanel.translation, closeWordPanel, markAsKnown, ignoreWord, saveWordToVocab, setWordLevel]);
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white dark:bg-zinc-900">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-zinc-600 dark:text-zinc-400">Loading book...</p>
+          <p className="text-zinc-600 dark:text-zinc-400">Loading lesson...</p>
         </div>
       </div>
     );
   }
 
-  // Error state
-  if (error || !book) {
+  if (error || !lesson) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white dark:bg-zinc-900 p-8">
         <div className="text-red-500 dark:text-red-400 text-xl mb-4">
-          {error || 'Book not found'}
+          {error || 'Lesson not found'}
         </div>
         <button
           onClick={() => router.push('/')}
@@ -365,15 +359,14 @@ export default function ReadPage({
     <div className="h-screen flex flex-col bg-white dark:bg-zinc-900">
       {/* Reader */}
       <div className="flex-1 relative overflow-hidden">
-        {book.fileType === 'markdown' ? (
-          <MarkdownReader book={book} onWordClick={handleWordClick} onClose={handleClose} refreshTrigger={readerRefreshTrigger} />
-        ) : book.fileType === 'pdf' ? (
-          <div className="flex items-center justify-center h-full text-zinc-500">
-            PDF support coming soon
-          </div>
-        ) : (
-          <Reader book={book} onWordClick={handleWordClick} onClose={handleClose} refreshTrigger={readerRefreshTrigger} />
-        )}
+        <MarkdownReader
+          lesson={lesson}
+          onWordClick={handleWordClick}
+          onClose={handleClose}
+          refreshTrigger={readerRefreshTrigger}
+          prevLesson={prevLesson}
+          nextLesson={nextLesson}
+        />
       </div>
 
       {/* Compact word translation bar */}
@@ -393,7 +386,6 @@ export default function ReadPage({
                   </span>
                   <button
                     onClick={() => {
-                      // Limit to ~15 words for phrases
                       const words = wordPanel.word.split(/\s+/).slice(0, 15);
                       speak(words.join(' '));
                     }}
@@ -409,7 +401,7 @@ export default function ReadPage({
                       {wordPanel.partOfSpeech}
                     </span>
                   )}
-                  <span className="text-zinc-400 dark:text-zinc-500">→</span>
+                  <span className="text-zinc-400 dark:text-zinc-500">&rarr;</span>
                   {wordPanel.isLoading ? (
                     <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
                       <span className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -418,7 +410,7 @@ export default function ReadPage({
                     <span className="text-red-500 dark:text-red-400 text-sm">{wordPanel.error}</span>
                   ) : (
                     <span className="text-zinc-700 dark:text-zinc-300">
-                      {wordPanel.translation || '—'}
+                      {wordPanel.translation || '\u2014'}
                     </span>
                   )}
                 </div>
@@ -434,7 +426,6 @@ export default function ReadPage({
                   </span>
                   <button
                     onClick={() => {
-                      // Limit to ~15 words
                       const words = wordPanel.sentence.split(/\s+/).slice(0, 15);
                       speak(words.join(' '));
                     }}
@@ -489,7 +480,7 @@ export default function ReadPage({
                     }`}
                   title="Known (K)"
                 >
-                  ✓
+                  &#10003;
                 </button>
                 <button
                   onClick={ignoreWord}
@@ -500,7 +491,7 @@ export default function ReadPage({
                     }`}
                   title="Ignore (X)"
                 >
-                  ✕
+                  &#10005;
                 </button>
                 <button
                   onClick={closeWordPanel}

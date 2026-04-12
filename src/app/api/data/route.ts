@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, BOOKS_DIR } from '@/lib/server/database';
-import fs from 'fs';
-import path from 'path';
+import { db } from '@/lib/server/database';
+import { countWords } from '@/lib/html-to-markdown';
+import { randomUUID } from 'crypto';
 
 // GET /api/data - Export all data
 export async function GET() {
-  const books = db.prepare('SELECT * FROM books').all();
+  const collections = db.prepare('SELECT * FROM collections').all();
+  const lessons = db.prepare('SELECT * FROM lessons').all();
   const vocab = db.prepare('SELECT * FROM vocab').all();
   const knownWords = db.prepare('SELECT * FROM knownWords').all();
   const clozeSentences = db.prepare('SELECT * FROM clozeSentences').all();
@@ -14,7 +15,8 @@ export async function GET() {
 
   return NextResponse.json({
     exportedAt: new Date().toISOString(),
-    books,
+    collections,
+    lessons,
     vocab,
     knownWords,
     clozeSentences,
@@ -23,11 +25,12 @@ export async function GET() {
   });
 }
 
-// POST /api/data - Import data (from Dexie export or backup)
+// POST /api/data - Import data (from backup)
 export async function POST(request: NextRequest) {
   const data = await request.json();
   const results = {
-    books: 0,
+    collections: 0,
+    lessons: 0,
     vocab: 0,
     knownWords: 0,
     clozeSentences: 0,
@@ -35,38 +38,59 @@ export async function POST(request: NextRequest) {
     settings: 0,
   };
 
-  // Import books (without file data - those need separate upload)
-  if (data.books?.length) {
+  // Import collections
+  if (data.collections?.length) {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO books (id, title, author, coverUrl, filePath, fileType, progress_chapter, progress_scrollPosition, progress_percentComplete, textContent, createdAt, lastReadAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    for (const c of data.collections) {
+      stmt.run(c.id, c.title, c.author || 'Unknown', c.coverUrl || null,
+        c.createdAt || new Date().toISOString(), c.lastReadAt || new Date().toISOString());
+      results.collections++;
+    }
+  }
+
+  // Import lessons
+  if (data.lessons?.length) {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const l of data.lessons) {
+      stmt.run(l.id, l.collectionId || null, l.title, l.sortOrder || 0,
+        l.textContent || '', l.progress_scrollPosition || 0, l.progress_percentComplete || 0,
+        l.wordCount || countWords(l.textContent || ''),
+        l.createdAt || new Date().toISOString(), l.lastReadAt || new Date().toISOString());
+      results.lessons++;
+    }
+  }
+
+  // Legacy: import old books as collections+lessons
+  if (data.books?.length) {
+    const insertCollection = db.prepare(`
+      INSERT OR REPLACE INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const insertLesson = db.prepare(`
+      INSERT OR REPLACE INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const book of data.books) {
-      // For imported books, create a placeholder file path
-      const ext = book.fileType === 'epub' ? 'epub' : book.fileType === 'pdf' ? 'pdf' : 'md';
-      const filePath = book.filePath || path.join(BOOKS_DIR, `${book.id}.${ext}`);
+      const collectionId = book.id;
+      insertCollection.run(collectionId, book.title, book.author || 'Unknown',
+        book.coverUrl || null, book.createdAt || new Date().toISOString(),
+        book.lastReadAt || new Date().toISOString());
+      results.collections++;
 
-      // If textContent exists (markdown), save it to file
-      if (book.textContent && book.fileType === 'markdown') {
-        fs.writeFileSync(filePath, book.textContent);
-      }
-
-      stmt.run(
-        book.id,
-        book.title,
-        book.author || 'Unknown',
-        book.coverUrl || null,
-        filePath,
-        book.fileType || 'epub',
-        book.progress?.chapter ?? book.progress_chapter ?? 0,
+      const textContent = book.textContent || '';
+      insertLesson.run(randomUUID(), collectionId, book.title, 0, textContent,
         book.progress?.scrollPosition ?? book.progress_scrollPosition ?? 0,
         book.progress?.percentComplete ?? book.progress_percentComplete ?? 0,
-        book.textContent || null,
-        book.createdAt || new Date().toISOString(),
-        book.lastReadAt || new Date().toISOString()
-      );
-      results.books++;
+        countWords(textContent),
+        book.createdAt || new Date().toISOString(), book.lastReadAt || new Date().toISOString());
+      results.lessons++;
     }
   }
 
@@ -79,18 +103,10 @@ export async function POST(request: NextRequest) {
 
     for (const v of data.vocab) {
       stmt.run(
-        v.id,
-        v.text,
-        v.type || 'word',
-        v.sentence || '',
-        v.translation || '',
-        v.state || 'new',
-        v.stateUpdatedAt || new Date().toISOString(),
-        v.reviewCount || 0,
-        v.bookId || null,
-        v.chapter || null,
-        v.createdAt || new Date().toISOString(),
-        v.pushedToAnki ? 1 : 0,
+        v.id, v.text, v.type || 'word', v.sentence || '', v.translation || '',
+        v.state || 'new', v.stateUpdatedAt || new Date().toISOString(),
+        v.reviewCount || 0, v.bookId || null, v.chapter || null,
+        v.createdAt || new Date().toISOString(), v.pushedToAnki ? 1 : 0,
         v.ankiNoteId || null
       );
       results.vocab++;
@@ -115,22 +131,11 @@ export async function POST(request: NextRequest) {
 
     for (const c of data.clozeSentences) {
       stmt.run(
-        c.id,
-        c.sentence,
-        c.clozeWord,
-        c.clozeIndex,
-        c.translation,
-        c.source || 'tatoeba',
-        c.collection || 'random',
-        c.wordRank || null,
-        c.tatoebaSentenceId || null,
-        c.vocabEntryId || null,
-        c.masteryLevel || 0,
-        c.nextReview || new Date().toISOString(),
-        c.reviewCount || 0,
-        c.lastReviewed || null,
-        c.timesCorrect || 0,
-        c.timesIncorrect || 0
+        c.id, c.sentence, c.clozeWord, c.clozeIndex, c.translation,
+        c.source || 'tatoeba', c.collection || 'random', c.wordRank || null,
+        c.tatoebaSentenceId || null, c.vocabEntryId || null, c.masteryLevel || 0,
+        c.nextReview || new Date().toISOString(), c.reviewCount || 0,
+        c.lastReviewed || null, c.timesCorrect || 0, c.timesIncorrect || 0
       );
       results.clozeSentences++;
     }
@@ -144,16 +149,8 @@ export async function POST(request: NextRequest) {
     `);
 
     for (const s of data.dailyStats) {
-      stmt.run(
-        s.date,
-        s.wordsRead || 0,
-        s.newWordsSaved || 0,
-        s.wordsMarkedKnown || 0,
-        s.minutesRead || 0,
-        s.clozePracticed || 0,
-        s.points || 0,
-        s.dictionaryLookups || 0
-      );
+      stmt.run(s.date, s.wordsRead || 0, s.newWordsSaved || 0, s.wordsMarkedKnown || 0,
+        s.minutesRead || 0, s.clozePracticed || 0, s.points || 0, s.dictionaryLookups || 0);
       results.dailyStats++;
     }
   }

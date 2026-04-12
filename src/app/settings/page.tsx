@@ -420,17 +420,10 @@ export default function SettingsPage() {
   const exportFullBackup = async () => {
     try {
       const data = await exportAllData();
-      // Convert ArrayBuffer to base64 for books
       const exportData = {
         ...data,
-        books: await Promise.all(
-          data.books.map(async (book) => ({
-            ...book,
-            fileData: arrayBufferToBase64(book.fileData),
-          }))
-        ),
         exportedAt: new Date().toISOString(),
-        version: 1,
+        version: 2,
       };
       const json = JSON.stringify(exportData, null, 2);
       downloadFile(json, "afrikaans-reader-backup.json", "application/json");
@@ -459,7 +452,7 @@ export default function SettingsPage() {
 
       if (result.success) {
         const counts = result.imported;
-        setExportStatus(`Backup imported: ${counts.books || 0} books, ${counts.vocab || 0} vocab, ${counts.knownWords || 0} known words, ${counts.clozeSentences || 0} cloze sentences.`);
+        setExportStatus(`Backup imported: ${counts.collections || 0} collections, ${counts.lessons || 0} lessons, ${counts.vocab || 0} vocab, ${counts.knownWords || 0} known words, ${counts.clozeSentences || 0} cloze sentences.`);
       } else {
         throw new Error("Import failed");
       }
@@ -508,26 +501,6 @@ export default function SettingsPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  // Helper to convert ArrayBuffer to base64
-  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  };
-
-  // Helper to convert base64 to ArrayBuffer
-  const base64ToArrayBuffer = (base64: string): ArrayBuffer => {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes.buffer;
   };
 
   return (

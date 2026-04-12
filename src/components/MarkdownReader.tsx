@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import {
-  type Book,
+  type Lesson,
+  type LessonSummary,
   type WordState,
   getKnownWordsMap,
-  saveReadingPosition,
-  getReadingPosition,
+  updateLessonProgress,
+  getSetting,
 } from '@/lib/data-layer';
 
 // Color mapping for word states - background highlights
@@ -32,13 +34,23 @@ const darkStateColors: Record<WordState, string> = {
 };
 
 interface MarkdownReaderProps {
-  book: Book;
+  lesson: Lesson;
   onWordClick: (word: string, sentence: string) => void;
   onClose: () => void;
   refreshTrigger?: number;
+  prevLesson?: LessonSummary | null;
+  nextLesson?: LessonSummary | null;
 }
 
-export default function MarkdownReader({ book, onWordClick, onClose, refreshTrigger = 0 }: MarkdownReaderProps) {
+export default function MarkdownReader({
+  lesson,
+  onWordClick,
+  onClose,
+  refreshTrigger = 0,
+  prevLesson,
+  nextLesson,
+}: MarkdownReaderProps) {
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [knownWordsMap, setKnownWordsMap] = useState<Map<string, WordState>>(new Map());
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -46,12 +58,11 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
 
   // Detect dark mode
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    setIsDarkMode(mediaQuery.matches);
-
-    const handler = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
+    const check = () => setIsDarkMode(document.documentElement.classList.contains('dark'));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
   }, []);
 
   // Load known words map
@@ -61,13 +72,13 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
 
   // Load saved scroll position
   useEffect(() => {
-    getReadingPosition(book.id).then((pos) => {
+    getSetting<{ percentage: number }>(`reading-position-${lesson.id}`).then((pos) => {
       if (pos && containerRef.current) {
         const scrollTop = (pos.percentage / 100) * containerRef.current.scrollHeight;
         containerRef.current.scrollTop = scrollTop;
       }
     });
-  }, [book.id]);
+  }, [lesson.id]);
 
   // Save scroll position on scroll
   const handleScroll = useCallback(() => {
@@ -75,8 +86,8 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     const percentage = Math.round((scrollTop / (scrollHeight - clientHeight)) * 100) || 0;
     setScrollPercentage(percentage);
-    saveReadingPosition(book.id, '', 0, percentage);
-  }, [book.id]);
+    updateLessonProgress(lesson.id, { scrollPosition: scrollTop, percentComplete: percentage });
+  }, [lesson.id]);
 
   const getWordState = (word: string): WordState | undefined => {
     return knownWordsMap.get(word.toLowerCase());
@@ -87,7 +98,6 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
     const text = block?.textContent || '';
     const wordText = element.textContent || '';
 
-    // Split paragraph into sentences and find the one containing this word
     const sentences = text.split(/(?<=[.!?])\s+/);
     for (const sentence of sentences) {
       if (sentence.includes(wordText)) {
@@ -98,25 +108,19 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
   };
 
   // Wrap words in clickable spans
-  // Afrikaans word pattern: includes accented chars (ê, ë, ô, û, î, ï, á, é) and 'n
   const renderText = (text: string) => {
-    // Split keeping words with accents and 'n together
-    // Match: 'n (with straight or curly quotes), words with accents, or regular words
-    const wordPattern = /['‘’ʼ`]n\b|[\wêëéèôöûüîïáà]+/gi;
+    const wordPattern = /['''ʼ`]n\b|[\wêëéèôöûüîïáà]+/gi;
     const parts: { text: string; isWord: boolean }[] = [];
     let lastIndex = 0;
     let match;
 
     while ((match = wordPattern.exec(text)) !== null) {
-      // Add any non-word text before this match
       if (match.index > lastIndex) {
         parts.push({ text: text.slice(lastIndex, match.index), isWord: false });
       }
-      // Add the word
       parts.push({ text: match[0], isWord: true });
       lastIndex = match.index + match[0].length;
     }
-    // Add any remaining text
     if (lastIndex < text.length) {
       parts.push({ text: text.slice(lastIndex), isWord: false });
     }
@@ -145,7 +149,7 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
     });
   };
 
-  const content = book.textContent || new TextDecoder().decode(book.fileData);
+  const content = lesson.textContent;
 
   // Handle text selection for phrases
   const handleMouseUp = useCallback(() => {
@@ -153,7 +157,6 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
     if (!selection || selection.isCollapsed) return;
 
     const selectedText = selection.toString().trim();
-    // Only treat as phrase if it has spaces (multiple words)
     if (selectedText && selectedText.includes(' ')) {
       const sentence = findSentence(selection.anchorNode?.parentElement as HTMLElement);
       selection.removeAllRanges();
@@ -179,7 +182,7 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
         </button>
 
         <h1 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 truncate max-w-md">
-          {book.title}
+          {lesson.title}
         </h1>
 
         <div className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -211,6 +214,38 @@ export default function MarkdownReader({ book, onWordClick, onClose, refreshTrig
             {content}
           </ReactMarkdown>
         </article>
+
+        {/* Prev/Next navigation at bottom */}
+        {(prevLesson || nextLesson) && (
+          <div className="max-w-[28em] mx-auto px-8 pb-16 flex items-center justify-between gap-4">
+            {prevLesson ? (
+              <button
+                onClick={() => router.push(`/read/${prevLesson.id}`)}
+                className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm
+                  text-zinc-600 dark:text-zinc-400
+                  hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span className="truncate max-w-[12em]">{prevLesson.title}</span>
+              </button>
+            ) : <div />}
+            {nextLesson ? (
+              <button
+                onClick={() => router.push(`/read/${nextLesson.id}`)}
+                className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm
+                  text-zinc-600 dark:text-zinc-400
+                  hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <span className="truncate max-w-[12em]">{nextLesson.title}</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            ) : <div />}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
 import Database, { Database as DatabaseType } from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
+import { parseEpub } from './epub-parser';
+import { htmlToMarkdown, countWords } from '../html-to-markdown';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const DB_PATH = path.join(DATA_DIR, 'afrikaans.db');
@@ -19,22 +22,32 @@ function getDb(): DatabaseType {
   _db = new Database(DB_PATH);
   _db.pragma('journal_mode = WAL');
 
-  // Initialize schema
+  // Initialize schema — collections/lessons model
   _db.exec(`
-    CREATE TABLE IF NOT EXISTS books (
+    CREATE TABLE IF NOT EXISTS collections (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
-      author TEXT NOT NULL,
+      author TEXT NOT NULL DEFAULT 'Unknown',
       coverUrl TEXT,
-      filePath TEXT NOT NULL,
-      fileType TEXT NOT NULL CHECK (fileType IN ('epub', 'pdf', 'markdown')),
-      progress_chapter INTEGER DEFAULT 0,
-      progress_scrollPosition INTEGER DEFAULT 0,
-      progress_percentComplete REAL DEFAULT 0,
-      textContent TEXT,
       createdAt TEXT NOT NULL,
       lastReadAt TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS lessons (
+      id TEXT PRIMARY KEY,
+      collectionId TEXT,
+      title TEXT NOT NULL,
+      sortOrder INTEGER NOT NULL DEFAULT 0,
+      textContent TEXT NOT NULL DEFAULT '',
+      progress_scrollPosition INTEGER DEFAULT 0,
+      progress_percentComplete REAL DEFAULT 0,
+      wordCount INTEGER DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      lastReadAt TEXT NOT NULL,
+      FOREIGN KEY (collectionId) REFERENCES collections(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_lessons_collectionId ON lessons(collectionId);
+    CREATE INDEX IF NOT EXISTS idx_lessons_sortOrder ON lessons(collectionId, sortOrder);
 
     CREATE TABLE IF NOT EXISTS vocab (
       id TEXT PRIMARY KEY,
@@ -49,8 +62,7 @@ function getDb(): DatabaseType {
       chapter INTEGER,
       createdAt TEXT NOT NULL,
       pushedToAnki INTEGER DEFAULT 0,
-      ankiNoteId INTEGER,
-      FOREIGN KEY (bookId) REFERENCES books(id) ON DELETE SET NULL
+      ankiNoteId INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_vocab_text ON vocab(text);
     CREATE INDEX IF NOT EXISTS idx_vocab_state ON vocab(state);
@@ -115,7 +127,115 @@ function getDb(): DatabaseType {
     _db.exec('ALTER TABLE clozeSentences ADD COLUMN blacklisted INTEGER DEFAULT 0');
   }
 
+  // Migrate books → collections/lessons if books table exists
+  migrateBooks(_db);
+
   return _db;
+}
+
+/**
+ * Migrate old books table to collections + lessons.
+ * Idempotent — only runs if books table exists.
+ */
+function migrateBooks(database: DatabaseType) {
+  const tables = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='books'"
+  ).all();
+  if (tables.length === 0) return;
+
+  const books = database.prepare('SELECT * FROM books').all() as BookRow[];
+  if (books.length === 0) {
+    // No books, just drop the table
+    database.exec('DROP TABLE IF EXISTS books');
+    return;
+  }
+
+  const now = new Date().toISOString();
+
+  const insertCollection = database.prepare(`
+    INSERT OR IGNORE INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const insertLesson = database.prepare(`
+    INSERT OR IGNORE INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, createdAt, lastReadAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const migrate = database.transaction(() => {
+    for (const book of books) {
+      const collectionId = book.id;
+
+      if (book.fileType === 'epub' && book.filePath && fs.existsSync(book.filePath)) {
+        // Parse EPUB into chapters
+        try {
+          const buffer = fs.readFileSync(book.filePath);
+          const parsed = parseEpub(buffer);
+
+          insertCollection.run(
+            collectionId,
+            parsed.title || book.title,
+            parsed.author || book.author,
+            book.coverUrl,
+            book.createdAt,
+            book.lastReadAt
+          );
+
+          for (let i = 0; i < parsed.chapters.length; i++) {
+            const chapter = parsed.chapters[i];
+            insertLesson.run(
+              randomUUID(),
+              collectionId,
+              chapter.title,
+              i,
+              chapter.markdown,
+              0,
+              0,
+              chapter.wordCount,
+              book.createdAt,
+              book.lastReadAt
+            );
+          }
+
+          // Delete the original EPUB file
+          fs.unlinkSync(book.filePath);
+        } catch (err) {
+          // EPUB parsing failed — create single-lesson collection with whatever text we have
+          console.error(`Failed to parse EPUB ${book.title}:`, err);
+          insertCollection.run(collectionId, book.title, book.author, book.coverUrl, book.createdAt, book.lastReadAt);
+          insertLesson.run(
+            randomUUID(), collectionId, book.title, 0,
+            book.textContent || '(EPUB could not be parsed)',
+            book.progress_scrollPosition, book.progress_percentComplete, 0,
+            book.createdAt, book.lastReadAt
+          );
+        }
+      } else {
+        // Markdown or PDF — single-lesson collection
+        const textContent = book.textContent || (book.filePath && fs.existsSync(book.filePath)
+          ? fs.readFileSync(book.filePath, 'utf-8')
+          : '');
+
+        insertCollection.run(collectionId, book.title, book.author, book.coverUrl, book.createdAt, book.lastReadAt);
+        insertLesson.run(
+          randomUUID(), collectionId, book.title, 0,
+          textContent,
+          book.progress_scrollPosition, book.progress_percentComplete,
+          countWords(textContent),
+          book.createdAt, book.lastReadAt
+        );
+
+        // Clean up old file if it exists
+        if (book.filePath && fs.existsSync(book.filePath)) {
+          fs.unlinkSync(book.filePath);
+        }
+      }
+    }
+
+    // Drop the old books table
+    database.exec('DROP TABLE IF EXISTS books');
+  });
+
+  migrate();
 }
 
 // Export a proxy that lazily initializes the database
@@ -130,12 +250,14 @@ export const db = new Proxy({} as DatabaseType, {
   },
 });
 
-// Type definitions matching the Dexie models
+// Type definitions
 export type WordState = 'new' | 'level1' | 'level2' | 'level3' | 'level4' | 'known' | 'ignored';
 export type VocabType = 'word' | 'phrase';
 export type ClozeMasteryLevel = 0 | 25 | 50 | 75 | 100;
 export type ClozeSource = 'tatoeba' | 'mined';
 export type ClozeCollection = 'top500' | 'top1000' | 'top2000' | 'mined' | 'random';
+
+// Legacy type kept for migration only
 export type BookFileType = 'epub' | 'pdf' | 'markdown';
 
 export interface BookRow {
@@ -149,6 +271,28 @@ export interface BookRow {
   progress_scrollPosition: number;
   progress_percentComplete: number;
   textContent: string | null;
+  createdAt: string;
+  lastReadAt: string;
+}
+
+export interface CollectionRow {
+  id: string;
+  title: string;
+  author: string;
+  coverUrl: string | null;
+  createdAt: string;
+  lastReadAt: string;
+}
+
+export interface LessonRow {
+  id: string;
+  collectionId: string | null;
+  title: string;
+  sortOrder: number;
+  textContent: string;
+  progress_scrollPosition: number;
+  progress_percentComplete: number;
+  wordCount: number;
   createdAt: string;
   lastReadAt: string;
 }

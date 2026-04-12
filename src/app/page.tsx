@@ -1,25 +1,23 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import NavHeader from '@/components/NavHeader';
 import StatsCard from '@/components/StatsCard';
-import BookCard from '@/components/BookCard';
+import CollectionCard from '@/components/CollectionCard';
 import ImportDropdown from '@/components/ImportDropdown';
 import WebImportModal from '@/components/WebImportModal';
 import PasteImportModal from '@/components/PasteImportModal';
 import {
-  getAllBooks,
-  saveBook,
+  getAllCollections,
+  createStandaloneLesson,
+  importEpub,
   getVocabStats,
   getRecentStats,
-  type Book,
-  type BookProgress,
-  type BookFileType,
+  type Collection,
 } from '@/lib/data-layer';
 
 export default function Home() {
-  const [books, setBooks] = useState<Book[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [knownWordsCount, setKnownWordsCount] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,22 +32,20 @@ export default function Home() {
 
   async function loadData() {
     try {
-      const [booksData, vocabStats, recentStats] = await Promise.all([
-        getAllBooks(),
+      const [collectionsData, vocabStats, recentStats] = await Promise.all([
+        getAllCollections(),
         getVocabStats(),
         getRecentStats(30),
       ]);
 
-      setBooks(booksData);
+      setCollections(collectionsData);
 
-      // Known words = level3 + level4 + known
       const knownCount =
         vocabStats.byState.level3 +
         vocabStats.byState.level4 +
         vocabStats.byState.known;
       setKnownWordsCount(knownCount);
 
-      // Calculate streak from recent stats
       const streak = calculateStreak(recentStats);
       setCurrentStreak(streak);
     } catch (error) {
@@ -62,10 +58,8 @@ export default function Home() {
   function calculateStreak(stats: { date: string; wordsRead: number }[]): number {
     if (stats.length === 0) return 0;
 
-    // Sort by date descending
     const sorted = [...stats].sort((a, b) => b.date.localeCompare(a.date));
 
-    // Check if today or yesterday has activity
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
@@ -76,14 +70,12 @@ export default function Home() {
 
     if (!hasActivityToday && !hasActivityYesterday) return 0;
 
-    // Count consecutive days
     let streak = 0;
     let checkDate = hasActivityToday ? today : yesterday;
 
     for (const stat of sorted) {
       if (stat.date === checkDate && stat.wordsRead > 0) {
         streak++;
-        // Move to previous day
         const prevDate = new Date(checkDate);
         prevDate.setDate(prevDate.getDate() - 1);
         checkDate = prevDate.toISOString().split('T')[0];
@@ -97,88 +89,38 @@ export default function Home() {
     fileInputRef.current?.click();
   }
 
-  function getFileType(filename: string): BookFileType | null {
-    const ext = filename.toLowerCase().split('.').pop();
-    if (ext === 'epub') return 'epub';
-    if (ext === 'pdf') return 'pdf';
-    if (ext === 'md' || ext === 'markdown') return 'markdown';
-    return null;
-  }
-
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const fileType = getFileType(file.name);
-    if (!fileType) {
-      alert('Please select an EPUB, PDF, or Markdown file');
-      return;
-    }
+    const ext = file.name.toLowerCase().split('.').pop();
 
     setIsImporting(true);
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const baseName = file.name.replace(/\.[^/.]+$/, '');
-
-      let newBook: Book = {
-        id: uuidv4(),
-        title: baseName,
-        author: 'Unknown Author',
-        coverUrl: undefined,
-        fileData: arrayBuffer,
-        fileType,
-        progress: {
-          chapter: 0,
-          scrollPosition: 0,
-          percentComplete: 0,
-        } as BookProgress,
-        createdAt: new Date(),
-        lastReadAt: new Date(),
-      };
-
-      if (fileType === 'epub') {
-        // Parse EPUB to extract metadata
-        const ePub = await import('epubjs');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const epubBook = ePub.default(arrayBuffer) as any;
-        await epubBook.ready;
-        const metadata = await epubBook.loaded.metadata;
-
-        newBook.title = metadata.title || baseName;
-        newBook.author = metadata.creator || 'Unknown Author';
-
-        // Try to extract cover
-        try {
-          const cover = await epubBook.coverUrl();
-          if (cover) {
-            newBook.coverUrl = cover;
-          }
-        } catch {
-          // Cover extraction failed, that's okay
-        }
-      } else if (fileType === 'markdown') {
-        // Store text content for markdown files
-        const textContent = new TextDecoder().decode(arrayBuffer);
-        newBook.textContent = textContent;
-
-        // Try to extract title from first heading
+      if (ext === 'epub') {
+        // EPUB — parse server-side into collection of lessons
+        const result = await importEpub(file);
+        // Reload collections to get the new one
+        const updated = await getAllCollections();
+        setCollections(updated);
+      } else if (ext === 'md' || ext === 'markdown') {
+        // Markdown — create single-lesson collection
+        const textContent = await file.text();
         const titleMatch = textContent.match(/^#\s+(.+)$/m);
-        if (titleMatch) {
-          newBook.title = titleMatch[1].trim();
-        }
-      }
-      // PDF metadata extraction could be added later if needed
+        const title = titleMatch ? titleMatch[1].trim() : file.name.replace(/\.[^/.]+$/, '');
 
-      const serverId = await saveBook(newBook);
-      newBook.id = serverId;
-      setBooks((prev) => [newBook, ...prev]);
+        await createStandaloneLesson({ title, author: 'Unknown Author', textContent });
+        const updated = await getAllCollections();
+        setCollections(updated);
+      } else {
+        alert('Please select an EPUB or Markdown file');
+      }
     } catch (error) {
       console.error('Error importing file:', error);
       alert('Failed to import file. Please ensure it is a valid file.');
     } finally {
       setIsImporting(false);
-      // Reset the input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -186,49 +128,15 @@ export default function Home() {
   }
 
   async function handlePasteImportSave(article: { title: string; author: string; content: string }) {
-    const newBook: Book = {
-      id: uuidv4(),
-      title: article.title,
-      author: article.author,
-      coverUrl: undefined,
-      fileData: new ArrayBuffer(0),
-      fileType: 'markdown',
-      textContent: article.content,
-      progress: {
-        chapter: 0,
-        scrollPosition: 0,
-        percentComplete: 0,
-      } as BookProgress,
-      createdAt: new Date(),
-      lastReadAt: new Date(),
-    };
-
-    const serverId = await saveBook(newBook);
-    newBook.id = serverId;
-    setBooks((prev) => [newBook, ...prev]);
+    await createStandaloneLesson({ title: article.title, author: article.author, textContent: article.content });
+    const updated = await getAllCollections();
+    setCollections(updated);
   }
 
   async function handleWebImportSave(article: { title: string; author: string; content: string }) {
-    const newBook: Book = {
-      id: uuidv4(),
-      title: article.title,
-      author: article.author,
-      coverUrl: undefined,
-      fileData: new ArrayBuffer(0),
-      fileType: 'markdown',
-      textContent: article.content,
-      progress: {
-        chapter: 0,
-        scrollPosition: 0,
-        percentComplete: 0,
-      } as BookProgress,
-      createdAt: new Date(),
-      lastReadAt: new Date(),
-    };
-
-    const serverId = await saveBook(newBook);
-    newBook.id = serverId;
-    setBooks((prev) => [newBook, ...prev]);
+    await createStandaloneLesson({ title: article.title, author: article.author, textContent: article.content });
+    const updated = await getAllCollections();
+    setCollections(updated);
   }
 
   if (isLoading) {
@@ -301,7 +209,7 @@ export default function Home() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".epub,.pdf,.md,.markdown"
+              accept=".epub,.md,.markdown"
               onChange={handleFileChange}
               className="hidden"
             />
@@ -318,10 +226,10 @@ export default function Home() {
             onSave={handlePasteImportSave}
           />
 
-          {books.length > 0 ? (
+          {collections.length > 0 ? (
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {books.map((book) => (
-                <BookCard key={book.id} book={book} />
+              {collections.map((collection) => (
+                <CollectionCard key={collection.id} collection={collection} />
               ))}
             </div>
           ) : (
@@ -355,7 +263,7 @@ function EmptyState({ onImport }: { onImport: () => void }) {
         No books in your library
       </h3>
       <p className="mb-6 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
-        Import an Afrikaans book (EPUB, PDF, or Markdown) to start learning. Your vocabulary and progress will be
+        Import an Afrikaans book (EPUB or Markdown) to start learning. Your vocabulary and progress will be
         tracked as you read.
       </p>
       <button

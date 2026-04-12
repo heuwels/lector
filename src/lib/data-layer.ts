@@ -3,8 +3,6 @@
  *
  * This module provides the same interface as db.ts but uses fetch() to call
  * the server-side API instead of browser-based IndexedDB/Dexie.
- *
- * To migrate: change imports from '@/lib/db' to '@/lib/data-layer'
  */
 
 // Re-export types from db.ts for compatibility
@@ -14,9 +12,9 @@ export type {
   ClozeMasteryLevel,
   ClozeSource,
   ClozeCollection,
-  BookFileType,
-  BookProgress,
-  Book,
+  Collection,
+  Lesson,
+  LessonSummary,
   VocabEntry,
   KnownWord,
   ClozeSentence,
@@ -26,8 +24,9 @@ export type {
 
 import type {
   WordState,
-  Book,
-  BookProgress,
+  Collection,
+  Lesson,
+  LessonSummary,
   VocabEntry,
   KnownWord,
   ClozeSentence,
@@ -37,105 +36,106 @@ import type {
 } from './db';
 
 // ============================================================================
-// Helper Functions - Books
+// Helper Functions - Collections
 // ============================================================================
 
-export async function getBook(id: string): Promise<Book | undefined> {
-  const res = await fetch(`/api/books/${id}`);
+export async function getAllCollections(): Promise<Collection[]> {
+  const res = await fetch('/api/collections');
+  return res.json();
+}
+
+export async function getCollection(id: string): Promise<Collection | undefined> {
+  const res = await fetch(`/api/collections/${id}`);
   if (!res.ok) return undefined;
-  const data = await res.json();
-
-  // Fetch file data if needed
-  if (data.fileType !== 'markdown') {
-    const fileRes = await fetch(`/api/books/${id}/file`);
-    if (fileRes.ok) {
-      data.fileData = await fileRes.arrayBuffer();
-    }
-  }
-
-  return {
-    ...data,
-    createdAt: new Date(data.createdAt),
-    lastReadAt: new Date(data.lastReadAt),
-  };
+  return res.json();
 }
 
-export async function getAllBooks(): Promise<Book[]> {
-  const res = await fetch('/api/books');
-  const books = await res.json();
-  return books.map((b: Record<string, unknown>) => ({
-    ...b,
-    createdAt: new Date(b.createdAt as string),
-    lastReadAt: new Date(b.lastReadAt as string),
-  }));
-}
-
-export async function saveBook(book: Omit<Book, 'createdAt' | 'lastReadAt'> & { fileData?: ArrayBuffer }): Promise<string> {
-  const formData = new FormData();
-
-  if (book.fileData) {
-    formData.append('file', new Blob([book.fileData]));
-  }
-  formData.append('title', book.title);
-  formData.append('author', book.author);
-  formData.append('fileType', book.fileType);
-  if (book.textContent) {
-    formData.append('textContent', book.textContent);
-  }
-
-  const res = await fetch('/api/books', {
+export async function createCollection(data: { title: string; author?: string }): Promise<string> {
+  const res = await fetch('/api/collections', {
     method: 'POST',
-    body: formData,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   });
   const { id } = await res.json();
   return id;
 }
 
-export async function deleteBook(id: string): Promise<void> {
-  await fetch(`/api/books/${id}`, { method: 'DELETE' });
+export async function deleteCollection(id: string): Promise<void> {
+  await fetch(`/api/collections/${id}`, { method: 'DELETE' });
 }
 
-export async function updateBookProgress(id: string, progress: BookProgress): Promise<number> {
-  const res = await fetch(`/api/books/${id}/progress`, {
+// ============================================================================
+// Helper Functions - Lessons
+// ============================================================================
+
+export async function getLessonsForCollection(collectionId: string): Promise<LessonSummary[]> {
+  const res = await fetch(`/api/collections/${collectionId}/lessons`);
+  return res.json();
+}
+
+export async function getLesson(id: string): Promise<Lesson | undefined> {
+  const res = await fetch(`/api/lessons/${id}`);
+  if (!res.ok) return undefined;
+  return res.json();
+}
+
+export async function addLessonToCollection(
+  collectionId: string,
+  data: { title: string; textContent: string }
+): Promise<string> {
+  const res = await fetch(`/api/collections/${collectionId}/lessons`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const { id } = await res.json();
+  return id;
+}
+
+export async function updateLessonProgress(
+  id: string,
+  progress: { scrollPosition?: number; percentComplete?: number }
+): Promise<void> {
+  await fetch(`/api/lessons/${id}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(progress),
   });
-  return res.ok ? 1 : 0;
 }
 
-export async function saveReadingPosition(
-  bookId: string,
-  cfi: string,
-  chapter: number,
-  percentage: number
-): Promise<void> {
-  await updateBookProgress(bookId, {
-    chapter,
-    scrollPosition: 0,
-    percentComplete: percentage,
+export async function importEpub(file: File): Promise<{
+  collectionId: string;
+  title: string;
+  author: string;
+  lessonCount: number;
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch('/api/import/epub', {
+    method: 'POST',
+    body: formData,
   });
-
-  // Also store CFI in settings
-  await setSetting(`reading-position-${bookId}`, {
-    cfi,
-    chapter,
-    percentage,
-    updatedAt: new Date().toISOString(),
-  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to import EPUB');
+  }
+  return res.json();
 }
 
-export async function getReadingPosition(bookId: string): Promise<{
-  cfi: string;
-  chapter: number;
-  percentage: number;
-} | null> {
-  const result = await getSetting<{
-    cfi: string;
-    chapter: number;
-    percentage: number;
-  }>(`reading-position-${bookId}`);
-  return result ?? null;
+export async function createStandaloneLesson(data: {
+  title: string;
+  author: string;
+  textContent: string;
+}): Promise<{ collectionId: string; lessonId: string }> {
+  // Create a collection with a single lesson
+  const collectionId = await createCollection({ title: data.title, author: data.author });
+  const res = await fetch(`/api/collections/${collectionId}/lessons`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: data.title, textContent: data.textContent }),
+  });
+  const { id: lessonId } = await res.json();
+  return { collectionId, lessonId };
 }
 
 // ============================================================================
@@ -343,7 +343,6 @@ export async function getAllClozeSentences(): Promise<ClozeSentence[]> {
 }
 
 export async function getClozeSentenceByTatoebaId(tatoebaSentenceId: number): Promise<ClozeSentence | undefined> {
-  // Note: This is a simple check - for better performance, add a dedicated API endpoint
   const all = await getAllClozeSentences();
   return all.find(s => s.tatoebaSentenceId === tatoebaSentenceId);
 }
@@ -370,8 +369,6 @@ export async function bulkSaveClozeSentences(sentences: ClozeSentence[]): Promis
   });
 }
 
-// Seed the cloze database from the static sentence bank
-// Also updates existing unreviewed sentences if cloze words changed
 export async function seedSentenceBank(): Promise<{ seeded: number; total: number }> {
   const res = await fetch('/api/cloze/seed', { method: 'POST' });
   return res.json();
@@ -518,12 +515,11 @@ export async function getAllSettings(): Promise<Record<string, unknown>> {
 // ============================================================================
 
 export async function clearAllData(): Promise<void> {
-  // This would need a dedicated endpoint
   console.warn('clearAllData not implemented for server storage');
 }
 
 export async function exportAllData(): Promise<{
-  books: Book[];
+  collections: Collection[];
   vocab: VocabEntry[];
   knownWords: KnownWord[];
   clozeSentences: ClozeSentence[];

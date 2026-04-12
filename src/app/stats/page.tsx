@@ -5,7 +5,7 @@ import Link from 'next/link';
 import NavHeader from '@/components/NavHeader';
 import {
   getVocabStats,
-  getAllBooks,
+  getAllCollections,
   getStatsForDateRange,
   getAllClozeSentences,
   getCollectionCounts,
@@ -322,14 +322,14 @@ export default function StatsPage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        // Get vocab stats, books, and collection counts in parallel
-        const [vocabStats, books, collectionCounts] = await Promise.all([
+        // Get vocab stats, collections, and collection counts in parallel
+        const [vocabStats, collections, collectionCounts] = await Promise.all([
           getVocabStats(),
-          getAllBooks(),
+          getAllCollections(),
           getCollectionCounts(),
         ]);
 
-        const completedBooks = books.filter((b) => b.progress.percentComplete >= 100);
+        const completedBooks = collections.filter((c) => (c.avgProgress || 0) >= 100);
 
         // Get all daily stats for the past year
         const endDate = new Date().toISOString().split('T')[0];
@@ -404,7 +404,7 @@ export default function StatsPage() {
           currentStreak,
           longestStreak,
           booksRead: completedBooks.length,
-          totalBooks: books.length,
+          totalBooks: collections.length,
           totalReadingMinutes,
           totalClozeAttempts,
           totalClozeCorrect,

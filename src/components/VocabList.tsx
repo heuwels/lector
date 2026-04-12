@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import VocabRow from "./VocabRow";
-import { type VocabEntry, type WordState, type Book } from "@/lib/data-layer";
+import { type VocabEntry, type WordState, type Collection } from "@/lib/data-layer";
 
 // Sort field options
 type SortField = "text" | "createdAt" | "state" | "bookId";
@@ -10,7 +10,7 @@ type SortDirection = "asc" | "desc";
 
 interface VocabListProps {
   entries: VocabEntry[];
-  books: Book[];
+  collections: Collection[];
   onEntryClick: (entry: VocabEntry) => void;
   onExportToAnki: (ids: string[]) => Promise<void>;
   onMarkAsKnown: (ids: string[]) => Promise<void>;
@@ -45,7 +45,7 @@ const stateOrder: Record<WordState, number> = {
 
 export default function VocabList({
   entries,
-  books,
+  collections,
   onEntryClick,
   onExportToAnki,
   onMarkAsKnown,
@@ -69,12 +69,12 @@ export default function VocabList({
   const [isMarkingKnown, setIsMarkingKnown] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Create a map of bookId to book title for display
+  // Create a map of collectionId to title for display
   const bookTitleMap = useMemo(() => {
     const map = new Map<string, string>();
-    books.forEach((book) => map.set(book.id, book.title));
+    collections.forEach((c) => map.set(c.id, c.title));
     return map;
-  }, [books]);
+  }, [collections]);
 
   // Filter and sort entries
   const filteredEntries = useMemo(() => {
@@ -269,10 +269,10 @@ export default function VocabList({
           onChange={(e) => setBookFilter(e.target.value)}
           className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         >
-          <option value="all">All Books</option>
-          {books.map((book) => (
-            <option key={book.id} value={book.id}>
-              {book.title}
+          <option value="all">All Collections</option>
+          {collections.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}
             </option>
           ))}
         </select>
