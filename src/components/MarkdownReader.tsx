@@ -197,7 +197,7 @@ export default function MarkdownReader({
         onMouseUp={handleMouseUp}
         className="flex-1 overflow-auto"
       >
-        <article className="max-w-[28em] mx-auto px-8 py-16 prose prose-zinc dark:prose-invert
+        <article className="max-w-[38em] mx-auto px-8 py-16 prose prose-zinc dark:prose-invert
           prose-p:text-2xl prose-p:leading-[1.9] prose-p:text-zinc-700 dark:prose-p:text-zinc-300
           prose-headings:font-sans prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100
           prose-li:text-xl prose-li:leading-relaxed"
@@ -217,7 +217,7 @@ export default function MarkdownReader({
 
         {/* Prev/Next navigation at bottom */}
         {(prevLesson || nextLesson) && (
-          <div className="max-w-[28em] mx-auto px-8 pb-16 flex items-center justify-between gap-4">
+          <div className="max-w-[38em] mx-auto px-8 pb-16 flex items-center justify-between gap-4">
             {prevLesson ? (
               <button
                 onClick={() => router.push(`/read/${prevLesson.id}`)}

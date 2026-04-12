@@ -127,10 +127,52 @@ function getDb(): DatabaseType {
     _db.exec('ALTER TABLE clozeSentences ADD COLUMN blacklisted INTEGER DEFAULT 0');
   }
 
+  // Remove FK constraint on vocab.bookId that references old books table
+  migrateVocabForeignKey(_db);
+
   // Migrate books → collections/lessons if books table exists
   migrateBooks(_db);
 
   return _db;
+}
+
+/**
+ * Recreate vocab table without FK to books (which no longer exists).
+ * Idempotent — checks if the FK exists before migrating.
+ */
+function migrateVocabForeignKey(database: DatabaseType) {
+  // Check if vocab table has a FK referencing books
+  const createSql = database.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='vocab'"
+  ).get() as { sql: string } | undefined;
+
+  if (!createSql || !createSql.sql.includes('REFERENCES books')) return;
+
+  database.transaction(() => {
+    database.exec(`
+      CREATE TABLE vocab_new (
+        id TEXT PRIMARY KEY,
+        text TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('word', 'phrase')),
+        sentence TEXT NOT NULL,
+        translation TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+        stateUpdatedAt TEXT NOT NULL,
+        reviewCount INTEGER DEFAULT 0,
+        bookId TEXT,
+        chapter INTEGER,
+        createdAt TEXT NOT NULL,
+        pushedToAnki INTEGER DEFAULT 0,
+        ankiNoteId INTEGER
+      );
+      INSERT INTO vocab_new SELECT * FROM vocab;
+      DROP TABLE vocab;
+      ALTER TABLE vocab_new RENAME TO vocab;
+      CREATE INDEX IF NOT EXISTS idx_vocab_text ON vocab(text);
+      CREATE INDEX IF NOT EXISTS idx_vocab_state ON vocab(state);
+      CREATE INDEX IF NOT EXISTS idx_vocab_bookId ON vocab(bookId);
+    `);
+  })();
 }
 
 /**
