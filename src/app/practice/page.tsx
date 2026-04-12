@@ -199,6 +199,7 @@ export default function PracticePage() {
   const [blacklistToast, setBlacklistToast] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
 
   // Load collection counts and seed on mount
   useEffect(() => {
@@ -267,6 +268,7 @@ export default function PracticePage() {
     setAnkiError(null);
     setHintLetters(0);
     setMcFallback(false);
+    submittingRef.current = false;
     setState('practicing');
 
     // Generate MC options if in MC mode
@@ -375,7 +377,8 @@ export default function PracticePage() {
 
   // Core submission logic (shared between type and MC modes)
   const processAnswer = async (submittedAnswer: string) => {
-    if (!current) return;
+    if (!current || submittingRef.current) return;
+    submittingRef.current = true;
 
     const isCorrect = checkAnswer(submittedAnswer, current.sentence.clozeWord);
     const previousMastery = current.sentence.masteryLevel;
@@ -533,7 +536,7 @@ export default function PracticePage() {
   useEffect(() => {
     if (state === 'feedback') {
       const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Enter') { e.preventDefault(); handleNext(); }
+        if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); handleNext(); }
       };
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
@@ -827,7 +830,7 @@ export default function PracticePage() {
                               value={userAnswer}
                               onChange={(e) => setUserAnswer(e.target.value)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
+                                if (e.key === 'Enter' && !e.repeat) {
                                   e.preventDefault();
                                   handleSubmit();
                                 }
