@@ -47,3 +47,7 @@ next-env.d.ts
 # Local data directory (root only, not src/app/api/data)
 /data/
 .env
+
+# Hono API (Bun)
+/api/node_modules
+/api/bun.lock
