@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     ports:
       - "3400:3000"
+      - "3457:3457"
     environment:
       - NODE_ENV=production
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

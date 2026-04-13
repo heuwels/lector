@@ -778,7 +778,7 @@ export default function PracticePage() {
         )}
 
         {/* Main content area */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        {state !== 'setup' && <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           {/* Loading state */}
           {state === 'loading' && (
             <div className="flex flex-col items-center justify-center py-12">
@@ -1108,7 +1108,7 @@ export default function PracticePage() {
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Blacklist toast */}
         {blacklistToast && (

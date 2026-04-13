@@ -1,0 +1,21 @@
+{
+  "name": "lector-api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@mozilla/readability": "^0.6.0",
+    "adm-zip": "^0.5.17",
+    "hono": "^4.7.0",
+    "linkedom": "^0.18.12",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
+    "@types/bun": "latest"
+  }
+}
