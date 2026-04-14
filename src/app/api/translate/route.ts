@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@/lib/server/database';
 
-const client = new Anthropic();
+const API_URL = process.env.INTERNAL_API_URL || 'http://localhost:3457';
 
 function recordStudyPing() {
   const today = new Date().toISOString().split('T')[0];
@@ -19,66 +18,27 @@ function recordStudyPing() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { word, sentence, type = 'word' } = await request.json();
+    const body = await request.json();
 
-    if (!word) {
+    if (!body.word) {
       return NextResponse.json({ error: 'Word is required' }, { status: 400 });
     }
 
     recordStudyPing();
 
-    if (type === 'phrase') {
-      // Phrase translation
-      const prompt = `You are an Afrikaans to English translator. Translate the following Afrikaans phrase, using the sentence context to determine the correct meaning.
+    const response = await fetch(`${API_URL}/api/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
 
-Phrase: "${word}"
-Sentence context: "${sentence || word}"
+    const data = await response.json();
 
-Respond with ONLY a JSON object in this exact format (no markdown, no code blocks):
-{"translation": "the natural English translation", "literalBreakdown": "word-by-word literal translation", "idiomaticMeaning": "explanation if this is an idiom or has special meaning"}
-
-Include literalBreakdown if the phrase is more than one word.
-Include idiomaticMeaning only if the phrase is an idiom or has a meaning that differs from the literal translation.`;
-
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 512,
-        messages: [{ role: 'user', content: prompt }],
-      });
-
-      const content = message.content[0];
-      if (content.type !== 'text') {
-        return NextResponse.json({ error: 'Unexpected response type' }, { status: 500 });
-      }
-
-      const result = JSON.parse(content.text);
-      return NextResponse.json(result);
-    } else {
-      // Word translation
-      const prompt = `You are an Afrikaans to English translator. Translate the following Afrikaans word, using the sentence context to determine the correct meaning.
-
-Word: "${word}"
-Sentence context: "${sentence || word}"
-
-Respond with ONLY a JSON object in this exact format (no markdown, no code blocks):
-{"translation": "the English translation", "partOfSpeech": "noun/verb/adjective/adverb/etc"}
-
-If you cannot determine the part of speech, omit that field.`;
-
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 256,
-        messages: [{ role: 'user', content: prompt }],
-      });
-
-      const content = message.content[0];
-      if (content.type !== 'text') {
-        return NextResponse.json({ error: 'Unexpected response type' }, { status: 500 });
-      }
-
-      const result = JSON.parse(content.text);
-      return NextResponse.json(result);
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
     }
+
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Translation error:', error);
     return NextResponse.json(

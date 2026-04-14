@@ -1,14 +1,32 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: lector-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    # Uncomment for GPU passthrough:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]
+
   lector:
     image: ghcr.io/3stacks/lector:latest
     container_name: lector
     restart: unless-stopped
+    depends_on:
+      - ollama
     ports:
       - "3400:3000"
       - "3457:3457"
     environment:
       - NODE_ENV=production
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     volumes:
       - ./data:/app/data
     healthcheck:
@@ -17,3 +35,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+volumes:
+  ollama-data:

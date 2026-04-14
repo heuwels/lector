@@ -44,6 +44,7 @@ export default function ReadPage({
   const [error, setError] = useState<string | null>(null);
   const [readerRefreshTrigger, setReaderRefreshTrigger] = useState(0);
   const wordPanelRef = useRef<HTMLDivElement>(null);
+  const translationRequestId = useRef(0);
 
   const [wordPanel, setWordPanel] = useState<WordPanelState>({
     isOpen: false,
@@ -89,6 +90,7 @@ export default function ReadPage({
   // Handle word click from reader
   const handleWordClick = useCallback(async (word: string, sentence: string) => {
     const isPhrase = word.includes(' ');
+    const requestId = ++translationRequestId.current;
 
     const wordsToSpeak = word.split(/\s+/).slice(0, 15).join(' ');
     speak(wordsToSpeak);
@@ -113,6 +115,7 @@ export default function ReadPage({
       if (isPhrase) {
         try {
           const result = await translatePhrase(word, sentence);
+          if (requestId !== translationRequestId.current) return;
           setWordPanel((prev) => ({
             ...prev,
             translation: result.translation,
@@ -120,11 +123,12 @@ export default function ReadPage({
             isLoading: false,
           }));
         } catch (err) {
+          if (requestId !== translationRequestId.current) return;
           console.error('Phrase translation error:', err);
           setWordPanel((prev) => ({
             ...prev,
             isLoading: false,
-            error: 'Failed to translate phrase. Check API key in settings.',
+            error: 'Failed to translate phrase. Check AI provider in settings.',
           }));
         }
       } else {
@@ -140,6 +144,7 @@ export default function ReadPage({
         } else {
           try {
             const result = await translateWord(word, sentence);
+            if (requestId !== translationRequestId.current) return;
             setWordPanel((prev) => ({
               ...prev,
               translation: result.translation,
@@ -147,11 +152,12 @@ export default function ReadPage({
               isLoading: false,
             }));
           } catch (err) {
+            if (requestId !== translationRequestId.current) return;
             console.error('Translation error:', err);
             setWordPanel((prev) => ({
               ...prev,
               isLoading: false,
-              error: 'Failed to translate word. Add ANTHROPIC_API_KEY to settings for uncommon words.',
+              error: 'Failed to translate word. Check AI provider in settings.',
             }));
           }
         }

@@ -12,7 +12,6 @@
     "fetch-sentences": "npx tsx scripts/fetch-sentences.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
     "@mozilla/readability": "^0.6.0",
     "adm-zip": "^0.5.17",
     "better-sqlite3": "^12.6.2",

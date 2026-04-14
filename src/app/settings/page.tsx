@@ -35,6 +35,20 @@ const SETTINGS_KEYS = {
 
 type CardType = "basic" | "cloze";
 type Theme = "light" | "dark" | "system";
+type LLMProvider = "ollama" | "anthropic";
+
+const OLLAMA_MODELS = [
+  { value: "llama3.2:3b", label: "Llama 3.2 3B (fastest, lower quality)" },
+  { value: "llama3.1:8b", label: "Llama 3.1 8B (default, fast)" },
+  { value: "gemma2:9b", label: "Gemma 2 9B (best quality, needs ~6GB RAM)" },
+] as const;
+
+interface LLMStatus {
+  provider: string;
+  model: string;
+  ok: boolean;
+  error?: string;
+}
 
 interface AppSettings {
   apiKey: string;
@@ -80,6 +94,12 @@ export default function SettingsPage() {
   const [clearConfirmText, setCllearConfirmText] = useState("");
   const [exportStatus, setExportStatus] = useState<string | null>(null);
 
+  // LLM provider state
+  const [llmProvider, setLlmProvider] = useState<LLMProvider>("ollama");
+  const [ollamaModel, setOllamaModel] = useState("llama3.1:8b");
+  const [llmStatus, setLlmStatus] = useState<LLMStatus | null>(null);
+  const [llmTesting, setLlmTesting] = useState(false);
+
   // TTS state
   const [googleTTSAvailable, setGoogleTTSAvailable] = useState<boolean | null>(null);
   const [showGoogleApiKey, setShowGoogleApiKey] = useState(false);
@@ -114,6 +134,17 @@ export default function SettingsPage() {
 
     // Check if Google TTS is configured
     isGoogleTTSConfigured().then(setGoogleTTSAvailable);
+
+    // Load LLM provider settings from server
+    getSetting<string>('llmProvider').then((p) => {
+      if (p === 'ollama' || p === 'anthropic') setLlmProvider(p);
+    });
+    getSetting<string>('ollamaModel').then((m) => {
+      if (m) setOllamaModel(m);
+    });
+
+    // Check LLM status
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
   }, []);
 
   // Check Anki connection
@@ -192,6 +223,36 @@ export default function SettingsPage() {
     if (!key) return "";
     if (key.length <= 8) return "*".repeat(key.length);
     return key.slice(0, 4) + "*".repeat(key.length - 8) + key.slice(-4);
+  };
+
+  // Save LLM provider setting
+  const saveLLMProvider = async (provider: LLMProvider) => {
+    setLlmProvider(provider);
+    await setSetting('llmProvider', provider);
+    // Reset the cached provider on the server
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    // Refresh status
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  const saveOllamaModel = async (model: string) => {
+    setOllamaModel(model);
+    await setSetting('ollamaModel', model);
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  const testLLMConnection = async () => {
+    setLlmTesting(true);
+    try {
+      const res = await fetch('/api/llm-status/test', { method: 'POST' });
+      const data = await res.json();
+      setLlmStatus(prev => prev ? { ...prev, ok: data.ok, error: data.error } : { provider: llmProvider, model: ollamaModel, ok: data.ok, error: data.error });
+    } catch {
+      setLlmStatus(prev => prev ? { ...prev, ok: false, error: 'Failed to reach server' } : null);
+    } finally {
+      setLlmTesting(false);
+    }
   };
 
   // Parse CSV line handling quoted fields
@@ -524,40 +585,113 @@ export default function SettingsPage() {
 
       <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="space-y-8">
-          {/* API Key Section */}
+          {/* AI Provider Section */}
           <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Anthropic API Key
-            </h2>
-            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Required for AI-powered translations. Get your API key from{" "}
-              <a
-                href="https://console.anthropic.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline dark:text-blue-400"
-              >
-                console.anthropic.com
-              </a>
-            </p>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type={showApiKey ? "text" : "password"}
-                  value={showApiKey ? settings.apiKey : getMaskedApiKey(settings.apiKey)}
-                  onChange={(e) => saveSetting("apiKey", e.target.value)}
-                  placeholder="sk-ant-..."
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                  readOnly={!showApiKey}
-                />
-              </div>
-              <button
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              >
-                {showApiKey ? "Hide" : "Show"}
-              </button>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                AI Provider
+              </h2>
+              {llmStatus && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-block h-2 w-2 rounded-full ${
+                      llmStatus.ok ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
+                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                    {llmStatus.ok ? "Connected" : llmStatus.error || "Not connected"}
+                  </span>
+                </div>
+              )}
             </div>
+            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+              Choose how translations are powered. Ollama runs locally (no API key needed). Anthropic uses cloud AI for higher quality.
+            </p>
+
+            {/* Provider selector */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Provider
+              </label>
+              <select
+                value={llmProvider}
+                onChange={(e) => saveLLMProvider(e.target.value as LLMProvider)}
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              >
+                <option value="ollama">Ollama (local)</option>
+                <option value="anthropic">Anthropic (cloud)</option>
+              </select>
+            </div>
+
+            {/* Ollama settings */}
+            {llmProvider === "ollama" && (
+              <div className="mb-4">
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Model
+                </label>
+                <select
+                  value={ollamaModel}
+                  onChange={(e) => saveOllamaModel(e.target.value)}
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                >
+                  {OLLAMA_MODELS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  The model will be downloaded automatically on first use.
+                </p>
+              </div>
+            )}
+
+            {/* Anthropic settings */}
+            {llmProvider === "anthropic" && (
+              <div className="mb-4">
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  API Key
+                </label>
+                <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+                  Get your API key from{" "}
+                  <a
+                    href="https://console.anthropic.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    console.anthropic.com
+                  </a>
+                </p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      value={showApiKey ? settings.apiKey : getMaskedApiKey(settings.apiKey)}
+                      onChange={(e) => saveSetting("apiKey", e.target.value)}
+                      placeholder="sk-ant-..."
+                      className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                      readOnly={!showApiKey}
+                    />
+                  </div>
+                  <button
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  >
+                    {showApiKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Test connection */}
+            <button
+              onClick={testLLMConnection}
+              disabled={llmTesting}
+              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              {llmTesting ? "Testing..." : "Test Connection"}
+            </button>
           </section>
 
           {/* Anki Settings Section */}

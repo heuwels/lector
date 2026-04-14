@@ -1,8 +1,6 @@
 import { Hono } from 'hono';
-import Anthropic from '@anthropic-ai/sdk';
+import { getProvider } from '../lib/llm';
 import { db } from '../db';
-
-const client = new Anthropic();
 
 function recordStudyPing() {
   const today = new Date().toISOString().split('T')[0];
@@ -42,18 +40,13 @@ Respond with ONLY a JSON object in this exact format (no markdown, no code block
 Include literalBreakdown if the phrase is more than one word.
 Include idiomaticMeaning only if the phrase is an idiom or has a meaning that differs from the literal translation.`;
 
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 512,
+      const provider = getProvider();
+      const text = await provider.complete({
         messages: [{ role: 'user', content: prompt }],
+        maxTokens: 512,
       });
 
-      const content = message.content[0];
-      if (content.type !== 'text') {
-        return c.json({ error: 'Unexpected response type' }, 500);
-      }
-
-      return c.json(JSON.parse(content.text));
+      return c.json(JSON.parse(text));
     } else {
       const prompt = `You are an Afrikaans to English translator. Translate the following Afrikaans word, using the sentence context to determine the correct meaning.
 
@@ -65,18 +58,13 @@ Respond with ONLY a JSON object in this exact format (no markdown, no code block
 
 If you cannot determine the part of speech, omit that field.`;
 
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 256,
+      const provider = getProvider();
+      const text = await provider.complete({
         messages: [{ role: 'user', content: prompt }],
+        maxTokens: 256,
       });
 
-      const content = message.content[0];
-      if (content.type !== 'text') {
-        return c.json({ error: 'Unexpected response type' }, 500);
-      }
-
-      return c.json(JSON.parse(content.text));
+      return c.json(JSON.parse(text));
     }
   } catch (error) {
     console.error('Translation error:', error);
