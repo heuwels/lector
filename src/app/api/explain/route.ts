@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
 Sentence: "${sentence}"
 Translation: "${translation}"
 Study word: "${clozeWord}"`,
-      1024
+      1024,
+      'haiku'
     );
 
     return NextResponse.json({ explanation: text });

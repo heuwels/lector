@@ -38,7 +38,7 @@ Respond with ONLY a JSON object in this exact format (no markdown, no code block
 Include literalBreakdown if the phrase is more than one word.
 Include idiomaticMeaning only if the phrase is an idiom or has a meaning that differs from the literal translation.`;
 
-      const responseText = await askClaude(prompt, 512);
+      const responseText = await askClaude(prompt, 512, 'haiku');
       const result = JSON.parse(responseText);
       return NextResponse.json(result);
     } else {
@@ -53,7 +53,7 @@ Respond with ONLY a JSON object in this exact format (no markdown, no code block
 
 If you cannot determine the part of speech, omit that field.`;
 
-      const responseText = await askClaude(prompt, 256);
+      const responseText = await askClaude(prompt, 256, 'haiku');
       const result = JSON.parse(responseText);
       return NextResponse.json(result);
     }

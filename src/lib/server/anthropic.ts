@@ -28,9 +28,9 @@ export const client = apiKey ? new Anthropic() : null;
  * Send a prompt to Claude and get the text response.
  * Uses Agent SDK (OAuth) when available, falls back to direct API.
  */
-export async function prompt(text: string, maxTokens: number = 2048): Promise<string> {
+export async function prompt(text: string, maxTokens: number = 2048, model?: string): Promise<string> {
   if (useAgentSdk) {
-    return promptViaAgentSdk(text);
+    return promptViaAgentSdk(text, model);
   }
   if (!client) {
     throw new Error('No Anthropic credentials configured');
@@ -51,7 +51,7 @@ export async function prompt(text: string, maxTokens: number = 2048): Promise<st
  * Use the Claude Agent SDK query() to send a prompt via OAuth.
  * Collects assistant text from the message stream.
  */
-async function promptViaAgentSdk(text: string): Promise<string> {
+async function promptViaAgentSdk(text: string, model?: string): Promise<string> {
   // Agent SDK needs a writable cwd — use a temp dir
   const tmpDir = path.join(os.tmpdir(), 'lector-agent-sdk');
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -66,6 +66,7 @@ async function promptViaAgentSdk(text: string): Promise<string> {
       tools: [],
       systemPrompt,
       maxTurns: 1,
+      ...(model ? { model } : {}),
     },
   })) {
     if (message.type === 'assistant' && message.message?.content) {
