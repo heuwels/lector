@@ -1,7 +1,5 @@
 import { Hono } from 'hono';
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic();
+import { client } from '../lib/anthropic';
 const app = new Hono();
 
 // POST /api/explain

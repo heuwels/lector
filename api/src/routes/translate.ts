@@ -1,8 +1,6 @@
 import { Hono } from 'hono';
-import Anthropic from '@anthropic-ai/sdk';
+import { client } from '../lib/anthropic';
 import { db } from '../db';
-
-const client = new Anthropic();
 
 function recordStudyPing() {
   const today = new Date().toISOString().split('T')[0];

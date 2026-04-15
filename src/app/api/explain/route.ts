@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+import { client } from '@/lib/server/anthropic';
 
 export const dynamic = 'force-dynamic';
-
-const client = new Anthropic();
 
 export async function POST(request: NextRequest) {
   try {

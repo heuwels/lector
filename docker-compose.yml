@@ -9,6 +9,7 @@ services:
     environment:
       - NODE_ENV=production
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_OAUTH_TOKEN=${CLAUDE_OAUTH_TOKEN}
     volumes:
       - ./data:/app/data
     healthcheck:
