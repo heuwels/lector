@@ -1,3 +1,4 @@
+import { Sentry } from './lib/sentry';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -42,6 +43,13 @@ app.route('/api/data', data);
 app.route('/api/extract-url', extractUrl);
 app.route('/api/import', importRoutes);
 app.route('/api/llm-status', llmStatus);
+
+// Capture unhandled errors to Sentry/GlitchTip
+app.onError((err, c) => {
+  Sentry.captureException(err);
+  console.error(err);
+  return c.json({ error: 'Internal Server Error' }, 500);
+});
 
 // Health check
 app.get('/health', (c) => c.json({ ok: true }));

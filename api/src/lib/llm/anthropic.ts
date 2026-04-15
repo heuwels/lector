@@ -9,7 +9,16 @@ export class AnthropicProvider implements LLMProvider {
   private model: string;
 
   constructor(apiKey?: string, model?: string) {
-    this.client = new Anthropic(apiKey ? { apiKey } : undefined);
+    const oauthToken =
+      process.env.CLAUDE_OAUTH_TOKEN ||
+      process.env.CLAUDE_CODE_OAUTH_TOKEN ||
+      process.env.ANTHROPIC_AUTH_TOKEN;
+
+    if (oauthToken) {
+      this.client = new Anthropic({ authToken: oauthToken, apiKey: undefined as unknown as string });
+    } else {
+      this.client = new Anthropic(apiKey ? { apiKey } : undefined);
+    }
     this.model = model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
   }
 

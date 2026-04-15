@@ -8,11 +8,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "test:e2e": "playwright test",
     "fetch-sentences": "npx tsx scripts/fetch-sentences.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
+    "@sentry/nextjs": "^10",
     "adm-zip": "^0.5.17",
     "better-sqlite3": "^12.6.2",
     "dexie": "^4.3.0",
@@ -35,6 +37,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.4"
   }
 }
