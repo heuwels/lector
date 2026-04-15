@@ -84,7 +84,7 @@ export default function TranslationPopup({
       newY = padding;
     }
 
-    setAdjustedPosition({ x: newX, y: newY });
+    setAdjustedPosition({ x: newX, y: newY }); // eslint-disable-line react-hooks/set-state-in-effect -- position calc
 
     // Trigger entrance animation
     requestAnimationFrame(() => {

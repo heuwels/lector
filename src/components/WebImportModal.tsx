@@ -27,6 +27,7 @@ export default function WebImportModal({ isOpen, onClose, onSave }: WebImportMod
   const [isVisible, setIsVisible] = useState(false);
 
   // Reset state when modal opens
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on open/close */
   useEffect(() => {
     if (isOpen) {
       setUrl('');
@@ -40,6 +41,7 @@ export default function WebImportModal({ isOpen, onClose, onSave }: WebImportMod
       setIsVisible(false);
     }
   }, [isOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Handle click outside
   useEffect(() => {

@@ -18,6 +18,7 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
   const [isSaving, setIsSaving] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on open/close */
   useEffect(() => {
     if (isOpen) {
       setTitle('');
@@ -30,6 +31,7 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
       setIsVisible(false);
     }
   }, [isOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!isOpen) return;

@@ -264,7 +264,7 @@ export const db = new Proxy({} as Database, {
     const realDb = getDb();
     const value = (realDb as Record<string | symbol, unknown>)[prop];
     if (typeof value === 'function') {
-      return (value as Function).bind(realDb);
+      return (value as (...args: unknown[]) => unknown).bind(realDb);
     }
     return value;
   },

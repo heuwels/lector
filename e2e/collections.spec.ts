@@ -17,7 +17,7 @@ test.describe("Collections & Lessons", () => {
   test("should show empty library state", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByText("Your Library")).toBeVisible();
+    await expect(page.getByText("Your Library").first()).toBeVisible();
   });
 
   test("should import an EPUB and create a collection with lessons", async ({
@@ -171,7 +171,7 @@ test.describe("Collections & Lessons", () => {
     await page.waitForLoadState("networkidle");
 
     // Open import dropdown and click paste
-    await page.getByRole("button", { name: /import/i }).click();
+    await page.getByRole("button", { name: /import/i }).first().click();
     await page.getByText("Paste Text").click();
 
     // Fill the modal
