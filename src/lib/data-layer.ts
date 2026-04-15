@@ -448,6 +448,75 @@ export async function migrateClozeSentences(): Promise<number> {
 }
 
 // ============================================================================
+// Helper Functions - Journal
+// ============================================================================
+
+export interface Correction {
+  original: string;
+  corrected: string;
+  explanation: string;
+  type: 'grammar' | 'spelling' | 'word_choice' | 'word_order' | 'missing_word' | 'extra_word';
+}
+
+export interface JournalEntry {
+  id: string;
+  body: string;
+  correctedBody: string | null;
+  corrections: Correction[] | null;
+  status: 'draft' | 'submitted';
+  wordCount: number;
+  entryDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getJournalEntries(limit: number = 20, offset: number = 0): Promise<JournalEntry[]> {
+  const res = await fetch(`/api/journal?limit=${limit}&offset=${offset}`);
+  return res.json();
+}
+
+export async function getJournalEntryByDate(date: string): Promise<JournalEntry | null> {
+  const res = await fetch(`/api/journal?date=${date}`);
+  return res.json();
+}
+
+export async function getJournalEntry(id: string): Promise<JournalEntry | undefined> {
+  const res = await fetch(`/api/journal/${id}`);
+  if (!res.ok) return undefined;
+  return res.json();
+}
+
+export async function saveJournalDraft(body: string, entryDate?: string): Promise<{ id: string; entryDate: string }> {
+  const res = await fetch('/api/journal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, entryDate }),
+  });
+  return res.json();
+}
+
+export async function updateJournalDraft(id: string, body: string): Promise<void> {
+  await fetch(`/api/journal/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  });
+}
+
+export async function submitJournalForCorrection(id: string): Promise<{ correctedBody: string; corrections: Correction[] }> {
+  const res = await fetch(`/api/journal/${id}/correct`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Correction failed');
+  }
+  return res.json();
+}
+
+export async function deleteJournalEntry(id: string): Promise<void> {
+  await fetch(`/api/journal/${id}`, { method: 'DELETE' });
+}
+
+// ============================================================================
 // Helper Functions - Daily Stats
 // ============================================================================
 

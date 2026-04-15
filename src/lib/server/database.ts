@@ -114,6 +114,20 @@ function getDb(): DatabaseType {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS journal_entries (
+      id TEXT PRIMARY KEY,
+      body TEXT NOT NULL DEFAULT '',
+      correctedBody TEXT,
+      corrections TEXT,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
+      wordCount INTEGER DEFAULT 0,
+      entryDate TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate);
+    CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status);
   `);
 
   // Migrations for existing databases
@@ -395,4 +409,18 @@ export interface DailyStatsRow {
 export interface SettingRow {
   key: string;
   value: string;
+}
+
+export type JournalStatus = 'draft' | 'submitted';
+
+export interface JournalEntryRow {
+  id: string;
+  body: string;
+  correctedBody: string | null;
+  corrections: string | null;
+  status: JournalStatus;
+  wordCount: number;
+  entryDate: string;
+  createdAt: string;
+  updatedAt: string;
 }
