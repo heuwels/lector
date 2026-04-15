@@ -126,11 +126,22 @@ function getDb(): DatabaseType {
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate);
+    CREATE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate);
     CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status);
   `);
 
   // Migrations for existing databases
+
+  // Drop unique constraint on journal_entries.entryDate (allow multiple entries per day)
+  const journalIndexes = _db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='journal_entries' AND name='idx_journal_entryDate'").get() as { name: string } | undefined;
+  if (journalIndexes) {
+    const indexSql = _db.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_journal_entryDate'").get() as { sql: string } | undefined;
+    if (indexSql?.sql?.includes('UNIQUE')) {
+      _db.exec('DROP INDEX idx_journal_entryDate');
+      _db.exec('CREATE INDEX idx_journal_entryDate ON journal_entries(entryDate)');
+    }
+  }
+
   const cols = _db.prepare("PRAGMA table_info(dailyStats)").all() as { name: string }[];
   if (!cols.some(c => c.name === 'sessionStartedAt')) {
     _db.exec('ALTER TABLE dailyStats ADD COLUMN sessionStartedAt TEXT');

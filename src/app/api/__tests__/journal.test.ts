@@ -26,7 +26,7 @@ function createTables() {
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate);
+    CREATE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate);
     CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status);
   `);
 }
@@ -50,9 +50,10 @@ function insertEntry(
   id: string,
   body: string,
   entryDate: string,
-  status: string = 'draft'
+  status: string = 'draft',
+  createdAt?: string
 ) {
-  const now = new Date().toISOString();
+  const now = createdAt || new Date().toISOString();
   const wordCount = body.trim().split(/\s+/).filter(Boolean).length;
   sqlite
     .prepare(
@@ -85,49 +86,61 @@ describe('Journal API', () => {
       expect(data).toEqual([]);
     });
 
-    it('returns entries in reverse chronological order', async () => {
-      insertEntry('a', 'Dag een', '2026-01-01');
-      insertEntry('b', 'Dag twee', '2026-01-02');
-      insertEntry('c', 'Dag drie', '2026-01-03');
+    it('returns entries in reverse chronological order by createdAt', async () => {
+      insertEntry('a', 'Dag een', '2026-01-01', 'draft', '2026-01-01T10:00:00Z');
+      insertEntry('b', 'Dag twee', '2026-01-02', 'draft', '2026-01-02T10:00:00Z');
+      insertEntry('c', 'Dag drie', '2026-01-03', 'draft', '2026-01-03T10:00:00Z');
 
       const res = await listRoute.GET(makeRequest('/api/journal'));
       const data = await res.json();
       expect(data).toHaveLength(3);
-      expect(data[0].entryDate).toBe('2026-01-03');
-      expect(data[1].entryDate).toBe('2026-01-02');
-      expect(data[2].entryDate).toBe('2026-01-01');
+      expect(data[0].id).toBe('c');
+      expect(data[1].id).toBe('b');
+      expect(data[2].id).toBe('a');
     });
 
-    it('returns entry by date', async () => {
-      insertEntry('a', 'Hallo wereld', '2026-03-15');
+    it('returns entries filtered by date', async () => {
+      insertEntry('a', 'Morning entry', '2026-03-15', 'draft', '2026-03-15T08:00:00Z');
+      insertEntry('b', 'Evening entry', '2026-03-15', 'draft', '2026-03-15T20:00:00Z');
+      insertEntry('c', 'Different day', '2026-03-16', 'draft', '2026-03-16T10:00:00Z');
 
       const res = await listRoute.GET(
         makeRequest('/api/journal?date=2026-03-15')
       );
       const data = await res.json();
-      expect(data.body).toBe('Hallo wereld');
-      expect(data.entryDate).toBe('2026-03-15');
+      expect(data).toHaveLength(2);
+      expect(data[0].id).toBe('b'); // most recent first
+      expect(data[1].id).toBe('a');
     });
 
-    it('returns null for non-existent date', async () => {
+    it('returns empty array for non-existent date', async () => {
       const res = await listRoute.GET(
         makeRequest('/api/journal?date=2099-12-31')
       );
       const data = await res.json();
-      expect(data).toBeNull();
+      expect(data).toEqual([]);
+    });
+
+    it('allows multiple entries per day', async () => {
+      insertEntry('a', 'First entry', '2026-04-10', 'submitted', '2026-04-10T08:00:00Z');
+      insertEntry('b', 'Second entry', '2026-04-10', 'draft', '2026-04-10T20:00:00Z');
+
+      const res = await listRoute.GET(makeRequest('/api/journal?date=2026-04-10'));
+      const data = await res.json();
+      expect(data).toHaveLength(2);
     });
 
     it('respects limit and offset', async () => {
-      insertEntry('a', 'Een', '2026-01-01');
-      insertEntry('b', 'Twee', '2026-01-02');
-      insertEntry('c', 'Drie', '2026-01-03');
+      insertEntry('a', 'Een', '2026-01-01', 'draft', '2026-01-01T10:00:00Z');
+      insertEntry('b', 'Twee', '2026-01-02', 'draft', '2026-01-02T10:00:00Z');
+      insertEntry('c', 'Drie', '2026-01-03', 'draft', '2026-01-03T10:00:00Z');
 
       const res = await listRoute.GET(
         makeRequest('/api/journal?limit=1&offset=1')
       );
       const data = await res.json();
       expect(data).toHaveLength(1);
-      expect(data[0].entryDate).toBe('2026-01-02');
+      expect(data[0].id).toBe('b');
     });
   });
 
@@ -147,41 +160,28 @@ describe('Journal API', () => {
       expect(id).toBeTruthy();
       expect(entryDate).toBe('2026-04-10');
 
-      // Verify in DB
       const row = sqlite.prepare('SELECT * FROM journal_entries WHERE id = ?').get(id) as Record<string, unknown>;
       expect(row.body).toBe('Vandag was lekker.');
       expect(row.status).toBe('draft');
       expect(row.wordCount).toBe(3);
     });
 
-    it('updates existing draft for same date', async () => {
-      insertEntry('existing', 'Ou teks', '2026-04-10');
+    it('creates a second entry for the same date', async () => {
+      insertEntry('first', 'First entry', '2026-04-10', 'submitted');
 
       const res = await listRoute.POST(
         makeRequest('/api/journal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ body: 'Nuwe teks hier', entryDate: '2026-04-10' }),
+          body: JSON.stringify({ body: 'Second entry', entryDate: '2026-04-10' }),
         })
       );
+      expect(res.status).toBe(200);
       const { id } = await res.json();
-      expect(id).toBe('existing');
+      expect(id).not.toBe('first');
 
-      const row = sqlite.prepare('SELECT body FROM journal_entries WHERE id = ?').get('existing') as Record<string, unknown>;
-      expect(row.body).toBe('Nuwe teks hier');
-    });
-
-    it('rejects update when entry is already submitted', async () => {
-      insertEntry('submitted', 'Oorspronklike teks', '2026-04-10', 'submitted');
-
-      const res = await listRoute.POST(
-        makeRequest('/api/journal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ body: 'Probeer verander', entryDate: '2026-04-10' }),
-        })
-      );
-      expect(res.status).toBe(400);
+      const count = sqlite.prepare('SELECT COUNT(*) as c FROM journal_entries WHERE entryDate = ?').get('2026-04-10') as { c: number };
+      expect(count.c).toBe(2);
     });
   });
 

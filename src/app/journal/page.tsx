@@ -1,25 +1,26 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import NavHeader from '@/components/NavHeader';
 import {
   type JournalEntry,
   type Correction,
-  getJournalEntryByDate,
   getJournalEntries,
-  saveJournalDraft,
+  createJournalEntry,
   updateJournalDraft,
   submitJournalForCorrection,
   deleteJournalEntry,
 } from '@/lib/data-layer';
 
-function getTodayDate() {
-  return new Date().toISOString().split('T')[0];
-}
-
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatDateTime(isoStr: string) {
+  const d = new Date(isoStr);
+  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
+    + ' ' + d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
 }
 
 // ── Correction type badge ───────────────────────────────────────────────────
@@ -42,20 +43,92 @@ function CorrectionBadge({ type }: { type: string }) {
   );
 }
 
-// ── Correction diff view ────────────────────────────────────────────────────
+// ── Inline highlighted text ─────────────────────────────────────────────────
+
+function HighlightedText({ body, corrections }: { body: string; corrections: Correction[] }) {
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+
+  if (corrections.length === 0) {
+    return <span>{body}</span>;
+  }
+
+  // Find correction positions in the original text via substring search
+  type Span = { start: number; end: number; correctionIdx: number };
+  const spans: Span[] = [];
+  for (let i = 0; i < corrections.length; i++) {
+    const c = corrections[i];
+    // Search from after the last found span to handle duplicates
+    const searchFrom = spans.length > 0 ? spans[spans.length - 1].end : 0;
+    const idx = body.indexOf(c.original, searchFrom);
+    if (idx !== -1) {
+      spans.push({ start: idx, end: idx + c.original.length, correctionIdx: i });
+    }
+  }
+
+  // Sort by position
+  spans.sort((a, b) => a.start - b.start);
+
+  // Build segments
+  const segments: React.ReactNode[] = [];
+  let cursor = 0;
+  for (const span of spans) {
+    if (span.start > cursor) {
+      segments.push(<span key={`t-${cursor}`}>{body.slice(cursor, span.start)}</span>);
+    }
+    const c = corrections[span.correctionIdx];
+    const isActive = activeIdx === span.correctionIdx;
+    segments.push(
+      <span key={`c-${span.correctionIdx}`} className="relative inline">
+        <button
+          onClick={(e) => { e.stopPropagation(); setActiveIdx(isActive ? null : span.correctionIdx); }}
+          className="underline decoration-wavy decoration-red-400 dark:decoration-red-500 underline-offset-4 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded px-0.5 -mx-0.5 cursor-pointer transition-colors"
+        >
+          {body.slice(span.start, span.end)}
+        </button>
+        {isActive && (
+          <span className="absolute left-0 top-full mt-1 z-10 w-64 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-3 shadow-lg text-left">
+            <span className="flex items-center gap-2 mb-1">
+              <CorrectionBadge type={c.type} />
+            </span>
+            <span className="block text-sm mb-1">
+              <span className="line-through text-red-600 dark:text-red-400">{c.original}</span>
+              {' → '}
+              <span className="font-medium text-green-700 dark:text-green-400">{c.corrected}</span>
+            </span>
+            <span className="block text-xs text-zinc-500 dark:text-zinc-400">{c.explanation}</span>
+          </span>
+        )}
+      </span>
+    );
+    cursor = span.end;
+  }
+  if (cursor < body.length) {
+    segments.push(<span key={`t-${cursor}`}>{body.slice(cursor)}</span>);
+  }
+
+  return (
+    <span onClick={() => setActiveIdx(null)}>
+      {segments}
+    </span>
+  );
+}
+
+// ── Correction view ─────────────────────────────────────────────────────────
 
 function CorrectionView({ entry }: { entry: JournalEntry }) {
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const corrections = entry.corrections || [];
 
   return (
     <div className="space-y-6">
-      {/* Original with corrections summary */}
+      {/* Original with inline highlights */}
       <div>
         <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Your text</h3>
         <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 p-4 text-sm leading-relaxed whitespace-pre-wrap">
-          {entry.body}
+          <HighlightedText body={entry.body} corrections={corrections} />
         </div>
+        {corrections.length > 0 && (
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Click highlighted words to see corrections</p>
+        )}
       </div>
 
       {/* Corrected version */}
@@ -68,33 +141,15 @@ function CorrectionView({ entry }: { entry: JournalEntry }) {
         </div>
       )}
 
-      {/* Corrections list */}
+      {/* Summary */}
       {corrections.length > 0 ? (
-        <div>
-          <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">
-            {corrections.length} correction{corrections.length !== 1 ? 's' : ''}
-          </h3>
-          <div className="space-y-2">
-            {corrections.map((c, i) => (
-              <button
-                key={i}
-                onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
-                className="w-full text-left rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <CorrectionBadge type={c.type} />
-                  <span className="text-sm">
-                    <span className="line-through text-red-600 dark:text-red-400">{c.original}</span>
-                    {' → '}
-                    <span className="font-medium text-green-700 dark:text-green-400">{c.corrected}</span>
-                  </span>
-                </div>
-                {expandedIdx === i && (
-                  <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-2">{c.explanation}</p>
-                )}
-              </button>
-            ))}
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            {corrections.length} correction{corrections.length !== 1 ? 's' : ''}:
+          </span>
+          {corrections.map((c, i) => (
+            <CorrectionBadge key={i} type={c.type} />
+          ))}
         </div>
       ) : (
         <div className="rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 p-4 text-center">
@@ -126,12 +181,12 @@ function HistoryCard({
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {formatDate(entry.entryDate)}
+          {formatDateTime(entry.createdAt)}
         </span>
         <div className="flex items-center gap-2">
           {entry.status === 'submitted' ? (
             <span className="rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
-              Corrected{correctionCount > 0 ? ` (${correctionCount})` : ''}
+              {correctionCount > 0 ? `${correctionCount} correction${correctionCount !== 1 ? 's' : ''}` : 'Perfect'}
             </span>
           ) : (
             <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300">
@@ -166,7 +221,7 @@ function EntryModal({ entry, onClose }: { entry: JournalEntry; onClose: () => vo
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            {formatDate(entry.entryDate)}
+            {formatDateTime(entry.createdAt)}
           </h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,53 +244,48 @@ function EntryModal({ entry, onClose }: { entry: JournalEntry; onClose: () => vo
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default function JournalPage() {
-  const [todayEntry, setTodayEntry] = useState<JournalEntry | null>(null);
   const [bodyText, setBodyText] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const entryIdRef = useRef<string | null>(null);
 
-  const today = getTodayDate();
+  const today = new Date().toISOString().split('T')[0];
 
-  // Load today's entry and history
+  // Load entries
   useEffect(() => {
-    getJournalEntryByDate(today).then((entry) => {
-      if (entry) {
-        setTodayEntry(entry);
-        setBodyText(entry.body);
-        entryIdRef.current = entry.id;
-      }
-    });
     getJournalEntries(50).then(setEntries);
-  }, [today]);
+  }, []);
 
-  // Auto-save debounce
-  const debouncedSave = useCallback(async (text: string) => {
-    if (!text.trim()) return;
-    try {
-      if (entryIdRef.current && todayEntry?.status === 'draft') {
-        await updateJournalDraft(entryIdRef.current, text);
-      } else if (!entryIdRef.current) {
-        const result = await saveJournalDraft(text, today);
-        entryIdRef.current = result.id;
-      }
-      setSaveStatus('Draft saved');
-      setTimeout(() => setSaveStatus(null), 2000);
-    } catch {
-      // silent — explicit save still available
-    }
-  }, [today, todayEntry?.status]);
+  const refreshEntries = async () => {
+    const updated = await getJournalEntries(50);
+    setEntries(updated);
+  };
+
+  const handleNewEntry = () => {
+    setBodyText('');
+    setEditingId(null);
+    setShowEditor(true);
+    setError(null);
+  };
 
   const handleBodyChange = (text: string) => {
     setBodyText(text);
-    if (todayEntry?.status === 'submitted') return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => debouncedSave(text), 3000);
+    if (editingId && text.trim()) {
+      autoSaveTimer.current = setTimeout(async () => {
+        try {
+          await updateJournalDraft(editingId, text);
+          setSaveStatus('Draft saved');
+          setTimeout(() => setSaveStatus(null), 2000);
+        } catch { /* silent */ }
+      }, 3000);
+    }
   };
 
   const handleSaveDraft = async () => {
@@ -243,14 +293,13 @@ export default function JournalPage() {
     setIsSaving(true);
     setError(null);
     try {
-      if (entryIdRef.current) {
-        await updateJournalDraft(entryIdRef.current, bodyText);
+      if (editingId) {
+        await updateJournalDraft(editingId, bodyText);
       } else {
-        const result = await saveJournalDraft(bodyText, today);
-        entryIdRef.current = result.id;
+        const result = await createJournalEntry(bodyText, today);
+        setEditingId(result.id);
       }
-      const updated = await getJournalEntryByDate(today);
-      if (updated) setTodayEntry(updated);
+      await refreshEntries();
       setSaveStatus('Draft saved');
       setTimeout(() => setSaveStatus(null), 2000);
     } catch (err) {
@@ -265,19 +314,19 @@ export default function JournalPage() {
     setIsSubmitting(true);
     setError(null);
     try {
-      // Ensure draft is saved first
-      if (!entryIdRef.current) {
-        const result = await saveJournalDraft(bodyText, today);
-        entryIdRef.current = result.id;
+      let id = editingId;
+      if (!id) {
+        const result = await createJournalEntry(bodyText, today);
+        id = result.id;
+        setEditingId(id);
       } else {
-        await updateJournalDraft(entryIdRef.current, bodyText);
+        await updateJournalDraft(id, bodyText);
       }
-
-      await submitJournalForCorrection(entryIdRef.current);
-      const updated = await getJournalEntryByDate(today);
-      if (updated) setTodayEntry(updated);
-      // Refresh history
-      getJournalEntries(50).then(setEntries);
+      await submitJournalForCorrection(id);
+      await refreshEntries();
+      setShowEditor(false);
+      setBodyText('');
+      setEditingId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Correction failed');
     } finally {
@@ -288,34 +337,57 @@ export default function JournalPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this journal entry?')) return;
     await deleteJournalEntry(id);
-    if (entryIdRef.current === id) {
-      setTodayEntry(null);
+    if (editingId === id) {
+      setShowEditor(false);
       setBodyText('');
-      entryIdRef.current = null;
+      setEditingId(null);
     }
     setEntries((prev) => prev.filter((e) => e.id !== id));
   };
 
+  const handleEditDraft = (entry: JournalEntry) => {
+    setBodyText(entry.body);
+    setEditingId(entry.id);
+    setShowEditor(true);
+    setError(null);
+  };
+
   const wordCount = bodyText.trim().split(/\s+/).filter(Boolean).length;
-  const isToday = todayEntry?.status === 'submitted';
-  // History excludes today's entry
-  const historyEntries = entries.filter((e) => e.entryDate !== today);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 sm:ml-56">
       <NavHeader />
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8 pb-24 sm:pb-8">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mb-6">Journal</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Journal</h1>
+          {!showEditor && (
+            <button
+              onClick={handleNewEntry}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Entry
+            </button>
+          )}
+        </div>
 
-        {/* Today's entry */}
-        <section className="mb-10">
-          <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3">
-            {formatDate(today)}
-          </h2>
+        {/* Editor */}
+        {showEditor && (
+          <section className="mb-10">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                {formatDate(today)}
+              </h2>
+              <button
+                onClick={() => { setShowEditor(false); setBodyText(''); setEditingId(null); setError(null); }}
+                className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+              >
+                Cancel
+              </button>
+            </div>
 
-          {isToday && todayEntry ? (
-            <CorrectionView entry={todayEntry} />
-          ) : (
             <div className="space-y-3">
               <textarea
                 value={bodyText}
@@ -323,6 +395,7 @@ export default function JournalPage() {
                 placeholder="Skryf vandag se joernaal inskrywing in Afrikaans..."
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 text-sm leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-[160px]"
                 disabled={isSubmitting}
+                autoFocus
               />
 
               <div className="flex items-center justify-between">
@@ -357,31 +430,49 @@ export default function JournalPage() {
                 </div>
               </div>
             </div>
-          )}
 
-          {error && (
-            <div className="mt-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 p-3 text-sm text-red-700 dark:text-red-300">
-              {error}
-            </div>
-          )}
-        </section>
+            {error && (
+              <div className="mt-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 p-3 text-sm text-red-700 dark:text-red-300">
+                {error}
+              </div>
+            )}
+          </section>
+        )}
 
-        {/* History */}
-        {historyEntries.length > 0 && (
+        {/* Entry list */}
+        {entries.length > 0 ? (
           <section>
-            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3">Past entries</h2>
+            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3">
+              {entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}
+            </h2>
             <div className="space-y-2">
-              {historyEntries.map((entry) => (
+              {entries.map((entry) => (
                 <HistoryCard
                   key={entry.id}
                   entry={entry}
-                  onSelect={setSelectedEntry}
+                  onSelect={(e) => {
+                    if (e.status === 'draft') {
+                      handleEditDraft(e);
+                    } else {
+                      setSelectedEntry(e);
+                    }
+                  }}
                   onDelete={handleDelete}
                 />
               ))}
             </div>
           </section>
-        )}
+        ) : !showEditor ? (
+          <div className="text-center py-16">
+            <p className="text-zinc-500 dark:text-zinc-400 mb-4">No journal entries yet</p>
+            <button
+              onClick={handleNewEntry}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              Write your first entry
+            </button>
+          </div>
+        ) : null}
 
         {/* Detail modal */}
         {selectedEntry && (

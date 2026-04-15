@@ -475,7 +475,7 @@ export async function getJournalEntries(limit: number = 20, offset: number = 0):
   return res.json();
 }
 
-export async function getJournalEntryByDate(date: string): Promise<JournalEntry | null> {
+export async function getJournalEntriesByDate(date: string): Promise<JournalEntry[]> {
   const res = await fetch(`/api/journal?date=${date}`);
   return res.json();
 }
@@ -486,7 +486,7 @@ export async function getJournalEntry(id: string): Promise<JournalEntry | undefi
   return res.json();
 }
 
-export async function saveJournalDraft(body: string, entryDate?: string): Promise<{ id: string; entryDate: string }> {
+export async function createJournalEntry(body: string, entryDate?: string): Promise<{ id: string; entryDate: string }> {
   const res = await fetch('/api/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
