@@ -25,16 +25,24 @@ import { addClozeCard, isAnkiConnected } from '@/lib/anki';
 const ANKI_CLOZE_DECK_SETTING_KEY = 'lector-anki-cloze-deck';
 const DEFAULT_ANKI_CLOZE_DECK = 'Afrikaans::Cloze';
 
-// Helper function to create blanked sentence
+// Strip trailing punctuation from a word, returning [cleanWord, punctuation]
+function splitTrailingPunctuation(word: string): [string, string] {
+  const match = word.match(/^(.+?)([.,!?;:'")\]]+)$/);
+  if (match) return [match[1], match[2]];
+  return [word, ''];
+}
+
+// Helper function to create blanked sentence, moving punctuation outside the blank
 function createBlankedSentence(sentence: string, wordIndex: number): string {
   const words = sentence.split(/\s+/);
-  words[wordIndex] = '_____';
+  const [, punct] = splitTrailingPunctuation(words[wordIndex]);
+  words[wordIndex] = '_____' + punct;
   return words.join(' ');
 }
 
 // Helper function to normalize text for comparison
 function normalize(s: string): string {
-  return s.toLowerCase().replace(/[.,!?;:'"]/g, '').trim();
+  return s.toLowerCase().replace(/[.,!?;:'")\]]/g, '').trim();
 }
 
 // Helper function to check answer (case-insensitive, ignores punctuation)
@@ -243,8 +251,11 @@ export default function PracticePage() {
       if (fb) distractors.push(fb);
       else break;
     }
-    const options = shuffle([sentence.clozeWord, ...distractors.slice(0, 3)]);
-    const correctIdx = options.findIndex(o => normalize(o) === normalize(sentence.clozeWord));
+    // Strip trailing punctuation from all options so punctuation doesn't give away the answer
+    const cleanCorrect = splitTrailingPunctuation(sentence.clozeWord)[0];
+    const cleanDistractors = distractors.slice(0, 3).map(d => splitTrailingPunctuation(d)[0]);
+    const options = shuffle([cleanCorrect, ...cleanDistractors]);
+    const correctIdx = options.findIndex(o => normalize(o) === normalize(cleanCorrect));
     setMcOptions(options);
     setMcCorrectIdx(correctIdx);
     setMcSelected(null);
@@ -419,7 +430,7 @@ export default function PracticePage() {
 
     setFeedbackData({
       isCorrect,
-      correctWord: current.sentence.clozeWord,
+      correctWord: splitTrailingPunctuation(current.sentence.clozeWord)[0],
       userAnswer: submittedAnswer,
       translation: current.sentence.translation,
       points: earnedPoints,
@@ -492,7 +503,7 @@ export default function PracticePage() {
 
       setFeedbackData({
         isCorrect,
-        correctWord: current.sentence.clozeWord,
+        correctWord: splitTrailingPunctuation(current.sentence.clozeWord)[0],
         userAnswer: selectedWord,
         translation: current.sentence.translation,
         points: earnedPoints,
