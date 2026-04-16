@@ -1,5 +1,7 @@
 # Claude Instructions
 
+**IMPORTANT: Before raising any PR, the full e2e test suite must pass locally with 0 failures. Run `npx playwright test` and verify all tests pass. This is mandatory — CI is unreliable, local verification is the source of truth.**
+
 ## Testing Requirements
 
 Every new feature MUST be accompanied by:
