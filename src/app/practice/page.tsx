@@ -311,10 +311,6 @@ export default function PracticePage() {
         sentences = await getClozeSentencesByCollection(collection, size, []);
       } else {
         sentences = await getNewSentencesByCollection(collection, size, []);
-        if (sentences.length < size) {
-          const dueSentences = await getClozeSentencesByCollection(collection, size - sentences.length, []);
-          sentences = [...sentences, ...dueSentences];
-        }
       }
 
       // Shuffle

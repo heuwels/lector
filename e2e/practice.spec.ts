@@ -751,3 +751,130 @@ test.describe("Practice - Fuzzy Input Coloring", () => {
     ).toBeVisible();
   });
 });
+
+test.describe("Practice - Learn New should not show reviews", () => {
+  const TEST_COLLECTION = "top500";
+
+  test("Learn New only shows new sentences, not review-due ones", async ({
+    page,
+  }) => {
+    // Seed: 2 review-due sentences (reviewCount > 0, nextReview in the past)
+    // and 2 genuinely new sentences (reviewCount = 0)
+    const pastDate = "2020-01-01T00:00:00.000Z";
+    const futureDate = "2099-01-01T00:00:00.000Z";
+
+    const testSentences = [
+      {
+        id: "test-review-1",
+        sentence: "REVIEW_SENTENCE_ONE hier is.",
+        clozeWord: "REVIEW_SENTENCE_ONE",
+        clozeIndex: 0,
+        translation: "Review sentence one is here.",
+        source: "tatoeba",
+        collection: TEST_COLLECTION,
+        masteryLevel: 25,
+        nextReview: pastDate,
+        reviewCount: 3,
+        timesCorrect: 2,
+        timesIncorrect: 1,
+      },
+      {
+        id: "test-review-2",
+        sentence: "REVIEW_SENTENCE_TWO daar is.",
+        clozeWord: "REVIEW_SENTENCE_TWO",
+        clozeIndex: 0,
+        translation: "Review sentence two is there.",
+        source: "tatoeba",
+        collection: TEST_COLLECTION,
+        masteryLevel: 50,
+        nextReview: pastDate,
+        reviewCount: 5,
+        timesCorrect: 4,
+        timesIncorrect: 1,
+      },
+      {
+        id: "test-new-1",
+        sentence: "NEW_SENTENCE_ONE hier is.",
+        clozeWord: "NEW_SENTENCE_ONE",
+        clozeIndex: 0,
+        translation: "New sentence one is here.",
+        source: "tatoeba",
+        collection: TEST_COLLECTION,
+        masteryLevel: 0,
+        nextReview: futureDate,
+        reviewCount: 0,
+        timesCorrect: 0,
+        timesIncorrect: 0,
+      },
+      {
+        id: "test-new-2",
+        sentence: "NEW_SENTENCE_TWO daar is.",
+        clozeWord: "NEW_SENTENCE_TWO",
+        clozeIndex: 0,
+        translation: "New sentence two is there.",
+        source: "tatoeba",
+        collection: TEST_COLLECTION,
+        masteryLevel: 0,
+        nextReview: futureDate,
+        reviewCount: 0,
+        timesCorrect: 0,
+        timesIncorrect: 0,
+      },
+    ];
+
+    // Seed via API
+    const seedRes = await page.request.post("/api/cloze", {
+      data: testSentences,
+    });
+    expect(seedRes.ok()).toBeTruthy();
+
+    // Verify seeding worked
+    const checkRes = await page.request.get("/api/cloze/test-new-1");
+    const checkData = await checkRes.json();
+    expect(checkData.id).toBe("test-new-1");
+    expect(checkData.reviewCount).toBe(0);
+
+    // Hit the "new" API endpoint and verify only reviewCount=0 sentences returned
+    const newRes = await page.request.get(
+      `/api/cloze/due?mode=new&collection=${TEST_COLLECTION}&limit=50`
+    );
+    const newSentences = await newRes.json();
+
+    // No review sentences should leak into "new" results
+    const reviewLeaked = newSentences.filter(
+      (s: { reviewCount: number }) => s.reviewCount > 0
+    );
+    expect(reviewLeaked).toHaveLength(0);
+
+    // All returned sentences should have reviewCount = 0
+    for (const s of newSentences) {
+      expect(s.reviewCount).toBe(0);
+    }
+
+    // Hit the "review" API endpoint and verify it returns review-due ones
+    const reviewRes = await page.request.get(
+      `/api/cloze/due?mode=review&collection=${TEST_COLLECTION}&limit=50`
+    );
+    const reviewSentences = await reviewRes.json();
+
+    // All returned review sentences should have reviewCount > 0
+    for (const s of reviewSentences) {
+      expect(s.reviewCount).toBeGreaterThan(0);
+    }
+
+    // Verify the seeded review entries are individually accessible and correct
+    const checkReview1 = await page.request.get("/api/cloze/test-review-1");
+    const r1 = await checkReview1.json();
+    expect(r1.reviewCount).toBeGreaterThan(0);
+    expect(r1.collection).toBe(TEST_COLLECTION);
+
+    const checkReview2 = await page.request.get("/api/cloze/test-review-2");
+    const r2 = await checkReview2.json();
+    expect(r2.reviewCount).toBeGreaterThan(0);
+
+    // Clean up test sentences
+    for (const s of testSentences) {
+      await page.request.delete(`/api/cloze/${s.id}`);
+    }
+  });
+});
