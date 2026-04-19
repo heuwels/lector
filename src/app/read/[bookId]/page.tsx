@@ -362,7 +362,7 @@ export default function ReadPage({
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-zinc-900">
+    <div className="h-dvh flex flex-col bg-white dark:bg-zinc-900 overflow-x-hidden">
       {/* Reader */}
       <div className="flex-1 relative overflow-hidden">
         <MarkdownReader
@@ -382,12 +382,12 @@ export default function ReadPage({
           tabIndex={-1}
           className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-zinc-800
             border-t border-zinc-200 dark:border-zinc-700 shadow-lg outline-none">
-          <div className="max-w-3xl mx-auto px-4 py-3">
-            <div className="flex items-center gap-4">
-              {/* Word and translation */}
+          <div className="max-w-3xl mx-auto px-3 sm:px-4 py-2 sm:py-3">
+            {/* Row 1: Word, translation, close button */}
+            <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100">
                     {wordPanel.word}
                   </span>
                   <button
@@ -427,7 +427,7 @@ export default function ReadPage({
                 )}
                 {/* Sentence with speaker button */}
                 <div className="flex items-center gap-1 mt-1">
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-md">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
                     {wordPanel.sentence}
                   </span>
                   <button
@@ -444,10 +444,21 @@ export default function ReadPage({
                   </button>
                 </div>
               </div>
+              <button
+                onClick={closeWordPanel}
+                className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors flex-shrink-0"
+                title="Close (Esc)"
+              >
+                <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
 
-              {/* Level buttons (LingQ-style) */}
+            {/* Row 2: Level buttons + action buttons */}
+            <div className="flex items-center gap-2 mt-2">
               {wordPanel.translation && (
-                <div className="flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-600 pr-3 mr-1">
+                <div className="flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-600 pr-2 mr-1">
                   {[1, 2, 3, 4].map((level) => {
                     const currentLevel = wordPanel.existingEntry?.state;
                     const isActive = currentLevel === `level${level}`;
@@ -474,41 +485,28 @@ export default function ReadPage({
                   })}
                 </div>
               )}
-
-              {/* Action buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={markAsKnown}
-                  className={`px-3 py-1.5 text-sm rounded transition-colors font-medium
-                    ${wordPanel.existingEntry?.state === 'known'
-                      ? 'bg-green-500 text-white ring-2 ring-offset-1 ring-green-500'
-                      : 'bg-green-500 text-white hover:bg-green-600'
-                    }`}
-                  title="Known (K)"
-                >
-                  &#10003;
-                </button>
-                <button
-                  onClick={ignoreWord}
-                  className={`px-3 py-1.5 text-sm rounded transition-colors
-                    ${wordPanel.existingEntry?.state === 'ignored'
-                      ? 'bg-zinc-400 text-white ring-2 ring-offset-1 ring-zinc-400'
-                      : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
-                    }`}
-                  title="Ignore (X)"
-                >
-                  &#10005;
-                </button>
-                <button
-                  onClick={closeWordPanel}
-                  className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                  title="Close (Esc)"
-                >
-                  <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+              <button
+                onClick={markAsKnown}
+                className={`px-3 py-1.5 text-sm rounded transition-colors font-medium
+                  ${wordPanel.existingEntry?.state === 'known'
+                    ? 'bg-green-500 text-white ring-2 ring-offset-1 ring-green-500'
+                    : 'bg-green-500 text-white hover:bg-green-600'
+                  }`}
+                title="Known (K)"
+              >
+                &#10003;
+              </button>
+              <button
+                onClick={ignoreWord}
+                className={`px-3 py-1.5 text-sm rounded transition-colors
+                  ${wordPanel.existingEntry?.state === 'ignored'
+                    ? 'bg-zinc-400 text-white ring-2 ring-offset-1 ring-zinc-400'
+                    : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+                  }`}
+                title="Ignore (X)"
+              >
+                &#10005;
+              </button>
             </div>
           </div>
         </div>

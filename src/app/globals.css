@@ -33,6 +33,10 @@
   --phrase-highlight: rgba(167, 139, 250, 0.2);
 }
 
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -66,6 +70,8 @@ body {
 .reader-content {
   line-height: 1.9;
   font-size: 1.375rem;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* Cloze blank styling */

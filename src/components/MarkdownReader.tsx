@@ -181,7 +181,7 @@ export default function MarkdownReader({
           <span className="hidden sm:inline">Back</span>
         </button>
 
-        <h1 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 truncate max-w-md">
+        <h1 className="text-sm sm:text-lg font-medium text-zinc-900 dark:text-zinc-100 truncate flex-1 text-center mx-2">
           {lesson.title}
         </h1>
 
@@ -197,10 +197,10 @@ export default function MarkdownReader({
         onMouseUp={handleMouseUp}
         className="flex-1 overflow-auto"
       >
-        <article className="max-w-[38em] mx-auto px-8 py-16 prose prose-zinc dark:prose-invert
-          prose-p:text-2xl prose-p:leading-[1.9] prose-p:text-zinc-700 dark:prose-p:text-zinc-300
+        <article className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-16 prose prose-zinc dark:prose-invert
+          prose-p:text-lg sm:prose-p:text-2xl prose-p:leading-[1.9] prose-p:text-zinc-700 dark:prose-p:text-zinc-300
           prose-headings:font-sans prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100
-          prose-li:text-xl prose-li:leading-relaxed"
+          prose-li:text-lg sm:prose-li:text-xl prose-li:leading-relaxed"
           style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}>
           <ReactMarkdown
             components={{
@@ -217,7 +217,7 @@ export default function MarkdownReader({
 
         {/* Prev/Next navigation at bottom */}
         {(prevLesson || nextLesson) && (
-          <div className="max-w-[38em] mx-auto px-8 pb-16 flex items-center justify-between gap-4">
+          <div className="max-w-[38em] mx-auto px-4 sm:px-8 pb-16 flex items-center justify-between gap-4">
             {prevLesson ? (
               <button
                 onClick={() => router.push(`/read/${prevLesson.id}`)}
