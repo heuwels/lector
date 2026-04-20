@@ -97,7 +97,7 @@ export default function SettingsPage() {
   // LLM provider state
   const [llmProvider, setLlmProvider] = useState<LLMProvider>("ollama");
   const [ollamaModel, setOllamaModel] = useState("llama3.1:8b");
-  const [apfelUrl, setApfelUrl] = useState("http://localhost:8000");
+  const [apfelUrl, setApfelUrl] = useState("http://localhost:11434");
   const [apfelModel, setApfelModel] = useState("default");
   const [llmStatus, setLlmStatus] = useState<LLMStatus | null>(null);
   const [llmTesting, setLlmTesting] = useState(false);
@@ -718,7 +718,7 @@ export default function SettingsPage() {
                     type="text"
                     value={apfelUrl}
                     onChange={(e) => saveApfelUrl(e.target.value)}
-                    placeholder="http://localhost:8000"
+                    placeholder="http://localhost:11434"
                     className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   />
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">

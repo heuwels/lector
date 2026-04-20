@@ -28,7 +28,7 @@ describe('ApfelProvider', () => {
   describe('complete', () => {
     test('sends correct request and parses response', async () => {
       globalThis.fetch = mock(async (url: string, init?: RequestInit) => {
-        expect(url).toBe('http://localhost:8000/v1/chat/completions');
+        expect(url).toBe('http://localhost:11434/v1/chat/completions');
         const body = JSON.parse(init?.body as string);
         expect(body.model).toBe('default');
         expect(body.messages).toEqual([{ role: 'user', content: 'Hello' }]);
@@ -81,7 +81,7 @@ describe('ApfelProvider', () => {
   describe('healthCheck', () => {
     test('returns ok when server responds', async () => {
       globalThis.fetch = mock(async (url: string) => {
-        expect(url).toBe('http://localhost:8000/v1/models');
+        expect(url).toBe('http://localhost:11434/v1/models');
         return new Response(JSON.stringify({ data: [{ id: 'default' }] }), { status: 200 });
       }) as typeof fetch;
 
@@ -107,7 +107,7 @@ describe('ApfelProvider', () => {
 
       const provider = new ApfelProvider();
       const result = await provider.healthCheck();
-      expect(result).toEqual({ ok: false, error: 'Cannot reach Apfel at http://localhost:8000' });
+      expect(result).toEqual({ ok: false, error: 'Cannot reach Apfel at http://localhost:11434' });
     });
 
     test('uses custom URL in error message', async () => {

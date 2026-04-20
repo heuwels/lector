@@ -1,6 +1,6 @@
 import type { LLMProvider, CompletionOptions } from './types';
 
-const DEFAULT_URL = 'http://localhost:8000';
+const DEFAULT_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'default';
 
 export class ApfelProvider implements LLMProvider {
