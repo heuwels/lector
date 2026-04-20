@@ -9,9 +9,11 @@ import {
   getStatsForDateRange,
   getAllClozeSentences,
   getCollectionCounts,
+  getFluencyStats,
   type DailyStats,
   type WordState,
   type ClozeCollection,
+  type FluencyStats,
 } from '@/lib/data-layer';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
 import VocabGrowthChart from '@/components/VocabGrowthChart';
@@ -33,6 +35,7 @@ interface StatsData {
   vocabGrowth: Array<{ date: string; known: number; learning: number; total: number }>;
   activityData: Array<{ date: string; count: number }>;
   collectionCounts: Record<ClozeCollection, { total: number; due: number; mastered: number }>;
+  fluency: FluencyStats;
 }
 
 // Stat card component
@@ -229,6 +232,98 @@ function SentenceMastery({
   );
 }
 
+// Fluency badge component
+function FluencyBadge({ fluency }: { fluency: FluencyStats }) {
+  const { estimatedLevel, progressToNextLevel, totalKnownWords, totalLearning, weeklyGrowth } = fluency;
+  const growthDelta = weeklyGrowth.delta;
+
+  return (
+    <div data-testid="fluency-section" className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <div className="flex items-center gap-4">
+          <span
+            data-testid="fluency-level-badge"
+            className="inline-flex items-center px-4 py-2 rounded-lg text-lg font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+          >
+            {estimatedLevel.code}
+          </span>
+          <div>
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              {estimatedLevel.code} &mdash; {estimatedLevel.label}
+            </h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Estimated CEFR Level
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {growthDelta !== 0 && (
+            <span
+              data-testid="fluency-weekly-growth"
+              className={`inline-flex items-center gap-1 text-sm font-medium ${
+                growthDelta > 0
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-500 dark:text-red-400'
+              }`}
+            >
+              {growthDelta > 0 ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              )}
+              {Math.abs(growthDelta)} vs last week
+            </span>
+          )}
+          {growthDelta === 0 && weeklyGrowth.thisWeek > 0 && (
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+              {weeklyGrowth.thisWeek} this week (same as last)
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bar toward next level */}
+      <div className="mb-4">
+        <div className="flex justify-between text-sm mb-1">
+          <span className="text-zinc-500 dark:text-zinc-400">
+            Progress to next level
+          </span>
+          <span className="text-zinc-500 dark:text-zinc-400">{progressToNextLevel}%</span>
+        </div>
+        <div
+          data-testid="fluency-progress-bar"
+          className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"
+        >
+          <div
+            className="h-full bg-blue-500 rounded-full transition-all duration-500"
+            style={{ width: `${progressToNextLevel}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Known / Learning counts */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="text-center p-3 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg">
+          <div data-testid="fluency-known-count" className="text-2xl font-bold text-green-600 dark:text-green-400">
+            {totalKnownWords.toLocaleString()}
+          </div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400">Known</div>
+        </div>
+        <div className="text-center p-3 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg">
+          <div data-testid="fluency-learning-count" className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+            {totalLearning.toLocaleString()}
+          </div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400">Learning</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Helper function to calculate streak
 function calculateStreak(dailyStats: DailyStats[]): { current: number; longest: number } {
   if (dailyStats.length === 0) return { current: 0, longest: 0 };
@@ -322,11 +417,12 @@ export default function StatsPage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        // Get vocab stats, collections, and collection counts in parallel
-        const [vocabStats, collections, collectionCounts] = await Promise.all([
+        // Get vocab stats, collections, collection counts, and fluency in parallel
+        const [vocabStats, collections, collectionCounts, fluency] = await Promise.all([
           getVocabStats(),
           getAllCollections(),
           getCollectionCounts(),
+          getFluencyStats(),
         ]);
 
         const completedBooks = collections.filter((c) => (c.avgProgress || 0) >= 100);
@@ -413,6 +509,7 @@ export default function StatsPage() {
           vocabGrowth,
           activityData,
           collectionCounts,
+          fluency,
         });
       } catch (error) {
         console.error('Failed to load stats:', error);
@@ -461,6 +558,9 @@ export default function StatsPage() {
             day: 'numeric',
           })}
         </p>
+
+        {/* Fluency level */}
+        <FluencyBadge fluency={stats.fluency} />
 
         {/* Top stat cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

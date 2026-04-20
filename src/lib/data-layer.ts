@@ -442,6 +442,27 @@ export async function getStreak(): Promise<{ streak: number; practicedToday: boo
   return res.json();
 }
 
+export interface FluencyStats {
+  totalKnownWords: number;
+  totalLearning: number;
+  totalNew: number;
+  estimatedLevel: {
+    code: string;
+    label: string;
+  };
+  progressToNextLevel: number;
+  weeklyGrowth: {
+    thisWeek: number;
+    lastWeek: number;
+    delta: number;
+  };
+}
+
+export async function getFluencyStats(): Promise<FluencyStats> {
+  const res = await fetch('/api/stats/fluency');
+  return res.json();
+}
+
 // Migration function - no-op for server storage
 export async function migrateClozeSentences(): Promise<number> {
   return 0;
