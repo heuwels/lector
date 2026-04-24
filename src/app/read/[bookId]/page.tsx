@@ -26,6 +26,8 @@ interface WordPanelState {
   translation: string | null;
   partOfSpeech: string | null;
   isLoading: boolean;
+  isContextLoading: boolean;
+  isDictionaryResult: boolean;
   error: string | null;
   existingEntry: VocabEntry | null;
 }
@@ -53,6 +55,8 @@ export default function ReadPage({
     translation: null,
     partOfSpeech: null,
     isLoading: false,
+    isContextLoading: false,
+    isDictionaryResult: false,
     error: null,
     existingEntry: null,
   });
@@ -105,6 +109,8 @@ export default function ReadPage({
       translation: hasTranslation ? existingEntry.translation : null,
       partOfSpeech: isPhrase ? 'phrase' : null,
       isLoading: !hasTranslation,
+      isContextLoading: false,
+      isDictionaryResult: false,
       error: null,
       existingEntry: existingEntry || null,
     });
@@ -140,6 +146,7 @@ export default function ReadPage({
             translation: dictionaryEntry.translation,
             partOfSpeech: dictionaryEntry.partOfSpeech || null,
             isLoading: false,
+            isDictionaryResult: true,
           }));
         } else {
           try {
@@ -168,6 +175,27 @@ export default function ReadPage({
   const closeWordPanel = useCallback(() => {
     setWordPanel((prev) => ({ ...prev, isOpen: false }));
   }, []);
+
+  const requestContextTranslation = useCallback(async () => {
+    setWordPanel((prev) => ({ ...prev, isContextLoading: true }));
+    try {
+      const result = await translateWord(wordPanel.word, wordPanel.sentence);
+      setWordPanel((prev) => ({
+        ...prev,
+        translation: result.translation,
+        partOfSpeech: result.partOfSpeech || prev.partOfSpeech,
+        isContextLoading: false,
+        isDictionaryResult: false,
+      }));
+    } catch (err) {
+      console.error('Context translation error:', err);
+      setWordPanel((prev) => ({
+        ...prev,
+        isContextLoading: false,
+        error: 'Failed to get contextual translation.',
+      }));
+    }
+  }, [wordPanel.word, wordPanel.sentence]);
 
   const saveWordToVocab = useCallback(async () => {
     if (!wordPanel.translation) return;
@@ -417,6 +445,22 @@ export default function ReadPage({
                   ) : (
                     <span className="text-zinc-700 dark:text-zinc-300">
                       {wordPanel.translation || '\u2014'}
+                    </span>
+                  )}
+                  {wordPanel.isDictionaryResult && !wordPanel.isContextLoading && (
+                    <button
+                      onClick={requestContextTranslation}
+                      className="ml-1 px-2 py-0.5 text-xs font-medium rounded-md
+                        bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
+                        hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                      title="Translate using AI with sentence context"
+                    >
+                      In context
+                    </button>
+                  )}
+                  {wordPanel.isContextLoading && (
+                    <span className="ml-1 flex items-center gap-1 text-xs text-indigo-500">
+                      <span className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                     </span>
                   )}
                 </div>
