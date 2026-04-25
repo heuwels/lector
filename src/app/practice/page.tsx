@@ -1064,10 +1064,13 @@ export default function PracticePage() {
                     <span key={i}>
                       {i > 0 && ' '}
                       {i === current.sentence.clozeIndex ? (
-                        <span className={`rounded px-1 font-bold ${
+                        <span
+                          data-testid="cloze-word"
+                          onClick={() => handleWordClick(word)}
+                          className={`cursor-pointer rounded px-1 font-bold ${
                           feedbackData.isCorrect
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
-                            : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70'
+                            : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900/70'
                         }`}>
                           {word}
                         </span>
