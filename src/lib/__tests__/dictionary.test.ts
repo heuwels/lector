@@ -1,3 +1,4 @@
+import { describe, test, expect } from 'vitest';
 import { lookupWord } from '../dictionary';
 
 describe('lookupWord — exact root match', () => {
