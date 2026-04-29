@@ -59,6 +59,13 @@ test.describe('Reader word handling', () => {
       }
     }
 
+    // Delete any stale vocab entries for test words (server-side SQLite)
+    const vocabRes = await page.request.get('/api/vocab?text=perdekraal-fees');
+    const vocabEntries = await vocabRes.json();
+    for (const v of vocabEntries) {
+      await page.request.delete(`/api/vocab/${v.id}`);
+    }
+
     collectionId = await importHyphenatedLesson(page);
   });
 
@@ -103,11 +110,16 @@ test.describe('Reader word handling', () => {
     ).toHaveText('Perdekraal-fees');
     await expect(wordPanel.getByText('[translated:')).toBeVisible();
 
-    // Press Cmd+1 (Meta+1) — should NOT set word level
-    await page.keyboard.press('Meta+1');
+    // Dispatch a keydown with metaKey=true via JS (Playwright keyboard API
+    // doesn't reliably set metaKey in headless Chromium)
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '1', metaKey: true, bubbles: true })
+      );
+    });
+    await page.waitForTimeout(300);
 
-    // The word panel should still be open and no level should be set
-    // (if it were captured, level1 button would get a ring highlight)
+    // Level should NOT be set — Cmd+1 should pass through
     const levelButton = wordPanel.locator('button', { hasText: '1' });
     const classes = await levelButton.getAttribute('class');
     expect(classes).not.toContain('ring-2');

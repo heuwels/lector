@@ -141,9 +141,12 @@ export default function ReadPage({
         const dictionaryEntry = lookupWord(word);
 
         if (dictionaryEntry) {
+          const translation = dictionaryEntry.lemmaInfo
+            ? `${dictionaryEntry.translation} (${dictionaryEntry.lemmaInfo.label} ${dictionaryEntry.lemmaInfo.stem})`
+            : dictionaryEntry.translation;
           setWordPanel((prev) => ({
             ...prev,
-            translation: dictionaryEntry.translation,
+            translation,
             partOfSpeech: dictionaryEntry.partOfSpeech || null,
             isLoading: false,
             isDictionaryResult: true,
