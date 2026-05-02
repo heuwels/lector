@@ -42,7 +42,7 @@ test.describe("API Tokens", () => {
     ).toBeVisible();
 
     // Token should start with ltr_
-    const tokenCode = page.locator("code");
+    const tokenCode = page.locator("code").filter({ hasText: /^ltr_/ });
     const tokenText = await tokenCode.textContent();
     expect(tokenText).toMatch(/^ltr_/);
 
