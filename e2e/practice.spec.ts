@@ -322,6 +322,36 @@ test.describe.serial("Practice - Multiple Choice Mode", () => {
     // Wait for auto-advance
     await page.waitForTimeout(2000);
   });
+
+  test("should not capture number keys when Cmd/Ctrl is held", async ({ page }) => {
+    await waitForSetup(page);
+
+    await page.getByRole("button", { name: "10", exact: true }).click();
+    await page.getByRole("button", { name: "MC" }).click();
+    await page.getByRole("button", { name: "Start" }).click();
+
+    await expect(page.getByText("Choose the correct word")).toBeVisible({
+      timeout: 10000,
+    });
+
+    // All 4 MC options should be visible and unselected
+    const mcGrid = page.locator(".grid.grid-cols-1");
+    const mcButtons = mcGrid.locator("button");
+    await expect(mcButtons.first()).toBeVisible();
+
+    // Press Cmd+1 (Meta+1) — should NOT trigger MC selection
+    await page.keyboard.down("Meta");
+    await page.keyboard.press("1");
+    await page.keyboard.up("Meta");
+    await page.waitForTimeout(500);
+
+    // No button should have been selected (no green/red border)
+    const selectedBtn = mcGrid.locator("button.border-green-500, button.border-red-500");
+    await expect(selectedBtn).toHaveCount(0);
+
+    // The instruction text should still be visible (not advanced)
+    await expect(page.getByText("Choose the correct word")).toBeVisible();
+  });
 });
 
 test.describe.serial("Practice - Review Flow", () => {

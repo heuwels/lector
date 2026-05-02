@@ -601,6 +601,7 @@ export default function PracticePage() {
     }
     if (state === 'practicing' && practiceMode === 'mc' && !mcLocked) {
       const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
         // Number keys 1-4 for MC selection
         if (e.key >= '1' && e.key <= '4') {
           const idx = parseInt(e.key) - 1;
