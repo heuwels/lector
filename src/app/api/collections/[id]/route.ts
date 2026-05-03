@@ -37,6 +37,7 @@ export async function PUT(
   if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
   if (body.author !== undefined) { updates.push('author = ?'); values.push(body.author); }
   if (body.coverUrl !== undefined) { updates.push('coverUrl = ?'); values.push(body.coverUrl); }
+  if (body.groupId !== undefined) { updates.push('groupId = ?'); values.push(body.groupId); }
 
   updates.push('lastReadAt = ?');
   values.push(new Date().toISOString());

@@ -15,10 +15,19 @@ export interface Collection {
   title: string;
   author: string;
   coverUrl?: string;
+  groupId?: string | null;
+  groupName?: string | null;
   lessonCount: number;
   avgProgress: number;
   createdAt: string;
   lastReadAt: string;
+}
+
+export interface CollectionGroup {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
 }
 
 export interface Lesson {

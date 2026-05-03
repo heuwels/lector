@@ -9,21 +9,29 @@ import WebImportModal from '@/components/WebImportModal';
 import PasteImportModal from '@/components/PasteImportModal';
 import {
   getAllCollections,
+  getAllGroups,
+  createGroup,
+  updateGroup,
+  deleteGroup,
   createStandaloneLesson,
   importEpub,
   getVocabStats,
   getRecentStats,
   type Collection,
+  type CollectionGroup,
 } from '@/lib/data-layer';
 
 export default function Home() {
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [groups, setGroups] = useState<CollectionGroup[]>([]);
   const [knownWordsCount, setKnownWordsCount] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [isWebImportOpen, setIsWebImportOpen] = useState(false);
   const [isPasteImportOpen, setIsPasteImportOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -32,13 +40,15 @@ export default function Home() {
 
   async function loadData() {
     try {
-      const [collectionsData, vocabStats, recentStats] = await Promise.all([
+      const [collectionsData, groupsData, vocabStats, recentStats] = await Promise.all([
         getAllCollections(),
+        getAllGroups(),
         getVocabStats(),
         getRecentStats(30),
       ]);
 
       setCollections(collectionsData);
+      setGroups(groupsData);
 
       const knownCount =
         vocabStats.byState.level3 +
@@ -139,6 +149,50 @@ export default function Home() {
     setCollections(updated);
   }
 
+  async function handleCreateGroup() {
+    if (!newGroupName.trim()) return;
+    await createGroup(newGroupName.trim());
+    setNewGroupName('');
+    setIsCreatingGroup(false);
+    const updated = await getAllGroups();
+    setGroups(updated);
+  }
+
+  async function handleRenameGroup(id: string, currentName: string) {
+    const name = prompt('Rename group:', currentName);
+    if (name === null || !name.trim() || name.trim() === currentName) return;
+    await updateGroup(id, { name: name.trim() });
+    const updated = await getAllGroups();
+    setGroups(updated);
+  }
+
+  async function handleDeleteGroup(id: string, name: string) {
+    if (!confirm(`Delete group "${name}"? Collections in this group will become ungrouped.`)) return;
+    await deleteGroup(id);
+    const [updatedGroups, updatedCollections] = await Promise.all([
+      getAllGroups(),
+      getAllCollections(),
+    ]);
+    setGroups(updatedGroups);
+    setCollections(updatedCollections);
+  }
+
+  // Group collections by groupId
+  const groupedCollections = new Map<string, Collection[]>();
+  const ungrouped: Collection[] = [];
+
+  for (const c of collections) {
+    if (c.groupId) {
+      const list = groupedCollections.get(c.groupId) || [];
+      list.push(c);
+      groupedCollections.set(c.groupId, list);
+    } else {
+      ungrouped.push(c);
+    }
+  }
+
+  const hasGroups = groups.length > 0;
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 sm:ml-56">
@@ -198,8 +252,52 @@ export default function Home() {
 
         {/* Library Section */}
         <section>
-          <div className="mb-6 flex items-center justify-between">
+          <div className="mb-6 flex items-center gap-3">
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Your Library</h2>
+            <div className="flex-1" />
+
+            {isCreatingGroup ? (
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleCreateGroup(); }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="Group name"
+                  autoFocus
+                  data-testid="new-group-input"
+                  className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                />
+                <button
+                  type="submit"
+                  data-testid="new-group-submit"
+                  className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsCreatingGroup(false); setNewGroupName(''); }}
+                  className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <button
+                onClick={() => setIsCreatingGroup(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                data-testid="new-group-btn"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                New Group
+              </button>
+            )}
+
             <ImportDropdown
               onFileImport={handleImportClick}
               onUrlImport={() => setIsWebImportOpen(true)}
@@ -226,17 +324,110 @@ export default function Home() {
             onSave={handlePasteImportSave}
           />
 
-          {collections.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {collections.map((collection) => (
-                <CollectionCard key={collection.id} collection={collection} />
-              ))}
+          {collections.length > 0 || hasGroups ? (
+            <div className="space-y-10">
+              {/* Grouped sections */}
+              {groups.map((group) => {
+                const items = groupedCollections.get(group.id) || [];
+                return (
+                  <div key={group.id} data-testid={`group-${group.id}`}>
+                    <div className="mb-4 flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+                        {group.name}
+                      </h3>
+                      <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                        {items.length} {items.length === 1 ? 'item' : 'items'}
+                      </span>
+                      <div className="flex-1" />
+                      <GroupMenu
+                        onRename={() => handleRenameGroup(group.id, group.name)}
+                        onDelete={() => handleDeleteGroup(group.id, group.name)}
+                      />
+                    </div>
+                    {items.length > 0 ? (
+                      <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                        {items.map((collection) => (
+                          <CollectionCard key={collection.id} collection={collection} />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl border border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
+                        No collections in this group yet. Assign collections from their detail page.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Ungrouped */}
+              {ungrouped.length > 0 && (
+                <div data-testid="ungrouped-section">
+                  {hasGroups && (
+                    <h3 className="mb-4 text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+                      Ungrouped
+                    </h3>
+                  )}
+                  <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                    {ungrouped.map((collection) => (
+                      <CollectionCard key={collection.id} collection={collection} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <EmptyState onImport={handleImportClick} />
           )}
         </section>
       </main>
+    </div>
+  );
+}
+
+function GroupMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isOpen]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+        data-testid="group-menu-btn"
+      >
+        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 z-50 mt-1 w-36 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+          <button
+            onClick={() => { setIsOpen(false); onRename(); }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            data-testid="group-rename-btn"
+          >
+            Rename
+          </button>
+          <button
+            onClick={() => { setIsOpen(false); onDelete(); }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            data-testid="group-delete-btn"
+          >
+            Delete
+          </button>
+        </div>
+      )}
     </div>
   );
 }

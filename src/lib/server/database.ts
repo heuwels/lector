@@ -139,6 +139,13 @@ function getDb(): DatabaseType {
     CREATE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate);
     CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status);
 
+    CREATE TABLE IF NOT EXISTS collection_groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      sortOrder INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,
       role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
@@ -169,6 +176,11 @@ function getDb(): DatabaseType {
   const clozeCols = _db.prepare("PRAGMA table_info(clozeSentences)").all() as { name: string }[];
   if (!clozeCols.some(c => c.name === 'blacklisted')) {
     _db.exec('ALTER TABLE clozeSentences ADD COLUMN blacklisted INTEGER DEFAULT 0');
+  }
+
+  const collectionCols = _db.prepare("PRAGMA table_info(collections)").all() as { name: string }[];
+  if (!collectionCols.some(c => c.name === 'groupId')) {
+    _db.exec('ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL');
   }
 
   // Remove FK constraint on vocab.bookId that references old books table
@@ -366,8 +378,16 @@ export interface CollectionRow {
   title: string;
   author: string;
   coverUrl: string | null;
+  groupId: string | null;
   createdAt: string;
   lastReadAt: string;
+}
+
+export interface CollectionGroupRow {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
 }
 
 export interface LessonRow {
