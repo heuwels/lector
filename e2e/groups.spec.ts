@@ -169,10 +169,8 @@ test.describe("Collection Groups", () => {
     // Group heading should be gone
     await expect(page.locator("h3", { hasText: "Test Delete Group" })).not.toBeVisible({ timeout: 5000 });
 
-    // Collection should still exist (now ungrouped) — check via API
-    const colRes2 = await page.request.get("/api/collections");
-    const remaining = await colRes2.json();
-    expect(remaining.some((c: { title: string }) => c.title === "Test Survives Delete")).toBeTruthy();
+    // Collection should still be visible on the page (ungrouped, not orphaned)
+    await expect(page.getByText("Test Survives Delete").first()).toBeVisible();
   });
 
   test("should create a new group from collection detail page", async ({ page }) => {

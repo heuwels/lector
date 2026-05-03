@@ -12,7 +12,12 @@ export async function PUT(
   const updates: string[] = [];
   const values: unknown[] = [];
 
-  if (body.name !== undefined) { updates.push('name = ?'); values.push(body.name); }
+  if (body.name !== undefined) {
+    if (!body.name.trim()) {
+      return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
+    }
+    updates.push('name = ?'); values.push(body.name.trim());
+  }
   if (body.sortOrder !== undefined) { updates.push('sortOrder = ?'); values.push(body.sortOrder); }
 
   if (updates.length === 0) {
@@ -31,6 +36,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  // Manually ungroup collections since SQLite FK ON DELETE SET NULL requires PRAGMA foreign_keys = ON
+  db.prepare('UPDATE collections SET groupId = NULL WHERE groupId = ?').run(id);
   db.prepare('DELETE FROM collection_groups WHERE id = ?').run(id);
   return NextResponse.json({ success: true });
 }

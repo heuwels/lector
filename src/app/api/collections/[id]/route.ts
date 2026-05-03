@@ -39,8 +39,12 @@ export async function PUT(
   if (body.coverUrl !== undefined) { updates.push('coverUrl = ?'); values.push(body.coverUrl); }
   if (body.groupId !== undefined) { updates.push('groupId = ?'); values.push(body.groupId); }
 
-  updates.push('lastReadAt = ?');
-  values.push(new Date().toISOString());
+  // Only bump lastReadAt for content changes, not metadata-only changes like groupId
+  const isContentChange = body.title !== undefined || body.author !== undefined || body.coverUrl !== undefined;
+  if (isContentChange) {
+    updates.push('lastReadAt = ?');
+    values.push(new Date().toISOString());
+  }
   values.push(id);
 
   db.prepare(`UPDATE collections SET ${updates.join(', ')} WHERE id = ?`).run(...values);
