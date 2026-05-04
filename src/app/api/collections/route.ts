@@ -5,13 +5,14 @@ import { randomUUID } from 'crypto';
 // GET /api/collections - List all collections with lesson counts
 export async function GET() {
   const collections = db.prepare(`
-    SELECT c.*, COUNT(l.id) as lessonCount,
+    SELECT c.*, g.name as groupName, COUNT(l.id) as lessonCount,
       COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
     FROM collections c
+    LEFT JOIN collection_groups g ON g.id = c.groupId
     LEFT JOIN lessons l ON l.collectionId = c.id
     GROUP BY c.id
     ORDER BY c.lastReadAt DESC
-  `).all() as (CollectionRow & { lessonCount: number; avgProgress: number })[];
+  `).all() as (CollectionRow & { groupName: string | null; lessonCount: number; avgProgress: number })[];
 
   return NextResponse.json(collections);
 }

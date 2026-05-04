@@ -13,6 +13,7 @@ export type {
   ClozeSource,
   ClozeCollection,
   Collection,
+  CollectionGroup,
   Lesson,
   LessonSummary,
   VocabEntry,
@@ -25,6 +26,7 @@ export type {
 import type {
   WordState,
   Collection,
+  CollectionGroup,
   Lesson,
   LessonSummary,
   VocabEntry,
@@ -62,6 +64,45 @@ export async function createCollection(data: { title: string; author?: string })
 
 export async function deleteCollection(id: string): Promise<void> {
   await fetch(`/api/collections/${id}`, { method: 'DELETE' });
+}
+
+export async function updateCollection(id: string, data: { title?: string; author?: string; groupId?: string | null }): Promise<void> {
+  await fetch(`/api/collections/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+// ============================================================================
+// Helper Functions - Groups
+// ============================================================================
+
+export async function getAllGroups(): Promise<CollectionGroup[]> {
+  const res = await fetch('/api/groups');
+  return res.json();
+}
+
+export async function createGroup(name: string): Promise<string> {
+  const res = await fetch('/api/groups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  const { id } = await res.json();
+  return id;
+}
+
+export async function updateGroup(id: string, data: { name?: string; sortOrder?: number }): Promise<void> {
+  await fetch(`/api/groups/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteGroup(id: string): Promise<void> {
+  await fetch(`/api/groups/${id}`, { method: 'DELETE' });
 }
 
 // ============================================================================

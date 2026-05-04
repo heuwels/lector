@@ -9,7 +9,11 @@ import {
   getLessonsForCollection,
   deleteCollection,
   deleteLesson,
+  updateCollection,
+  getAllGroups,
+  createGroup,
   type Collection,
+  type CollectionGroup,
   type LessonSummary,
 } from '@/lib/data-layer';
 
@@ -22,14 +26,16 @@ export default function CollectionPage({
   const router = useRouter();
   const [collection, setCollection] = useState<Collection | null>(null);
   const [lessons, setLessons] = useState<LessonSummary[]>([]);
+  const [groups, setGroups] = useState<CollectionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [col, les] = await Promise.all([
+        const [col, les, grps] = await Promise.all([
           getCollection(id),
           getLessonsForCollection(id),
+          getAllGroups(),
         ]);
         if (!col) {
           router.push('/');
@@ -37,6 +43,7 @@ export default function CollectionPage({
         }
         setCollection(col);
         setLessons(les);
+        setGroups(grps);
       } catch (err) {
         console.error('Error loading collection:', err);
       } finally {
@@ -56,6 +63,26 @@ export default function CollectionPage({
     if (!confirm(`Delete "${title}"?`)) return;
     await deleteLesson(lessonId);
     setLessons((prev) => prev.filter((l) => l.id !== lessonId));
+  }
+
+  async function handleGroupChange(value: string) {
+    if (value === '__new__') {
+      const name = prompt('New group name:');
+      if (!name?.trim()) return;
+      const newId = await createGroup(name.trim());
+      await updateCollection(id, { groupId: newId });
+      const [updatedCol, updatedGroups] = await Promise.all([
+        getCollection(id),
+        getAllGroups(),
+      ]);
+      if (updatedCol) setCollection(updatedCol);
+      setGroups(updatedGroups);
+    } else {
+      const groupId = value === '' ? null : value;
+      await updateCollection(id, { groupId });
+      const updatedCol = await getCollection(id);
+      if (updatedCol) setCollection(updatedCol);
+    }
   }
 
   function getContinueLesson(): LessonSummary | undefined {
@@ -104,8 +131,28 @@ export default function CollectionPage({
           </h1>
           <p className="mt-1 text-zinc-500 dark:text-zinc-400">
             {collection.author} &middot; {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'}
-            {completedCount > 0 && ` &middot; ${completedCount} completed`}
+            {completedCount > 0 && ` \u00b7 ${completedCount} completed`}
           </p>
+
+          {/* Group selector */}
+          <div className="mt-3 flex items-center gap-2">
+            <label htmlFor="group-select" className="text-sm text-zinc-500 dark:text-zinc-400">
+              Group:
+            </label>
+            <select
+              id="group-select"
+              value={collection.groupId || ''}
+              onChange={(e) => handleGroupChange(e.target.value)}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              data-testid="group-select"
+            >
+              <option value="">None</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+              <option value="__new__">+ New group...</option>
+            </select>
+          </div>
 
           <div className="mt-4 flex items-center gap-3">
             {continueLesson && (
