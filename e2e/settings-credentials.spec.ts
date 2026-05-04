@@ -161,8 +161,8 @@ test.describe("Anthropic Credential Management", () => {
     await expect(apiKeyBtn).toBeVisible();
     await expect(oauthBtn).toBeVisible();
 
-    // Both credentials should show Configured
-    const configured = page.getByText("Configured");
+    // Both credentials should show Configured badges
+    const configured = page.getByText("Configured", { exact: true });
     await expect(configured).toHaveCount(2);
   });
 
