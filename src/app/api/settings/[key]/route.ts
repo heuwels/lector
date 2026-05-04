@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, SettingRow } from '@/lib/server/database';
 
+const SENSITIVE_KEYS = new Set(['anthropicApiKey', 'claudeOauthToken']);
+
 // GET /api/settings/[key]
 export async function GET(
   request: NextRequest,
@@ -11,6 +13,10 @@ export async function GET(
 
   if (!setting) {
     return NextResponse.json(null);
+  }
+
+  if (SENSITIVE_KEYS.has(key)) {
+    return NextResponse.json(true);
   }
 
   try {

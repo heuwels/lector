@@ -25,10 +25,25 @@ export function getProvider(): LLMProvider {
   let cacheKey: string;
   switch (name) {
     case 'anthropic': {
-      const apiKey = getSetting('anthropicApiKey') || undefined;
-      const oauthToken = getSetting('claudeOauthToken') || undefined;
+      const storedApiKey = getSetting('anthropicApiKey') || undefined;
+      const storedOauthToken = getSetting('claudeOauthToken') || undefined;
+      const authMode = getSetting('anthropicAuthMode') as string | null;
       const model = process.env.ANTHROPIC_MODEL || undefined;
-      cacheKey = `anthropic:${apiKey ? 'key' : oauthToken ? 'oauth' : 'env'}:${model || 'default'}`;
+
+      // Respect explicit auth mode; fall back to whichever credential is set
+      let apiKey: string | undefined;
+      let oauthToken: string | undefined;
+      if (authMode === 'oauth') {
+        oauthToken = storedOauthToken;
+      } else if (authMode === 'api_key') {
+        apiKey = storedApiKey;
+      } else {
+        apiKey = storedApiKey;
+        oauthToken = storedApiKey ? undefined : storedOauthToken;
+      }
+
+      const effectiveMode = apiKey ? 'key' : oauthToken ? 'oauth' : 'env';
+      cacheKey = `anthropic:${effectiveMode}:${model || 'default'}`;
       if (cachedProvider && cachedProviderKey === cacheKey) return cachedProvider;
       cachedProvider = new AnthropicProvider({ apiKey, oauthToken, model });
       break;
