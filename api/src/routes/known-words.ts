@@ -1,11 +1,14 @@
 import { Hono } from 'hono';
 import { db, KnownWordRow } from '../db';
+import { resolveLanguage } from '../lib/active-language';
 
 const app = new Hono();
 
 // GET /api/known-words
 app.get('/', (c) => {
-  const words = db.prepare('SELECT * FROM knownWords').all() as KnownWordRow[];
+  const lang = resolveLanguage(c.req.query('language'));
+
+  const words = db.prepare('SELECT * FROM knownWords WHERE language = ?').all(lang) as KnownWordRow[];
   const map: Record<string, string> = {};
   for (const w of words) {
     map[w.word] = w.state;
@@ -21,10 +24,12 @@ app.post('/', async (c) => {
     return c.json({ error: 'updates array required' }, 400);
   }
 
-  const stmt = db.prepare('INSERT OR REPLACE INTO knownWords (word, state) VALUES (?, ?)');
+  const lang = resolveLanguage(body.language);
+
+  const stmt = db.prepare('INSERT OR REPLACE INTO knownWords (word, language, state) VALUES (?, ?, ?)');
   db.transaction(() => {
     for (const u of body.updates) {
-      stmt.run(u.word.toLowerCase(), u.state);
+      stmt.run(u.word.toLowerCase(), lang, u.state);
     }
   })();
 

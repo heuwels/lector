@@ -3,7 +3,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
 import ThemeToggle from './ThemeToggle';
+import { setSetting } from '@/lib/data-layer';
+import { LANGUAGES, type LanguageCode, type LanguageConfig, isValidLanguageCode } from '@/lib/languages';
 
 const navLinks = [
   { href: '/', label: 'Library' },
@@ -79,11 +82,131 @@ const iconMap: Record<string, () => React.ReactElement> = {
   '/settings': SettingsIcon,
 };
 
+function useActiveLanguage(): LanguageConfig {
+  const [lang, setLang] = useState<LanguageConfig>(LANGUAGES.af);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('lector-target-language');
+    if (stored && isValidLanguageCode(stored)) {
+      setLang(LANGUAGES[stored]);
+    }
+  }, []);
+
+  return lang;
+}
+
+function LanguageSelector({ compact = false }: { compact?: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const activeLang = useActiveLanguage();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isOpen]);
+
+  async function handleSwitch(code: LanguageCode) {
+    setIsOpen(false);
+    localStorage.setItem('lector-target-language', code);
+    await setSetting('targetLanguage', code);
+    window.location.reload();
+  }
+
+  const allLangs = Object.values(LANGUAGES);
+
+  if (compact) {
+    return (
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          data-testid="language-selector"
+          className="flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+        >
+          <span>{activeLang.flag}</span>
+          <span>{activeLang.code.toUpperCase()}</span>
+          <ChevronIcon />
+        </button>
+        {isOpen && (
+          <div className="absolute left-0 z-50 mt-1 w-44 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+            {allLangs.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => handleSwitch(lang.code)}
+                data-testid={`language-option-${lang.code}`}
+                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors ${
+                  lang.code === activeLang.code
+                    ? 'bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
+                    : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                }`}
+              >
+                <span>{lang.flag}</span>
+                <span>{lang.native}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative mx-3" ref={menuRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        data-testid="language-selector"
+        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/50"
+      >
+        <span className="text-lg">{activeLang.flag}</span>
+        <span className="flex-1 text-left">{activeLang.native}</span>
+        <ChevronIcon />
+      </button>
+      {isOpen && (
+        <div className="absolute left-0 right-0 z-50 mt-1 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+          {allLangs.map((lang) => (
+            <button
+              key={lang.code}
+              onClick={() => handleSwitch(lang.code)}
+              data-testid={`language-option-${lang.code}`}
+              className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition-colors ${
+                lang.code === activeLang.code
+                  ? 'bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
+                  : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700'
+              }`}
+            >
+              <span className="text-lg">{lang.flag}</span>
+              <span>{lang.native}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg className="h-4 w-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
 export default function NavHeader() {
   const pathname = usePathname();
 
   return (
     <>
+      {/* Mobile top bar — language selector, visible only on mobile */}
+      <div className="fixed top-0 left-0 right-0 z-50 flex h-10 items-center justify-end px-3 bg-white/80 backdrop-blur-sm border-b border-zinc-200 dark:bg-zinc-950/80 dark:border-zinc-800 sm:hidden">
+        <LanguageSelector compact />
+      </div>
+
       {/* Desktop left sidebar — hidden on mobile */}
       <aside className="hidden sm:flex sm:flex-col fixed inset-y-0 left-0 z-50 w-56 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
         {/* App name */}
@@ -94,6 +217,11 @@ export default function NavHeader() {
               Lector
             </span>
           </Link>
+        </div>
+
+        {/* Language selector */}
+        <div className="border-b border-zinc-200 pb-2 dark:border-zinc-800">
+          <LanguageSelector />
         </div>
 
         {/* Navigation links */}

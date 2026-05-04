@@ -112,7 +112,7 @@ export default function ChatWidget() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({ message: content, language: localStorage.getItem('lector-target-language') || 'af' }),
       });
 
       if (!res.ok) throw new Error('Failed to send message');

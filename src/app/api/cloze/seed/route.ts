@@ -38,8 +38,8 @@ export async function POST() {
   }
 
   const insertStmt = db.prepare(`
-    INSERT OR IGNORE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, masteryLevel, nextReview, reviewCount, timesCorrect, timesIncorrect)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, masteryLevel, nextReview, reviewCount, timesCorrect, timesIncorrect, language)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const updateStmt = db.prepare(`
@@ -51,7 +51,7 @@ export async function POST() {
       insertStmt.run(
         randomUUID(), s.text, s.clozeWord, s.clozeIndex, s.translation,
         'tatoeba', s.collection, s.wordRank, s.id,
-        0, new Date().toISOString(), 0, 0, 0
+        0, new Date().toISOString(), 0, 0, 0, 'af'
       );
     }
     for (const s of toUpdate) {

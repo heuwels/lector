@@ -92,7 +92,7 @@ export default function CollectionPage({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 sm:ml-56">
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-10 sm:pt-0 sm:ml-56">
         <NavHeader />
         <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
           <div className="flex h-64 items-center justify-center">
@@ -109,7 +109,7 @@ export default function CollectionPage({
   const completedCount = lessons.filter(l => l.progress_percentComplete >= 95).length;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 sm:ml-56">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-10 sm:pt-0 sm:ml-56">
       <NavHeader />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">

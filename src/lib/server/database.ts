@@ -6,7 +6,8 @@ import { parseEpub } from './epub-parser';
 import { htmlToMarkdown, countWords } from '../html-to-markdown';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
-const DB_PATH = path.join(DATA_DIR, 'afrikaans.db');
+const OLD_DB_PATH = path.join(DATA_DIR, 'afrikaans.db');
+const DB_PATH = path.join(DATA_DIR, 'lector.db');
 export const BOOKS_DIR = path.join(DATA_DIR, 'books');
 
 // Lazy initialization to avoid build-time database access
@@ -18,6 +19,11 @@ function getDb(): DatabaseType {
   // Ensure directories exist
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.mkdirSync(BOOKS_DIR, { recursive: true });
+
+  // Migrate DB filename: afrikaans.db -> lector.db
+  if (!fs.existsSync(DB_PATH) && fs.existsSync(OLD_DB_PATH)) {
+    fs.renameSync(OLD_DB_PATH, DB_PATH);
+  }
 
   _db = new Database(DB_PATH);
   _db.pragma('journal_mode = WAL');
@@ -189,6 +195,9 @@ function getDb(): DatabaseType {
   // Migrate books → collections/lessons if books table exists
   migrateBooks(_db);
 
+  // Add language column to tables for multi-language support
+  migrateAddLanguageColumn(_db);
+
   return _db;
 }
 
@@ -336,6 +345,42 @@ function migrateBooks(database: DatabaseType) {
   migrate();
 }
 
+/**
+ * Add language column to tables that need per-language filtering.
+ * Also recreate knownWords with compound PK (word, language).
+ */
+function migrateAddLanguageColumn(database: DatabaseType) {
+  const tablesToMigrate = ['collections', 'lessons', 'vocab', 'clozeSentences', 'journal_entries'];
+
+  for (const table of tablesToMigrate) {
+    const cols = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some(c => c.name === 'language')) {
+      database.exec(`ALTER TABLE ${table} ADD COLUMN language TEXT NOT NULL DEFAULT 'af'`);
+    }
+  }
+
+  // Recreate knownWords with compound PK (word, language)
+  const knownWordsSql = database.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='knownWords'"
+  ).get() as { sql: string } | undefined;
+
+  if (knownWordsSql && !knownWordsSql.sql.includes('language')) {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE knownWords_new (
+          word TEXT NOT NULL,
+          language TEXT NOT NULL DEFAULT 'af',
+          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+          PRIMARY KEY (word, language)
+        );
+        INSERT INTO knownWords_new (word, language, state) SELECT word, 'af', state FROM knownWords;
+        DROP TABLE knownWords;
+        ALTER TABLE knownWords_new RENAME TO knownWords;
+      `);
+    })();
+  }
+}
+
 // Export a proxy that lazily initializes the database
 export const db = new Proxy({} as DatabaseType, {
   get(_target, prop) {
@@ -421,6 +466,7 @@ export interface VocabRow {
 
 export interface KnownWordRow {
   word: string;
+  language: string;
   state: WordState;
 }
 

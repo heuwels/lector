@@ -39,7 +39,8 @@ export async function PUT(
     updates.push('state = ?', 'stateUpdatedAt = ?');
     values.push(body.state, new Date().toISOString());
     // Update knownWords table too
-    db.prepare('INSERT OR REPLACE INTO knownWords (word, state) VALUES (?, ?)').run(existing.text.toLowerCase(), body.state);
+    const vocabLang = (existing as VocabRow & { language?: string }).language || 'af';
+    db.prepare('INSERT OR REPLACE INTO knownWords (word, language, state) VALUES (?, ?, ?)').run(existing.text.toLowerCase(), vocabLang, body.state);
   }
   if (body.translation !== undefined) {
     updates.push('translation = ?');
@@ -76,18 +77,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const vocab = db.prepare('SELECT text FROM vocab WHERE id = ?').get(id) as { text: string } | undefined;
+  const vocab = db.prepare('SELECT text, language FROM vocab WHERE id = ?').get(id) as { text: string; language: string } | undefined;
 
   if (!vocab) {
     return NextResponse.json({ error: 'Vocab not found' }, { status: 404 });
   }
 
+  const vocabLang = vocab.language || 'af';
   db.prepare('DELETE FROM vocab WHERE id = ?').run(id);
 
-  // Check if other entries exist with same word
-  const others = db.prepare('SELECT COUNT(*) as count FROM vocab WHERE LOWER(text) = ?').get(vocab.text.toLowerCase()) as { count: number };
+  // Check if other entries exist with same word in same language
+  const others = db.prepare('SELECT COUNT(*) as count FROM vocab WHERE LOWER(text) = ? AND language = ?').get(vocab.text.toLowerCase(), vocabLang) as { count: number };
   if (others.count === 0) {
-    db.prepare('DELETE FROM knownWords WHERE word = ?').run(vocab.text.toLowerCase());
+    db.prepare('DELETE FROM knownWords WHERE word = ? AND language = ?').run(vocab.text.toLowerCase(), vocabLang);
   }
 
   return NextResponse.json({ success: true });

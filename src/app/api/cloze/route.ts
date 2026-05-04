@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, ClozeSentenceRow } from '@/lib/server/database';
+import { resolveLanguage } from '@/lib/server/active-language';
 import { randomUUID } from 'crypto';
 
 // GET /api/cloze - List cloze sentences with filters
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+  const lang = resolveLanguage(searchParams.get('language'));
   const collection = searchParams.get('collection');
   const word = searchParams.get('word');
   const limit = parseInt(searchParams.get('limit') || '100');
 
-  let query = 'SELECT * FROM clozeSentences WHERE (blacklisted = 0 OR blacklisted IS NULL)';
-  const params: unknown[] = [];
+  let query = 'SELECT * FROM clozeSentences WHERE (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
+  const params: unknown[] = [lang];
 
   if (collection) {
     query += ' AND collection = ?';
@@ -37,11 +39,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json();
 
+  const lang = resolveLanguage(Array.isArray(body) ? body[0]?.language : body.language);
+
   // Handle bulk insert
   if (Array.isArray(body)) {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, language)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const transaction = db.transaction((items: typeof body) => {
@@ -62,7 +66,8 @@ export async function POST(request: NextRequest) {
           c.reviewCount || 0,
           c.lastReviewed || null,
           c.timesCorrect || 0,
-          c.timesIncorrect || 0
+          c.timesIncorrect || 0,
+          lang
         );
       }
     });
@@ -75,8 +80,8 @@ export async function POST(request: NextRequest) {
   const id = body.id || randomUUID();
 
   db.prepare(`
-    INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, language)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     body.sentence,
@@ -93,7 +98,8 @@ export async function POST(request: NextRequest) {
     body.reviewCount || 0,
     body.lastReviewed || null,
     body.timesCorrect || 0,
-    body.timesIncorrect || 0
+    body.timesIncorrect || 0,
+    lang
   );
 
   return NextResponse.json({ id });

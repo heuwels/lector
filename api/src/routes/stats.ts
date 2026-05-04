@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { db, DailyStatsRow } from '../db';
+import { resolveLanguage } from '../lib/active-language';
 
 const app = new Hono();
 
@@ -76,10 +77,12 @@ app.put('/today', async (c) => {
 
 // GET /api/stats/fluency
 app.get('/fluency', (c) => {
+  const lang = resolveLanguage(c.req.query('language'));
+
   // Count words by state from knownWords table
   const stateCounts = db.prepare(
-    'SELECT state, COUNT(*) as count FROM knownWords GROUP BY state'
-  ).all() as { state: string; count: number }[];
+    'SELECT state, COUNT(*) as count FROM knownWords WHERE language = ? GROUP BY state'
+  ).all(lang) as { state: string; count: number }[];
 
   const countMap: Record<string, number> = {};
   for (const row of stateCounts) {

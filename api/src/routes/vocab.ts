@@ -1,17 +1,19 @@
 import { Hono } from 'hono';
 import { db, VocabRow } from '../db';
+import { resolveLanguage } from '../lib/active-language';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
 
 // GET /api/vocab
 app.get('/', (c) => {
+  const lang = resolveLanguage(c.req.query('language'));
   const state = c.req.query('state');
   const bookId = c.req.query('bookId');
   const unpushed = c.req.query('unpushed');
 
-  let query = 'SELECT * FROM vocab WHERE 1=1';
-  const params: unknown[] = [];
+  let query = 'SELECT * FROM vocab WHERE language = ?';
+  const params: unknown[] = [lang];
 
   if (state) { query += ' AND state = ?'; params.push(state); }
   if (bookId) { query += ' AND bookId = ?'; params.push(bookId); }
@@ -34,17 +36,18 @@ app.post('/', async (c) => {
   const body = await c.req.json();
   const id = body.id || randomUUID();
   const now = new Date().toISOString();
+  const lang = resolveLanguage(body.language);
 
   db.prepare(`
-    INSERT OR REPLACE INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, body.text, body.type || 'word', body.sentence || '', body.translation || '',
     body.state || 'new', now, body.reviewCount || 0, body.bookId || null,
-    body.chapter || null, now, body.pushedToAnki ? 1 : 0, body.ankiNoteId || null
+    body.chapter || null, now, body.pushedToAnki ? 1 : 0, body.ankiNoteId || null, lang
   );
 
-  db.prepare('INSERT OR REPLACE INTO knownWords (word, state) VALUES (?, ?)').run(body.text.toLowerCase(), body.state || 'new');
+  db.prepare('INSERT OR REPLACE INTO knownWords (word, language, state) VALUES (?, ?, ?)').run(body.text.toLowerCase(), lang, body.state || 'new');
 
   return c.json({ id });
 });
@@ -73,7 +76,8 @@ app.put('/:id', async (c) => {
   if (body.state !== undefined) {
     updates.push('state = ?', 'stateUpdatedAt = ?');
     values.push(body.state, new Date().toISOString());
-    db.prepare('INSERT OR REPLACE INTO knownWords (word, state) VALUES (?, ?)').run(existing.text.toLowerCase(), body.state);
+    const vocabLang = (existing as VocabRow & { language?: string }).language || 'af';
+    db.prepare('INSERT OR REPLACE INTO knownWords (word, language, state) VALUES (?, ?, ?)').run(existing.text.toLowerCase(), vocabLang, body.state);
   }
   if (body.translation !== undefined) { updates.push('translation = ?'); values.push(body.translation); }
   if (body.sentence !== undefined) { updates.push('sentence = ?'); values.push(body.sentence); }
@@ -92,15 +96,16 @@ app.put('/:id', async (c) => {
 // DELETE /api/vocab/:id
 app.delete('/:id', (c) => {
   const id = c.req.param('id');
-  const vocab = db.prepare('SELECT text FROM vocab WHERE id = ?').get(id) as { text: string } | undefined;
+  const vocab = db.prepare('SELECT text, language FROM vocab WHERE id = ?').get(id) as { text: string; language: string } | undefined;
 
   if (!vocab) return c.json({ error: 'Vocab not found' }, 404);
 
+  const vocabLang = vocab.language || 'af';
   db.prepare('DELETE FROM vocab WHERE id = ?').run(id);
 
-  const others = db.prepare('SELECT COUNT(*) as count FROM vocab WHERE LOWER(text) = ?').get(vocab.text.toLowerCase()) as { count: number };
+  const others = db.prepare('SELECT COUNT(*) as count FROM vocab WHERE LOWER(text) = ? AND language = ?').get(vocab.text.toLowerCase(), vocabLang) as { count: number };
   if (others.count === 0) {
-    db.prepare('DELETE FROM knownWords WHERE word = ?').run(vocab.text.toLowerCase());
+    db.prepare('DELETE FROM knownWords WHERE word = ? AND language = ?').run(vocab.text.toLowerCase(), vocabLang);
   }
 
   return c.json({ success: true });

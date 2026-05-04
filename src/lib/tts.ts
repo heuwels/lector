@@ -184,7 +184,7 @@ async function speakWithGoogle(text: string, rate: number): Promise<boolean> {
     const response = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, rate }),
+      body: JSON.stringify({ text, rate, language: (await import('./data-layer')).getActiveLanguage() }),
     });
 
     const data = await response.json();

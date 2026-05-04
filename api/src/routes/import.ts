@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { db } from '../db';
+import { resolveLanguage } from '../lib/active-language';
 import { parseEpub } from '../lib/epub-parser';
 import { randomUUID } from 'crypto';
 
@@ -9,6 +10,7 @@ const app = new Hono();
 app.post('/epub', async (c) => {
   const formData = await c.req.formData();
   const file = formData.get('file') as File | null;
+  const lang = resolveLanguage(formData.get('language') as string | null);
 
   if (!file) {
     return c.json({ error: 'File required' }, 400);
@@ -22,8 +24,8 @@ app.post('/epub', async (c) => {
     const now = new Date().toISOString();
 
     const insertCollection = db.prepare(`
-      INSERT INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertLesson = db.prepare(`
@@ -32,7 +34,7 @@ app.post('/epub', async (c) => {
     `);
 
     db.transaction(() => {
-      insertCollection.run(collectionId, parsed.title, parsed.author, null, now, now);
+      insertCollection.run(collectionId, parsed.title, parsed.author, null, lang, now, now);
 
       for (let i = 0; i < parsed.chapters.length; i++) {
         const chapter = parsed.chapters[i];

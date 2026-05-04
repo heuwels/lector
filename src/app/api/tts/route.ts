@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveLanguage } from '@/lib/server/active-language';
+import { getLanguageConfig } from '@/lib/languages';
 
 // Google Cloud TTS API endpoint
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
-
-// Afrikaans voice options (Neural2 voices are highest quality)
-const AFRIKAANS_VOICE = {
-  languageCode: 'af-ZA',
-  name: 'af-ZA-Standard-A', // Standard female voice
-  // Alternative: 'af-ZA-Wavenet-A' for WaveNet quality (if available)
-};
 
 interface SynthesizeRequest {
   input: { text: string };
@@ -26,7 +21,7 @@ interface SynthesizeRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, rate = 0.9 } = await request.json();
+    const { text, rate = 0.9, language } = await request.json();
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -45,12 +40,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const lang = resolveLanguage(language);
+    const langConfig = getLanguageConfig(lang);
+
     // Prepare the request to Google Cloud TTS
     const synthesizeRequest: SynthesizeRequest = {
       input: { text },
       voice: {
-        languageCode: AFRIKAANS_VOICE.languageCode,
-        name: AFRIKAANS_VOICE.name,
+        languageCode: langConfig.ttsCode,
+        name: langConfig.ttsVoice,
       },
       audioConfig: {
         audioEncoding: 'MP3',

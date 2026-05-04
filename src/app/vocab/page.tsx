@@ -555,7 +555,7 @@ export default function VocabPage() {
   }, [entries, ankiConnected, ankiDeck]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 sm:ml-56">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-10 sm:pt-0 sm:ml-56">
       <NavHeader />
       {/* Header — mobile only, desktop uses sidebar */}
       <header className="sm:hidden border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">

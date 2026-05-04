@@ -45,7 +45,7 @@ export default function ClozeFeedback({
       const res = await fetch('/api/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sentence, translation, clozeWord: correctWord }),
+        body: JSON.stringify({ sentence, translation, clozeWord: correctWord, language: localStorage.getItem('lector-target-language') || 'af' }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
