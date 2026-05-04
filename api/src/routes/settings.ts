@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { db, SettingRow } from '../db';
 
+const SENSITIVE_KEYS = new Set(['anthropicApiKey', 'claudeOauthToken']);
+
 const app = new Hono();
 
 // GET /api/settings
@@ -8,6 +10,10 @@ app.get('/', (c) => {
   const settings = db.prepare('SELECT * FROM settings').all() as SettingRow[];
   const result: Record<string, unknown> = {};
   for (const s of settings) {
+    if (SENSITIVE_KEYS.has(s.key)) {
+      result[s.key] = true;
+      continue;
+    }
     try {
       result[s.key] = JSON.parse(s.value);
     } catch {
@@ -37,6 +43,10 @@ app.get('/:key', (c) => {
   const setting = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as SettingRow | undefined;
 
   if (!setting) return c.json(null);
+
+  if (SENSITIVE_KEYS.has(key)) {
+    return c.json(true);
+  }
 
   try {
     return c.json(JSON.parse(setting.value));

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, SettingRow } from '@/lib/server/database';
 
+const SENSITIVE_KEYS = new Set(['anthropicApiKey', 'claudeOauthToken']);
+
 // GET /api/settings - Get all settings
 export async function GET() {
   const settings = db.prepare('SELECT * FROM settings').all() as SettingRow[];
   const result: Record<string, unknown> = {};
   for (const s of settings) {
+    if (SENSITIVE_KEYS.has(s.key)) {
+      result[s.key] = true;
+      continue;
+    }
     try {
       result[s.key] = JSON.parse(s.value);
     } catch {

@@ -11,6 +11,7 @@ import {
   bulkUpdateWordStates,
   getSetting,
   setSetting,
+  deleteSetting,
   importFromDexie,
   getAllVocab,
   getAllKnownWords,
@@ -102,10 +103,13 @@ export default function SettingsPage() {
   const [ollamaModel, setOllamaModel] = useState("llama3.1:8b");
   const [apfelUrl, setApfelUrl] = useState("http://localhost:11434");
   const [apfelModel, setApfelModel] = useState("default");
-  const [anthropicApiKey, setAnthropicApiKey] = useState("");
-  const [claudeOauthToken, setClaudeOauthToken] = useState("");
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [showOauthToken, setShowOauthToken] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [hasOauthToken, setHasOauthToken] = useState(false);
+  const [newApiKey, setNewApiKey] = useState("");
+  const [newOauthToken, setNewOauthToken] = useState("");
+  const [editingApiKey, setEditingApiKey] = useState(false);
+  const [editingOauthToken, setEditingOauthToken] = useState(false);
+  const [anthropicAuthMode, setAnthropicAuthMode] = useState<"api_key" | "oauth">("api_key");
   const [llmStatus, setLlmStatus] = useState<LLMStatus | null>(null);
   const [llmTesting, setLlmTesting] = useState(false);
 
@@ -166,11 +170,14 @@ export default function SettingsPage() {
     getSetting<string>('apfelModel').then((m) => {
       if (m) setApfelModel(m);
     });
-    getSetting<string>('anthropicApiKey').then((k) => {
-      if (k) setAnthropicApiKey(k);
+    getSetting<boolean>('anthropicApiKey').then((v) => {
+      setHasApiKey(v === true);
     });
-    getSetting<string>('claudeOauthToken').then((t) => {
-      if (t) setClaudeOauthToken(t);
+    getSetting<boolean>('claudeOauthToken').then((v) => {
+      setHasOauthToken(v === true);
+    });
+    getSetting<string>('anthropicAuthMode').then((m) => {
+      if (m === 'api_key' || m === 'oauth') setAnthropicAuthMode(m);
     });
 
     // Check LLM status
@@ -290,17 +297,51 @@ export default function SettingsPage() {
   };
 
   const saveAnthropicApiKey = async (key: string) => {
-    setAnthropicApiKey(key);
     await setSetting('anthropicApiKey', key);
+    setHasApiKey(true);
+    setNewApiKey("");
+    setEditingApiKey(false);
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  const clearAnthropicApiKey = async () => {
+    await deleteSetting('anthropicApiKey');
+    setHasApiKey(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
     fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
   };
 
   const saveClaudeOauthToken = async (token: string) => {
-    setClaudeOauthToken(token);
     await setSetting('claudeOauthToken', token);
+    setHasOauthToken(true);
+    setNewOauthToken("");
+    setEditingOauthToken(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
     fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  const clearClaudeOauthToken = async () => {
+    await deleteSetting('claudeOauthToken');
+    setHasOauthToken(false);
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  const saveAnthropicAuthMode = async (mode: "api_key" | "oauth") => {
+    setAnthropicAuthMode(mode);
+    await setSetting('anthropicAuthMode', mode);
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    setLlmTesting(true);
+    try {
+      const res = await fetch('/api/llm-status/test', { method: 'POST' });
+      const data = await res.json();
+      setLlmStatus(prev => prev ? { ...prev, ok: data.ok, error: data.error } : { provider: llmProvider, model: ollamaModel, ok: data.ok, error: data.error });
+    } catch {
+      setLlmStatus(prev => prev ? { ...prev, ok: false, error: 'Failed to reach server' } : null);
+    } finally {
+      setLlmTesting(false);
+    }
   };
 
   const testLLMConnection = async () => {
@@ -711,6 +752,43 @@ export default function SettingsPage() {
             {/* Anthropic settings */}
             {llmProvider === "anthropic" && (
               <div className="mb-4 space-y-4">
+                {/* Auth mode toggle — only when both credentials are configured */}
+                {hasApiKey && hasOauthToken && (
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Authentication Method
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => saveAnthropicAuthMode("api_key")}
+                        disabled={llmTesting}
+                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                          anthropicAuthMode === "api_key"
+                            ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                            : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                        }`}
+                      >
+                        API Key
+                      </button>
+                      <button
+                        onClick={() => saveAnthropicAuthMode("oauth")}
+                        disabled={llmTesting}
+                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                          anthropicAuthMode === "oauth"
+                            ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                            : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                        }`}
+                      >
+                        OAuth Token
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                      Both credentials are configured. Choose which to use — connection will be tested automatically.
+                    </p>
+                  </div>
+                )}
+
+                {/* API Key */}
                 <div>
                   <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     API Key
@@ -726,27 +804,60 @@ export default function SettingsPage() {
                       console.anthropic.com
                     </a>
                   </p>
-                  <div className="flex gap-2">
-                    <input
-                      type={showApiKey ? "text" : "password"}
-                      value={anthropicApiKey}
-                      onChange={(e) => saveAnthropicApiKey(e.target.value)}
-                      placeholder="sk-ant-..."
-                      className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                    />
-                    <button
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    >
-                      {showApiKey ? "Hide" : "Show"}
-                    </button>
-                  </div>
+                  {hasApiKey && !editingApiKey ? (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                        <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                        Configured
+                      </span>
+                      <button
+                        onClick={() => setEditingApiKey(true)}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                      >
+                        Replace
+                      </button>
+                      <button
+                        onClick={clearAnthropicApiKey}
+                        className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={newApiKey}
+                        onChange={(e) => setNewApiKey(e.target.value)}
+                        placeholder="sk-ant-api..."
+                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                      />
+                      <button
+                        onClick={() => saveAnthropicApiKey(newApiKey)}
+                        disabled={!newApiKey.trim()}
+                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      {editingApiKey && (
+                        <button
+                          onClick={() => { setEditingApiKey(false); setNewApiKey(""); }}
+                          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
+
                 <div className="relative flex items-center py-2">
                   <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
                   <span className="mx-3 flex-shrink text-xs text-zinc-400 dark:text-zinc-500">or</span>
                   <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
                 </div>
+
+                {/* OAuth Token */}
                 <div>
                   <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     OAuth Token <span className="font-normal text-zinc-400">(Pro/Team plan)</span>
@@ -754,21 +865,51 @@ export default function SettingsPage() {
                   <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
                     Uses your Claude Pro or Team subscription credits. Run <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">claude setup-token</code> to obtain a token. Note: slower initial startup than API keys.
                   </p>
-                  <div className="flex gap-2">
-                    <input
-                      type={showOauthToken ? "text" : "password"}
-                      value={claudeOauthToken}
-                      onChange={(e) => saveClaudeOauthToken(e.target.value)}
-                      placeholder="sk-ant-oat01-..."
-                      className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                    />
-                    <button
-                      onClick={() => setShowOauthToken(!showOauthToken)}
-                      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    >
-                      {showOauthToken ? "Hide" : "Show"}
-                    </button>
-                  </div>
+                  {hasOauthToken && !editingOauthToken ? (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                        <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                        Configured
+                      </span>
+                      <button
+                        onClick={() => setEditingOauthToken(true)}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                      >
+                        Replace
+                      </button>
+                      <button
+                        onClick={clearClaudeOauthToken}
+                        className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={newOauthToken}
+                        onChange={(e) => setNewOauthToken(e.target.value)}
+                        placeholder="sk-ant-oat01-..."
+                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                      />
+                      <button
+                        onClick={() => saveClaudeOauthToken(newOauthToken)}
+                        disabled={!newOauthToken.trim()}
+                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      {editingOauthToken && (
+                        <button
+                          onClick={() => { setEditingOauthToken(false); setNewOauthToken(""); }}
+                          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
