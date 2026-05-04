@@ -4,47 +4,43 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { getSetting } from '@/lib/data-layer';
 
+function getInitialChecked(pathname: string): boolean {
+  if (pathname === '/setup') return true;
+  if (typeof window === 'undefined') return false;
+  return !!localStorage.getItem('lector-target-language');
+}
+
 export default function SetupGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [checked, setChecked] = useState(false);
+  const [checked, setChecked] = useState(() => getInitialChecked(pathname));
 
   useEffect(() => {
-    // Don't redirect if already on setup page
-    if (pathname === '/setup') {
-      setChecked(true);
-      return;
-    }
+    if (checked || pathname === '/setup') return;
+
+    let cancelled = false;
 
     async function checkLanguage() {
-      // 1. Check localStorage first
-      const local = localStorage.getItem('lector-target-language');
-      if (local) {
-        setChecked(true);
-        return;
-      }
-
-      // 2. Check server setting
       try {
         const serverLang = await getSetting<string>('targetLanguage');
+        if (cancelled) return;
         if (serverLang) {
-          // Sync to localStorage
           localStorage.setItem('lector-target-language', serverLang);
           setChecked(true);
           return;
         }
       } catch {
-        // Server unavailable — don't redirect to setup
+        if (cancelled) return;
         setChecked(true);
         return;
       }
 
-      // 3. No language set anywhere — redirect to setup
-      router.replace('/setup');
+      if (!cancelled) router.replace('/setup');
     }
 
     checkLanguage();
-  }, [pathname, router]);
+    return () => { cancelled = true; };
+  }, [checked, pathname, router]);
 
   if (!checked) {
     return (

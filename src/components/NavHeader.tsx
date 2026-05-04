@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useSyncExternalStore, useEffect, useRef } from 'react';
 import ThemeToggle from './ThemeToggle';
 import { setSetting } from '@/lib/data-layer';
 import { LANGUAGES, type LanguageCode, type LanguageConfig, isValidLanguageCode } from '@/lib/languages';
@@ -82,17 +82,19 @@ const iconMap: Record<string, () => React.ReactElement> = {
   '/settings': SettingsIcon,
 };
 
+function getLanguageSnapshot(): LanguageConfig {
+  const stored = localStorage.getItem('lector-target-language');
+  if (stored && isValidLanguageCode(stored)) return LANGUAGES[stored];
+  return LANGUAGES.af;
+}
+
+function subscribeToStorage(callback: () => void) {
+  window.addEventListener('storage', callback);
+  return () => window.removeEventListener('storage', callback);
+}
+
 function useActiveLanguage(): LanguageConfig {
-  const [lang, setLang] = useState<LanguageConfig>(LANGUAGES.af);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('lector-target-language');
-    if (stored && isValidLanguageCode(stored)) {
-      setLang(LANGUAGES[stored]);
-    }
-  }, []);
-
-  return lang;
+  return useSyncExternalStore(subscribeToStorage, getLanguageSnapshot, () => LANGUAGES.af);
 }
 
 function LanguageSelector({ compact = false }: { compact?: boolean }) {
