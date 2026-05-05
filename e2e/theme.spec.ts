@@ -1,4 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
+
+// The Next.js dev overlay (<nextjs-portal>) intercepts pointer events on
+// elements near the bottom of the sidebar. Use dispatchEvent to bypass.
+async function clickThemeButton(page: Page, title: string) {
+  const btn = page.getByTitle(title);
+  await expect(btn).toBeVisible({ timeout: 5000 });
+  await btn.dispatchEvent("click");
+  await page.waitForTimeout(200);
+}
 
 test.describe("Theme Toggle", () => {
   test.beforeEach(async ({ page }) => {
@@ -30,13 +39,7 @@ test.describe("Theme Toggle", () => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    // Wait for the theme toggle to mount
-    const lightBtn = page.getByTitle("Light");
-    await expect(lightBtn).toBeVisible({ timeout: 5000 });
-
-    // Click Light button
-    await lightBtn.click();
-    await page.waitForTimeout(200);
+    await clickThemeButton(page, "Light");
 
     // html should NOT have 'dark' class
     const hasDark = await page
@@ -63,12 +66,10 @@ test.describe("Theme Toggle", () => {
     await page.waitForLoadState("networkidle");
 
     // First switch to light so we have a known starting state
-    await page.getByTitle("Light").click();
-    await page.waitForTimeout(200);
+    await clickThemeButton(page, "Light");
 
     // Now switch to dark
-    await page.getByTitle("Dark").click();
-    await page.waitForTimeout(200);
+    await clickThemeButton(page, "Dark");
 
     // html should have 'dark' class
     const hasDark = await page
@@ -93,8 +94,7 @@ test.describe("Theme Toggle", () => {
     await page.waitForLoadState("networkidle");
 
     // Set to light mode
-    await page.getByTitle("Light").click();
-    await page.waitForTimeout(200);
+    await clickThemeButton(page, "Light");
 
     // Navigate to a different page
     await page.goto("/vocab");
@@ -116,8 +116,7 @@ test.describe("Theme Toggle", () => {
     await page.waitForLoadState("networkidle");
 
     // Set to light mode
-    await page.getByTitle("Light").click();
-    await page.waitForTimeout(200);
+    await clickThemeButton(page, "Light");
 
     // Reload page
     await page.reload();
@@ -137,13 +136,8 @@ test.describe("Theme Toggle", () => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    const lightBtn = page.getByTitle("Light");
-    const darkBtn = page.getByTitle("Dark");
-    await expect(lightBtn).toBeVisible({ timeout: 5000 });
-
     // Light
-    await lightBtn.click();
-    await page.waitForTimeout(100);
+    await clickThemeButton(page, "Light");
     expect(
       await page
         .locator("html")
@@ -151,8 +145,7 @@ test.describe("Theme Toggle", () => {
     ).toBe(false);
 
     // Dark
-    await darkBtn.click();
-    await page.waitForTimeout(100);
+    await clickThemeButton(page, "Dark");
     expect(
       await page
         .locator("html")
@@ -160,8 +153,7 @@ test.describe("Theme Toggle", () => {
     ).toBe(true);
 
     // Light again
-    await lightBtn.click();
-    await page.waitForTimeout(100);
+    await clickThemeButton(page, "Light");
     expect(
       await page
         .locator("html")
