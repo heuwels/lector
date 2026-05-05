@@ -9,12 +9,9 @@ export function getActiveLanguageCode(): LanguageCode {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('targetLanguage') as SettingRow | undefined;
   if (!row) return DEFAULT_LANGUAGE;
 
-  try {
-    const code = JSON.parse(row.value);
-    if (typeof code === 'string' && isValidLanguageCode(code)) return code;
-  } catch {
-    if (typeof row.value === 'string' && isValidLanguageCode(row.value)) return row.value;
-  }
+  // Value may be JSON-encoded (e.g. '"af"') or raw (e.g. 'af')
+  const raw = row.value.replace(/^"|"$/g, '');
+  if (isValidLanguageCode(raw)) return raw;
 
   return DEFAULT_LANGUAGE;
 }

@@ -196,7 +196,7 @@ app.post('/seed', (c) => {
       insertStmt.run(
         randomUUID(), s.text, s.clozeWord, s.clozeIndex, s.translation,
         'tatoeba', s.collection, s.wordRank, s.id,
-        0, new Date().toISOString(), 0, 0, 0, 'af'
+        0, new Date().toISOString(), 0, 0, 0, resolveLanguage(c.req.query('language'))
       );
     }
     for (const s of toUpdate) {

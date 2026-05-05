@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setSetting } from '@/lib/data-layer';
 import { LANGUAGES, type LanguageCode } from '@/lib/languages';
@@ -12,14 +13,18 @@ const languageCards: { code: LanguageCode; flag: string; native: string; name: s
 
 export default function SetupPage() {
   const router = useRouter();
+  const [pending, setPending] = useState<LanguageCode | null>(null);
 
   async function handleSelect(code: LanguageCode) {
-    // Save to server
-    await setSetting('targetLanguage', code);
-    // Save to localStorage
-    localStorage.setItem('lector-target-language', code);
-    // Navigate to home
-    router.replace('/');
+    if (pending) return;
+    setPending(code);
+    try {
+      await setSetting('targetLanguage', code);
+      localStorage.setItem('lector-target-language', code);
+      router.replace('/');
+    } catch {
+      setPending(null);
+    }
   }
 
   return (
@@ -38,10 +43,21 @@ export default function SetupPage() {
           <button
             key={lang.code}
             onClick={() => handleSelect(lang.code)}
+            disabled={pending !== null}
             data-testid={`setup-language-${lang.code}`}
-            className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-zinc-200 bg-white px-6 py-8 transition-all hover:border-zinc-400 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
+            className={`group flex flex-col items-center gap-3 rounded-2xl border-2 px-6 py-8 transition-all ${
+              pending === lang.code
+                ? 'border-zinc-400 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800'
+                : pending !== null
+                  ? 'cursor-not-allowed opacity-50 border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'
+                  : 'border-zinc-200 bg-white hover:border-zinc-400 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600'
+            }`}
           >
-            <span className="text-5xl">{lang.flag}</span>
+            {pending === lang.code ? (
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+            ) : (
+              <span className="text-5xl">{lang.flag}</span>
+            )}
             <span className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
               {lang.native}
             </span>

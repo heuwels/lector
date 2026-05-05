@@ -76,7 +76,7 @@ app.put('/:id', async (c) => {
   if (body.state !== undefined) {
     updates.push('state = ?', 'stateUpdatedAt = ?');
     values.push(body.state, new Date().toISOString());
-    const vocabLang = (existing as VocabRow & { language?: string }).language || 'af';
+    const vocabLang = existing.language;
     db.prepare('INSERT OR REPLACE INTO knownWords (word, language, state) VALUES (?, ?, ?)').run(existing.text.toLowerCase(), vocabLang, body.state);
   }
   if (body.translation !== undefined) { updates.push('translation = ?'); values.push(body.translation); }
@@ -100,7 +100,7 @@ app.delete('/:id', (c) => {
 
   if (!vocab) return c.json({ error: 'Vocab not found' }, 404);
 
-  const vocabLang = vocab.language || 'af';
+  const vocabLang = vocab.language;
   db.prepare('DELETE FROM vocab WHERE id = ?').run(id);
 
   const others = db.prepare('SELECT COUNT(*) as count FROM vocab WHERE LOWER(text) = ? AND language = ?').get(vocab.text.toLowerCase(), vocabLang) as { count: number };

@@ -195,7 +195,7 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-10 sm:pt-0 sm:ml-56">
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
         <NavHeader />
         <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex h-64 items-center justify-center">
@@ -207,7 +207,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-10 sm:pt-0 sm:ml-56">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
       <NavHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">

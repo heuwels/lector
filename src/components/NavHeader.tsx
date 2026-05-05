@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useState, useSyncExternalStore, useEffect, useRef } from 'react';
 import ThemeToggle from './ThemeToggle';
 import { setSetting } from '@/lib/data-layer';
-import { LANGUAGES, type LanguageCode, type LanguageConfig, isValidLanguageCode } from '@/lib/languages';
+import { LANGUAGES, DEFAULT_LANGUAGE, type LanguageCode, type LanguageConfig, isValidLanguageCode } from '@/lib/languages';
 
 const navLinks = [
   { href: '/', label: 'Library' },
@@ -85,16 +85,28 @@ const iconMap: Record<string, () => React.ReactElement> = {
 function getLanguageSnapshot(): LanguageConfig {
   const stored = localStorage.getItem('lector-target-language');
   if (stored && isValidLanguageCode(stored)) return LANGUAGES[stored];
-  return LANGUAGES.af;
+  return LANGUAGES[DEFAULT_LANGUAGE];
 }
+
+// Custom event for same-tab localStorage changes (storage event only fires cross-tab)
+const LANGUAGE_CHANGE_EVENT = 'lector-language-change';
 
 function subscribeToStorage(callback: () => void) {
   window.addEventListener('storage', callback);
-  return () => window.removeEventListener('storage', callback);
+  window.addEventListener(LANGUAGE_CHANGE_EVENT, callback);
+  return () => {
+    window.removeEventListener('storage', callback);
+    window.removeEventListener(LANGUAGE_CHANGE_EVENT, callback);
+  };
+}
+
+function setLanguageInStorage(code: string) {
+  localStorage.setItem('lector-target-language', code);
+  window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT));
 }
 
 function useActiveLanguage(): LanguageConfig {
-  return useSyncExternalStore(subscribeToStorage, getLanguageSnapshot, () => LANGUAGES.af);
+  return useSyncExternalStore(subscribeToStorage, getLanguageSnapshot, () => LANGUAGES[DEFAULT_LANGUAGE]);
 }
 
 function LanguageSelector({ compact = false }: { compact?: boolean }) {
@@ -109,14 +121,21 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
         setIsOpen(false);
       }
     }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setIsOpen(false);
+    }
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen]);
 
   async function handleSwitch(code: LanguageCode) {
     setIsOpen(false);
-    localStorage.setItem('lector-target-language', code);
     await setSetting('targetLanguage', code);
+    setLanguageInStorage(code);
     window.location.reload();
   }
 
@@ -127,6 +146,9 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          aria-label={`Language: ${activeLang.native}`}
           data-testid="language-selector"
           className="flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
         >
@@ -135,9 +157,11 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
           <ChevronIcon />
         </button>
         {isOpen && (
-          <div className="absolute left-0 z-50 mt-1 w-44 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+          <div role="listbox" aria-label="Select language" className="absolute left-0 z-50 mt-1 w-44 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
             {allLangs.map((lang) => (
               <button
+                role="option"
+                aria-selected={lang.code === activeLang.code}
                 key={lang.code}
                 onClick={() => handleSwitch(lang.code)}
                 data-testid={`language-option-${lang.code}`}
@@ -161,6 +185,9 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
     <div className="relative mx-3" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        aria-label={`Language: ${activeLang.native}`}
         data-testid="language-selector"
         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/50"
       >
@@ -169,9 +196,11 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
         <ChevronIcon />
       </button>
       {isOpen && (
-        <div className="absolute left-0 right-0 z-50 mt-1 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+        <div role="listbox" aria-label="Select language" className="absolute left-0 right-0 z-50 mt-1 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
           {allLangs.map((lang) => (
             <button
+              role="option"
+              aria-selected={lang.code === activeLang.code}
               key={lang.code}
               onClick={() => handleSwitch(lang.code)}
               data-testid={`language-option-${lang.code}`}
@@ -205,7 +234,7 @@ export default function NavHeader() {
   return (
     <>
       {/* Mobile top bar — language selector, visible only on mobile */}
-      <div className="fixed top-0 left-0 right-0 z-50 flex h-10 items-center justify-end px-3 bg-white/80 backdrop-blur-sm border-b border-zinc-200 dark:bg-zinc-950/80 dark:border-zinc-800 sm:hidden">
+      <div className="fixed top-0 left-0 right-0 z-50 flex h-[var(--mobile-topbar-h)] items-center justify-end px-3 bg-white/80 backdrop-blur-sm border-b border-zinc-200 dark:bg-zinc-950/80 dark:border-zinc-800 sm:hidden">
         <LanguageSelector compact />
       </div>
 

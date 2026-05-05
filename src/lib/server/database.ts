@@ -21,8 +21,8 @@ function getDb(): DatabaseType {
   fs.mkdirSync(BOOKS_DIR, { recursive: true });
 
   // Migrate DB filename: afrikaans.db -> lector.db
-  if (!fs.existsSync(DB_PATH) && fs.existsSync(OLD_DB_PATH)) {
-    fs.renameSync(OLD_DB_PATH, DB_PATH);
+  if (!fs.existsSync(DB_PATH)) {
+    try { fs.renameSync(OLD_DB_PATH, DB_PATH); } catch { /* old file doesn't exist or already moved */ }
   }
 
   _db = new Database(DB_PATH);
@@ -379,6 +379,35 @@ function migrateAddLanguageColumn(database: DatabaseType) {
       `);
     })();
   }
+
+  // Recreate dailyStats with compound PK (date, language)
+  const dailyStatsSql = database.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='dailyStats'"
+  ).get() as { sql: string } | undefined;
+
+  if (dailyStatsSql && !dailyStatsSql.sql.includes('language')) {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE dailyStats_new (
+          date TEXT NOT NULL,
+          language TEXT NOT NULL DEFAULT 'af',
+          wordsRead INTEGER DEFAULT 0,
+          newWordsSaved INTEGER DEFAULT 0,
+          wordsMarkedKnown INTEGER DEFAULT 0,
+          minutesRead INTEGER DEFAULT 0,
+          clozePracticed INTEGER DEFAULT 0,
+          points INTEGER DEFAULT 0,
+          dictionaryLookups INTEGER DEFAULT 0,
+          sessionStartedAt TEXT,
+          PRIMARY KEY (date, language)
+        );
+        INSERT INTO dailyStats_new (date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups, sessionStartedAt)
+          SELECT date, 'af', wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups, sessionStartedAt FROM dailyStats;
+        DROP TABLE dailyStats;
+        ALTER TABLE dailyStats_new RENAME TO dailyStats;
+      `);
+    })();
+  }
 }
 
 // Export a proxy that lazily initializes the database
@@ -459,6 +488,7 @@ export interface VocabRow {
   reviewCount: number;
   bookId: string | null;
   chapter: number | null;
+  language: string;
   createdAt: string;
   pushedToAnki: number;
   ankiNoteId: number | null;
@@ -526,6 +556,7 @@ export interface JournalEntryRow {
   corrections: string | null;
   status: JournalStatus;
   wordCount: number;
+  language: string;
   entryDate: string;
   createdAt: string;
   updatedAt: string;

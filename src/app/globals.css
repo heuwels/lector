@@ -3,6 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --mobile-topbar-h: 2.5rem;
   --background: #f9fafb;
   --foreground: #111827;
 

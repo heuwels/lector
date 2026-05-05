@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
     FROM collections c
     LEFT JOIN collection_groups g ON g.id = c.groupId
-    LEFT JOIN lessons l ON l.collectionId = c.id
+    LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language
     WHERE c.language = ?
     GROUP BY c.id
     ORDER BY c.lastReadAt DESC

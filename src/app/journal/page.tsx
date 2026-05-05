@@ -355,7 +355,7 @@ export default function JournalPage() {
   const wordCount = bodyText.trim().split(/\s+/).filter(Boolean).length;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-10 sm:pt-0 sm:ml-56">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
       <NavHeader />
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8 pb-24 sm:pb-8">
         <div className="flex items-center justify-between mb-6">

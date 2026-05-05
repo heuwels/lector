@@ -5,10 +5,12 @@
  * the server-side API instead of browser-based IndexedDB/Dexie.
  */
 
-// Active language helper — reads from localStorage, falls back to 'af'
+import { DEFAULT_LANGUAGE } from './languages';
+
+// Active language helper — reads from localStorage, falls back to default
 export function getActiveLanguage(): string {
-  if (typeof window === 'undefined') return 'af';
-  return localStorage.getItem('lector-target-language') || 'af';
+  if (typeof window === 'undefined') return DEFAULT_LANGUAGE;
+  return localStorage.getItem('lector-target-language') || DEFAULT_LANGUAGE;
 }
 
 function langParam(prefix: '?' | '&' = '?'): string {
@@ -494,7 +496,7 @@ export async function getCollectionCounts(): Promise<Record<ClozeCollection, { t
 }
 
 export async function getStreak(): Promise<{ streak: number; practicedToday: boolean }> {
-  const res = await fetch('/api/stats/streak');
+  const res = await fetch(`/api/stats/streak${langParam()}`);
   return res.json();
 }
 
@@ -598,13 +600,13 @@ export async function deleteJournalEntry(id: string): Promise<void> {
 // ============================================================================
 
 export async function getDailyStats(date: string): Promise<DailyStats | undefined> {
-  const res = await fetch(`/api/stats?startDate=${date}&endDate=${date}`);
+  const res = await fetch(`/api/stats?startDate=${date}&endDate=${date}${langParam('&')}`);
   const stats = await res.json();
   return stats[0];
 }
 
 export async function getTodayStats(): Promise<DailyStats> {
-  const res = await fetch('/api/stats/today');
+  const res = await fetch(`/api/stats/today${langParam()}`);
   return res.json();
 }
 
@@ -612,7 +614,7 @@ export async function incrementDailyStat(
   field: keyof Omit<DailyStats, 'date'>,
   amount: number = 1
 ): Promise<void> {
-  await fetch('/api/stats/today', {
+  await fetch(`/api/stats/today${langParam()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ field, amount }),
@@ -623,12 +625,12 @@ export async function getStatsForDateRange(
   startDate: string,
   endDate: string
 ): Promise<DailyStats[]> {
-  const res = await fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}`);
+  const res = await fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`);
   return res.json();
 }
 
 export async function getRecentStats(days: number = 7): Promise<DailyStats[]> {
-  const res = await fetch(`/api/stats?days=${days}`);
+  const res = await fetch(`/api/stats?days=${days}${langParam('&')}`);
   return res.json();
 }
 

@@ -39,7 +39,7 @@ export async function PUT(
     updates.push('state = ?', 'stateUpdatedAt = ?');
     values.push(body.state, new Date().toISOString());
     // Update knownWords table too
-    const vocabLang = (existing as VocabRow & { language?: string }).language || 'af';
+    const vocabLang = existing.language;
     db.prepare('INSERT OR REPLACE INTO knownWords (word, language, state) VALUES (?, ?, ?)').run(existing.text.toLowerCase(), vocabLang, body.state);
   }
   if (body.translation !== undefined) {
@@ -83,7 +83,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Vocab not found' }, { status: 404 });
   }
 
-  const vocabLang = vocab.language || 'af';
+  const vocabLang = vocab.language;
   db.prepare('DELETE FROM vocab WHERE id = ?').run(id);
 
   // Check if other entries exist with same word in same language

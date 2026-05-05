@@ -546,7 +546,7 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-10 sm:pt-0 sm:ml-56">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
       <NavHeader />
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Date subtitle */}

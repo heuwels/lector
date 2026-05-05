@@ -14,7 +14,7 @@ app.get('/', (c) => {
     SELECT c.*, COUNT(l.id) as lessonCount,
       COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
     FROM collections c
-    LEFT JOIN lessons l ON l.collectionId = c.id
+    LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language
     WHERE c.language = ?
     GROUP BY c.id
     ORDER BY c.lastReadAt DESC

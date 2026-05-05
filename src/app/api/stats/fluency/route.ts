@@ -67,12 +67,12 @@ export async function GET(request: NextRequest) {
   const prevWeekEnd = d8.toISOString().split('T')[0];
 
   const thisWeekRow = db.prepare(
-    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ?'
-  ).get(weekStart, today) as { total: number };
+    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?'
+  ).get(weekStart, today, lang) as { total: number };
 
   const prevWeekRow = db.prepare(
-    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ?'
-  ).get(prevWeekStart, prevWeekEnd) as { total: number };
+    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?'
+  ).get(prevWeekStart, prevWeekEnd, lang) as { total: number };
 
   return NextResponse.json({
     totalKnownWords,
