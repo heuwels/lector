@@ -1,23 +1,28 @@
 import { Hono } from 'hono';
 import { getProvider } from '../lib/llm';
+import { resolveLanguage } from '../lib/active-language';
+import { getLanguageConfig } from '../lib/languages';
 
 const app = new Hono();
 
 // POST /api/explain
 app.post('/', async (c) => {
   try {
-    const { sentence, translation, clozeWord } = await c.req.json();
+    const { sentence, translation, clozeWord, language } = await c.req.json();
 
     if (!sentence || !translation) {
       return c.json({ error: 'sentence and translation are required' }, 400);
     }
+
+    const lang = resolveLanguage(language);
+    const langName = getLanguageConfig(lang).name;
 
     const provider = getProvider();
     const text = await provider.complete({
       messages: [
         {
           role: 'user',
-          content: `Break down this Afrikaans sentence for a language learner. Explain each word, its role in the sentence, and any grammar points. Keep it concise but educational. Focus especially on the word "${clozeWord}" since that's the word being studied.
+          content: `Break down this ${langName} sentence for a language learner. Explain each word, its role in the sentence, and any grammar points. Keep it concise but educational. Focus especially on the word "${clozeWord}" since that's the word being studied.
 
 Sentence: "${sentence}"
 Translation: "${translation}"

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/server/database';
+import { resolveLanguage } from '@/lib/server/active-language';
 import { parseEpub } from '@/lib/server/epub-parser';
 import { randomUUID } from 'crypto';
 
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
+  const lang = resolveLanguage(formData.get('language') as string | null);
 
   if (!file) {
     return NextResponse.json({ error: 'File required' }, { status: 400 });
@@ -20,8 +22,8 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
 
     const insertCollection = db.prepare(`
-      INSERT INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertLesson = db.prepare(`
@@ -30,7 +32,7 @@ export async function POST(request: NextRequest) {
     `);
 
     db.transaction(() => {
-      insertCollection.run(collectionId, parsed.title, parsed.author, null, now, now);
+      insertCollection.run(collectionId, parsed.title, parsed.author, null, lang, now, now);
 
       for (let i = 0; i < parsed.chapters.length; i++) {
         const chapter = parsed.chapters[i];

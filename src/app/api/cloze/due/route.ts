@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, ClozeSentenceRow } from '@/lib/server/database';
+import { resolveLanguage } from '@/lib/server/active-language';
 
 // GET /api/cloze/due - Get sentences for practice
 // mode=new: never-reviewed sentences (reviewCount = 0)
@@ -7,6 +8,7 @@ import { db, ClozeSentenceRow } from '@/lib/server/database';
 // (default): all due sentences (original behavior)
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+  const lang = resolveLanguage(searchParams.get('language'));
   const limit = parseInt(searchParams.get('limit') || '20');
   const collection = searchParams.get('collection');
   const mode = searchParams.get('mode'); // 'new' | 'review' | null
@@ -19,15 +21,16 @@ export async function GET(request: NextRequest) {
 
   if (mode === 'new') {
     // Never-reviewed sentences
-    query = 'SELECT * FROM clozeSentences WHERE reviewCount = 0 AND (blacklisted = 0 OR blacklisted IS NULL)';
+    query = 'SELECT * FROM clozeSentences WHERE reviewCount = 0 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
+    params.push(lang);
   } else if (mode === 'review') {
     // Due for review (already seen at least once)
-    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND reviewCount > 0 AND masteryLevel < 100 AND (blacklisted = 0 OR blacklisted IS NULL)';
-    params.push(now);
+    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND reviewCount > 0 AND masteryLevel < 100 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
+    params.push(now, lang);
   } else {
     // Default: all due
-    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND (blacklisted = 0 OR blacklisted IS NULL)';
-    params.push(now);
+    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
+    params.push(now, lang);
   }
 
   if (collection) {

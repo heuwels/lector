@@ -5,6 +5,18 @@
  * the server-side API instead of browser-based IndexedDB/Dexie.
  */
 
+import { DEFAULT_LANGUAGE } from './languages';
+
+// Active language helper — reads from localStorage, falls back to default
+export function getActiveLanguage(): string {
+  if (typeof window === 'undefined') return DEFAULT_LANGUAGE;
+  return localStorage.getItem('lector-target-language') || DEFAULT_LANGUAGE;
+}
+
+function langParam(prefix: '?' | '&' = '?'): string {
+  return `${prefix}language=${getActiveLanguage()}`;
+}
+
 // Re-export types from db.ts for compatibility
 export type {
   WordState,
@@ -42,7 +54,7 @@ import type {
 // ============================================================================
 
 export async function getAllCollections(): Promise<Collection[]> {
-  const res = await fetch('/api/collections');
+  const res = await fetch(`/api/collections${langParam()}`);
   return res.json();
 }
 
@@ -56,7 +68,7 @@ export async function createCollection(data: { title: string; author?: string })
   const res = await fetch('/api/collections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, language: getActiveLanguage() }),
   });
   const { id } = await res.json();
   return id;
@@ -156,6 +168,7 @@ export async function importEpub(file: File): Promise<{
 }> {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('language', getActiveLanguage());
   const res = await fetch('/api/import/epub', {
     method: 'POST',
     body: formData,
@@ -188,7 +201,7 @@ export async function createStandaloneLesson(data: {
 // ============================================================================
 
 export async function getAllVocab(): Promise<VocabEntry[]> {
-  const res = await fetch('/api/vocab');
+  const res = await fetch(`/api/vocab${langParam()}`);
   const vocab = await res.json();
   return vocab.map((v: Record<string, unknown>) => ({
     ...v,
@@ -209,7 +222,7 @@ export async function getVocabEntry(id: string): Promise<VocabEntry | undefined>
 }
 
 export async function getVocabByText(text: string): Promise<VocabEntry | undefined> {
-  const res = await fetch(`/api/vocab?text=${encodeURIComponent(text)}`);
+  const res = await fetch(`/api/vocab${langParam()}&text=${encodeURIComponent(text)}`);
   const vocab = await res.json();
   const match = vocab.find((v: VocabEntry) => v.text === text);
   if (!match) return undefined;
@@ -224,7 +237,7 @@ export async function saveVocab(entry: VocabEntry): Promise<string> {
   const res = await fetch('/api/vocab', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(entry),
+    body: JSON.stringify({ ...entry, language: getActiveLanguage() }),
   });
   const { id } = await res.json();
   return id;
@@ -239,7 +252,7 @@ export async function updateVocabState(id: string, state: WordState): Promise<vo
 }
 
 export async function getVocabByState(state: WordState): Promise<VocabEntry[]> {
-  const res = await fetch(`/api/vocab?state=${state}`);
+  const res = await fetch(`/api/vocab${langParam()}&state=${state}`);
   const vocab = await res.json();
   return vocab.map((v: Record<string, unknown>) => ({
     ...v,
@@ -249,7 +262,7 @@ export async function getVocabByState(state: WordState): Promise<VocabEntry[]> {
 }
 
 export async function getVocabForBook(bookId: string): Promise<VocabEntry[]> {
-  const res = await fetch(`/api/vocab?bookId=${bookId}`);
+  const res = await fetch(`/api/vocab${langParam()}&bookId=${bookId}`);
   const vocab = await res.json();
   return vocab.map((v: Record<string, unknown>) => ({
     ...v,
@@ -259,7 +272,7 @@ export async function getVocabForBook(bookId: string): Promise<VocabEntry[]> {
 }
 
 export async function getUnpushedVocab(): Promise<VocabEntry[]> {
-  const res = await fetch('/api/vocab?unpushed=true');
+  const res = await fetch(`/api/vocab${langParam()}&unpushed=true`);
   const vocab = await res.json();
   return vocab.map((v: Record<string, unknown>) => ({
     ...v,
@@ -294,18 +307,18 @@ export async function updateWordState(word: string, state: WordState): Promise<v
   await fetch('/api/known-words', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ updates: [{ word: word.toLowerCase(), state }] }),
+    body: JSON.stringify({ updates: [{ word: word.toLowerCase(), state }], language: getActiveLanguage() }),
   });
 }
 
 export async function getKnownWordsMap(): Promise<Map<string, WordState>> {
-  const res = await fetch('/api/known-words');
+  const res = await fetch(`/api/known-words${langParam()}`);
   const data = await res.json();
   return new Map(Object.entries(data) as [string, WordState][]);
 }
 
 export async function getAllKnownWords(): Promise<KnownWord[]> {
-  const res = await fetch('/api/known-words');
+  const res = await fetch(`/api/known-words${langParam()}`);
   const data = await res.json();
   return Object.entries(data).map(([word, state]) => ({ word, state: state as WordState }));
 }
@@ -316,7 +329,7 @@ export async function bulkUpdateWordStates(
   await fetch('/api/known-words', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ updates }),
+    body: JSON.stringify({ updates, language: getActiveLanguage() }),
   });
 }
 
@@ -325,7 +338,7 @@ export async function bulkUpdateWordStates(
 // ============================================================================
 
 export async function getClozeSentence(id: string): Promise<ClozeSentence | undefined> {
-  const res = await fetch(`/api/cloze/${id}`);
+  const res = await fetch(`/api/cloze/${id}${langParam()}`);
   if (!res.ok) return undefined;
   const data = await res.json();
   return {
@@ -343,6 +356,7 @@ export async function saveClozeSentence(sentence: ClozeSentence): Promise<string
       ...sentence,
       nextReview: sentence.nextReview.toISOString(),
       lastReviewed: sentence.lastReviewed?.toISOString(),
+      language: getActiveLanguage(),
     }),
   });
   const { id } = await res.json();
@@ -350,7 +364,7 @@ export async function saveClozeSentence(sentence: ClozeSentence): Promise<string
 }
 
 export async function getClozeSentencesDueForReview(limit: number = 20): Promise<ClozeSentence[]> {
-  const res = await fetch(`/api/cloze/due?limit=${limit}`);
+  const res = await fetch(`/api/cloze/due?limit=${limit}${langParam('&')}`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
     ...s,
@@ -378,7 +392,7 @@ export async function updateClozeAfterReview(
 }
 
 export async function getAllClozeSentences(): Promise<ClozeSentence[]> {
-  const res = await fetch('/api/cloze?limit=10000');
+  const res = await fetch(`/api/cloze${langParam()}&limit=10000`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
     ...s,
@@ -393,7 +407,7 @@ export async function getClozeSentenceByTatoebaId(tatoebaSentenceId: number): Pr
 }
 
 export async function getClozeSentencesForWord(word: string): Promise<ClozeSentence[]> {
-  const res = await fetch(`/api/cloze?word=${encodeURIComponent(word)}`);
+  const res = await fetch(`/api/cloze${langParam()}&word=${encodeURIComponent(word)}`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
     ...s,
@@ -410,6 +424,7 @@ export async function bulkSaveClozeSentences(sentences: ClozeSentence[]): Promis
       ...s,
       nextReview: s.nextReview.toISOString(),
       lastReviewed: s.lastReviewed?.toISOString(),
+      language: getActiveLanguage(),
     }))),
   });
 }
@@ -441,6 +456,7 @@ export async function getClozeSentencesByCollection(
     params.set('excludeWords', excludeWords.join(','));
   }
 
+  params.set('language', getActiveLanguage());
   const res = await fetch(`/api/cloze/due?${params}`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
@@ -464,6 +480,7 @@ export async function getNewSentencesByCollection(
     params.set('excludeWords', excludeWords.join(','));
   }
 
+  params.set('language', getActiveLanguage());
   const res = await fetch(`/api/cloze/due?${params}`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
@@ -474,12 +491,12 @@ export async function getNewSentencesByCollection(
 }
 
 export async function getCollectionCounts(): Promise<Record<ClozeCollection, { total: number; due: number; mastered: number }>> {
-  const res = await fetch('/api/cloze/counts');
+  const res = await fetch(`/api/cloze/counts${langParam()}`);
   return res.json();
 }
 
 export async function getStreak(): Promise<{ streak: number; practicedToday: boolean }> {
-  const res = await fetch('/api/stats/streak');
+  const res = await fetch(`/api/stats/streak${langParam()}`);
   return res.json();
 }
 
@@ -500,7 +517,7 @@ export interface FluencyStats {
 }
 
 export async function getFluencyStats(): Promise<FluencyStats> {
-  const res = await fetch('/api/stats/fluency');
+  const res = await fetch(`/api/stats/fluency${langParam()}`);
   return res.json();
 }
 
@@ -533,12 +550,12 @@ export interface JournalEntry {
 }
 
 export async function getJournalEntries(limit: number = 20, offset: number = 0): Promise<JournalEntry[]> {
-  const res = await fetch(`/api/journal?limit=${limit}&offset=${offset}`);
+  const res = await fetch(`/api/journal?limit=${limit}&offset=${offset}${langParam('&')}`);
   return res.json();
 }
 
 export async function getJournalEntriesByDate(date: string): Promise<JournalEntry[]> {
-  const res = await fetch(`/api/journal?date=${date}`);
+  const res = await fetch(`/api/journal?date=${date}${langParam('&')}`);
   return res.json();
 }
 
@@ -552,7 +569,7 @@ export async function createJournalEntry(body: string, entryDate?: string): Prom
   const res = await fetch('/api/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body, entryDate }),
+    body: JSON.stringify({ body, entryDate, language: getActiveLanguage() }),
   });
   return res.json();
 }
@@ -583,13 +600,13 @@ export async function deleteJournalEntry(id: string): Promise<void> {
 // ============================================================================
 
 export async function getDailyStats(date: string): Promise<DailyStats | undefined> {
-  const res = await fetch(`/api/stats?startDate=${date}&endDate=${date}`);
+  const res = await fetch(`/api/stats?startDate=${date}&endDate=${date}${langParam('&')}`);
   const stats = await res.json();
   return stats[0];
 }
 
 export async function getTodayStats(): Promise<DailyStats> {
-  const res = await fetch('/api/stats/today');
+  const res = await fetch(`/api/stats/today${langParam()}`);
   return res.json();
 }
 
@@ -597,7 +614,7 @@ export async function incrementDailyStat(
   field: keyof Omit<DailyStats, 'date'>,
   amount: number = 1
 ): Promise<void> {
-  await fetch('/api/stats/today', {
+  await fetch(`/api/stats/today${langParam()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ field, amount }),
@@ -608,12 +625,12 @@ export async function getStatsForDateRange(
   startDate: string,
   endDate: string
 ): Promise<DailyStats[]> {
-  const res = await fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}`);
+  const res = await fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`);
   return res.json();
 }
 
 export async function getRecentStats(days: number = 7): Promise<DailyStats[]> {
-  const res = await fetch(`/api/stats?days=${days}`);
+  const res = await fetch(`/api/stats?days=${days}${langParam('&')}`);
   return res.json();
 }
 
@@ -712,7 +729,7 @@ export async function getVocabStats(): Promise<{
   total: number;
   byState: Record<WordState, number>;
 }> {
-  const res = await fetch('/api/vocab');
+  const res = await fetch(`/api/vocab${langParam()}`);
   const vocab = await res.json();
 
   const byState: Record<WordState, number> = {

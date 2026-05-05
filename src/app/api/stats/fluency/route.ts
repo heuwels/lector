@@ -1,16 +1,20 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/server/database';
+import { resolveLanguage } from '@/lib/server/active-language';
 
 function getTodayDate(): string {
   return new Date().toISOString().split('T')[0];
 }
 
 // GET /api/stats/fluency - Get fluency benchmarks (word counts, CEFR level, growth)
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const lang = resolveLanguage(searchParams.get('language'));
+
   // Count words by state from knownWords table
   const stateCounts = db.prepare(
-    'SELECT state, COUNT(*) as count FROM knownWords GROUP BY state'
-  ).all() as { state: string; count: number }[];
+    'SELECT state, COUNT(*) as count FROM knownWords WHERE language = ? GROUP BY state'
+  ).all(lang) as { state: string; count: number }[];
 
   const countMap: Record<string, number> = {};
   for (const row of stateCounts) {
@@ -63,12 +67,12 @@ export async function GET() {
   const prevWeekEnd = d8.toISOString().split('T')[0];
 
   const thisWeekRow = db.prepare(
-    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ?'
-  ).get(weekStart, today) as { total: number };
+    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?'
+  ).get(weekStart, today, lang) as { total: number };
 
   const prevWeekRow = db.prepare(
-    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ?'
-  ).get(prevWeekStart, prevWeekEnd) as { total: number };
+    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?'
+  ).get(prevWeekStart, prevWeekEnd, lang) as { total: number };
 
   return NextResponse.json({
     totalKnownWords,

@@ -1,18 +1,15 @@
 import { Hono } from 'hono';
+import { resolveLanguage } from '../lib/active-language';
+import { getLanguageConfig } from '../lib/languages';
 
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
-
-const AFRIKAANS_VOICE = {
-  languageCode: 'af-ZA',
-  name: 'af-ZA-Standard-A',
-};
 
 const app = new Hono();
 
 // POST /api/tts
 app.post('/', async (c) => {
   try {
-    const { text, rate = 0.9 } = await c.req.json();
+    const { text, rate = 0.9, language } = await c.req.json();
 
     if (!text || typeof text !== 'string') {
       return c.json({ error: 'Text is required' }, 400);
@@ -24,11 +21,14 @@ app.post('/', async (c) => {
       return c.json({ error: 'Google Cloud API key not configured', fallback: true }, 503);
     }
 
+    const lang = resolveLanguage(language);
+    const langConfig = getLanguageConfig(lang);
+
     const synthesizeRequest = {
       input: { text },
       voice: {
-        languageCode: AFRIKAANS_VOICE.languageCode,
-        name: AFRIKAANS_VOICE.name,
+        languageCode: langConfig.ttsCode,
+        name: langConfig.ttsVoice,
       },
       audioConfig: {
         audioEncoding: 'MP3' as const,

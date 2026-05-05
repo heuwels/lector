@@ -22,7 +22,7 @@ export async function POST(
     const response = await fetch(`${API_URL}/api/journal-correct`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ body: entry.body }),
+      body: JSON.stringify({ body: entry.body, language: entry.language }),
     });
 
     const data = await response.json();

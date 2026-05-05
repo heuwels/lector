@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { getProvider } from '../lib/llm';
 import { getSpelreelsContext } from '../lib/spelreels';
+import { resolveLanguage } from '../lib/active-language';
+import { getLanguageConfig } from '../lib/languages';
 
 import { db } from '../db';
 
@@ -22,7 +24,7 @@ const app = new Hono();
 // POST /api/translate
 app.post('/', async (c) => {
   try {
-    const { word, sentence, type = 'word' } = await c.req.json();
+    const { word, sentence, type = 'word', language } = await c.req.json();
 
     if (!word) {
       return c.json({ error: 'Word is required' }, 400);
@@ -30,18 +32,17 @@ app.post('/', async (c) => {
 
     recordStudyPing();
 
-    const spelreels = getSpelreelsContext();
+    const lang = resolveLanguage(language);
+    const langConfig = getLanguageConfig(lang);
+    const langName = langConfig.name;
+
+    const spelreels = lang === 'af' ? getSpelreelsContext() : '';
+    const spelreelsSection = spelreels ? `Use the following official spelling rules to inform your understanding of the ${langName} input:\n\n${spelreels}\n\n---\n\n` : '';
 
     if (type === 'phrase') {
-      const prompt = `You are an Afrikaans to English translator with deep knowledge of Afrikaans orthography.
+      const prompt = `You are a ${langName} to English translator with deep knowledge of ${langName} orthography.
 
-Use the following official spelling rules to inform your understanding of the Afrikaans input:
-
-${spelreels}
-
----
-
-Translate the following Afrikaans phrase, using the sentence context to determine the correct meaning.
+${spelreelsSection}Translate the following ${langName} phrase, using the sentence context to determine the correct meaning.
 
 Phrase: "${word}"
 Sentence context: "${sentence || word}"
@@ -60,15 +61,9 @@ Include idiomaticMeaning only if the phrase is an idiom or has a meaning that di
 
       return c.json(JSON.parse(text));
     } else {
-      const prompt = `You are an Afrikaans to English translator with deep knowledge of Afrikaans orthography.
+      const prompt = `You are a ${langName} to English translator with deep knowledge of ${langName} orthography.
 
-Use the following official spelling rules to inform your understanding of the Afrikaans input:
-
-${spelreels}
-
----
-
-Translate the following Afrikaans word, using the sentence context to determine the correct meaning.
+${spelreelsSection}Translate the following ${langName} word, using the sentence context to determine the correct meaning.
 
 Word: "${word}"
 Sentence context: "${sentence || word}"

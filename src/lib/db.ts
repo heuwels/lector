@@ -17,6 +17,7 @@ export interface Collection {
   coverUrl?: string;
   groupId?: string | null;
   groupName?: string | null;
+  language?: string;
   lessonCount: number;
   avgProgress: number;
   createdAt: string;
@@ -39,6 +40,7 @@ export interface Lesson {
   progress_scrollPosition: number;
   progress_percentComplete: number;
   wordCount: number;
+  language?: string;
   createdAt: string;
   lastReadAt: string;
 }
@@ -66,6 +68,7 @@ export interface VocabEntry {
   reviewCount: number;
   bookId?: string; // legacy — maps to lessonId
   chapter?: number;
+  language?: string;
   createdAt: Date;
   pushedToAnki: boolean;
   ankiNoteId?: number;

@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, VocabRow } from '@/lib/server/database';
+import { resolveLanguage } from '@/lib/server/active-language';
 import { randomUUID } from 'crypto';
 
 // GET /api/vocab - List vocab with optional filters
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+  const lang = resolveLanguage(searchParams.get('language'));
   const state = searchParams.get('state');
   const bookId = searchParams.get('bookId');
   const unpushed = searchParams.get('unpushed');
 
-  let query = 'SELECT * FROM vocab WHERE 1=1';
-  const params: unknown[] = [];
+  let query = 'SELECT * FROM vocab WHERE language = ?';
+  const params: unknown[] = [lang];
 
   if (state) {
     query += ' AND state = ?';
@@ -51,10 +53,11 @@ export async function POST(request: NextRequest) {
 
   const id = body.id || randomUUID();
   const now = new Date().toISOString();
+  const lang = resolveLanguage(body.language);
 
   db.prepare(`
-    INSERT OR REPLACE INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     body.text,
@@ -68,14 +71,15 @@ export async function POST(request: NextRequest) {
     body.chapter || null,
     now,
     body.pushedToAnki ? 1 : 0,
-    body.ankiNoteId || null
+    body.ankiNoteId || null,
+    lang
   );
 
   // Also update knownWords lookup table
   db.prepare(`
-    INSERT OR REPLACE INTO knownWords (word, state)
-    VALUES (?, ?)
-  `).run(body.text.toLowerCase(), body.state || 'new');
+    INSERT OR REPLACE INTO knownWords (word, language, state)
+    VALUES (?, ?, ?)
+  `).run(body.text.toLowerCase(), lang, body.state || 'new');
 
   return NextResponse.json({ id });
 }

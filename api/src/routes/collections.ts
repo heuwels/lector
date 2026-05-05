@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { db, CollectionRow, LessonRow } from '../db';
+import { resolveLanguage } from '../lib/active-language';
 import { randomUUID } from 'crypto';
 import { countWords } from '../lib/html-to-markdown';
 
@@ -7,14 +8,17 @@ const app = new Hono();
 
 // GET /api/collections
 app.get('/', (c) => {
+  const lang = resolveLanguage(c.req.query('language'));
+
   const collections = db.prepare(`
     SELECT c.*, COUNT(l.id) as lessonCount,
       COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
     FROM collections c
-    LEFT JOIN lessons l ON l.collectionId = c.id
+    LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language
+    WHERE c.language = ?
     GROUP BY c.id
     ORDER BY c.lastReadAt DESC
-  `).all() as (CollectionRow & { lessonCount: number; avgProgress: number })[];
+  `).all(lang) as (CollectionRow & { lessonCount: number; avgProgress: number })[];
 
   return c.json(collections);
 });
@@ -24,11 +28,12 @@ app.post('/', async (c) => {
   const body = await c.req.json();
   const id = body.id || randomUUID();
   const now = new Date().toISOString();
+  const lang = resolveLanguage(body.language);
 
   db.prepare(`
-    INSERT INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, body.title, body.author || 'Unknown', body.coverUrl || null, now, now);
+    INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, body.title, body.author || 'Unknown', body.coverUrl || null, lang, now, now);
 
   return c.json({ id });
 });

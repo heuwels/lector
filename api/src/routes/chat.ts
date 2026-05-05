@@ -1,11 +1,15 @@
 import { Hono } from 'hono';
 import { db, ChatMessageRow } from '../db';
 import { getProvider } from '../lib/llm';
+import { resolveLanguage } from '../lib/active-language';
+import { getLanguageConfig } from '../lib/languages';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
 
-const SYSTEM_PROMPT = `You are a friendly Afrikaans language tutor helping an English speaker learn Afrikaans. Answer questions about grammar, vocabulary, usage, idioms, and differences between similar words or phrases. Keep answers concise and educational. Use examples where helpful. Reply in English unless the student writes in Afrikaans, in which case reply in Afrikaans with an English explanation.`;
+function getSystemPrompt(langName: string): string {
+  return `You are a friendly ${langName} language tutor helping an English speaker learn ${langName}. Answer questions about grammar, vocabulary, usage, idioms, and differences between similar words or phrases. Keep answers concise and educational. Use examples where helpful. Reply in English unless the student writes in ${langName}, in which case reply in ${langName} with an English explanation.`;
+}
 
 const MAX_CONTEXT_MESSAGES = 20;
 const TTL_DAYS = 7;
@@ -43,11 +47,15 @@ app.post('/', async (c) => {
   try {
     cleanExpired();
 
-    const { message } = await c.req.json();
+    const { message, language } = await c.req.json();
 
     if (!message?.trim()) {
       return c.json({ error: 'message is required' }, 400);
     }
+
+    const lang = resolveLanguage(language);
+    const langName = getLanguageConfig(lang).name;
+    const SYSTEM_PROMPT = getSystemPrompt(langName);
 
     const now = new Date().toISOString();
     const userMsg: ChatMessageRow = {

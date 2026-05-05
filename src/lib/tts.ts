@@ -1,5 +1,6 @@
-// Text-to-Speech wrapper for Afrikaans
+// Text-to-Speech wrapper
 // Uses Google Cloud TTS when available, falls back to browser TTS
+import { getActiveLanguage } from './data-layer';
 
 // Default speech rate (1.0 is normal speed)
 const DEFAULT_RATE = 0.9;
@@ -184,7 +185,7 @@ async function speakWithGoogle(text: string, rate: number): Promise<boolean> {
     const response = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, rate }),
+      body: JSON.stringify({ text, rate, language: getActiveLanguage() }),
     });
 
     const data = await response.json();
