@@ -15,6 +15,11 @@ vi.mock('@/lib/server/database', () => {
 
 function createTables() {
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS journal_entries (
       id TEXT PRIMARY KEY,
       body TEXT NOT NULL DEFAULT '',
@@ -22,12 +27,15 @@ function createTables() {
       corrections TEXT,
       status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
       wordCount INTEGER DEFAULT 0,
+      language TEXT NOT NULL DEFAULT 'af',
       entryDate TEXT NOT NULL,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate);
     CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status);
+
+    INSERT INTO settings (key, value) VALUES ('targetLanguage', 'af');
   `);
 }
 
