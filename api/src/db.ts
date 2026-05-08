@@ -145,6 +145,7 @@ function getDb(): Database {
       role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
       content TEXT NOT NULL,
       provider TEXT,
+      responseId TEXT,
       createdAt TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt);
@@ -159,6 +160,11 @@ function getDb(): Database {
   const clozeCols = _db.prepare("PRAGMA table_info(clozeSentences)").all() as { name: string }[];
   if (!clozeCols.some(c => c.name === 'blacklisted')) {
     _db.exec('ALTER TABLE clozeSentences ADD COLUMN blacklisted INTEGER DEFAULT 0');
+  }
+
+  const chatCols = _db.prepare("PRAGMA table_info(chat_messages)").all() as { name: string }[];
+  if (!chatCols.some(c => c.name === 'responseId')) {
+    _db.exec('ALTER TABLE chat_messages ADD COLUMN responseId TEXT');
   }
 
   migrateVocabForeignKey(_db);
@@ -487,5 +493,6 @@ export interface ChatMessageRow {
   role: 'user' | 'assistant';
   content: string;
   provider: string | null;
+  responseId: string | null;
   createdAt: string;
 }

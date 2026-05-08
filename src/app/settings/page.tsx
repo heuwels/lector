@@ -40,7 +40,8 @@ const SETTINGS_KEYS = {
 
 type CardType = "basic" | "cloze";
 type Theme = "light" | "dark" | "system";
-type LLMProvider = "ollama" | "anthropic" | "apfel";
+type LLMProvider = "ollama" | "anthropic" | "apfel" | "lmstudio";
+type LMStudioLoadStatus = "idle" | "loading" | "loaded" | "errored";
 
 const OLLAMA_MODELS = [
   { value: "llama3.2:3b", label: "Llama 3.2 3B (fastest, lower quality)" },
@@ -103,6 +104,14 @@ export default function SettingsPage() {
   const [ollamaModel, setOllamaModel] = useState("llama3.1:8b");
   const [apfelUrl, setApfelUrl] = useState("http://localhost:11434");
   const [apfelModel, setApfelModel] = useState("default");
+  const [lmstudioUrl, setLmstudioUrl] = useState("http://localhost:1234");
+  const [lmstudioApiKey, setLmstudioApiKey] = useState("");
+  const [lmstudioModel, setLmstudioModel] = useState("");
+  const [lmstudioModels, setLmstudioModels] = useState<string[]>([]);
+  const [lmstudioFetchingModels, setLmstudioFetchingModels] = useState(false);
+  const [lmstudioFetchError, setLmstudioFetchError] = useState<string | null>(null);
+  const [lmstudioLoadStatus, setLmstudioLoadStatus] = useState<LMStudioLoadStatus>("idle");
+  const [lmstudioLoadError, setLmstudioLoadError] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [hasOauthToken, setHasOauthToken] = useState(false);
   const [newApiKey, setNewApiKey] = useState("");
@@ -159,7 +168,7 @@ export default function SettingsPage() {
 
     // Load LLM provider settings from server
     getSetting<string>('llmProvider').then((p) => {
-      if (p === 'ollama' || p === 'anthropic' || p === 'apfel') setLlmProvider(p);
+      if (p === 'ollama' || p === 'anthropic' || p === 'apfel' || p === 'lmstudio') setLlmProvider(p);
     });
     getSetting<string>('ollamaModel').then((m) => {
       if (m) setOllamaModel(m);
@@ -169,6 +178,15 @@ export default function SettingsPage() {
     });
     getSetting<string>('apfelModel').then((m) => {
       if (m) setApfelModel(m);
+    });
+    getSetting<string>('lmstudioUrl').then((u) => {
+      if (u) setLmstudioUrl(u);
+    });
+    getSetting<string>('lmstudioApiKey').then((k) => {
+      if (k) setLmstudioApiKey(k);
+    });
+    getSetting<string>('lmstudioModel').then((m) => {
+      if (m) setLmstudioModel(m);
     });
     getSetting<boolean>('anthropicApiKey').then((v) => {
       setHasApiKey(v === true);
@@ -294,6 +312,98 @@ export default function SettingsPage() {
     await setSetting('apfelModel', model);
     await fetch('/api/llm-status/reset', { method: 'POST' });
     fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  // Whenever endpoint or apiKey changes, the previously-selected model may not exist
+  // on the new endpoint and any prior load status is stale. Clear them so the user
+  // re-fetches and re-loads. We don't auto-fetch models — the user owns that action.
+  const resetLmstudioModelSelection = async () => {
+    setLmstudioModel("");
+    setLmstudioModels([]);
+    setLmstudioFetchError(null);
+    setLmstudioLoadStatus("idle");
+    setLmstudioLoadError(null);
+    await setSetting('lmstudioModel', "");
+  };
+
+  const saveLmstudioUrl = async (url: string) => {
+    setLmstudioUrl(url);
+    await setSetting('lmstudioUrl', url);
+    await resetLmstudioModelSelection();
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  const saveLmstudioApiKey = async (key: string) => {
+    setLmstudioApiKey(key);
+    await setSetting('lmstudioApiKey', key);
+    await resetLmstudioModelSelection();
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  const saveLmstudioModel = async (model: string) => {
+    setLmstudioModel(model);
+    await setSetting('lmstudioModel', model);
+    setLmstudioLoadStatus("idle");
+    setLmstudioLoadError(null);
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  const fetchLmstudioModels = async () => {
+    setLmstudioFetchingModels(true);
+    setLmstudioFetchError(null);
+    try {
+      const res = await fetch('/api/llm/lmstudio/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: lmstudioUrl, apiKey: lmstudioApiKey || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLmstudioFetchError(data?.error || `Status ${res.status}`);
+        setLmstudioModels([]);
+      } else {
+        const list: string[] = Array.isArray(data?.models) ? data.models : [];
+        setLmstudioModels(list);
+        if (list.length === 0) {
+          setLmstudioFetchError("No models reported by this endpoint");
+        }
+      }
+    } catch (err) {
+      setLmstudioFetchError(err instanceof Error ? err.message : 'Failed to fetch models');
+      setLmstudioModels([]);
+    } finally {
+      setLmstudioFetchingModels(false);
+    }
+  };
+
+  const loadLmstudioModel = async () => {
+    if (!lmstudioModel) return;
+    setLmstudioLoadStatus("loading");
+    setLmstudioLoadError(null);
+    try {
+      const res = await fetch('/api/llm/lmstudio/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: lmstudioUrl,
+          apiKey: lmstudioApiKey || undefined,
+          model: lmstudioModel,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setLmstudioLoadStatus("errored");
+        setLmstudioLoadError(data?.error || `Status ${res.status}`);
+      } else {
+        setLmstudioLoadStatus("loaded");
+      }
+    } catch (err) {
+      setLmstudioLoadStatus("errored");
+      setLmstudioLoadError(err instanceof Error ? err.message : 'Load failed');
+    }
   };
 
   const saveAnthropicApiKey = async (key: string) => {
@@ -723,6 +833,7 @@ export default function SettingsPage() {
                 <option value="ollama">Ollama (local)</option>
                 <option value="anthropic">Anthropic (cloud)</option>
                 <option value="apfel">Apfel (self-hosted)</option>
+                <option value="lmstudio">LM Studio (local)</option>
               </select>
             </div>
 
@@ -910,6 +1021,137 @@ export default function SettingsPage() {
                       )}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* LM Studio settings */}
+            {llmProvider === "lmstudio" && (
+              <div className="mb-4 space-y-4" data-testid="lmstudio-settings">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Endpoint
+                  </label>
+                  <input
+                    type="text"
+                    value={lmstudioUrl}
+                    onChange={(e) => saveLmstudioUrl(e.target.value)}
+                    placeholder="http://localhost:1234"
+                    data-testid="lmstudio-endpoint"
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                    The URL of your LM Studio server (default port 1234). The app talks to it server-side, so localhost works even when lector is hosted elsewhere — set this to a reachable address.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    API Key (optional)
+                  </label>
+                  <input
+                    type="password"
+                    value={lmstudioApiKey}
+                    onChange={(e) => saveLmstudioApiKey(e.target.value)}
+                    placeholder="leave empty unless your LM Studio is behind auth"
+                    data-testid="lmstudio-api-key"
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                    Sent as a Bearer token. Only needed for reverse-proxied or LM Studio Cloud setups.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Model
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={lmstudioModel}
+                      onChange={(e) => saveLmstudioModel(e.target.value)}
+                      data-testid="lmstudio-model"
+                      className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                    >
+                      {lmstudioModel && !lmstudioModels.includes(lmstudioModel) && (
+                        <option value={lmstudioModel}>{lmstudioModel} (saved)</option>
+                      )}
+                      {lmstudioModels.length === 0 && !lmstudioModel && (
+                        <option value="">— click &ldquo;Fetch models&rdquo; to populate —</option>
+                      )}
+                      {lmstudioModels.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={fetchLmstudioModels}
+                      disabled={lmstudioFetchingModels || !lmstudioUrl}
+                      data-testid="lmstudio-fetch-models"
+                      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    >
+                      {lmstudioFetchingModels ? "Fetching..." : "Fetch models"}
+                    </button>
+                  </div>
+                  {lmstudioFetchError && (
+                    <p
+                      className="mt-1 text-xs text-red-600 dark:text-red-400"
+                      data-testid="lmstudio-fetch-error"
+                    >
+                      {lmstudioFetchError}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Load model
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={loadLmstudioModel}
+                      disabled={!lmstudioModel || lmstudioLoadStatus === "loading"}
+                      data-testid="lmstudio-load"
+                      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    >
+                      {lmstudioLoadStatus === "loading" ? "Loading..." : "Load"}
+                    </button>
+                    <span
+                      data-testid="lmstudio-load-status"
+                      data-status={lmstudioLoadStatus}
+                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                        lmstudioLoadStatus === "loaded"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                          : lmstudioLoadStatus === "loading"
+                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                          : lmstudioLoadStatus === "errored"
+                          ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                          : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+                      }`}
+                    >
+                      {lmstudioLoadStatus === "idle"
+                        ? "Idle"
+                        : lmstudioLoadStatus === "loading"
+                        ? "Loading…"
+                        : lmstudioLoadStatus === "loaded"
+                        ? "Loaded"
+                        : "Errored"}
+                    </span>
+                  </div>
+                  {lmstudioLoadError && (
+                    <p
+                      className="mt-1 text-xs text-red-600 dark:text-red-400"
+                      data-testid="lmstudio-load-error"
+                    >
+                      {lmstudioLoadError}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                    Loads the selected model on the LM Studio server. Make sure LM Studio&apos;s &ldquo;auto-load&rdquo; is enabled if you want JIT loading on chat too.
+                  </p>
                 </div>
               </div>
             )}

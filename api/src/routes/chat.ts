@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, ChatMessageRow } from '../db';
 import { getProvider } from '../lib/llm';
+import { LMStudioProvider, LMStudioInvalidResponseIdError } from '../lib/llm/lmstudio';
 import { resolveLanguage } from '../lib/active-language';
 import { getLanguageConfig } from '../lib/languages';
 import { randomUUID } from 'crypto';
@@ -63,50 +64,88 @@ app.post('/', async (c) => {
       role: 'user',
       content: message.trim(),
       provider: null,
+      responseId: null,
       createdAt: now,
     };
 
-    // Build conversation history for LLM (include the new message)
-    const recentMessages = db
-      .prepare(
-        'SELECT * FROM chat_messages ORDER BY createdAt DESC LIMIT ?'
-      )
-      .all(MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
-
-    const history = [...recentMessages.reverse(), userMsg];
-
-    // Prepend the system prompt to the first user message so it works
-    // across all providers (Anthropic API doesn't accept role: 'system')
-    const chatHistory = history.map((m, i) => {
-      if (i === 0 && m.role === 'user') {
-        return {
-          role: 'user' as const,
-          content: `${SYSTEM_PROMPT}\n\nStudent's question: ${m.content}`,
-        };
-      }
-      return { role: m.role as 'user' | 'assistant', content: m.content };
-    });
-
     const provider = getProvider();
-    const response = await provider.complete({
-      messages: chatHistory,
-      maxTokens: 1024,
-    });
+    let responseText: string;
+    let newResponseId: string | null = null;
+
+    if (provider instanceof LMStudioProvider) {
+      // Stateful path: LM Studio holds the conversation; we just thread the latest response_id.
+      const latestAssistant = db
+        .prepare(
+          "SELECT * FROM chat_messages WHERE role = 'assistant' AND responseId IS NOT NULL ORDER BY createdAt DESC LIMIT 1"
+        )
+        .get() as ChatMessageRow | undefined;
+      const previousResponseId = latestAssistant?.responseId || undefined;
+
+      try {
+        const result = await provider.chatStateful({
+          input: userMsg.content,
+          systemPrompt: SYSTEM_PROMPT,
+          previousResponseId,
+        });
+        responseText = result.content;
+        newResponseId = result.responseId || null;
+      } catch (err) {
+        if (err instanceof LMStudioInvalidResponseIdError) {
+          // Fall back: replay the whole conversation through stateless complete().
+          // Happens when the LM Studio server restarted or the response_id expired.
+          const fallback = await runStatelessFallback(provider, userMsg, SYSTEM_PROMPT);
+          responseText = fallback;
+        } else {
+          throw err;
+        }
+      }
+    } else {
+      // Existing path for all other providers: send the full message history.
+      const recentMessages = db
+        .prepare('SELECT * FROM chat_messages ORDER BY createdAt DESC LIMIT ?')
+        .all(MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
+
+      const history = [...recentMessages.reverse(), userMsg];
+
+      // Prepend the system prompt to the first user message so it works
+      // across all providers (Anthropic API doesn't accept role: 'system')
+      const chatHistory = history.map((m, i) => {
+        if (i === 0 && m.role === 'user') {
+          return {
+            role: 'user' as const,
+            content: `${SYSTEM_PROMPT}\n\nStudent's question: ${m.content}`,
+          };
+        }
+        return { role: m.role as 'user' | 'assistant', content: m.content };
+      });
+
+      responseText = await provider.complete({
+        messages: chatHistory,
+        maxTokens: 1024,
+      });
+    }
 
     const assistantMsg: ChatMessageRow = {
       id: randomUUID(),
       role: 'assistant',
-      content: response,
+      content: responseText,
       provider: provider.name,
+      responseId: newResponseId,
       createdAt: new Date().toISOString(),
     };
 
     // Save both messages only after LLM succeeds
     const insertMsg = db.prepare(
-      'INSERT INTO chat_messages (id, role, content, provider, createdAt) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt) VALUES (?, ?, ?, ?, ?, ?)'
     );
-    insertMsg.run(userMsg.id, userMsg.role, userMsg.content, userMsg.provider, userMsg.createdAt);
-    insertMsg.run(assistantMsg.id, assistantMsg.role, assistantMsg.content, assistantMsg.provider, assistantMsg.createdAt);
+    insertMsg.run(
+      userMsg.id, userMsg.role, userMsg.content, userMsg.provider,
+      userMsg.responseId, userMsg.createdAt,
+    );
+    insertMsg.run(
+      assistantMsg.id, assistantMsg.role, assistantMsg.content, assistantMsg.provider,
+      assistantMsg.responseId, assistantMsg.createdAt,
+    );
 
     return c.json({ userMessage: userMsg, assistantMessage: assistantMsg });
   } catch (error) {
@@ -120,5 +159,28 @@ app.delete('/', (c) => {
   db.prepare('DELETE FROM chat_messages').run();
   return c.json({ ok: true });
 });
+
+async function runStatelessFallback(
+  provider: LMStudioProvider,
+  userMsg: ChatMessageRow,
+  systemPrompt: string,
+): Promise<string> {
+  const recentMessages = db
+    .prepare('SELECT * FROM chat_messages ORDER BY createdAt DESC LIMIT ?')
+    .all(MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
+
+  const history = [...recentMessages.reverse(), userMsg];
+  const chatHistory = history.map((m, i) => {
+    if (i === 0 && m.role === 'user') {
+      return {
+        role: 'user' as const,
+        content: `${systemPrompt}\n\nStudent's question: ${m.content}`,
+      };
+    }
+    return { role: m.role as 'user' | 'assistant', content: m.content };
+  });
+
+  return provider.complete({ messages: chatHistory, maxTokens: 1024 });
+}
 
 export default app;
