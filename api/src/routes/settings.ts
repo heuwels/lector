@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db, SettingRow } from '../db';
 
-const SENSITIVE_KEYS = new Set(['anthropicApiKey', 'claudeOauthToken']);
+const SENSITIVE_KEYS = new Set(['anthropicApiKey', 'claudeOauthToken', 'lmstudioApiKey']);
 
 const app = new Hono();
 

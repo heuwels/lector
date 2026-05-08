@@ -146,7 +146,7 @@ test.describe("LM Studio settings", () => {
     expect(value === "" || value === null).toBeTruthy();
   });
 
-  test("changing the API key clears the selected model", async ({ page }) => {
+  test("saving a new API key clears the selected model", async ({ page }) => {
     await page.route("**/api/llm/lmstudio/models", async (route) => {
       await route.fulfill({
         status: 200,
@@ -159,9 +159,10 @@ test.describe("LM Studio settings", () => {
     await page.getByTestId("lmstudio-fetch-models").click();
     await page.getByTestId("lmstudio-model").selectOption("a");
 
-    // Type something in the API key field — the save chain is async, so wait
-    // for the dropdown to reset before checking the persisted setting.
+    // Save a new API key via the explicit Save button (the input no longer
+    // saves on every keystroke — credentials use Configured/Replace/Clear).
     await page.getByTestId("lmstudio-api-key").fill("sk-secret");
+    await page.getByTestId("lmstudio-api-key-save").click();
     await expect(page.getByTestId("lmstudio-model")).toHaveValue("");
 
     await expect.poll(async () => {
@@ -169,9 +170,41 @@ test.describe("LM Studio settings", () => {
       const value = await saved.json();
       return value === "" || value === null;
     }).toBeTruthy();
+
+    // Status should now show Configured (not the plaintext key)
+    await expect(page.getByTestId("lmstudio-api-key-status")).toContainText("Configured");
   });
 
-  test("fetch-models proxy is sent the typed endpoint and apiKey", async ({ page }) => {
+  test("API key load returns true (masked) — never the plaintext", async ({ page }) => {
+    await page.request.put("/api/settings/lmstudioApiKey", { data: { value: "sk-very-secret" } });
+
+    // Both the bulk and single-key endpoints should mask
+    const bulk = await (await page.request.get("/api/settings")).json();
+    expect(bulk.lmstudioApiKey).toBe(true);
+
+    const single = await (await page.request.get("/api/settings/lmstudioApiKey")).json();
+    expect(single).toBe(true);
+
+    // Cleanup
+    await page.request.delete("/api/settings/lmstudioApiKey");
+  });
+
+  test("Clear removes the configured API key", async ({ page }) => {
+    await page.request.put("/api/settings/lmstudioApiKey", { data: { value: "sk-prior" } });
+    await selectLmStudioProvider(page);
+
+    await expect(page.getByTestId("lmstudio-api-key-status")).toContainText("Configured");
+    await page.getByTestId("lmstudio-api-key-clear").click();
+
+    // Should switch back to the password input
+    await expect(page.getByTestId("lmstudio-api-key")).toBeVisible();
+    await expect(page.getByTestId("lmstudio-api-key-status")).toHaveCount(0);
+
+    const cleared = await (await page.request.get("/api/settings/lmstudioApiKey")).json();
+    expect(cleared).toBeNull();
+  });
+
+  test("fetch-models proxy is sent the typed endpoint but not the API key", async ({ page }) => {
     type ModelsBody = { endpoint?: string; apiKey?: string };
     const captured: ModelsBody[] = [];
     await page.route("**/api/llm/lmstudio/models", async (route, request) => {
@@ -185,10 +218,10 @@ test.describe("LM Studio settings", () => {
 
     await selectLmStudioProvider(page);
     await page.getByTestId("lmstudio-endpoint").fill("http://my-host:1234");
-    await page.getByTestId("lmstudio-api-key").fill("sk-x");
     await page.getByTestId("lmstudio-fetch-models").click();
 
     await expect.poll(() => captured[0]?.endpoint).toBe("http://my-host:1234");
-    expect(captured[0]?.apiKey).toBe("sk-x");
+    // The browser must NOT send the API key — server resolves it from settings.
+    expect(captured[0]?.apiKey).toBeUndefined();
   });
 });

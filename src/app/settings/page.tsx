@@ -105,7 +105,9 @@ export default function SettingsPage() {
   const [apfelUrl, setApfelUrl] = useState("http://localhost:11434");
   const [apfelModel, setApfelModel] = useState("default");
   const [lmstudioUrl, setLmstudioUrl] = useState("http://localhost:1234");
-  const [lmstudioApiKey, setLmstudioApiKey] = useState("");
+  const [hasLmstudioApiKey, setHasLmstudioApiKey] = useState(false);
+  const [newLmstudioApiKey, setNewLmstudioApiKey] = useState("");
+  const [editingLmstudioApiKey, setEditingLmstudioApiKey] = useState(false);
   const [lmstudioModel, setLmstudioModel] = useState("");
   const [lmstudioModels, setLmstudioModels] = useState<string[]>([]);
   const [lmstudioFetchingModels, setLmstudioFetchingModels] = useState(false);
@@ -182,8 +184,8 @@ export default function SettingsPage() {
     getSetting<string>('lmstudioUrl').then((u) => {
       if (u) setLmstudioUrl(u);
     });
-    getSetting<string>('lmstudioApiKey').then((k) => {
-      if (k) setLmstudioApiKey(k);
+    getSetting<boolean>('lmstudioApiKey').then((v) => {
+      setHasLmstudioApiKey(v === true);
     });
     getSetting<string>('lmstudioModel').then((m) => {
       if (m) setLmstudioModel(m);
@@ -335,8 +337,21 @@ export default function SettingsPage() {
   };
 
   const saveLmstudioApiKey = async (key: string) => {
-    setLmstudioApiKey(key);
+    if (!key.trim()) return;
     await setSetting('lmstudioApiKey', key);
+    setHasLmstudioApiKey(true);
+    setNewLmstudioApiKey("");
+    setEditingLmstudioApiKey(false);
+    await resetLmstudioModelSelection();
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+  };
+
+  const clearLmstudioApiKey = async () => {
+    await deleteSetting('lmstudioApiKey');
+    setHasLmstudioApiKey(false);
+    setNewLmstudioApiKey("");
+    setEditingLmstudioApiKey(false);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
     fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
@@ -355,10 +370,11 @@ export default function SettingsPage() {
     setLmstudioFetchingModels(true);
     setLmstudioFetchError(null);
     try {
+      // The server reads the saved API key from settings — never sent from the browser.
       const res = await fetch('/api/llm/lmstudio/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: lmstudioUrl, apiKey: lmstudioApiKey || undefined }),
+        body: JSON.stringify({ endpoint: lmstudioUrl }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -389,7 +405,6 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           endpoint: lmstudioUrl,
-          apiKey: lmstudioApiKey || undefined,
           model: lmstudioModel,
         }),
       });
@@ -1049,16 +1064,66 @@ export default function SettingsPage() {
                   <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     API Key (optional)
                   </label>
-                  <input
-                    type="password"
-                    value={lmstudioApiKey}
-                    onChange={(e) => saveLmstudioApiKey(e.target.value)}
-                    placeholder="leave empty unless your LM Studio is behind auth"
-                    data-testid="lmstudio-api-key"
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                  />
+                  {hasLmstudioApiKey && !editingLmstudioApiKey ? (
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                        data-testid="lmstudio-api-key-status"
+                      >
+                        Configured
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingLmstudioApiKey(true)}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                        data-testid="lmstudio-api-key-replace"
+                      >
+                        Replace
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearLmstudioApiKey}
+                        className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                        data-testid="lmstudio-api-key-clear"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={newLmstudioApiKey}
+                        onChange={(e) => setNewLmstudioApiKey(e.target.value)}
+                        placeholder="leave empty unless your LM Studio is behind auth"
+                        data-testid="lmstudio-api-key"
+                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => saveLmstudioApiKey(newLmstudioApiKey)}
+                        disabled={!newLmstudioApiKey.trim()}
+                        className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                        data-testid="lmstudio-api-key-save"
+                      >
+                        Save
+                      </button>
+                      {editingLmstudioApiKey && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingLmstudioApiKey(false);
+                            setNewLmstudioApiKey("");
+                          }}
+                          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                    Sent as a Bearer token. Only needed for reverse-proxied or LM Studio Cloud setups.
+                    Sent as a Bearer token from the server (never exposed to the browser after save). Only needed for reverse-proxied or LM Studio Cloud setups.
                   </p>
                 </div>
 

@@ -1,11 +1,32 @@
 import { Hono } from 'hono';
 import { LMStudioProvider } from '../lib/llm/lmstudio';
+import { db } from '../db';
 
 const app = new Hono();
 
 interface BaseBody {
   endpoint?: string;
   apiKey?: string;
+}
+
+/**
+ * Read the saved LM Studio API key from settings. The browser never sends
+ * the saved key over the wire (the settings GET masks it as `true`), so the
+ * server resolves it itself when the request body doesn't carry one.
+ */
+function resolveApiKey(bodyKey: string | undefined): string | undefined {
+  const trimmed = bodyKey?.trim();
+  if (trimmed) return trimmed;
+  const row = db
+    .prepare('SELECT value FROM settings WHERE key = ?')
+    .get('lmstudioApiKey') as { value: string } | undefined;
+  if (!row) return undefined;
+  try {
+    const parsed = JSON.parse(row.value);
+    return typeof parsed === 'string' && parsed ? parsed : undefined;
+  } catch {
+    return row.value || undefined;
+  }
 }
 
 // POST /api/llm/lmstudio/models — list models known to LM Studio at the given endpoint.
@@ -26,7 +47,7 @@ app.post('/models', async (c) => {
 
   const provider = new LMStudioProvider({
     baseUrl,
-    apiKey: body.apiKey?.trim() || undefined,
+    apiKey: resolveApiKey(body.apiKey),
   });
 
   try {
@@ -59,7 +80,7 @@ app.post('/load', async (c) => {
 
   const provider = new LMStudioProvider({
     baseUrl,
-    apiKey: body.apiKey?.trim() || undefined,
+    apiKey: resolveApiKey(body.apiKey),
   });
 
   const result = await provider.loadModel(model);
