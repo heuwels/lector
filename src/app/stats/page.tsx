@@ -447,10 +447,10 @@ export default function StatsPage() {
         // Calculate streaks
         const { current: currentStreak, longest: longestStreak } = calculateStreak(dailyStats);
 
-        // Build activity heatmap data (words read per day)
+        // Build activity heatmap data (dictionary lookups per day)
         const activityData = dailyStats.map((d) => ({
           date: d.date,
-          count: d.wordsRead,
+          count: d.dictionaryLookups,
         }));
 
         // Build vocab growth data (cumulative over time)
