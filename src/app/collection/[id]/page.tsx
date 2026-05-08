@@ -4,9 +4,13 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import NavHeader from '@/components/NavHeader';
+import LessonFormModal from '@/components/LessonFormModal';
 import {
   getCollection,
   getLessonsForCollection,
+  getLesson,
+  addLessonToCollection,
+  updateLesson,
   deleteCollection,
   deleteLesson,
   updateCollection,
@@ -28,6 +32,9 @@ export default function CollectionPage({
   const [lessons, setLessons] = useState<LessonSummary[]>([]);
   const [groups, setGroups] = useState<CollectionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
+  const [editingInitial, setEditingInitial] = useState<{ title: string; textContent: string } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -63,6 +70,29 @@ export default function CollectionPage({
     if (!confirm(`Delete "${title}"?`)) return;
     await deleteLesson(lessonId);
     setLessons((prev) => prev.filter((l) => l.id !== lessonId));
+  }
+
+  async function refreshLessons() {
+    const updated = await getLessonsForCollection(id);
+    setLessons(updated);
+  }
+
+  async function handleAddLesson(data: { title: string; textContent: string }) {
+    await addLessonToCollection(id, data);
+    await refreshLessons();
+  }
+
+  async function openEditLesson(lessonId: string) {
+    const lesson = await getLesson(lessonId);
+    if (!lesson) return;
+    setEditingInitial({ title: lesson.title, textContent: lesson.textContent ?? '' });
+    setEditingLessonId(lessonId);
+  }
+
+  async function handleEditLesson(data: { title: string; textContent: string }) {
+    if (!editingLessonId) return;
+    await updateLesson(editingLessonId, data);
+    await refreshLessons();
   }
 
   async function handleGroupChange(value: string) {
@@ -228,6 +258,18 @@ export default function CollectionPage({
                   </svg>
                 </Link>
 
+                {/* Edit button */}
+                <button
+                  onClick={() => openEditLesson(lesson.id)}
+                  className="flex-shrink-0 rounded-lg p-2 text-zinc-400 opacity-0 transition-all hover:bg-zinc-100 hover:text-zinc-700 group-hover:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  title="Edit lesson"
+                  data-testid={`edit-lesson-${lesson.id}`}
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+
                 {/* Delete button */}
                 <button
                   onClick={() => handleDeleteLesson(lesson.id, lesson.title)}
@@ -241,7 +283,36 @@ export default function CollectionPage({
               </div>
             );
           })}
+
+          {/* Add lesson button */}
+          <button
+            onClick={() => setIsAddOpen(true)}
+            data-testid="add-lesson"
+            className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-transparent px-5 py-4 text-sm font-medium text-zinc-500 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add lesson
+          </button>
         </div>
+
+        <LessonFormModal
+          isOpen={isAddOpen}
+          mode="create"
+          onClose={() => setIsAddOpen(false)}
+          onSave={handleAddLesson}
+        />
+        <LessonFormModal
+          isOpen={editingLessonId !== null}
+          mode="edit"
+          initial={editingInitial}
+          onClose={() => {
+            setEditingLessonId(null);
+            setEditingInitial(null);
+          }}
+          onSave={handleEditLesson}
+        />
       </main>
     </div>
   );

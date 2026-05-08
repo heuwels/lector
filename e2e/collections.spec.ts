@@ -189,6 +189,132 @@ test.describe("Collections & Lessons", () => {
     await expect(card.first()).toBeVisible({ timeout: 10000 });
   });
 
+  test("should add a lesson to an existing collection", async ({ page }) => {
+    // Seed a collection via API
+    const epubPath = path.join(__dirname, "fixtures/test-book.epub");
+    const fs = await import("fs");
+    const buffer = fs.readFileSync(epubPath);
+
+    const importRes = await page.request.post("/api/import/epub", {
+      multipart: {
+        file: {
+          name: "test-book.epub",
+          mimeType: "application/epub+zip",
+          buffer,
+        },
+      },
+    });
+    const { collectionId } = await importRes.json();
+
+    await page.goto(`/collection/${collectionId}`);
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText("3 lessons")).toBeVisible();
+
+    // Click "Add lesson" — opens the modal
+    await page.getByTestId("add-lesson").click();
+
+    await page.locator("#lesson-title").fill("Toets Hoofstuk 4");
+    await page.locator("#lesson-content").fill(
+      "Hierdie is die vierde hoofstuk wat handmatig bygevoeg is."
+    );
+
+    await page.getByRole("button", { name: "Create lesson" }).click();
+
+    // New lesson should appear in the list and the count should update
+    await expect(page.getByText("Toets Hoofstuk 4")).toBeVisible();
+    await expect(page.getByText("4 lessons")).toBeVisible();
+  });
+
+  test("should rename a lesson via the edit modal", async ({ page }) => {
+    const epubPath = path.join(__dirname, "fixtures/test-book.epub");
+    const fs = await import("fs");
+    const buffer = fs.readFileSync(epubPath);
+
+    const importRes = await page.request.post("/api/import/epub", {
+      multipart: {
+        file: {
+          name: "test-book.epub",
+          mimeType: "application/epub+zip",
+          buffer,
+        },
+      },
+    });
+    const { collectionId } = await importRes.json();
+    const lessonsRes = await page.request.get(
+      `/api/collections/${collectionId}/lessons`
+    );
+    const lessons = await lessonsRes.json();
+    const firstLessonId = lessons[0].id;
+
+    await page.goto(`/collection/${collectionId}`);
+    await page.waitForLoadState("networkidle");
+
+    // The edit affordance is hidden until row hover, but click works regardless
+    await page.getByTestId(`edit-lesson-${firstLessonId}`).click();
+
+    await expect(page.locator("#lesson-title")).toHaveValue(
+      "Hoofstuk 1: Die Begin"
+    );
+
+    await page.locator("#lesson-title").fill("Hoofstuk 1: Die Hernoemde Begin");
+    await page.getByRole("button", { name: "Save changes" }).click();
+
+    await expect(
+      page.getByText("Hoofstuk 1: Die Hernoemde Begin")
+    ).toBeVisible();
+    await expect(page.getByText("Hoofstuk 1: Die Begin")).not.toBeVisible();
+  });
+
+  test("should edit lesson content and refresh the word count", async ({
+    page,
+  }) => {
+    const epubPath = path.join(__dirname, "fixtures/test-book.epub");
+    const fs = await import("fs");
+    const buffer = fs.readFileSync(epubPath);
+
+    const importRes = await page.request.post("/api/import/epub", {
+      multipart: {
+        file: {
+          name: "test-book.epub",
+          mimeType: "application/epub+zip",
+          buffer,
+        },
+      },
+    });
+    const { collectionId } = await importRes.json();
+    const lessonsRes = await page.request.get(
+      `/api/collections/${collectionId}/lessons`
+    );
+    const lessons = await lessonsRes.json();
+    const firstLessonId = lessons[0].id;
+    const originalWordCount = lessons[0].wordCount;
+
+    await page.goto(`/collection/${collectionId}`);
+    await page.waitForLoadState("networkidle");
+
+    await page.getByTestId(`edit-lesson-${firstLessonId}`).click();
+
+    // Replace content with something of a known, very different word count
+    const newContent = Array.from({ length: 5 }, (_, i) => `woord${i + 1}`).join(
+      " "
+    );
+    await page.locator("#lesson-content").fill(newContent);
+    await page.getByRole("button", { name: "Save changes" }).click();
+
+    // Wait for the modal to close and the row to re-render
+    await expect(page.locator("#lesson-content")).not.toBeVisible();
+
+    // Word count should now be 5, not the original
+    expect(originalWordCount).not.toBe(5);
+    await expect(
+      page
+        .getByText("Hoofstuk 1: Die Begin")
+        .locator("..")
+        .locator("..")
+        .getByText("5 words")
+    ).toBeVisible();
+  });
+
   test("should delete a collection", async ({ page }) => {
     // Create via API
     const epubPath = path.join(__dirname, "fixtures/test-book.epub");

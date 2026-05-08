@@ -145,6 +145,17 @@ export async function addLessonToCollection(
   return id;
 }
 
+export async function updateLesson(
+  id: string,
+  data: { title?: string; textContent?: string }
+): Promise<void> {
+  await fetch(`/api/lessons/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
 export async function deleteLesson(id: string): Promise<void> {
   await fetch(`/api/lessons/${id}`, { method: 'DELETE' });
 }
