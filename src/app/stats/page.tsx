@@ -344,7 +344,7 @@ function calculateStreak(dailyStats: DailyStats[]): { current: number; longest: 
 
   // Calculate current streak
   for (const stat of sorted) {
-    const hasActivity = stat.wordsRead > 0 || stat.clozePracticed > 0;
+    const hasActivity = stat.dictionaryLookups > 0 || stat.clozePracticed > 0;
     if (!hasActivity) continue;
 
     if (currentStreak === 0) {
@@ -370,7 +370,7 @@ function calculateStreak(dailyStats: DailyStats[]): { current: number; longest: 
   // Calculate longest streak
   lastDate = null;
   for (const stat of sorted) {
-    const hasActivity = stat.wordsRead > 0 || stat.clozePracticed > 0;
+    const hasActivity = stat.dictionaryLookups > 0 || stat.clozePracticed > 0;
     if (!hasActivity) {
       longestStreak = Math.max(longestStreak, tempStreak);
       tempStreak = 0;
@@ -447,10 +447,10 @@ export default function StatsPage() {
         // Calculate streaks
         const { current: currentStreak, longest: longestStreak } = calculateStreak(dailyStats);
 
-        // Build activity heatmap data (words read per day)
+        // Build activity heatmap data (dictionary lookups per day)
         const activityData = dailyStats.map((d) => ({
           date: d.date,
-          count: d.wordsRead,
+          count: d.dictionaryLookups,
         }));
 
         // Build vocab growth data (cumulative over time)

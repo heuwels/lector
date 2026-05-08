@@ -3,11 +3,13 @@ interface StatsCardProps {
   value: string | number;
   icon?: React.ReactNode;
   highlight?: boolean;
+  testId?: string;
 }
 
-export default function StatsCard({ label, value, icon, highlight = false }: StatsCardProps) {
+export default function StatsCard({ label, value, icon, highlight = false, testId }: StatsCardProps) {
   return (
     <div
+      data-testid={testId}
       className={`flex items-center gap-4 rounded-xl border p-4 ${
         highlight
           ? 'border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 dark:border-amber-900/50 dark:from-amber-950/30 dark:to-orange-950/30'
