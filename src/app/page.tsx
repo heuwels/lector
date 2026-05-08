@@ -65,7 +65,7 @@ export default function Home() {
     }
   }
 
-  function calculateStreak(stats: { date: string; wordsRead: number }[]): number {
+  function calculateStreak(stats: { date: string; dictionaryLookups: number }[]): number {
     if (stats.length === 0) return 0;
 
     const sorted = [...stats].sort((a, b) => b.date.localeCompare(a.date));
@@ -73,9 +73,9 @@ export default function Home() {
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-    const hasActivityToday = sorted.some((s) => s.date === today && s.wordsRead > 0);
+    const hasActivityToday = sorted.some((s) => s.date === today && s.dictionaryLookups > 0);
     const hasActivityYesterday = sorted.some(
-      (s) => s.date === yesterday && s.wordsRead > 0
+      (s) => s.date === yesterday && s.dictionaryLookups > 0
     );
 
     if (!hasActivityToday && !hasActivityYesterday) return 0;
@@ -84,7 +84,7 @@ export default function Home() {
     let checkDate = hasActivityToday ? today : yesterday;
 
     for (const stat of sorted) {
-      if (stat.date === checkDate && stat.wordsRead > 0) {
+      if (stat.date === checkDate && stat.dictionaryLookups > 0) {
         streak++;
         const prevDate = new Date(checkDate);
         prevDate.setDate(prevDate.getDate() - 1);
@@ -229,6 +229,7 @@ export default function Home() {
             }
           />
           <StatsCard
+            testId="current-streak"
             label="Current Streak"
             value={`${currentStreak} ${currentStreak === 1 ? 'day' : 'days'}`}
             icon={
