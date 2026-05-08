@@ -5,7 +5,6 @@ import Link from 'next/link';
 import NavHeader from '@/components/NavHeader';
 import {
   getVocabStats,
-  getAllCollections,
   getStatsForDateRange,
   getAllClozeSentences,
   getCollectionCounts,
@@ -25,9 +24,6 @@ interface StatsData {
   byState: Record<WordState, number>;
   currentStreak: number;
   longestStreak: number;
-  booksRead: number;
-  totalBooks: number;
-  totalReadingMinutes: number;
   totalClozeAttempts: number;
   totalClozeCorrect: number;
   totalPoints: number;
@@ -401,13 +397,76 @@ function calculateStreak(dailyStats: DailyStats[]): { current: number; longest: 
   return { current: currentStreak, longest: longestStreak };
 }
 
-// Format minutes as hours and minutes
-function formatTime(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  if (hours === 0) return `${mins}m`;
-  if (mins === 0) return `${hours}h`;
-  return `${hours}h ${mins}m`;
+function SkeletonBlock({ className = '' }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded ${className}`}
+    />
+  );
+}
+
+function SkeletonCard({ className = '' }: { className?: string }) {
+  return (
+    <div
+      className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 ${className}`}
+    >
+      <SkeletonBlock className="h-4 w-24 mb-3" />
+      <SkeletonBlock className="h-10 w-32 mb-2" />
+      <SkeletonBlock className="h-3 w-20" />
+    </div>
+  );
+}
+
+function StatsSkeleton() {
+  return (
+    <div
+      data-testid="stats-skeleton"
+      className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56"
+    >
+      <NavHeader />
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <SkeletonBlock className="h-4 w-56 mb-6" />
+
+        {/* Fluency badge skeleton */}
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <SkeletonBlock className="h-10 w-16" />
+            <div className="flex-1">
+              <SkeletonBlock className="h-5 w-48 mb-2" />
+              <SkeletonBlock className="h-4 w-32" />
+            </div>
+          </div>
+          <SkeletonBlock className="h-3 w-full mb-4" />
+          <div className="grid grid-cols-2 gap-4">
+            <SkeletonBlock className="h-16" />
+            <SkeletonBlock className="h-16" />
+          </div>
+        </div>
+
+        {/* Top stat cards skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+
+        {/* Vocab growth chart skeleton */}
+        <SkeletonBlock className="h-72 mb-8" />
+
+        {/* Activity heatmap skeleton */}
+        <SkeletonBlock className="h-56 mb-8" />
+
+        {/* Detailed breakdowns skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <SkeletonBlock className="h-72" />
+          <SkeletonBlock className="h-72" />
+        </div>
+
+        {/* Sentence mastery skeleton */}
+        <SkeletonBlock className="h-64" />
+      </main>
+    </div>
+  );
 }
 
 export default function StatsPage() {
@@ -417,15 +476,11 @@ export default function StatsPage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        // Get vocab stats, collections, collection counts, and fluency in parallel
-        const [vocabStats, collections, collectionCounts, fluency] = await Promise.all([
+        const [vocabStats, collectionCounts, fluency] = await Promise.all([
           getVocabStats(),
-          getAllCollections(),
           getCollectionCounts(),
           getFluencyStats(),
         ]);
-
-        const completedBooks = collections.filter((c) => (c.avgProgress || 0) >= 100);
 
         // Get all daily stats for the past year
         const endDate = new Date().toISOString().split('T')[0];
@@ -435,8 +490,6 @@ export default function StatsPage() {
 
         const dailyStats = await getStatsForDateRange(startDateStr, endDate);
 
-        // Calculate totals from daily stats
-        const totalReadingMinutes = dailyStats.reduce((sum, d) => sum + d.minutesRead, 0);
         const totalClozeAttempts = dailyStats.reduce((sum, d) => sum + d.clozePracticed, 0);
         const totalPoints = dailyStats.reduce((sum, d) => sum + d.points, 0);
 
@@ -499,9 +552,6 @@ export default function StatsPage() {
           byState: vocabStats.byState,
           currentStreak,
           longestStreak,
-          booksRead: completedBooks.length,
-          totalBooks: collections.length,
-          totalReadingMinutes,
           totalClozeAttempts,
           totalClozeCorrect,
           totalPoints,
@@ -522,14 +572,7 @@ export default function StatsPage() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">Loading your stats...</p>
-        </div>
-      </div>
-    );
+    return <StatsSkeleton />;
   }
 
   if (!stats) {
@@ -563,11 +606,10 @@ export default function StatsPage() {
         <FluencyBadge fluency={stats.fluency} />
 
         {/* Top stat cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div data-testid="stats-top-cards" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <StatCard
             label="Words Known"
             value={stats.totalKnown}
-            sublabel={`${stats.totalLearning} words in progress`}
             color="green"
             icon={
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -576,6 +618,22 @@ export default function StatsPage() {
                   strokeLinejoin="round"
                   strokeWidth={2}
                   d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            }
+          />
+          <StatCard
+            label="Learning (L1-L4)"
+            value={stats.totalLearning}
+            sublabel="Words in progress"
+            color="yellow"
+            icon={
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
                 />
               </svg>
             }
@@ -612,58 +670,6 @@ export default function StatsPage() {
         {/* Activity Heatmap */}
         <div className="mb-8">
           <ActivityHeatmap data={stats.activityData} />
-        </div>
-
-        {/* Bottom stat cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatCard
-            label="Learning (L1-L4)"
-            value={stats.totalLearning}
-            sublabel="Words in progress"
-            color="yellow"
-            icon={
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                />
-              </svg>
-            }
-          />
-          <StatCard
-            label="Books Read"
-            value={stats.booksRead}
-            sublabel={`${stats.totalBooks} total in library`}
-            color="purple"
-            icon={
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                />
-              </svg>
-            }
-          />
-          <StatCard
-            label="Time Reading"
-            value={formatTime(stats.totalReadingMinutes)}
-            sublabel="Total time invested"
-            color="blue"
-            icon={
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            }
-          />
         </div>
 
         {/* Detailed breakdowns */}
