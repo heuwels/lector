@@ -2,6 +2,7 @@ import type { LLMProvider } from './types';
 import { OllamaProvider } from './ollama';
 import { AnthropicProvider } from './anthropic';
 import { ApfelProvider } from './apfel';
+import { LMStudioProvider } from './lmstudio';
 import { db } from '../../db';
 
 export type { LLMProvider, ChatMessage, CompletionOptions } from './types';
@@ -63,6 +64,15 @@ export function getProvider(): LLMProvider {
       cachedProvider = new OllamaProvider(undefined, model);
       break;
     }
+    case 'lmstudio': {
+      const baseUrl = getSetting('lmstudioUrl') || process.env.LMSTUDIO_URL || undefined;
+      const model = getSetting('lmstudioModel') || process.env.LMSTUDIO_MODEL || undefined;
+      const apiKey = getSetting('lmstudioApiKey') || process.env.LMSTUDIO_API_KEY || undefined;
+      cacheKey = `lmstudio:${baseUrl || 'default'}:${model || 'default'}:${apiKey ? 'keyed' : 'open'}`;
+      if (cachedProvider && cachedProviderKey === cacheKey) return cachedProvider;
+      cachedProvider = new LMStudioProvider({ baseUrl, model, apiKey });
+      break;
+    }
     default: {
       cacheKey = `${name}:default`;
       if (cachedProvider && cachedProviderKey === cacheKey) return cachedProvider;
@@ -86,10 +96,15 @@ export function getAllProviders(): Record<string, LLMProvider> {
 
   const ollamaModel = getSetting('ollamaModel') || process.env.OLLAMA_MODEL || undefined;
 
+  const lmstudioUrl = getSetting('lmstudioUrl') || process.env.LMSTUDIO_URL || undefined;
+  const lmstudioModel = getSetting('lmstudioModel') || process.env.LMSTUDIO_MODEL || undefined;
+  const lmstudioApiKey = getSetting('lmstudioApiKey') || process.env.LMSTUDIO_API_KEY || undefined;
+
   return {
     claude: new AnthropicProvider({ apiKey, oauthToken, model: anthropicModel }),
     apfel: new ApfelProvider(apfelUrl, apfelModel),
     ollama: new OllamaProvider(undefined, ollamaModel),
+    lmstudio: new LMStudioProvider({ baseUrl: lmstudioUrl, model: lmstudioModel, apiKey: lmstudioApiKey }),
   };
 }
 

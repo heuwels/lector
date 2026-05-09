@@ -28,9 +28,20 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3456",
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      command: "npm run dev",
+      url: "http://localhost:3456",
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      // Hono API on :3457 — Next.js proxies /api/chat (and a few others) to it.
+      // Started without --watch so it shuts down cleanly when Playwright exits.
+      command: "bun run src/index.ts",
+      cwd: "./api",
+      url: "http://localhost:3457/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ],
 });
