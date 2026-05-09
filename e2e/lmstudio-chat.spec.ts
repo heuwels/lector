@@ -5,7 +5,7 @@ import { AddressInfo } from "net";
 interface CapturedRequest {
   method: string;
   url: string;
-  body: any;
+  body: unknown;
 }
 
 /**
@@ -103,13 +103,15 @@ test.describe("Chat with LM Studio provider", () => {
       // Inspect what the stub received
       const chatCalls = stub.captured.filter((c) => c.url === "/api/v1/chat");
       expect(chatCalls).toHaveLength(2);
-      expect(chatCalls[0].body.input).toBe("first message");
-      expect(chatCalls[0].body.previous_response_id).toBeUndefined();
-      expect(chatCalls[1].body.input).toBe("second message");
-      expect(chatCalls[1].body.previous_response_id).toBe("resp_1");
+      const body0 = chatCalls[0].body as Record<string, unknown>;
+      const body1 = chatCalls[1].body as Record<string, unknown>;
+      expect(body0.input).toBe("first message");
+      expect(body0.previous_response_id).toBeUndefined();
+      expect(body1.input).toBe("second message");
+      expect(body1.previous_response_id).toBe("resp_1");
       // System prompt should always be sent
-      expect(typeof chatCalls[0].body.system_prompt).toBe("string");
-      expect(chatCalls[0].body.system_prompt).toContain("Afrikaans");
+      expect(typeof body0.system_prompt).toBe("string");
+      expect(body0.system_prompt as string).toContain("Afrikaans");
     } finally {
       await stub.close();
     }
@@ -166,8 +168,9 @@ test.describe("Chat with LM Studio provider", () => {
       // Verify the stub saw the fallback /v1/chat/completions call with the full history
       const fallbackCalls = stub.captured.filter((c) => c.url === "/v1/chat/completions");
       expect(fallbackCalls).toHaveLength(1);
-      expect(Array.isArray(fallbackCalls[0].body.messages)).toBe(true);
-      const messages = fallbackCalls[0].body.messages as Array<{ role: string; content: string }>;
+      const fallbackBody = fallbackCalls[0].body as { messages?: Array<{ role: string; content: string }> };
+      expect(Array.isArray(fallbackBody.messages)).toBe(true);
+      const messages = fallbackBody.messages!;
       expect(messages.length).toBeGreaterThanOrEqual(3);
       expect(messages[messages.length - 1].content).toContain("again");
     } finally {
