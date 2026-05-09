@@ -216,12 +216,19 @@ test.describe("LM Studio settings", () => {
       });
     });
 
+    // The settings page auto-fetches with the saved URL on mount, and
+    // saveLmstudioUrl re-fetches after each typed keystroke. Snapshot the
+    // count before the explicit Fetch click and assert against the request
+    // fired by the click itself.
     await selectLmStudioProvider(page);
     await page.getByTestId("lmstudio-endpoint").fill("http://my-host:1234");
+    const beforeClick = captured.length;
     await page.getByTestId("lmstudio-fetch-models").click();
 
-    await expect.poll(() => captured[0]?.endpoint).toBe("http://my-host:1234");
+    await expect.poll(() => captured.length).toBeGreaterThan(beforeClick);
+    const last = captured[captured.length - 1];
+    expect(last.endpoint).toBe("http://my-host:1234");
     // The browser must NOT send the API key — server resolves it from settings.
-    expect(captured[0]?.apiKey).toBeUndefined();
+    expect(last.apiKey).toBeUndefined();
   });
 });
