@@ -114,6 +114,7 @@ export default function SettingsPage() {
   const [lmstudioFetchError, setLmstudioFetchError] = useState<string | null>(null);
   const [lmstudioLoadStatus, setLmstudioLoadStatus] = useState<LMStudioLoadStatus>("idle");
   const [lmstudioLoadError, setLmstudioLoadError] = useState<string | null>(null);
+  const lmstudioAutoFetchedForUrl = useRef<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [hasOauthToken, setHasOauthToken] = useState(false);
   const [newApiKey, setNewApiKey] = useState("");
@@ -229,6 +230,21 @@ export default function SettingsPage() {
   useEffect(() => {
     checkAnkiConnection();
   }, [checkAnkiConnection]);
+
+  // Auto-fetch LM Studio models when the user lands on Settings with LM Studio
+  // configured but the in-memory list is empty (e.g. on a page refresh — we
+  // don't persist the fetched list, only the selected model id). Tracks the
+  // last URL we fetched for to avoid refetching after a fetch returns empty.
+  useEffect(() => {
+    if (llmProvider !== "lmstudio") return;
+    if (!lmstudioUrl) return;
+    if (lmstudioFetchingModels) return;
+    if (lmstudioModels.length > 0) return;
+    if (lmstudioAutoFetchedForUrl.current === lmstudioUrl) return;
+    lmstudioAutoFetchedForUrl.current = lmstudioUrl;
+    fetchLmstudioModels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchLmstudioModels is stable for our purposes; including it would cause re-runs on every render
+  }, [llmProvider, lmstudioUrl, lmstudioFetchingModels, lmstudioModels.length]);
 
   // Apply theme to document
   const applyTheme = (theme: Theme) => {
@@ -1138,11 +1154,18 @@ export default function SettingsPage() {
                       data-testid="lmstudio-model"
                       className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                     >
+                      {/* Always include an empty placeholder so a freshly-fetched
+                          dropdown doesn't visually show a "selected" model that
+                          state doesn't actually know about (would leave Load disabled). */}
+                      <option value="" disabled>
+                        {lmstudioModels.length === 0
+                          ? lmstudioFetchingModels
+                            ? "Fetching models…"
+                            : "— click “Fetch models” to populate —"
+                          : "Select a model…"}
+                      </option>
                       {lmstudioModel && !lmstudioModels.includes(lmstudioModel) && (
                         <option value={lmstudioModel}>{lmstudioModel} (saved)</option>
-                      )}
-                      {lmstudioModels.length === 0 && !lmstudioModel && (
-                        <option value="">— click &ldquo;Fetch models&rdquo; to populate —</option>
                       )}
                       {lmstudioModels.map((m) => (
                         <option key={m} value={m}>

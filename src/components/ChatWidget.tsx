@@ -140,9 +140,17 @@ export default function ChatWidget() {
       ]);
     } finally {
       setLoading(false);
-      inputRef.current?.focus();
     }
   }
+
+  // Re-focus the input once loading drops back to false. Calling .focus() in the
+  // sendMessage finally block fires before React re-renders the (disabled) textarea,
+  // so the focus is a no-op. Doing it via an effect runs after the DOM update.
+  useEffect(() => {
+    if (isOpen && !loading) {
+      inputRef.current?.focus();
+    }
+  }, [loading, isOpen]);
 
   async function clearChat() {
     try {

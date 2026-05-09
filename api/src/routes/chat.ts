@@ -82,9 +82,12 @@ app.post('/', async (c) => {
       const previousResponseId = latestAssistant?.responseId || undefined;
 
       try {
+        // Send system_prompt only on the first turn. LM Studio retains it on
+        // the thread, and re-sending on every continuation muddies context
+        // (we observed the model occasionally hallucinating when it was repeated).
         const result = await provider.chatStateful({
           input: userMsg.content,
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt: previousResponseId ? undefined : SYSTEM_PROMPT,
           previousResponseId,
         });
         responseText = result.content;
