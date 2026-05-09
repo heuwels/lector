@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Nested git worktrees and ephemeral state — not first-party source.
+    ".claude/**",
+    "tmp/**",
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 
