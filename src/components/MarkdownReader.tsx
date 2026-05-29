@@ -64,6 +64,8 @@ interface MarkdownReaderProps {
   lesson: Lesson;
   onWordClick: (word: string, sentence: string) => void;
   onClose: () => void;
+  onSaveText?: (textContent: string) => Promise<void>;
+  onEditingChange?: (isEditing: boolean) => void;
   refreshTrigger?: number;
   prevLesson?: LessonSummary | null;
   nextLesson?: LessonSummary | null;
@@ -73,6 +75,8 @@ export default function MarkdownReader({
   lesson,
   onWordClick,
   onClose,
+  onSaveText,
+  onEditingChange,
   refreshTrigger = 0,
   prevLesson,
   nextLesson,
@@ -83,6 +87,41 @@ export default function MarkdownReader({
   const [highlightedPhrase, setHighlightedPhrase] = useState<string[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [scrollPercentage, setScrollPercentage] = useState(0);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftContent, setDraftContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const startEdit = useCallback(() => {
+    setDraftContent(lesson.textContent);
+    setSaveError(null);
+    setIsEditing(true);
+    onEditingChange?.(true);
+  }, [lesson.textContent, onEditingChange]);
+
+  const cancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setDraftContent('');
+    setSaveError(null);
+    onEditingChange?.(false);
+  }, [onEditingChange]);
+
+  const saveEdit = useCallback(async () => {
+    if (!onSaveText) return;
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onSaveText(draftContent);
+      setIsEditing(false);
+      setDraftContent('');
+      onEditingChange?.(false);
+    } catch (err) {
+      console.error('Failed to save lesson text:', err);
+      setSaveError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [draftContent, onSaveText, onEditingChange]);
 
   // Detect dark mode
   useEffect(() => {
@@ -246,10 +285,12 @@ export default function MarkdownReader({
       <header className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-700">
         <button
           onClick={onClose}
+          disabled={isEditing}
           className="flex items-center gap-2 px-3 py-2 rounded-lg
             text-zinc-600 dark:text-zinc-400
             hover:bg-zinc-100 dark:hover:bg-zinc-800
-            transition-colors"
+            transition-colors
+            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -261,9 +302,56 @@ export default function MarkdownReader({
           {lesson.title}
         </h1>
 
-        <div className="text-sm text-zinc-500 dark:text-zinc-400">
-          {scrollPercentage}%
-        </div>
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={cancelEdit}
+              disabled={isSaving}
+              data-testid="edit-text-cancel"
+              className="px-3 py-1.5 text-sm rounded-lg
+                text-zinc-700 dark:text-zinc-300
+                hover:bg-zinc-100 dark:hover:bg-zinc-800
+                transition-colors
+                disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveEdit}
+              disabled={isSaving}
+              data-testid="edit-text-save"
+              className="px-3 py-1.5 text-sm font-medium rounded-lg
+                bg-blue-600 text-white
+                hover:bg-blue-700
+                transition-colors
+                disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isSaving ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">
+              {scrollPercentage}%
+            </div>
+            {onSaveText && (
+              <button
+                onClick={startEdit}
+                data-testid="edit-text-button"
+                title="Edit text"
+                aria-label="Edit text"
+                className="p-2 rounded-lg
+                  text-zinc-600 dark:text-zinc-400
+                  hover:bg-zinc-100 dark:hover:bg-zinc-800
+                  transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Content */}
@@ -273,26 +361,59 @@ export default function MarkdownReader({
         onMouseUp={handleMouseUp}
         className="flex-1 overflow-auto"
       >
-        <article className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-16 prose prose-zinc dark:prose-invert
-          prose-p:text-lg sm:prose-p:text-2xl prose-p:leading-[1.9] prose-p:text-zinc-700 dark:prose-p:text-zinc-300
-          prose-headings:font-sans prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100
-          prose-li:text-lg sm:prose-li:text-xl prose-li:leading-relaxed"
-          style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}>
-          <ReactMarkdown
-            components={{
-              p: ({ children }) => <p>{typeof children === 'string' ? renderText(children) : children}</p>,
-              li: ({ children }) => <li>{typeof children === 'string' ? renderText(children) : children}</li>,
-              h1: ({ children }) => <h1>{children}</h1>,
-              h2: ({ children }) => <h2>{children}</h2>,
-              h3: ({ children }) => <h3>{children}</h3>,
-            }}
-          >
-            {content}
-          </ReactMarkdown>
-        </article>
+        {isEditing ? (
+          <div className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-12">
+            <textarea
+              data-testid="edit-text-textarea"
+              value={draftContent}
+              onChange={(e) => setDraftContent(e.target.value)}
+              disabled={isSaving}
+              autoFocus
+              spellCheck={false}
+              className="w-full min-h-[60vh] p-4 rounded-lg
+                border border-zinc-300 dark:border-zinc-600
+                bg-white dark:bg-zinc-800
+                text-zinc-800 dark:text-zinc-200
+                text-base leading-relaxed
+                font-mono
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                disabled:opacity-60 disabled:cursor-not-allowed
+                resize-y"
+            />
+            {saveError && (
+              <p
+                data-testid="edit-text-error"
+                className="mt-2 text-sm text-red-500 dark:text-red-400"
+              >
+                {saveError}
+              </p>
+            )}
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+              Markdown is supported. Vocab state is keyed by word, so edits don&apos;t reset your progress.
+            </p>
+          </div>
+        ) : (
+          <article className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-16 prose prose-zinc dark:prose-invert
+            prose-p:text-lg sm:prose-p:text-2xl prose-p:leading-[1.9] prose-p:text-zinc-700 dark:prose-p:text-zinc-300
+            prose-headings:font-sans prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100
+            prose-li:text-lg sm:prose-li:text-xl prose-li:leading-relaxed"
+            style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}>
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => <p>{typeof children === 'string' ? renderText(children) : children}</p>,
+                li: ({ children }) => <li>{typeof children === 'string' ? renderText(children) : children}</li>,
+                h1: ({ children }) => <h1>{children}</h1>,
+                h2: ({ children }) => <h2>{children}</h2>,
+                h3: ({ children }) => <h3>{children}</h3>,
+              }}
+            >
+              {content}
+            </ReactMarkdown>
+          </article>
+        )}
 
         {/* Prev/Next navigation at bottom */}
-        {(prevLesson || nextLesson) && (
+        {!isEditing && (prevLesson || nextLesson) && (
           <div className="max-w-[38em] mx-auto px-4 sm:px-8 pb-16 flex items-center justify-between gap-4">
             {prevLesson ? (
               <button

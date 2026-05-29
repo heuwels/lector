@@ -12,6 +12,7 @@ import {
   saveVocab,
   getVocabByText,
   updateVocabState,
+  updateLesson,
   incrementDailyStat,
 } from '@/lib/data-layer';
 import { translateWord, translatePhrase } from '@/lib/claude';
@@ -324,6 +325,18 @@ export default function ReadPage({
     }
   }, [router, lesson]);
 
+  const handleSaveText = useCallback(async (newContent: string) => {
+    await updateLesson(lessonId, { textContent: newContent });
+    setLesson((prev) => (prev ? { ...prev, textContent: newContent } : prev));
+    setReaderRefreshTrigger((prev) => prev + 1);
+  }, [lessonId]);
+
+  const handleEditingChange = useCallback((editing: boolean) => {
+    if (editing) {
+      setWordPanel((prev) => ({ ...prev, isOpen: false }));
+    }
+  }, []);
+
   // Navigate to prev/next lesson in collection
   const currentIndex = siblings.findIndex(l => l.id === lessonId);
   const prevLesson = currentIndex > 0 ? siblings[currentIndex - 1] : null;
@@ -402,6 +415,8 @@ export default function ReadPage({
           lesson={lesson}
           onWordClick={handleWordClick}
           onClose={handleClose}
+          onSaveText={handleSaveText}
+          onEditingChange={handleEditingChange}
           refreshTrigger={readerRefreshTrigger}
           prevLesson={prevLesson}
           nextLesson={nextLesson}
