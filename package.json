@@ -20,7 +20,7 @@
     "better-sqlite3": "^12.6.2",
     "dexie": "^4.3.0",
     "linkedom": "^0.18.12",
-    "next": "16.1.6",
+    "next": "16.2.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
