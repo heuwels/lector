@@ -650,11 +650,90 @@ test.describe("Practice - Incorrect Type Answer Feedback", () => {
     }
 
     // The round should eventually complete, and the wrong answer should have
-    // appeared again in the retry queue. The progress counter should show
-    // more than 10 total (10 original + at least 1 retry).
+    // appeared again in the retry queue. The progress counter should stay
+    // capped at the round size (10) — retried sentences must not count again
+    // (issue #57).
     await expect(page.getByText("Round Complete!")).toBeVisible({
       timeout: 15000,
     });
+  });
+
+  test("retried sentences do not push the progress counter past round size (issue #57)", async ({
+    page,
+  }) => {
+    await waitForSetup(page);
+
+    const ROUND_SIZE = 10;
+    await page.getByRole("button", { name: String(ROUND_SIZE), exact: true }).click();
+    await page.getByRole("button", { name: "Type" }).click();
+    await page.getByRole("button", { name: "Start" }).click();
+
+    await expect(page.getByText("Fill in the blank")).toBeVisible({
+      timeout: 10000,
+    });
+
+    // Get the first sentence wrong so it lands in the retry queue.
+    const input = page.locator('input[placeholder="..."]');
+    await input.fill("zzzzz");
+    await input.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "Incorrect" })
+    ).toBeVisible({ timeout: 5000 });
+
+    // Drive the round to completion using hints. Track the highest counter
+    // value seen — it must never exceed ROUND_SIZE.
+    let maxProgress = 0;
+    const counter = page.locator("span", { hasText: new RegExp(`^\\d+/${ROUND_SIZE}$`) });
+
+    for (let i = 0; i < 60; i++) {
+      const text = await counter.textContent().catch(() => null);
+      if (text) {
+        const num = parseInt(text.split("/")[0], 10);
+        if (!Number.isNaN(num) && num > maxProgress) maxProgress = num;
+        expect(num, `progress counter exceeded ${ROUND_SIZE}`).toBeLessThanOrEqual(
+          ROUND_SIZE
+        );
+      }
+
+      if (await page.getByText("Round Complete!").isVisible().catch(() => false)) break;
+
+      const nextBtn = page.getByRole("button", { name: "Next Sentence" });
+      if (await nextBtn.isVisible().catch(() => false)) {
+        await nextBtn.click();
+        await page.waitForTimeout(150);
+        continue;
+      }
+
+      const inputEl = page.locator('input[placeholder="..."]');
+      if (await inputEl.isVisible().catch(() => false)) {
+        const hintBtn = page.getByRole("button", { name: /Hint/ });
+        for (let h = 0; h < 25; h++) {
+          const submitBtn = page.getByRole("button", { name: "Submit" });
+          if (await submitBtn.isVisible().catch(() => false)) {
+            await submitBtn.click();
+            break;
+          }
+          if (await hintBtn.isVisible().catch(() => false)) {
+            await hintBtn.click();
+          }
+          await page.waitForTimeout(40);
+        }
+        await page.waitForTimeout(150);
+        continue;
+      }
+
+      await page.waitForTimeout(150);
+    }
+
+    await expect(page.getByText("Round Complete!")).toBeVisible({ timeout: 15000 });
+    expect(maxProgress).toBeLessThanOrEqual(ROUND_SIZE);
+
+    // Completion summary uses "{roundCorrect}/{roundProgress} correct" — must
+    // be capped at ROUND_SIZE since only first-pass attempts count.
+    const summary = await page.getByText(/\d+\/\d+ correct/).textContent();
+    expect(summary).toBeTruthy();
+    const [, denom] = summary!.match(/(\d+)\/(\d+) correct/)!.slice(1).map(Number);
+    expect(denom).toBeLessThanOrEqual(ROUND_SIZE);
   });
 });
 

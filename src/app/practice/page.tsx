@@ -206,6 +206,7 @@ export default function PracticePage() {
   const [ankiError, setAnkiError] = useState<string | null>(null);
   const [hintLetters, setHintLetters] = useState(0);
   const [retryQueue, setRetryQueue] = useState<ClozeSentence[]>([]);
+  const [isRetryPhase, setIsRetryPhase] = useState(false);
   const [blacklistToast, setBlacklistToast] = useState(false);
 
   // Word definition tooltip state
@@ -353,6 +354,7 @@ export default function PracticePage() {
     setRoundProgress(0);
     setRoundCorrect(0);
     setRetryQueue([]);
+    setIsRetryPhase(false);
     setRecentWords([]);
 
     try {
@@ -426,6 +428,7 @@ export default function PracticePage() {
       const retryList = [...retryQueue];
       setRetryQueue([]);
       setQueue(retryList);
+      setIsRetryPhase(true);
       loadNextSentence(retryList);
     } else {
       setState('complete');
@@ -468,9 +471,12 @@ export default function PracticePage() {
       await incrementDailyStat('points', earnedPoints);
     }
 
-    // Update local state
-    setRoundProgress((prev) => prev + 1);
-    if (isCorrect) setRoundCorrect((prev) => prev + 1);
+    // Update local state — only count first-pass answers toward round progress,
+    // so retried sentences don't push the counter past roundSize (issue #57).
+    if (!isRetryPhase) {
+      setRoundProgress((prev) => prev + 1);
+      if (isCorrect) setRoundCorrect((prev) => prev + 1);
+    }
     if (earnedPoints > 0) {
       setPoints((prev) => prev + earnedPoints);
     }
@@ -542,8 +548,10 @@ export default function PracticePage() {
         await incrementDailyStat('points', earnedPoints);
       }
 
-      setRoundProgress((prev) => prev + 1);
-      if (isCorrect) setRoundCorrect((prev) => prev + 1);
+      if (!isRetryPhase) {
+        setRoundProgress((prev) => prev + 1);
+        if (isCorrect) setRoundCorrect((prev) => prev + 1);
+      }
       if (earnedPoints > 0) {
         setPoints((prev) => prev + earnedPoints);
       }
@@ -564,7 +572,7 @@ export default function PracticePage() {
         speak(current.sentence.sentence);
       }
     }, delay);
-  }, [mcLocked, current, mcOptions, mcCorrectIdx]);
+  }, [mcLocked, current, mcOptions, mcCorrectIdx, isRetryPhase]);
 
   // Handle next sentence
   const handleNext = useCallback(async () => {
@@ -584,6 +592,7 @@ export default function PracticePage() {
       const retryList = [...retryQueue];
       setRetryQueue([]);
       setQueue(retryList);
+      setIsRetryPhase(true);
       loadNextSentence(retryList);
     } else {
       setState('complete');
