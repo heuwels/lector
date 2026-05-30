@@ -307,7 +307,17 @@ function FluencyBadge({ fluency }: { fluency: FluencyStats }) {
           <div data-testid="fluency-known-count" className="text-2xl font-bold text-green-600 dark:text-green-400">
             {totalKnownWords.toLocaleString()}
           </div>
-          <div className="text-sm text-zinc-500 dark:text-zinc-400">Known</div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400 inline-flex items-center gap-1">
+            Known
+            <span
+              title="CEFR level uses all known words including bulk-imported lists (e.g., frequency-list imports from Settings). The 'Words Known' tile below counts only entries you've interacted with directly in your vocabulary."
+              className="cursor-help text-zinc-400 dark:text-zinc-500"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          </div>
         </div>
         <div className="text-center p-3 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg">
           <div data-testid="fluency-learning-count" className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">

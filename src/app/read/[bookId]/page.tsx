@@ -48,6 +48,7 @@ export default function ReadPage({
   const [readerRefreshTrigger, setReaderRefreshTrigger] = useState(0);
   const wordPanelRef = useRef<HTMLDivElement>(null);
   const translationRequestId = useRef(0);
+  const existingEntryLookup = useRef<Promise<VocabEntry | undefined> | null>(null);
 
   const [wordPanel, setWordPanel] = useState<WordPanelState>({
     isOpen: false,
@@ -100,23 +101,34 @@ export default function ReadPage({
     const wordsToSpeak = word.split(/\s+/).slice(0, 15).join(' ');
     speak(wordsToSpeak);
 
-    const existingEntry = await getVocabByText(word.toLowerCase());
-    const hasTranslation = existingEntry?.translation && existingEntry.translation.length > 0;
-
+    // Open popup immediately in loading state so keyboard shortcuts (K/X) are responsive
     setWordPanel({
       isOpen: true,
       word,
       sentence,
-      translation: hasTranslation ? existingEntry.translation : null,
+      translation: null,
       partOfSpeech: isPhrase ? 'phrase' : null,
-      isLoading: !hasTranslation,
+      isLoading: true,
       isContextLoading: false,
       isDictionaryResult: false,
       error: null,
-      existingEntry: existingEntry || null,
+      existingEntry: null,
     });
 
-    await incrementDailyStat('dictionaryLookups');
+    incrementDailyStat('dictionaryLookups');
+
+    const lookupPromise = getVocabByText(word.toLowerCase());
+    existingEntryLookup.current = lookupPromise;
+    const existingEntry = await lookupPromise;
+    if (requestId !== translationRequestId.current) return;
+    const hasTranslation = existingEntry?.translation && existingEntry.translation.length > 0;
+
+    setWordPanel((prev) => ({
+      ...prev,
+      translation: hasTranslation ? existingEntry.translation : null,
+      isLoading: !hasTranslation,
+      existingEntry: existingEntry || null,
+    }));
 
     if (!hasTranslation) {
       if (isPhrase) {
@@ -202,23 +214,35 @@ export default function ReadPage({
     }
   }, [wordPanel.word, wordPanel.sentence]);
 
+  // Resolves the existing vocab entry, awaiting an in-flight lookup if needed.
+  // Prevents duplicate-row races when the user acts before getVocabByText returns.
+  const resolveExistingEntry = useCallback(async (): Promise<VocabEntry | undefined> => {
+    if (wordPanel.existingEntry) return wordPanel.existingEntry;
+    if (existingEntryLookup.current) {
+      const fromLookup = await existingEntryLookup.current;
+      if (fromLookup) return fromLookup;
+    }
+    return undefined;
+  }, [wordPanel.existingEntry]);
+
   const saveWordToVocab = useCallback(async () => {
     if (!wordPanel.translation) return;
 
+    const existing = await resolveExistingEntry();
     const isPhrase = wordPanel.word.includes(' ');
     const entry: VocabEntry = {
-      id: wordPanel.existingEntry?.id || uuidv4(),
+      id: existing?.id || uuidv4(),
       text: wordPanel.word.toLowerCase(),
       type: isPhrase ? 'phrase' : 'word',
       sentence: wordPanel.sentence,
       translation: wordPanel.translation,
-      state: wordPanel.existingEntry?.state || 'level1',
+      state: existing?.state || 'level1',
       stateUpdatedAt: new Date(),
-      reviewCount: wordPanel.existingEntry?.reviewCount || 0,
+      reviewCount: existing?.reviewCount || 0,
       bookId: lessonId,
-      createdAt: wordPanel.existingEntry?.createdAt || new Date(),
-      pushedToAnki: wordPanel.existingEntry?.pushedToAnki || false,
-      ankiNoteId: wordPanel.existingEntry?.ankiNoteId,
+      createdAt: existing?.createdAt || new Date(),
+      pushedToAnki: existing?.pushedToAnki || false,
+      ankiNoteId: existing?.ankiNoteId,
     };
 
     await saveVocab(entry);
@@ -229,15 +253,14 @@ export default function ReadPage({
       existingEntry: entry,
     }));
     setReaderRefreshTrigger(prev => prev + 1);
-  }, [wordPanel, lessonId]);
+  }, [wordPanel, lessonId, resolveExistingEntry]);
 
   const markAsKnown = useCallback(async () => {
-    let entryId = wordPanel.existingEntry?.id;
+    const existing = await resolveExistingEntry();
 
-    if (!entryId) {
-      const newId = uuidv4();
+    if (!existing) {
       const entry: VocabEntry = {
-        id: newId,
+        id: uuidv4(),
         text: wordPanel.word.toLowerCase(),
         type: 'word',
         sentence: wordPanel.sentence,
@@ -250,18 +273,19 @@ export default function ReadPage({
         pushedToAnki: false,
       };
       await saveVocab(entry);
-      entryId = newId;
     } else {
-      await updateVocabState(entryId, 'known');
+      await updateVocabState(existing.id, 'known');
     }
 
     await incrementDailyStat('wordsMarkedKnown');
     setReaderRefreshTrigger(prev => prev + 1);
     closeWordPanel();
-  }, [wordPanel, lessonId, closeWordPanel]);
+  }, [wordPanel, lessonId, closeWordPanel, resolveExistingEntry]);
 
   const ignoreWord = useCallback(async () => {
-    if (!wordPanel.existingEntry) {
+    const existing = await resolveExistingEntry();
+
+    if (!existing) {
       const entry: VocabEntry = {
         id: uuidv4(),
         text: wordPanel.word.toLowerCase(),
@@ -277,19 +301,20 @@ export default function ReadPage({
       };
       await saveVocab(entry);
     } else {
-      await updateVocabState(wordPanel.existingEntry.id, 'ignored');
+      await updateVocabState(existing.id, 'ignored');
     }
 
     setReaderRefreshTrigger(prev => prev + 1);
     closeWordPanel();
-  }, [wordPanel, lessonId, closeWordPanel]);
+  }, [wordPanel, lessonId, closeWordPanel, resolveExistingEntry]);
 
   const setWordLevel = useCallback(async (level: 1 | 2 | 3 | 4) => {
     if (!wordPanel.translation) return;
 
     const state = `level${level}` as 'level1' | 'level2' | 'level3' | 'level4';
+    const existing = await resolveExistingEntry();
 
-    if (!wordPanel.existingEntry) {
+    if (!existing) {
       const entry: VocabEntry = {
         id: uuidv4(),
         text: wordPanel.word.toLowerCase(),
@@ -307,15 +332,15 @@ export default function ReadPage({
       await incrementDailyStat('newWordsSaved');
       setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
     } else {
-      await updateVocabState(wordPanel.existingEntry.id, state);
+      await updateVocabState(existing.id, state);
       setWordPanel((prev) => ({
         ...prev,
-        existingEntry: prev.existingEntry ? { ...prev.existingEntry, state } : null,
+        existingEntry: prev.existingEntry ? { ...prev.existingEntry, state } : { ...existing, state },
       }));
     }
 
     setReaderRefreshTrigger(prev => prev + 1);
-  }, [wordPanel, lessonId]);
+  }, [wordPanel, lessonId, resolveExistingEntry]);
 
   const handleClose = useCallback(() => {
     if (lesson?.collectionId) {
@@ -467,7 +492,7 @@ export default function ReadPage({
                       {wordPanel.translation || '\u2014'}
                     </span>
                   )}
-                  {wordPanel.isDictionaryResult && !wordPanel.isContextLoading && (
+                  {!wordPanel.word.includes(' ') && !wordPanel.isLoading && !wordPanel.isContextLoading && wordPanel.translation && (
                     <button
                       onClick={requestContextTranslation}
                       className="ml-1 px-2 py-0.5 text-xs font-medium rounded-md
