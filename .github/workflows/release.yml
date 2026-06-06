@@ -42,6 +42,11 @@ jobs:
   e2e-tests:
     runs-on: ubuntu-latest
     needs: [build]
+    # Pinned to the same release the Dockerfile + ci.yml use. Bump together
+    # when a new dict release is published via scripts/release-dict.sh.
+    env:
+      DICT_VERSION: dict-2026-06-06
+      DICT_SHA256: 652df8d15e0678ead3b25ce0a021776d428256673df15b16e3e04cfe9b284a78
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -51,6 +56,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: npm ci
       - run: cd api && bun install
+      - name: Fetch on-device dictionary
+        run: |
+          mkdir -p data
+          curl -fL --retry 3 \
+            "https://github.com/heuwels/lector/releases/download/${DICT_VERSION}/dictionary-af.db" \
+            -o data/dictionary-af.db
+          echo "${DICT_SHA256}  data/dictionary-af.db" | sha256sum -c -
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7
