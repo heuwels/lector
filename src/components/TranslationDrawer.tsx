@@ -17,6 +17,8 @@ export interface ExpandedDictionaryEntry {
   senses: Array<{ partOfSpeech: string; gloss: string }>;
   relatedForms?: Array<{ form: string; relation: string }>;
   lemmaInfo?: { stem: string; label: string };
+  /** `dict` = built-in kaikki dict, `cache` = user-learned AI translation. */
+  source?: 'dict' | 'cache';
 }
 
 const wordStateColors: Record<WordState, { bg: string; text: string; dot: string; ring: string }> = {
@@ -205,6 +207,11 @@ export default function TranslationDrawer({
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                   AI · in context
+                </span>
+              ) : entry?.source === 'cache' ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                  learned
                 </span>
               ) : isDictionaryResult ? (
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">

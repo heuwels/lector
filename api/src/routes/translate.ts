@@ -72,25 +72,61 @@ Be specific and concrete in idiomaticMeaning and usageNotes — avoid vague phra
 
       return c.json(JSON.parse(text));
     } else {
-      const prompt = `You are a ${langName} to English translator with deep knowledge of ${langName} orthography.
+      const prompt = `You are a ${langName} to English translator with deep knowledge of ${langName} orthography, morphology, and etymology.
 
-${spelreelsSection}Translate the following ${langName} word, using the sentence context to determine the correct meaning.
+${spelreelsSection}A learner clicked the following ${langName} word while reading. Produce a dictionary-quality entry — not a single gloss. The output is used both to display the meaning AND to persist into an on-device dictionary, so be thorough and faithful.
 
 Word: "${word}"
 Sentence context: "${sentence || word}"
 
-Respond with ONLY a JSON object in this exact format (no markdown, no code blocks):
-{"translation": "the English translation", "partOfSpeech": "noun/verb/adjective/adverb/etc"}
+Respond with ONLY a JSON object in this exact shape (no markdown, no code blocks):
+{
+  "word": "${word}",
+  "senses": [
+    { "partOfSpeech": "noun | verb | adjective | adverb | pronoun | preposition | conjunction | interjection | determiner | numeral | particle", "gloss": "concise English meaning, no period" }
+    /* ...one entry per distinct sense; order most-common first */
+  ],
+  "ipa": "/.../ or [...] — phonetic transcription if you're confident",
+  "etymology": "Brief origin note (e.g. \\"From Dutch X, from Middle Dutch Y\\")",
+  "relatedForms": [
+    { "form": "the related word", "relation": "plural of | diminutive of | past tense of | derived from | etc." }
+  ]
+}
 
-If you cannot determine the part of speech, omit that field.`;
+Rules:
+- "word" and "senses" are REQUIRED. senses must be non-empty.
+- Include separate sense entries for genuinely distinct meanings (e.g. "trek" = pull / move / journey). Don't split shades of the same meaning.
+- Use the sentence to bias sense ORDER, but include all common senses a learner might reasonably encounter.
+- Each gloss is a short English phrase (1-4 words is typical, up to a clause for verbs with idiomatic completions).
+- Omit ipa / etymology / relatedForms entirely if you're not confident — don't guess.
+- Use the same partOfSpeech vocabulary as Wiktionary so cached entries align with the curated dict.
+
+Backwards-compat fields the server adds (do NOT include these yourself — server stitches them from senses): translation, partOfSpeech.`;
 
       const provider = getProvider();
       const text = await provider.complete({
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 256,
+        maxTokens: 800,
       });
 
-      return c.json(JSON.parse(text));
+      const entry = JSON.parse(text);
+
+      // Stitch legacy fields so existing call sites that only read translation +
+      // partOfSpeech don't have to change.
+      const senses: Array<{ partOfSpeech: string; gloss: string }> = Array.isArray(entry.senses) ? entry.senses : [];
+      const stitchedTranslation = senses.map((s) => s.gloss).filter(Boolean).join('; ');
+      const firstPos = senses[0]?.partOfSpeech;
+
+      return c.json({
+        translation: stitchedTranslation,
+        partOfSpeech: firstPos,
+        // Pass through the structured fields
+        word: entry.word || word,
+        senses,
+        ipa: entry.ipa,
+        etymology: entry.etymology,
+        relatedForms: Array.isArray(entry.relatedForms) ? entry.relatedForms : undefined,
+      });
     }
   } catch (error) {
     console.error('Translation error:', error);
