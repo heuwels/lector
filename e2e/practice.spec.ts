@@ -97,8 +97,10 @@ test.describe.serial("Practice - Type Mode Full Journey", () => {
     const input = page.locator('input[placeholder="..."]');
     await expect(input).toBeVisible();
 
-    // Should show translation (italic text)
-    const translation = page.locator("p.italic");
+    // Should show translation (italic text). Scope to text-base so we hit the
+    // page's English translation, not the smaller italic text the drawer
+    // renders for its sentence section (which is always in the DOM).
+    const translation = page.locator("p.italic.text-base");
     await expect(translation).toBeVisible();
 
     // Should show mastery indicator
