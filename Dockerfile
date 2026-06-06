@@ -11,6 +11,37 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# ── Dictionary fetch stage ──────────────────────────────────────────────────
+# The Afrikaans dictionary is read-only application data. Default source is the
+# `heuwels/lector` GitHub Release artifact; both URL and expected SHA-256 are
+# overridable, so anyone running their own deployment can substitute a tuned
+# DB by passing --build-arg DICT_URL=... --build-arg DICT_SHA256=...
+#
+# Examples:
+#   # Default (heuwels/lector latest dict release)
+#   docker build .
+#
+#   # Custom DB hosted on your CDN
+#   docker build \
+#     --build-arg DICT_URL=https://cdn.example.com/lector/my-dict.db \
+#     --build-arg DICT_SHA256=$(sha256sum my-dict.db | awk '{print $1}') .
+#
+#   # Skip integrity check (NOT recommended for production)
+#   docker build --build-arg DICT_SHA256= .
+FROM alpine:3 AS dict
+ARG DICT_VERSION=dict-2026-06-06
+ARG DICT_URL=https://github.com/heuwels/lector/releases/download/${DICT_VERSION}/dictionary-af.db
+ARG DICT_SHA256=652df8d15e0678ead3b25ce0a021776d428256673df15b16e3e04cfe9b284a78
+RUN apk add --no-cache curl
+RUN mkdir -p /dict \
+ && echo "Fetching dictionary from: ${DICT_URL}" \
+ && curl -fL --retry 3 "${DICT_URL}" -o /dict/dictionary-af.db \
+ && if [ -n "${DICT_SHA256}" ]; then \
+      echo "${DICT_SHA256}  /dict/dictionary-af.db" | sha256sum -c -; \
+    else \
+      echo "WARNING: DICT_SHA256 is empty — skipping integrity check"; \
+    fi
+
 # ── Bun API build stage ──
 FROM oven/bun:1-alpine AS api-builder
 
@@ -35,13 +66,20 @@ COPY --from=oven/bun:1-alpine /usr/local/bin/bun /usr/local/bin/bun
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATA_DIR=/app/data
+# Dictionary lives outside DATA_DIR so a user volume mount on /app/data
+# doesn't shadow the read-only DB shipped with the image.
+ENV DICT_DIR=/app/dict
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Create data directories
-RUN mkdir -p /app/data/books && chown -R nextjs:nodejs /app/data
+# Create data + dict directories
+RUN mkdir -p /app/data/books /app/dict \
+ && chown -R nextjs:nodejs /app/data /app/dict
+
+# Pull in the dictionary built in the `dict` stage
+COPY --from=dict /dict/dictionary-af.db /app/dict/dictionary-af.db
 
 # Copy Next.js standalone build
 COPY --from=builder /app/public ./public

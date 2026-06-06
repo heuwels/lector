@@ -1737,6 +1737,14 @@
     "translation": "window",
     "partOfSpeech": "noun"
   },
+  "gordyn": {
+    "rank": 0,
+    "translation": "curtain",
+    "partOfSpeech": "noun",
+    "suffixes": {
+      "e": { "rank": 0, "translation": "curtains" }
+    }
+  },
   "muur": {
     "rank": 321,
     "translation": "wall",

@@ -39,3 +39,9 @@ README.md
 
 # Backups
 backups/
+
+# Local data — user DBs and the dictionary that the `dict` build stage
+# fetches fresh from a release. Excluding these keeps stale local files out
+# of the image and shrinks the build context.
+data/
+tmp/

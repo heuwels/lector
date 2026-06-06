@@ -40,23 +40,34 @@ app.post('/', async (c) => {
     const spelreelsSection = spelreels ? `Use the following official spelling rules to inform your understanding of the ${langName} input:\n\n${spelreels}\n\n---\n\n` : '';
 
     if (type === 'phrase') {
-      const prompt = `You are a ${langName} to English translator with deep knowledge of ${langName} orthography.
+      const prompt = `You are a ${langName} to English translator with deep knowledge of ${langName} orthography, idiom, and register.
 
-${spelreelsSection}Translate the following ${langName} phrase, using the sentence context to determine the correct meaning.
+${spelreelsSection}A learner has selected a ${langName} phrase from a text they're reading. Help them understand it the way a native speaker would — not just what the words say, but what the phrase actually means, why it's phrased this way, and when it would be used.
 
 Phrase: "${word}"
 Sentence context: "${sentence || word}"
 
 Respond with ONLY a JSON object in this exact format (no markdown, no code blocks):
-{"translation": "the natural English translation", "literalBreakdown": "word-by-word literal translation", "idiomaticMeaning": "explanation if this is an idiom or has special meaning"}
+{
+  "translation": "the most natural English translation a fluent speaker would use",
+  "literalBreakdown": "word-by-word literal gloss (e.g. \\"hand-shoe\\" for handskoen)",
+  "idiomaticMeaning": "if the phrase is an idiom, fixed expression, or compound: what it actually means and why — e.g. \\"This is an idiom which literally means X. It is used when ...\\"",
+  "usageNotes": "register, tone, formality, or contextual notes a learner should know (e.g. \\"informal\\", \\"used by older speakers\\", \\"often sarcastic\\", \\"common in Bible-influenced Afrikaans\\")",
+  "register": "formal | informal | literary | colloquial | archaic | neutral"
+}
 
-Include literalBreakdown if the phrase is more than one word.
-Include idiomaticMeaning only if the phrase is an idiom or has a meaning that differs from the literal translation.`;
+Required fields: translation. All other fields are optional — only include them when they add real value:
+- Include literalBreakdown if the phrase is more than one word AND the literal gloss differs from the natural translation in an interesting way.
+- Include idiomaticMeaning ALWAYS for idioms, fixed expressions, sayings, proverbs, or compound words whose meaning isn't obvious from the parts. Explain like a teacher would.
+- Include usageNotes when the phrase carries register / tone / cultural baggage the learner couldn't infer from the dictionary.
+- Include register if you're confident; omit if neutral or unclear.
+
+Be specific and concrete in idiomaticMeaning and usageNotes — avoid vague phrases like "commonly used" or "has a special meaning".`;
 
       const provider = getProvider();
       const text = await provider.complete({
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 512,
+        maxTokens: 800,
       });
 
       return c.json(JSON.parse(text));
