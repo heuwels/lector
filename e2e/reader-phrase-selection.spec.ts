@@ -77,12 +77,12 @@ test.describe('Reader phrase selection', () => {
     await page.mouse.move(box2.x + box2.width / 2, box2.y + box2.height / 2);
     await page.mouse.up();
 
-    // The word panel should open with a phrase
-    const wordPanel = page.locator('.fixed.bottom-0');
-    await expect(wordPanel).toBeVisible({ timeout: 5000 });
+    // The drawer should open with a phrase
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
 
-    // Get the text shown in the word panel - it should contain complete words
-    const panelText = await wordPanel.locator('span.font-bold').first().textContent();
+    // Get the text shown in the drawer heading — it should contain complete words
+    const panelText = await drawer.getByRole('heading').first().textContent();
     expect(panelText).toBeTruthy();
 
     // Verify no partial words: each word in the phrase should not start/end mid-word
@@ -112,9 +112,9 @@ test.describe('Reader phrase selection', () => {
     await page.mouse.move(box2.x + box2.width / 2, box2.y + box2.height / 2);
     await page.mouse.up();
 
-    // The word panel should open with a phrase translation
-    const wordPanel = page.locator('.fixed.bottom-0');
-    await expect(wordPanel).toBeVisible({ timeout: 5000 });
+    // The drawer should open with a phrase translation
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
 
     // The selected phrase spans should have the data-phrase-highlighted attribute
     const highlighted = page.locator('[data-phrase-highlighted]');

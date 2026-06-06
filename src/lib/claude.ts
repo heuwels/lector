@@ -10,6 +10,8 @@ export interface PhraseTranslation {
   translation: string;
   literalBreakdown?: string;
   idiomaticMeaning?: string;
+  usageNotes?: string;
+  register?: 'formal' | 'informal' | 'literary' | 'colloquial' | 'archaic' | 'neutral';
 }
 
 /**

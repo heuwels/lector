@@ -3,10 +3,6 @@ import { test, expect, Page } from "@playwright/test";
 const TEST_COLLECTION = "top500";
 const TEST_SENTENCE_ID = "test-inline-def-1";
 
-// Seed a cloze sentence where the non-cloze words are in the dictionary
-// "die" -> "the" (rank 1 in dictionary)
-// "kat" is the cloze word (blanked out)
-// "is" -> "is" (rank 4 in dictionary)
 const testSentence = {
   id: TEST_SENTENCE_ID,
   sentence: "Die kat is groot.",
@@ -22,14 +18,12 @@ const testSentence = {
   timesIncorrect: 0,
 };
 
-// Helper: navigate to practice and start a type-mode round
 async function startTypeRound(page: Page) {
   await page.goto("/practice");
   await expect(page.getByRole("button", { name: "Start" })).toBeVisible({
     timeout: 30000,
   });
 
-  // Scope to Learn New section to avoid clicking Review Due buttons
   const learnNewSection = page.getByText("Learn New").locator("..");
   await learnNewSection
     .getByRole("button", { name: /Top 500/ })
@@ -44,9 +38,22 @@ async function startTypeRound(page: Page) {
   });
 }
 
-test.describe("Cloze Inline Definitions", () => {
+// The drawer is always present in the DOM but slides offscreen when closed.
+// A "visible" drawer = translated to translate-x-0 (we assert this via class).
+async function expectDrawerOpen(page: Page) {
+  const drawer = page.getByTestId("translation-drawer");
+  await expect(drawer).toBeVisible({ timeout: 5000 });
+  await expect(drawer).toHaveClass(/translate-x-0/);
+  return drawer;
+}
+
+async function expectDrawerClosed(page: Page) {
+  const drawer = page.getByTestId("translation-drawer");
+  await expect(drawer).toHaveClass(/translate-x-full/);
+}
+
+test.describe("Cloze Inline Definitions (drawer)", () => {
   test.beforeEach(async ({ page }) => {
-    // Seed the test sentence
     const res = await page.request.post("http://localhost:3456/api/cloze", {
       data: [testSentence],
     });
@@ -54,58 +61,40 @@ test.describe("Cloze Inline Definitions", () => {
   });
 
   test.afterEach(async ({ page }) => {
-    // Clean up
     await page.request.delete(
       `http://localhost:3456/api/cloze/${TEST_SENTENCE_ID}`
     );
   });
 
-  test("should show translation popup when tapping a word in practicing state", async ({
+  test("opens the drawer when tapping a word in the cloze sentence", async ({
     page,
   }) => {
     await startTypeRound(page);
 
-    // Find a clickable word (non-cloze word) and click it
     const clozeWords = page.locator('[data-testid="cloze-word"]');
     await expect(clozeWords.first()).toBeVisible();
-
-    // Click the first clickable word
     await clozeWords.first().click();
 
-    // The word definition popup should appear
-    const popup = page.locator('[data-testid="word-definition-popup"]');
-    await expect(popup).toBeVisible({ timeout: 5000 });
-
-    // Should show an arrow (translation separator)
-    await expect(popup.locator("text=\u2192")).toBeVisible();
+    await expectDrawerOpen(page);
   });
 
-  test("should show dictionary translation for known words", async ({
-    page,
-  }) => {
+  test("drawer shows the clicked word as its heading", async ({ page }) => {
     await startTypeRound(page);
 
     const clozeWords = page.locator('[data-testid="cloze-word"]');
     await expect(clozeWords.first()).toBeVisible();
-
-    // Click a word
     const wordText = await clozeWords.first().textContent();
     await clozeWords.first().click();
 
-    // Popup should appear with the word we clicked
-    const popup = page.locator('[data-testid="word-definition-popup"]');
-    await expect(popup).toBeVisible({ timeout: 5000 });
+    const drawer = await expectDrawerOpen(page);
 
-    // The word text should appear in the popup (stripped of punctuation)
     if (wordText) {
       const cleanWord = wordText.replace(/[.,!?;:'")\]]+$/, "");
-      await expect(
-        popup.getByText(cleanWord, { exact: false })
-      ).toBeVisible();
+      await expect(drawer.getByRole("heading", { name: cleanWord })).toBeVisible();
     }
   });
 
-  test("should close the popup when clicking the close button", async ({
+  test("drawer does not reveal the cloze answer in practice mode", async ({
     page,
   }) => {
     await startTypeRound(page);
@@ -114,51 +103,70 @@ test.describe("Cloze Inline Definitions", () => {
     await expect(clozeWords.first()).toBeVisible();
     await clozeWords.first().click();
 
-    const popup = page.locator('[data-testid="word-definition-popup"]');
-    await expect(popup).toBeVisible({ timeout: 5000 });
+    const drawer = await expectDrawerOpen(page);
 
-    // Close the popup
-    await popup.locator('button[title="Close"]').click();
-    await expect(popup).not.toBeVisible();
+    // The blanked sentence renders as italic text inside the drawer's sentence
+    // section. Locate it directly via the italic style — that's unique to the
+    // sentence area (definitions / etymology don't use italic).
+    const italicParas = drawer.locator("p.italic");
+    if ((await italicParas.count()) > 0) {
+      const sentenceText = await italicParas.first().textContent();
+      // Blanked sentence must contain underscores in place of the cloze answer
+      expect(sentenceText).toMatch(/_+/);
+    }
   });
 
-  test("should clear popup when advancing to next sentence", async ({
-    page,
-  }) => {
+  test("drawer closes when clicking the close button", async ({ page }) => {
     await startTypeRound(page);
 
-    // Click a word to open popup
     const clozeWords = page.locator('[data-testid="cloze-word"]');
     await expect(clozeWords.first()).toBeVisible();
     await clozeWords.first().click();
 
-    const popup = page.locator('[data-testid="word-definition-popup"]');
-    await expect(popup).toBeVisible({ timeout: 5000 });
+    const drawer = await expectDrawerOpen(page);
+    await drawer.getByRole("button", { name: "Close" }).click();
+    await expectDrawerClosed(page);
+  });
 
-    // Type a wrong answer and submit to get feedback
+  test("drawer closes when pressing Escape", async ({ page }) => {
+    await startTypeRound(page);
+
+    const clozeWords = page.locator('[data-testid="cloze-word"]');
+    await expect(clozeWords.first()).toBeVisible();
+    await clozeWords.first().click();
+
+    await expectDrawerOpen(page);
+    await page.keyboard.press("Escape");
+    await expectDrawerClosed(page);
+  });
+
+  test("drawer clears when advancing to the next sentence", async ({
+    page,
+  }) => {
+    await startTypeRound(page);
+
+    const clozeWords = page.locator('[data-testid="cloze-word"]');
+    await expect(clozeWords.first()).toBeVisible();
+    await clozeWords.first().click();
+
+    await expectDrawerOpen(page);
+
     const input = page.locator('input[placeholder="..."]');
     await input.fill("zzzzz");
     await input.press("Enter");
 
-    // Wait for feedback
     await expect(
       page.getByRole("heading", { name: "Incorrect" })
     ).toBeVisible({ timeout: 5000 });
 
-    // Click Next Sentence
     await page.getByRole("button", { name: "Next Sentence" }).click();
-
-    // Popup should be cleared on the new sentence
     await page.waitForTimeout(500);
-    await expect(popup).not.toBeVisible();
+    await expectDrawerClosed(page);
   });
 
-  test("should show clickable words in feedback state too", async ({
-    page,
-  }) => {
+  test("words remain clickable in the feedback state", async ({ page }) => {
     await startTypeRound(page);
 
-    // Submit a wrong answer to get to feedback state
     const input = page.locator('input[placeholder="..."]');
     await input.fill("zzzzz");
     await input.press("Enter");
@@ -167,26 +175,18 @@ test.describe("Cloze Inline Definitions", () => {
       page.getByRole("heading", { name: "Incorrect" })
     ).toBeVisible({ timeout: 5000 });
 
-    // Words in the feedback sentence should be clickable
     const clozeWords = page.locator('[data-testid="cloze-word"]');
     await expect(clozeWords.first()).toBeVisible();
-
-    // Click a word
     await clozeWords.first().click();
-
-    // Popup should appear
-    const popup = page.locator('[data-testid="word-definition-popup"]');
-    await expect(popup).toBeVisible({ timeout: 5000 });
+    await expectDrawerOpen(page);
   });
 
-  test("cloze blank word should not be clickable", async ({ page }) => {
+  test("the cloze blank word is not clickable", async ({ page }) => {
     await startTypeRound(page);
 
-    // The input field (cloze word) should NOT have data-testid="cloze-word"
     const inputField = page.locator('input[placeholder="..."]');
     await expect(inputField).toBeVisible();
 
-    // Verify the input is NOT wrapped in a cloze-word testid
     const clozeWordInput = page.locator(
       '[data-testid="cloze-word"] input[placeholder="..."]'
     );

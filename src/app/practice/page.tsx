@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import NavHeader from '@/components/NavHeader';
 import ClozeFeedback from '@/components/ClozeFeedback';
+import TranslationDrawer from '@/components/TranslationDrawer';
 import {
   ClozeSentence,
   ClozeMasteryLevel,
@@ -22,7 +23,7 @@ import { speak, isTTSAvailable } from '@/lib/tts';
 import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
 import { addClozeCard, isAnkiConnected } from '@/lib/anki';
 import { translateWord } from '@/lib/claude';
-import { lookupWord } from '@/lib/dictionary';
+import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 
 const ANKI_CLOZE_DECK_SETTING_KEY = 'lector-anki-cloze-deck';
 const DEFAULT_ANKI_CLOZE_DECK = 'Afrikaans::Cloze';
@@ -214,7 +215,9 @@ export default function PracticePage() {
     word: string;
     translation: string | null;
     partOfSpeech: string | null;
+    dictEntry: ExpandedDictionaryEntry | null;
     isLoading: boolean;
+    isContextLoading: boolean;
   } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -258,39 +261,74 @@ export default function PracticePage() {
     const [cleanWord] = splitTrailingPunctuation(word);
     if (!cleanWord) return;
 
-    // Show loading state
-    setWordTooltip({ word: cleanWord, translation: null, partOfSpeech: null, isLoading: true });
+    setWordTooltip({ word: cleanWord, translation: null, partOfSpeech: null, dictEntry: null, isLoading: true, isContextLoading: false });
 
-    // Try local dictionary first (instant, no network)
-    const dictEntry = lookupWord(cleanWord);
-    if (dictEntry) {
+    // Try the on-device SQLite dictionary first
+    let dictEntry: ExpandedDictionaryEntry | null = null;
+    try {
+      dictEntry = await lookupWordRemote(cleanWord);
+    } catch {
+      dictEntry = null;
+    }
+
+    if (dictEntry && dictEntry.senses.length > 0) {
       setWordTooltip({
         word: cleanWord,
-        translation: dictEntry.translation,
-        partOfSpeech: dictEntry.partOfSpeech || null,
+        translation: dictEntry.senses.map((s) => s.gloss).join('; '),
+        partOfSpeech: dictEntry.senses[0]?.partOfSpeech || null,
+        dictEntry,
         isLoading: false,
+        isContextLoading: false,
       });
       return;
     }
 
-    // Fall back to translate API
     try {
       const result = await translateWord(cleanWord, current.sentence.sentence);
       setWordTooltip({
         word: cleanWord,
         translation: result.translation,
         partOfSpeech: result.partOfSpeech || null,
+        dictEntry: null,
         isLoading: false,
+        isContextLoading: false,
       });
     } catch {
       setWordTooltip({
         word: cleanWord,
         translation: null,
         partOfSpeech: null,
+        dictEntry: null,
         isLoading: false,
+        isContextLoading: false,
       });
     }
   }, [current]);
+
+  // Ask the LLM to retranslate the active word using the full (un-blanked)
+  // sentence as context. Replaces the on-device gloss with a richer in-context
+  // translation. The blanked sentence is still shown in the drawer — the AI
+  // sees the full one for context but never reveals the cloze answer to the UI.
+  const requestContextTranslation = useCallback(async () => {
+    if (!wordTooltip || !current) return;
+    setWordTooltip((prev) => (prev ? { ...prev, isContextLoading: true } : prev));
+    try {
+      const result = await translateWord(wordTooltip.word, current.sentence.sentence);
+      setWordTooltip((prev) =>
+        prev
+          ? {
+              ...prev,
+              translation: result.translation,
+              partOfSpeech: result.partOfSpeech || prev.partOfSpeech,
+              dictEntry: null,
+              isContextLoading: false,
+            }
+          : prev,
+      );
+    } catch {
+      setWordTooltip((prev) => (prev ? { ...prev, isContextLoading: false } : prev));
+    }
+  }, [wordTooltip, current]);
 
   // Generate MC options when current sentence or queue changes
   const generateMcOptionsForSentence = useCallback((sentence: ClozeSentence, sentenceQueue: ClozeSentence[]) => {
@@ -1202,48 +1240,21 @@ export default function PracticePage() {
 
       </main>
 
-      {/* Word definition tooltip bar */}
-      {wordTooltip && (
-        <div
-          data-testid="word-definition-popup"
-          className="fixed bottom-0 left-0 right-0 z-50 border-t border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
-        >
-          <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                  {wordTooltip.word}
-                </span>
-                {wordTooltip.partOfSpeech && (
-                  <span className="text-xs italic text-zinc-500 dark:text-zinc-400">
-                    {wordTooltip.partOfSpeech}
-                  </span>
-                )}
-                <span className="text-zinc-400 dark:text-zinc-500">&rarr;</span>
-                {wordTooltip.isLoading ? (
-                  <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
-                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                  </span>
-                ) : (
-                  <span className="text-zinc-700 dark:text-zinc-300">
-                    {wordTooltip.translation || 'No translation found'}
-                  </span>
-                )}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setWordTooltip(null)}
-              className="rounded p-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
-              title="Close"
-            >
-              <svg className="h-4 w-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Word definition drawer — slides in from the right */}
+      <TranslationDrawer
+        isOpen={!!wordTooltip}
+        word={wordTooltip?.word ?? ''}
+        sentence={current?.blankedSentence ?? ''}
+        entry={wordTooltip?.dictEntry ?? null}
+        aiTranslation={wordTooltip?.translation ?? null}
+        aiPartOfSpeech={wordTooltip?.partOfSpeech ?? null}
+        isDictionaryResult={!!wordTooltip?.dictEntry}
+        isLoading={wordTooltip?.isLoading ?? false}
+        isContextLoading={wordTooltip?.isContextLoading ?? false}
+        onClose={() => setWordTooltip(null)}
+        onSpeak={(text) => speak(text)}
+        onRequestContextTranslation={requestContextTranslation}
+      />
     </div>
   );
 }

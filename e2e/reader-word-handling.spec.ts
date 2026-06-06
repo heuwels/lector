@@ -87,11 +87,10 @@ test.describe('Reader word handling', () => {
     await hyphenatedWord.click();
 
     // Word panel should open with the full hyphenated word
-    const wordPanel = page.locator('.fixed.bottom-0');
-    await expect(wordPanel).toBeVisible({ timeout: 5000 });
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
 
-    const panelWord = wordPanel.locator('span.font-bold').first();
-    await expect(panelWord).toHaveText('Perdekraal-fees');
+    await expect(drawer.getByRole('heading', { name: 'Perdekraal-fees' })).toBeVisible();
   });
 
   test('Cmd+number should not trigger word level change', async ({ page }) => {
@@ -101,17 +100,12 @@ test.describe('Reader word handling', () => {
     });
     await word.click();
 
-    const wordPanel = page.locator('.fixed.bottom-0');
-    await expect(wordPanel).toBeVisible({ timeout: 5000 });
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
 
-    // Wait for translation to load so level buttons are active
-    await expect(
-      wordPanel.locator('span.font-bold').first()
-    ).toHaveText('Perdekraal-fees');
-    await expect(wordPanel.getByText('[translated:')).toBeVisible();
+    await expect(drawer.getByRole('heading', { name: 'Perdekraal-fees' })).toBeVisible();
+    await expect(drawer.getByText('[translated:')).toBeVisible();
 
-    // Dispatch a keydown with metaKey=true via JS (Playwright keyboard API
-    // doesn't reliably set metaKey in headless Chromium)
     await page.evaluate(() => {
       window.dispatchEvent(
         new KeyboardEvent('keydown', { key: '1', metaKey: true, bubbles: true })
@@ -119,15 +113,13 @@ test.describe('Reader word handling', () => {
     });
     await page.waitForTimeout(300);
 
-    // Level should NOT be set — Cmd+1 should pass through
-    const levelButton = wordPanel.locator('button', { hasText: '1' });
+    // Level buttons render as their digit ("1", "2", "3", "4"). title="Level 1"
+    // is non-accessible, so the role-name lookup needs the visible text.
+    const levelButton = drawer.locator('button[title="Level 1"]');
     const classes = await levelButton.getAttribute('class');
     expect(classes).not.toContain('ring-2');
 
-    // Press bare 1 — this SHOULD set the level
     await page.keyboard.press('1');
-
-    // Now level1 button should be active
     await expect(levelButton).toHaveClass(/ring-2/, { timeout: 3000 });
   });
 });

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import MarkdownReader from '@/components/MarkdownReader';
+import TranslationDrawer from '@/components/TranslationDrawer';
 import {
   type Lesson,
   type LessonSummary,
@@ -16,7 +17,7 @@ import {
   incrementDailyStat,
 } from '@/lib/data-layer';
 import { translateWord, translatePhrase } from '@/lib/claude';
-import { lookupWord } from '@/lib/dictionary';
+import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 import { speak } from '@/lib/tts';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -26,6 +27,19 @@ interface WordPanelState {
   sentence: string;
   translation: string | null;
   partOfSpeech: string | null;
+  dictEntry: ExpandedDictionaryEntry | null;
+  /** Active AI-in-context override translation. When set, the drawer renders this
+      instead of the dictionary senses, but vocab saves still prefer the dict's
+      broader glosses (so a narrow contextual gloss like "pull" doesn't replace
+      the canonical "pull/move/draw/journey/draught" entry). */
+  aiContextTranslation: string | null;
+  aiContextPartOfSpeech: string | null;
+  phraseDetails: {
+    literalBreakdown?: string;
+    idiomaticMeaning?: string;
+    usageNotes?: string;
+    register?: string;
+  } | null;
   isLoading: boolean;
   isContextLoading: boolean;
   isDictionaryResult: boolean;
@@ -46,7 +60,6 @@ export default function ReadPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [readerRefreshTrigger, setReaderRefreshTrigger] = useState(0);
-  const wordPanelRef = useRef<HTMLDivElement>(null);
   const translationRequestId = useRef(0);
   const existingEntryLookup = useRef<Promise<VocabEntry | undefined> | null>(null);
 
@@ -56,6 +69,10 @@ export default function ReadPage({
     sentence: '',
     translation: null,
     partOfSpeech: null,
+    dictEntry: null,
+    aiContextTranslation: null,
+    aiContextPartOfSpeech: null,
+    phraseDetails: null,
     isLoading: false,
     isContextLoading: false,
     isDictionaryResult: false,
@@ -108,6 +125,10 @@ export default function ReadPage({
       sentence,
       translation: null,
       partOfSpeech: isPhrase ? 'phrase' : null,
+      dictEntry: null,
+      aiContextTranslation: null,
+      aiContextPartOfSpeech: null,
+      phraseDetails: null,
       isLoading: true,
       isContextLoading: false,
       isDictionaryResult: false,
@@ -139,6 +160,12 @@ export default function ReadPage({
             ...prev,
             translation: result.translation,
             partOfSpeech: 'phrase',
+            phraseDetails: {
+              literalBreakdown: result.literalBreakdown,
+              idiomaticMeaning: result.idiomaticMeaning,
+              usageNotes: result.usageNotes,
+              register: result.register,
+            },
             isLoading: false,
           }));
         } catch (err) {
@@ -151,16 +178,23 @@ export default function ReadPage({
           }));
         }
       } else {
-        const dictionaryEntry = lookupWord(word);
+        // Try the on-device SQLite dictionary first (~90% hit rate)
+        let dictEntry: ExpandedDictionaryEntry | null = null;
+        try {
+          dictEntry = await lookupWordRemote(word);
+        } catch {
+          dictEntry = null;
+        }
+        if (requestId !== translationRequestId.current) return;
 
-        if (dictionaryEntry) {
-          const translation = dictionaryEntry.lemmaInfo
-            ? `${dictionaryEntry.translation} (${dictionaryEntry.lemmaInfo.label} ${dictionaryEntry.lemmaInfo.stem})`
-            : dictionaryEntry.translation;
+        if (dictEntry && dictEntry.senses.length > 0) {
+          // Stitch a single-string translation for vocab saves + keyboard hotkeys
+          const translation = dictEntry.senses.map((s) => s.gloss).join('; ');
           setWordPanel((prev) => ({
             ...prev,
             translation,
-            partOfSpeech: dictionaryEntry.partOfSpeech || null,
+            partOfSpeech: dictEntry!.senses[0]?.partOfSpeech || null,
+            dictEntry,
             isLoading: false,
             isDictionaryResult: true,
           }));
@@ -172,7 +206,9 @@ export default function ReadPage({
               ...prev,
               translation: result.translation,
               partOfSpeech: result.partOfSpeech || null,
+              dictEntry: null,
               isLoading: false,
+              isDictionaryResult: false,
             }));
           } catch (err) {
             if (requestId !== translationRequestId.current) return;
@@ -196,19 +232,33 @@ export default function ReadPage({
     setWordPanel((prev) => ({ ...prev, isContextLoading: true }));
     try {
       const result = await translateWord(wordPanel.word, wordPanel.sentence);
-      setWordPanel((prev) => ({
-        ...prev,
-        translation: result.translation,
-        partOfSpeech: result.partOfSpeech || prev.partOfSpeech,
-        isContextLoading: false,
-        isDictionaryResult: false,
-      }));
+      setWordPanel((prev) => {
+        // When the dict already has the word: stash the AI gloss in the
+        // override slot so the drawer renders it, but leave `translation`
+        // (dict's joined senses) alone — that's what save handlers persist.
+        // When the dict has no entry: the AI gloss IS the most authoritative
+        // translation we have, so overwrite canonical too.
+        if (prev.dictEntry) {
+          return {
+            ...prev,
+            aiContextTranslation: result.translation,
+            aiContextPartOfSpeech: result.partOfSpeech || null,
+            isContextLoading: false,
+          };
+        }
+        return {
+          ...prev,
+          translation: result.translation,
+          partOfSpeech: result.partOfSpeech || prev.partOfSpeech,
+          isContextLoading: false,
+          isDictionaryResult: false,
+        };
+      });
     } catch (err) {
       console.error('Context translation error:', err);
       setWordPanel((prev) => ({
         ...prev,
         isContextLoading: false,
-        isDictionaryResult: false,
         error: 'Failed to get contextual translation.',
       }));
     }
@@ -350,6 +400,43 @@ export default function ReadPage({
     }
   }, [router, lesson]);
 
+  const retranslateWithAi = useCallback(async () => {
+    setWordPanel((prev) => ({ ...prev, isLoading: true, error: null }));
+    const isPhrase = wordPanel.word.includes(' ');
+    try {
+      if (isPhrase) {
+        const result = await translatePhrase(wordPanel.word, wordPanel.sentence);
+        setWordPanel((prev) => ({
+          ...prev,
+          translation: result.translation,
+          partOfSpeech: 'phrase',
+          dictEntry: null,
+          phraseDetails: {
+            literalBreakdown: result.literalBreakdown,
+            idiomaticMeaning: result.idiomaticMeaning,
+            usageNotes: result.usageNotes,
+            register: result.register,
+          },
+          isLoading: false,
+          isDictionaryResult: false,
+        }));
+      } else {
+        const result = await translateWord(wordPanel.word, wordPanel.sentence);
+        setWordPanel((prev) => ({
+          ...prev,
+          translation: result.translation,
+          partOfSpeech: result.partOfSpeech || null,
+          dictEntry: null,
+          phraseDetails: null,
+          isLoading: false,
+          isDictionaryResult: false,
+        }));
+      }
+    } catch {
+      setWordPanel((prev) => ({ ...prev, isLoading: false, error: 'Re-translate failed' }));
+    }
+  }, [wordPanel.word, wordPanel.sentence]);
+
   const handleSaveText = useCallback(async (newContent: string) => {
     await updateLesson(lessonId, { textContent: newContent });
     setLesson((prev) => (prev ? { ...prev, textContent: newContent } : prev));
@@ -367,11 +454,9 @@ export default function ReadPage({
   const prevLesson = currentIndex > 0 ? siblings[currentIndex - 1] : null;
   const nextLesson = currentIndex < siblings.length - 1 ? siblings[currentIndex + 1] : null;
 
-  // Focus word panel and handle keyboard when it opens
+  // Handle keyboard shortcuts when the drawer is open
   useEffect(() => {
     if (!wordPanel.isOpen) return;
-
-    wordPanelRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -448,187 +533,31 @@ export default function ReadPage({
         />
       </div>
 
-      {/* Compact word translation bar */}
-      {wordPanel.isOpen && (
-        <div
-          ref={wordPanelRef}
-          tabIndex={-1}
-          className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-zinc-800
-            border-t border-zinc-200 dark:border-zinc-700 shadow-lg outline-none">
-          <div className="max-w-3xl mx-auto px-3 sm:px-4 py-2 sm:py-3">
-            {/* Row 1: Word, translation, close button */}
-            <div className="flex items-start gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-1.5 flex-wrap">
-                  <span className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                    {wordPanel.word}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const words = wordPanel.word.split(/\s+/).slice(0, 15);
-                      speak(words.join(' '));
-                    }}
-                    className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                    title="Listen to word"
-                  >
-                    <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                    </svg>
-                  </button>
-                  {wordPanel.partOfSpeech && (
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400 italic">
-                      {wordPanel.partOfSpeech}
-                    </span>
-                  )}
-                  <span className="text-zinc-400 dark:text-zinc-500">&rarr;</span>
-                  {wordPanel.isLoading ? (
-                    <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                      <span className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                    </span>
-                  ) : wordPanel.error ? (
-                    <span className="text-red-500 dark:text-red-400 text-sm">{wordPanel.error}</span>
-                  ) : (
-                    <span className="text-zinc-700 dark:text-zinc-300">
-                      {wordPanel.translation || '\u2014'}
-                    </span>
-                  )}
-                  {!wordPanel.word.includes(' ') && !wordPanel.isLoading && !wordPanel.isContextLoading && wordPanel.translation && (
-                    <button
-                      onClick={requestContextTranslation}
-                      className="ml-1 px-2 py-0.5 text-xs font-medium rounded-md
-                        bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
-                        hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
-                      title="Translate using AI with sentence context"
-                    >
-                      In context
-                    </button>
-                  )}
-                  {wordPanel.isContextLoading && (
-                    <span className="ml-1 flex items-center gap-1 text-xs text-indigo-500">
-                      <span className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                    </span>
-                  )}
-                </div>
-                {wordPanel.existingEntry && (
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    {wordPanel.existingEntry.state}
-                  </div>
-                )}
-                {/* Sentence with speaker button */}
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                    {wordPanel.sentence}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const words = wordPanel.sentence.split(/\s+/).slice(0, 15);
-                      speak(words.join(' '));
-                    }}
-                    className="p-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors flex-shrink-0"
-                    title="Listen to sentence"
-                  >
-                    <svg className="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <button
-                onClick={async () => {
-                  setWordPanel((prev) => ({ ...prev, isLoading: true, error: null }));
-                  const isPhrase = wordPanel.word.includes(' ');
-                  try {
-                    const result = isPhrase
-                      ? await translatePhrase(wordPanel.word, wordPanel.sentence)
-                      : await translateWord(wordPanel.word, wordPanel.sentence);
-                    setWordPanel((prev) => ({
-                      ...prev,
-                      translation: result.translation,
-                      partOfSpeech: isPhrase ? 'phrase' : ('partOfSpeech' in result ? result.partOfSpeech || null : null),
-                      isLoading: false,
-                    }));
-                  } catch {
-                    setWordPanel((prev) => ({
-                      ...prev,
-                      isLoading: false,
-                      error: 'Re-translate failed',
-                    }));
-                  }
-                }}
-                className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors flex-shrink-0"
-                title="Re-translate (fresh LLM call)"
-              >
-                <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-              <button
-                onClick={closeWordPanel}
-                className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors flex-shrink-0"
-                title="Close (Esc)"
-              >
-                <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      {/* Translation drawer — slides in from the right */}
+      <TranslationDrawer
+        isOpen={wordPanel.isOpen}
+        word={wordPanel.word}
+        sentence={wordPanel.sentence}
+        entry={wordPanel.dictEntry}
+        aiTranslation={wordPanel.translation}
+        aiPartOfSpeech={wordPanel.partOfSpeech}
+        aiContextTranslation={wordPanel.aiContextTranslation}
+        aiContextPartOfSpeech={wordPanel.aiContextPartOfSpeech}
+        aiPhraseDetails={wordPanel.phraseDetails}
+        isDictionaryResult={wordPanel.isDictionaryResult}
+        isLoading={wordPanel.isLoading}
+        isContextLoading={wordPanel.isContextLoading}
+        error={wordPanel.error}
+        existingEntry={wordPanel.existingEntry}
+        onClose={closeWordPanel}
+        onSpeak={(text) => speak(text.split(/\s+/).slice(0, 15).join(' '))}
+        onSetLevel={setWordLevel}
+        onMarkKnown={markAsKnown}
+        onIgnore={ignoreWord}
+        onRequestContextTranslation={requestContextTranslation}
+        onRetranslate={retranslateWithAi}
+      />
 
-            {/* Row 2: Level buttons + action buttons */}
-            <div className="flex items-center gap-2 mt-2">
-              {wordPanel.translation && (
-                <div className="flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-600 pr-2 mr-1">
-                  {[1, 2, 3, 4].map((level) => {
-                    const currentLevel = wordPanel.existingEntry?.state;
-                    const isActive = currentLevel === `level${level}`;
-                    const colors = {
-                      1: 'bg-blue-500 hover:bg-blue-600',
-                      2: 'bg-blue-400 hover:bg-blue-500',
-                      3: 'bg-blue-300 hover:bg-blue-400',
-                      4: 'bg-blue-200 hover:bg-blue-300',
-                    };
-                    return (
-                      <button
-                        key={level}
-                        onClick={() => setWordLevel(level as 1 | 2 | 3 | 4)}
-                        className={`w-7 h-7 text-sm font-bold rounded transition-all
-                          ${isActive
-                            ? `${colors[level as keyof typeof colors]} text-white ring-2 ring-offset-1 ring-blue-500`
-                            : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-                          }`}
-                        title={`Level ${level}`}
-                      >
-                        {level}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              <button
-                onClick={markAsKnown}
-                className={`px-3 py-1.5 text-sm rounded transition-colors font-medium
-                  ${wordPanel.existingEntry?.state === 'known'
-                    ? 'bg-green-500 text-white ring-2 ring-offset-1 ring-green-500'
-                    : 'bg-green-500 text-white hover:bg-green-600'
-                  }`}
-                title="Known (K)"
-              >
-                &#10003;
-              </button>
-              <button
-                onClick={ignoreWord}
-                className={`px-3 py-1.5 text-sm rounded transition-colors
-                  ${wordPanel.existingEntry?.state === 'ignored'
-                    ? 'bg-zinc-400 text-white ring-2 ring-offset-1 ring-zinc-400'
-                    : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
-                  }`}
-                title="Ignore (X)"
-              >
-                &#10005;
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
