@@ -113,12 +113,14 @@ export default function TranslationDrawer({
 }: TranslationDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [relatedExpanded, setRelatedExpanded] = useState(false);
-
-  // Reset the "show all related forms" toggle whenever the looked-up word changes,
-  // so each new entry starts collapsed.
-  useEffect(() => {
+  // Reset the "show all related forms" toggle whenever the looked-up word
+  // changes — uses React's adjusting-state-during-render pattern so we avoid
+  // a setState-in-effect cascade.
+  const [prevWord, setPrevWord] = useState(word);
+  if (word !== prevWord) {
+    setPrevWord(word);
     setRelatedExpanded(false);
-  }, [word]);
+  }
 
   useEffect(() => {
     if (!isOpen) return;
