@@ -71,8 +71,9 @@ export default function VocabList({
   const [isMarkingKnown, setIsMarkingKnown] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Which Anki card type the bulk-export builds. Persisted across reloads so
-  // users who always push as Cloze don't have to flip the toggle every time.
+  // Export-to-Anki modal state. Card type pre-selects the user's last choice
+  // (persisted to localStorage) so heavy Cloze users don't flip on every open.
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [cardType, setCardType] = useState<AnkiCardType>(() => {
     if (typeof window === 'undefined') return 'basic';
     const saved = localStorage.getItem('lector-anki-card-type');
@@ -212,9 +213,15 @@ export default function VocabList({
     );
   };
 
-  // Bulk action handlers
-  const handleExportToAnki = async () => {
+  // Bulk action handlers. The export button opens a modal that confirms the
+  // card type; the actual onExportToAnki call fires from the modal's Export
+  // action so the user has a moment to switch Basic <-> Cloze.
+  const openExportModal = () => {
     if (selectedIds.size === 0) return;
+    setExportModalOpen(true);
+  };
+  const confirmExportToAnki = async () => {
+    setExportModalOpen(false);
     setIsExporting(true);
     try {
       await onExportToAnki(Array.from(selectedIds), cardType);
@@ -296,37 +303,8 @@ export default function VocabList({
 
       {/* Bulk Actions */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Anki card-type toggle. Drives the export button below — Basic adds
-            front/back cards to the configured Basic deck, Cloze adds cloze
-            deletions to the Cloze deck. Choice is persisted to localStorage. */}
-        <div className="inline-flex items-center rounded-lg border border-zinc-200 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
-          <button
-            onClick={() => updateCardType('basic')}
-            disabled={isExporting}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              cardType === 'basic'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
-            } disabled:cursor-not-allowed disabled:opacity-50`}
-            title="Export selected words as Basic (front/back) cards"
-          >
-            Basic
-          </button>
-          <button
-            onClick={() => updateCardType('cloze')}
-            disabled={isExporting}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              cardType === 'cloze'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
-            } disabled:cursor-not-allowed disabled:opacity-50`}
-            title="Export selected words as Cloze deletion cards"
-          >
-            Cloze
-          </button>
-        </div>
         <button
-          onClick={handleExportToAnki}
+          onClick={openExportModal}
           disabled={!someSelected || isExporting}
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400 dark:disabled:bg-gray-600"
         >
@@ -544,6 +522,92 @@ export default function VocabList({
           </tbody>
         </table>
       </div>
+
+      {/* Export-to-Anki modal */}
+      {exportModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setExportModalOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Export to Anki"
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-zinc-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              Export to Anki
+            </h2>
+            <p className="mb-5 text-sm text-zinc-500 dark:text-zinc-400">
+              {selectedIds.size} {selectedIds.size === 1 ? 'word' : 'words'} selected. Choose a card type.
+            </p>
+
+            <div className="mb-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => updateCardType('basic')}
+                className={`rounded-lg border p-4 text-left transition-colors ${
+                  cardType === 'basic'
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-900/20'
+                    : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-zinc-900 dark:text-zinc-100">Basic</span>
+                  {cardType === 'basic' && (
+                    <svg className="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Front/back card. Sentence on front, translation on back.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateCardType('cloze')}
+                className={`rounded-lg border p-4 text-left transition-colors ${
+                  cardType === 'cloze'
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-900/20'
+                    : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-zinc-900 dark:text-zinc-100">Cloze</span>
+                  {cardType === 'cloze' && (
+                    <svg className="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Word is hidden in the sentence; recall it from context.
+                </p>
+              </button>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setExportModalOpen(false)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmExportToAnki}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Export {selectedIds.size} {selectedIds.size === 1 ? 'card' : 'cards'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
