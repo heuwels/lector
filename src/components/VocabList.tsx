@@ -546,6 +546,8 @@ export default function VocabList({
             <div className="mb-6 grid grid-cols-2 gap-3">
               <button
                 type="button"
+                data-testid="anki-card-type-basic"
+                aria-pressed={cardType === 'basic'}
                 onClick={() => updateCardType('basic')}
                 className={`rounded-lg border p-4 text-left transition-colors ${
                   cardType === 'basic'
@@ -568,6 +570,8 @@ export default function VocabList({
 
               <button
                 type="button"
+                data-testid="anki-card-type-cloze"
+                aria-pressed={cardType === 'cloze'}
                 onClick={() => updateCardType('cloze')}
                 className={`rounded-lg border p-4 text-left transition-colors ${
                   cardType === 'cloze'
@@ -599,6 +603,7 @@ export default function VocabList({
               </button>
               <button
                 type="button"
+                data-testid="anki-export-confirm"
                 onClick={confirmExportToAnki}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
