@@ -2,8 +2,16 @@ import { getActiveLanguage } from './data-layer';
 
 // Types
 export interface WordTranslation {
+  /** Legacy: stitched single-string translation (sense glosses joined "; "). */
   translation: string;
+  /** Legacy: first sense's POS. */
   partOfSpeech?: string;
+  /** Structured fields used by the drawer + the on-device cache. */
+  word?: string;
+  senses?: Array<{ partOfSpeech: string; gloss: string }>;
+  ipa?: string;
+  etymology?: string;
+  relatedForms?: Array<{ form: string; relation: string }>;
 }
 
 export interface PhraseTranslation {

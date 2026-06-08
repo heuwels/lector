@@ -14,6 +14,8 @@ export interface ExpandedDictionaryEntry {
   senses: Array<{ partOfSpeech: string; gloss: string }>;
   relatedForms?: Array<{ form: string; relation: string }>;
   lemmaInfo?: { stem: string; label: string };
+  /** `dict` = built-in kaikki dict, `cache` = user-learned AI translation. */
+  source?: 'dict' | 'cache';
 }
 
 /**
@@ -45,6 +47,43 @@ export async function lookupWordRemote(word: string): Promise<ExpandedDictionary
 export function invalidateLookupCache(word?: string): void {
   if (word === undefined) sessionCache.clear();
   else sessionCache.delete(word.toLowerCase());
+}
+
+export interface CacheAcceptedTranslationInput {
+  word: string;
+  senses: Array<{ partOfSpeech: string; gloss: string }>;
+  ipa?: string;
+  etymology?: string;
+  relatedForms?: Array<{ form: string; relation: string }>;
+  sourceSentence?: string;
+  language?: string;
+}
+
+/**
+ * Persist an accepted AI translation into the on-device cache (lector.db).
+ * Called from the read page when the user saves to vocab / marks known /
+ * sets a learning level — actions that signal trust in the translation.
+ *
+ * Fire-and-forget: we don't block the UI on the write. Errors are logged.
+ * The session lookup cache is invalidated for the word so the next click
+ * re-fetches and picks up the freshly-cached entry (now with `source: 'cache'`).
+ */
+export async function cacheAcceptedTranslation(input: CacheAcceptedTranslationInput): Promise<void> {
+  if (!input.word || !input.senses?.length) return;
+  invalidateLookupCache(input.word);
+  try {
+    const res = await fetch('/api/dictionary/cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.warn('cacheAcceptedTranslation failed:', err);
+    }
+  } catch (err) {
+    console.warn('cacheAcceptedTranslation network error:', err);
+  }
 }
 
 /**

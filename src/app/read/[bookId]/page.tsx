@@ -17,7 +17,11 @@ import {
   incrementDailyStat,
 } from '@/lib/data-layer';
 import { translateWord, translatePhrase } from '@/lib/claude';
-import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
+import {
+  lookupWordRemote,
+  cacheAcceptedTranslation,
+  type ExpandedDictionaryEntry,
+} from '@/lib/dictionary-client';
 import { speak } from '@/lib/tts';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -34,6 +38,17 @@ interface WordPanelState {
       the canonical "pull/move/draw/journey/draught" entry). */
   aiContextTranslation: string | null;
   aiContextPartOfSpeech: string | null;
+  /** Structured AI translation (from /api/translate). Populated whenever the AI
+      returns multi-sense output, regardless of which translation is shown. Used
+      to persist the entry into the on-device cache when the user accepts
+      (Save / Known / level). Distinct from `dictEntry` so we can tell a kaikki
+      dict hit from an AI cacheable result. */
+  aiStructured: {
+    senses: Array<{ partOfSpeech: string; gloss: string }>;
+    ipa?: string;
+    etymology?: string;
+    relatedForms?: Array<{ form: string; relation: string }>;
+  } | null;
   phraseDetails: {
     literalBreakdown?: string;
     idiomaticMeaning?: string;
@@ -72,6 +87,7 @@ export default function ReadPage({
     dictEntry: null,
     aiContextTranslation: null,
     aiContextPartOfSpeech: null,
+    aiStructured: null,
     phraseDetails: null,
     isLoading: false,
     isContextLoading: false,
@@ -128,6 +144,7 @@ export default function ReadPage({
       dictEntry: null,
       aiContextTranslation: null,
       aiContextPartOfSpeech: null,
+      aiStructured: null,
       phraseDetails: null,
       isLoading: true,
       isContextLoading: false,
@@ -151,8 +168,8 @@ export default function ReadPage({
       existingEntry: existingEntry || null,
     }));
 
-    if (!hasTranslation) {
-      if (isPhrase) {
+    if (isPhrase) {
+      if (!hasTranslation) {
         try {
           const result = await translatePhrase(word, sentence);
           if (requestId !== translationRequestId.current) return;
@@ -177,49 +194,67 @@ export default function ReadPage({
             error: 'Failed to translate phrase. Check AI provider in settings.',
           }));
         }
-      } else {
-        // Try the on-device SQLite dictionary first (~90% hit rate)
-        let dictEntry: ExpandedDictionaryEntry | null = null;
-        try {
-          dictEntry = await lookupWordRemote(word);
-        } catch {
-          dictEntry = null;
-        }
-        if (requestId !== translationRequestId.current) return;
+      }
+    } else {
+      // For single words we ALWAYS run the dict lookup, even if vocab already
+      // has a personal translation cached. Reasons:
+      //   - the user expects to see senses/IPA/etymology, not just their
+      //     saved gloss string
+      //   - the cache (issue #100) only takes effect if we re-fetch — a
+      //     previously-accepted AI translation must surface as `learned` now
+      let dictEntry: ExpandedDictionaryEntry | null = null;
+      try {
+        dictEntry = await lookupWordRemote(word);
+      } catch {
+        dictEntry = null;
+      }
+      if (requestId !== translationRequestId.current) return;
 
-        if (dictEntry && dictEntry.senses.length > 0) {
-          // Stitch a single-string translation for vocab saves + keyboard hotkeys
-          const translation = dictEntry.senses.map((s) => s.gloss).join('; ');
+      if (dictEntry && dictEntry.senses.length > 0) {
+        const translation = dictEntry.senses.map((s) => s.gloss).join('; ');
+        setWordPanel((prev) => ({
+          ...prev,
+          translation,
+          partOfSpeech: dictEntry!.senses[0]?.partOfSpeech || null,
+          dictEntry,
+          isLoading: false,
+          isDictionaryResult: true,
+        }));
+      } else if (!hasTranslation) {
+        // No dict hit AND no saved vocab translation — fall back to AI.
+        try {
+          const result = await translateWord(word, sentence);
+          if (requestId !== translationRequestId.current) return;
+          const structured = result.senses && result.senses.length > 0
+            ? {
+                senses: result.senses,
+                ipa: result.ipa,
+                etymology: result.etymology,
+                relatedForms: result.relatedForms,
+              }
+            : null;
           setWordPanel((prev) => ({
             ...prev,
-            translation,
-            partOfSpeech: dictEntry!.senses[0]?.partOfSpeech || null,
-            dictEntry,
+            translation: result.translation,
+            partOfSpeech: result.partOfSpeech || null,
+            dictEntry: null,
+            aiStructured: structured,
             isLoading: false,
-            isDictionaryResult: true,
+            isDictionaryResult: false,
           }));
-        } else {
-          try {
-            const result = await translateWord(word, sentence);
-            if (requestId !== translationRequestId.current) return;
-            setWordPanel((prev) => ({
-              ...prev,
-              translation: result.translation,
-              partOfSpeech: result.partOfSpeech || null,
-              dictEntry: null,
-              isLoading: false,
-              isDictionaryResult: false,
-            }));
-          } catch (err) {
-            if (requestId !== translationRequestId.current) return;
-            console.error('Translation error:', err);
-            setWordPanel((prev) => ({
-              ...prev,
-              isLoading: false,
-              error: 'Failed to translate word. Check AI provider in settings.',
-            }));
-          }
+        } catch (err) {
+          if (requestId !== translationRequestId.current) return;
+          console.error('Translation error:', err);
+          setWordPanel((prev) => ({
+            ...prev,
+            isLoading: false,
+            error: 'Failed to translate word. Check AI provider in settings.',
+          }));
         }
+      } else {
+        // No dict hit but vocab has a saved translation — show that, mark
+        // not-loading. No source pill (it's the user's own translation).
+        setWordPanel((prev) => ({ ...prev, isLoading: false }));
       }
     }
   }, []);
@@ -232,6 +267,14 @@ export default function ReadPage({
     setWordPanel((prev) => ({ ...prev, isContextLoading: true }));
     try {
       const result = await translateWord(wordPanel.word, wordPanel.sentence);
+      const structured = result.senses && result.senses.length > 0
+        ? {
+            senses: result.senses,
+            ipa: result.ipa,
+            etymology: result.etymology,
+            relatedForms: result.relatedForms,
+          }
+        : null;
       setWordPanel((prev) => {
         // When the dict already has the word: stash the AI gloss in the
         // override slot so the drawer renders it, but leave `translation`
@@ -250,6 +293,7 @@ export default function ReadPage({
           ...prev,
           translation: result.translation,
           partOfSpeech: result.partOfSpeech || prev.partOfSpeech,
+          aiStructured: structured ?? prev.aiStructured,
           isContextLoading: false,
           isDictionaryResult: false,
         };
@@ -275,6 +319,24 @@ export default function ReadPage({
     return undefined;
   }, [wordPanel.existingEntry]);
 
+  // Persist the current AI translation into the on-device dictionary cache.
+  // Called from accept actions (Save / Known / level). No-op for phrases,
+  // dictionary hits (already canonical), and when the AI didn't return
+  // structured senses. Fire-and-forget — never blocks the UI action.
+  const persistAcceptedTranslation = useCallback(() => {
+    if (wordPanel.word.includes(' ')) return;
+    if (wordPanel.dictEntry) return;
+    if (!wordPanel.aiStructured) return;
+    void cacheAcceptedTranslation({
+      word: wordPanel.word,
+      senses: wordPanel.aiStructured.senses,
+      ipa: wordPanel.aiStructured.ipa,
+      etymology: wordPanel.aiStructured.etymology,
+      relatedForms: wordPanel.aiStructured.relatedForms,
+      sourceSentence: wordPanel.sentence,
+    });
+  }, [wordPanel.word, wordPanel.sentence, wordPanel.dictEntry, wordPanel.aiStructured]);
+
   const saveWordToVocab = useCallback(async () => {
     if (!wordPanel.translation) return;
 
@@ -297,13 +359,14 @@ export default function ReadPage({
 
     await saveVocab(entry);
     await incrementDailyStat('newWordsSaved');
+    persistAcceptedTranslation();
 
     setWordPanel((prev) => ({
       ...prev,
       existingEntry: entry,
     }));
     setReaderRefreshTrigger(prev => prev + 1);
-  }, [wordPanel, lessonId, resolveExistingEntry]);
+  }, [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation]);
 
   const markAsKnown = useCallback(async () => {
     const existing = await resolveExistingEntry();
@@ -328,9 +391,10 @@ export default function ReadPage({
     }
 
     await incrementDailyStat('wordsMarkedKnown');
+    persistAcceptedTranslation();
     setReaderRefreshTrigger(prev => prev + 1);
     closeWordPanel();
-  }, [wordPanel, lessonId, closeWordPanel, resolveExistingEntry]);
+  }, [wordPanel, lessonId, closeWordPanel, resolveExistingEntry, persistAcceptedTranslation]);
 
   const ignoreWord = useCallback(async () => {
     const existing = await resolveExistingEntry();
@@ -389,8 +453,9 @@ export default function ReadPage({
       }));
     }
 
+    persistAcceptedTranslation();
     setReaderRefreshTrigger(prev => prev + 1);
-  }, [wordPanel, lessonId, resolveExistingEntry]);
+  }, [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation]);
 
   const handleClose = useCallback(() => {
     if (lesson?.collectionId) {
@@ -422,11 +487,20 @@ export default function ReadPage({
         }));
       } else {
         const result = await translateWord(wordPanel.word, wordPanel.sentence);
+        const structured = result.senses && result.senses.length > 0
+          ? {
+              senses: result.senses,
+              ipa: result.ipa,
+              etymology: result.etymology,
+              relatedForms: result.relatedForms,
+            }
+          : null;
         setWordPanel((prev) => ({
           ...prev,
           translation: result.translation,
           partOfSpeech: result.partOfSpeech || null,
           dictEntry: null,
+          aiStructured: structured,
           phraseDetails: null,
           isLoading: false,
           isDictionaryResult: false,

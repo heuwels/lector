@@ -1,6 +1,7 @@
 import Database, { Database as DatabaseType } from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { db as userDb } from './database';
 
 /**
  * Read-only SQLite-backed Afrikaans dictionary.
@@ -33,6 +34,10 @@ export interface ExpandedDictionaryEntry {
   senses: Array<{ partOfSpeech: string; gloss: string }>;
   relatedForms?: Array<{ form: string; relation: string }>;
   lemmaInfo?: { stem: string; label: string };
+  /** Where the entry came from. `dict` = built-in kaikki dict; `cache` = user-
+      learned AI translation persisted via cacheAcceptedEntry. The drawer uses
+      this to render the right source pill. */
+  source?: 'dict' | 'cache';
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +174,7 @@ function buildEntry(
   const entry: ExpandedDictionaryEntry = {
     word: lookupWord,
     senses,
+    source: 'dict',
   };
   if (row.rank != null) entry.rank = row.rank;
   if (row.ipa) entry.ipa = row.ipa;
@@ -179,58 +185,170 @@ function buildEntry(
 }
 
 // ---------------------------------------------------------------------------
+// AI cache (lector.db) — entries the user "accepted" by saving / marking
+// known / setting a level. Read AFTER the curated dict misses on every
+// lookup path so coverage of the user's reading corpus grows over time.
+// ---------------------------------------------------------------------------
+
+interface CachedEntryRow {
+  word: string;
+  ipa: string | null;
+  etymology: string | null;
+}
+
+function lookupCached(word: string): ExpandedDictionaryEntry | undefined {
+  const row = userDb
+    .prepare('SELECT word, ipa, etymology FROM cached_entries WHERE word = ?')
+    .get(word) as CachedEntryRow | undefined;
+  if (!row) return undefined;
+
+  const senses = userDb
+    .prepare('SELECT pos, gloss FROM cached_senses WHERE word = ? ORDER BY sort_order')
+    .all(row.word) as Array<{ pos: string | null; gloss: string }>;
+  if (senses.length === 0) return undefined;
+
+  const related = userDb
+    .prepare('SELECT related_word, relation FROM cached_related_forms WHERE word = ?')
+    .all(row.word) as Array<{ related_word: string; relation: string }>;
+
+  const entry: ExpandedDictionaryEntry = {
+    word: row.word,
+    senses: senses.map((s) => ({ partOfSpeech: s.pos || '', gloss: s.gloss })),
+    source: 'cache',
+  };
+  if (row.ipa) entry.ipa = row.ipa;
+  if (row.etymology) entry.etymology = row.etymology;
+  if (related.length) {
+    entry.relatedForms = related.map((r) => ({ form: r.related_word, relation: r.relation }));
+  }
+  return entry;
+}
+
+export interface CacheAcceptedInput {
+  word: string;
+  senses: Array<{ partOfSpeech: string; gloss: string }>;
+  ipa?: string;
+  etymology?: string;
+  relatedForms?: Array<{ form: string; relation: string }>;
+  sourceSentence?: string;
+  language?: string;
+}
+
+/** Persist an accepted AI translation into the on-device cache. Idempotent on word
+ *  (upsert replaces senses + related forms). Returns the cached row's word so the
+ *  caller can confirm. */
+export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
+  if (!input.word || !input.senses || input.senses.length === 0) return null;
+  const word = input.word.toLowerCase();
+  const now = new Date().toISOString();
+  const language = input.language || 'af';
+
+  const upsertEntry = userDb.prepare(`
+    INSERT INTO cached_entries (word, language, ipa, etymology, sourceSentence, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(word) DO UPDATE SET
+      language = excluded.language,
+      ipa = excluded.ipa,
+      etymology = excluded.etymology,
+      sourceSentence = excluded.sourceSentence,
+      updatedAt = excluded.updatedAt
+  `);
+  const deleteSenses = userDb.prepare('DELETE FROM cached_senses WHERE word = ?');
+  const insertSense = userDb.prepare(
+    'INSERT INTO cached_senses (word, pos, gloss, sort_order) VALUES (?, ?, ?, ?)',
+  );
+  const deleteRelated = userDb.prepare('DELETE FROM cached_related_forms WHERE word = ?');
+  const insertRelated = userDb.prepare(
+    'INSERT INTO cached_related_forms (word, related_word, relation) VALUES (?, ?, ?)',
+  );
+
+  const txn = userDb.transaction(() => {
+    upsertEntry.run(
+      word,
+      language,
+      input.ipa ?? null,
+      input.etymology ?? null,
+      input.sourceSentence ?? null,
+      now,
+      now,
+    );
+    deleteSenses.run(word);
+    input.senses.forEach((s, i) => {
+      if (!s.gloss) return;
+      insertSense.run(word, s.partOfSpeech || null, s.gloss, i);
+    });
+    deleteRelated.run(word);
+    (input.relatedForms || []).forEach((r) => {
+      if (!r.form || !r.relation) return;
+      insertRelated.run(word, r.form, r.relation);
+    });
+  });
+  txn();
+  return word;
+}
+
+// ---------------------------------------------------------------------------
 // lookupWord — exact → inflections → prefix → suffix → affix-strip fallback
 // ---------------------------------------------------------------------------
 
 export function lookupWord(word: string): ExpandedDictionaryEntry | undefined {
-  const stmts = getStmts();
-  if (!stmts) return undefined;
   const lower = word.toLowerCase();
+  const stmts = getStmts();
 
-  // 1. Exact match
-  const exact = stmts.selectEntry.get(lower) as EntryRow | undefined;
-  if (exact) return buildEntry(exact, stmts, lower);
+  // Curated kaikki dict — only available if data/dictionary-af.db is present.
+  if (stmts) {
+    // 1. Exact match
+    const exact = stmts.selectEntry.get(lower) as EntryRow | undefined;
+    if (exact) return buildEntry(exact, stmts, lower);
 
-  // 2. Inflection table (e.g. "katte" → "kat", "geword" → "word")
-  const infl = stmts.selectInflectionLemma.get(lower) as { lemma: string; type: string | null } | undefined;
-  if (infl) {
-    const lemmaRow = stmts.selectEntry.get(infl.lemma) as EntryRow | undefined;
-    if (lemmaRow) {
-      const label = infl.type ? `${infl.type.replace(/,/g, ' ')} form of` : 'inflected form of';
-      return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
-    }
-  }
-
-  // 3. Known prefix → exact stem
-  for (const prefix of PREFIXES) {
-    if (!lower.startsWith(prefix)) continue;
-    const stem = lower.slice(prefix.length);
-    if (stem.length < MIN_STEM) continue;
-    const stemRow = stmts.selectEntry.get(stem) as EntryRow | undefined;
-    if (stemRow) {
-      return buildEntry(stemRow, stmts, lower, { stem, label: PREFIX_LABELS[prefix] });
-    }
-  }
-
-  // 4. Known suffix → exact stem (with consonant undoubling)
-  for (const suffix of SUFFIXES) {
-    if (!lower.endsWith(suffix)) continue;
-    const stem = lower.slice(0, -suffix.length);
-    if (stem.length < MIN_STEM) continue;
-
-    const stemRow = stmts.selectEntry.get(stem) as EntryRow | undefined;
-    if (stemRow) {
-      return buildEntry(stemRow, stmts, lower, { stem, label: SUFFIX_LABELS[suffix] });
+    // 2. Inflection table (e.g. "katte" → "kat", "geword" → "word")
+    const infl = stmts.selectInflectionLemma.get(lower) as { lemma: string; type: string | null } | undefined;
+    if (infl) {
+      const lemmaRow = stmts.selectEntry.get(infl.lemma) as EntryRow | undefined;
+      if (lemmaRow) {
+        const label = infl.type ? `${infl.type.replace(/,/g, ' ')} form of` : 'inflected form of';
+        return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
+      }
     }
 
-    const undoubled = undoubleConsonant(stem);
-    if (undoubled && undoubled.length >= MIN_STEM) {
-      const uRow = stmts.selectEntry.get(undoubled) as EntryRow | undefined;
-      if (uRow) {
-        return buildEntry(uRow, stmts, lower, { stem: undoubled, label: SUFFIX_LABELS[suffix] });
+    // 3. Known prefix → exact stem
+    for (const prefix of PREFIXES) {
+      if (!lower.startsWith(prefix)) continue;
+      const stem = lower.slice(prefix.length);
+      if (stem.length < MIN_STEM) continue;
+      const stemRow = stmts.selectEntry.get(stem) as EntryRow | undefined;
+      if (stemRow) {
+        return buildEntry(stemRow, stmts, lower, { stem, label: PREFIX_LABELS[prefix] });
+      }
+    }
+
+    // 4. Known suffix → exact stem (with consonant undoubling)
+    for (const suffix of SUFFIXES) {
+      if (!lower.endsWith(suffix)) continue;
+      const stem = lower.slice(0, -suffix.length);
+      if (stem.length < MIN_STEM) continue;
+
+      const stemRow = stmts.selectEntry.get(stem) as EntryRow | undefined;
+      if (stemRow) {
+        return buildEntry(stemRow, stmts, lower, { stem, label: SUFFIX_LABELS[suffix] });
+      }
+
+      const undoubled = undoubleConsonant(stem);
+      if (undoubled && undoubled.length >= MIN_STEM) {
+        const uRow = stmts.selectEntry.get(undoubled) as EntryRow | undefined;
+        if (uRow) {
+          return buildEntry(uRow, stmts, lower, { stem: undoubled, label: SUFFIX_LABELS[suffix] });
+        }
       }
     }
   }
+
+  // 5. AI cache fallthrough — user-accepted translations persisted in lector.db.
+  //    Lives behind the curated dict so the kaikki entry always wins, but in
+  //    front of the AI translate fallback so previously-seen words don't pay
+  //    for the LLM round-trip again.
+  const cached = lookupCached(lower);
+  if (cached) return cached;
 
   return undefined;
 }
