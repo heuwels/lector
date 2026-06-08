@@ -17,6 +17,7 @@ import {
 } from "@/lib/data-layer";
 import {
   addBasicCard,
+  addClozeCard,
   syncWordStates,
   isAnkiConnected,
   getDeckNames,
@@ -308,6 +309,7 @@ export default function VocabPage() {
   const [selectedEntry, setSelectedEntry] = useState<VocabEntry | null>(null);
   const [ankiConnected, setAnkiConnected] = useState<boolean | null>(null);
   const [ankiDeck, setAnkiDeck] = useState("Afrikaans");
+  const [ankiClozeDeck, setAnkiClozeDeck] = useState("Afrikaans::Cloze");
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
@@ -317,10 +319,14 @@ export default function VocabPage() {
   useEffect(() => {
     loadData();
     checkAnkiConnection();
-    // Load deck name from settings
+    // Load deck names from settings — match the keys the settings page writes
     const savedDeck = localStorage.getItem("lector-anki-deck");
     if (savedDeck) {
       setAnkiDeck(savedDeck);
+    }
+    const savedClozeDeck = localStorage.getItem("lector-anki-cloze-deck");
+    if (savedClozeDeck) {
+      setAnkiClozeDeck(savedClozeDeck);
     }
   }, []);
 
@@ -414,9 +420,12 @@ export default function VocabPage() {
     }
   };
 
-  // Export selected entries to Anki
+  // Export selected entries to Anki. cardType controls which Anki model
+  // (and which deck) is used — Basic front/back cards go to the user's
+  // configured Basic deck (ankiDeck); Cloze deletions go to the Cloze deck
+  // (ankiClozeDeck). The choice is made via the toggle in VocabList.
   const handleExportToAnki = useCallback(
-    async (ids: string[]) => {
+    async (ids: string[], cardType: 'basic' | 'cloze') => {
       if (!ankiConnected) {
         showNotification(
           "error",
@@ -436,17 +445,21 @@ export default function VocabPage() {
         return;
       }
 
+      const targetDeck = cardType === 'cloze' ? ankiClozeDeck : ankiDeck;
+      const addCard = cardType === 'cloze' ? addClozeCard : addBasicCard;
+      const cardLabel = cardType === 'cloze' ? 'cloze' : 'basic';
+
       let successCount = 0;
       let errorCount = 0;
 
       for (const entry of entriesToExport) {
         try {
-          const noteId = await addBasicCard(
-            ankiDeck,
+          const noteId = await addCard(
+            targetDeck,
             entry.sentence,
             entry.text,
             entry.translation,
-            entry.translation // word meaning - using translation for now
+            entry.translation // word meaning — using translation for now
           );
           await markVocabPushedToAnki(entry.id, noteId);
           successCount++;
@@ -461,16 +474,16 @@ export default function VocabPage() {
       if (errorCount === 0) {
         showNotification(
           "success",
-          `Successfully exported ${successCount} cards to Anki`
+          `Exported ${successCount} ${cardLabel} card${successCount === 1 ? '' : 's'} to "${targetDeck}"`
         );
       } else {
         showNotification(
           "error",
-          `Exported ${successCount} cards, ${errorCount} failed`
+          `Exported ${successCount} ${cardLabel} cards, ${errorCount} failed`
         );
       }
     },
-    [entries, ankiConnected, ankiDeck]
+    [entries, ankiConnected, ankiDeck, ankiClozeDeck]
   );
 
   // Mark selected entries as known

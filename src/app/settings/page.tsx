@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import NavHeader from "@/components/NavHeader";
-import { getDeckNames, isAnkiConnected } from "@/lib/anki";
+import { getDeckNames, isAnkiConnected, refreshAnkiUrl } from "@/lib/anki";
 import { getTTSMode, setTTSMode, isGoogleTTSConfigured, speak, type TTSMode } from "@/lib/tts";
 import {
   exportAllData,
@@ -1332,6 +1332,9 @@ export default function SettingsPage() {
                 onChange={(e) => {
                   setAnkiConnectUrl(e.target.value);
                   setSetting('ankiConnectUrl', e.target.value);
+                  // Invalidate the anki.ts URL cache so the next request
+                  // (e.g. the connection check below) uses the new value.
+                  refreshAnkiUrl();
                 }}
                 placeholder="http://localhost:8765"
                 className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"

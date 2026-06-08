@@ -1,8 +1,54 @@
-// AnkiConnect API client — direct browser-to-local connection
-// AnkiConnect must be running on localhost:8765
-// In Anki: Tools > Add-ons > AnkiConnect > Config, ensure webCorsOriginList includes "*" or your app origin
+// AnkiConnect API client — direct browser-to-local connection.
+// AnkiConnect must be running on localhost:8765 by default.
+// In Anki: Tools > Add-ons > AnkiConnect > Config, ensure webCorsOriginList
+// includes "*" or your app origin.
+//
+// The URL is overridable via the `ankiConnectUrl` setting so a user with a
+// remote Anki install (e.g. over Tailscale) can point at http://100.x.x.x:8765.
 
-const ANKI_CONNECT_URL = 'http://localhost:8765';
+const DEFAULT_ANKI_CONNECT_URL = 'http://localhost:8765';
+
+let _cachedUrl: string | null = null;
+let _inflight: Promise<string> | null = null;
+
+/**
+ * Resolve the AnkiConnect URL, reading from /api/settings on first call and
+ * caching the result. Call `refreshAnkiUrl()` after the user updates the
+ * setting so the next request uses the new value.
+ */
+async function getAnkiUrl(): Promise<string> {
+  if (_cachedUrl) return _cachedUrl;
+  if (_inflight) return _inflight;
+
+  _inflight = (async () => {
+    try {
+      const res = await fetch('/api/settings/ankiConnectUrl');
+      if (res.ok) {
+        const value = (await res.json()) as string | null | undefined;
+        if (typeof value === 'string' && value.trim()) {
+          _cachedUrl = value.trim();
+          return _cachedUrl;
+        }
+      }
+    } catch {
+      // Fall through to default
+    }
+    _cachedUrl = DEFAULT_ANKI_CONNECT_URL;
+    return _cachedUrl;
+  })();
+
+  try {
+    return await _inflight;
+  } finally {
+    _inflight = null;
+  }
+}
+
+/** Invalidate the cached URL so the next AnkiConnect call re-reads the setting. */
+export function refreshAnkiUrl(): void {
+  _cachedUrl = null;
+  _inflight = null;
+}
 
 interface AnkiConnectResponse<T = unknown> {
   result: T;
@@ -24,7 +70,8 @@ async function ankiRequest<T>(
   action: string,
   params?: Record<string, unknown>
 ): Promise<T> {
-  const response = await fetch(ANKI_CONNECT_URL, {
+  const url = await getAnkiUrl();
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, version: 6, params }),
@@ -48,7 +95,8 @@ async function ankiRequest<T>(
  */
 export async function isAnkiConnected(): Promise<boolean> {
   try {
-    const response = await fetch(ANKI_CONNECT_URL, {
+    const url = await getAnkiUrl();
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'version', version: 6 }),
