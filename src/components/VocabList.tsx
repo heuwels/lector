@@ -8,11 +8,13 @@ import { type VocabEntry, type WordState, type Collection } from "@/lib/data-lay
 type SortField = "text" | "createdAt" | "state" | "bookId";
 type SortDirection = "asc" | "desc";
 
+export type AnkiCardType = 'basic' | 'cloze';
+
 interface VocabListProps {
   entries: VocabEntry[];
   collections: Collection[];
   onEntryClick: (entry: VocabEntry) => void;
-  onExportToAnki: (ids: string[]) => Promise<void>;
+  onExportToAnki: (ids: string[], cardType: AnkiCardType) => Promise<void>;
   onMarkAsKnown: (ids: string[]) => Promise<void>;
   onSyncWithAnki: () => Promise<void>;
   isLoading?: boolean;
@@ -68,6 +70,20 @@ export default function VocabList({
   const [isExporting, setIsExporting] = useState(false);
   const [isMarkingKnown, setIsMarkingKnown] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Which Anki card type the bulk-export builds. Persisted across reloads so
+  // users who always push as Cloze don't have to flip the toggle every time.
+  const [cardType, setCardType] = useState<AnkiCardType>(() => {
+    if (typeof window === 'undefined') return 'basic';
+    const saved = localStorage.getItem('lector-anki-card-type');
+    return saved === 'cloze' ? 'cloze' : 'basic';
+  });
+  const updateCardType = (next: AnkiCardType) => {
+    setCardType(next);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('lector-anki-card-type', next);
+    }
+  };
 
   // Create a map of collectionId to title for display
   const bookTitleMap = useMemo(() => {
@@ -201,7 +217,7 @@ export default function VocabList({
     if (selectedIds.size === 0) return;
     setIsExporting(true);
     try {
-      await onExportToAnki(Array.from(selectedIds));
+      await onExportToAnki(Array.from(selectedIds), cardType);
       setSelectedIds(new Set());
     } finally {
       setIsExporting(false);
@@ -280,6 +296,35 @@ export default function VocabList({
 
       {/* Bulk Actions */}
       <div className="flex flex-wrap items-center gap-3">
+        {/* Anki card-type toggle. Drives the export button below — Basic adds
+            front/back cards to the configured Basic deck, Cloze adds cloze
+            deletions to the Cloze deck. Choice is persisted to localStorage. */}
+        <div className="inline-flex items-center rounded-lg border border-zinc-200 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
+          <button
+            onClick={() => updateCardType('basic')}
+            disabled={isExporting}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              cardType === 'basic'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+            title="Export selected words as Basic (front/back) cards"
+          >
+            Basic
+          </button>
+          <button
+            onClick={() => updateCardType('cloze')}
+            disabled={isExporting}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              cardType === 'cloze'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+            title="Export selected words as Cloze deletion cards"
+          >
+            Cloze
+          </button>
+        </div>
         <button
           onClick={handleExportToAnki}
           disabled={!someSelected || isExporting}
