@@ -35,7 +35,7 @@ import {
   createStandaloneLesson,
   importEpub,
   getVocabStats,
-  getRecentStats,
+  getStreak,
   type Collection,
   type CollectionGroup,
 } from '@/lib/data-layer';
@@ -91,11 +91,11 @@ export default function Home() {
 
   async function loadData() {
     try {
-      const [collectionsData, groupsData, vocabStats, recentStats] = await Promise.all([
+      const [collectionsData, groupsData, vocabStats, streakData] = await Promise.all([
         getAllCollections(),
         getAllGroups(),
         getVocabStats(),
-        getRecentStats(30),
+        getStreak(),
       ]);
 
       setCollections(collectionsData);
@@ -107,43 +107,13 @@ export default function Home() {
         vocabStats.byState.known;
       setKnownWordsCount(knownCount);
 
-      const streak = calculateStreak(recentStats);
-      setCurrentStreak(streak);
+      // Unified server-side streak (issue #108) — one definition app-wide.
+      setCurrentStreak(streakData.streak);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
       setIsLoading(false);
     }
-  }
-
-  function calculateStreak(stats: { date: string; dictionaryLookups: number }[]): number {
-    if (stats.length === 0) return 0;
-
-    const sorted = [...stats].sort((a, b) => b.date.localeCompare(a.date));
-
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-    const hasActivityToday = sorted.some((s) => s.date === today && s.dictionaryLookups > 0);
-    const hasActivityYesterday = sorted.some(
-      (s) => s.date === yesterday && s.dictionaryLookups > 0
-    );
-
-    if (!hasActivityToday && !hasActivityYesterday) return 0;
-
-    let streak = 0;
-    let checkDate = hasActivityToday ? today : yesterday;
-
-    for (const stat of sorted) {
-      if (stat.date === checkDate && stat.dictionaryLookups > 0) {
-        streak++;
-        const prevDate = new Date(checkDate);
-        prevDate.setDate(prevDate.getDate() - 1);
-        checkDate = prevDate.toISOString().split('T')[0];
-      }
-    }
-
-    return streak;
   }
 
   async function handleImportClick() {

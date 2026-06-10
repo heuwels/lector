@@ -5,7 +5,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    exclude: ['**/node_modules/**', '**/.claude/worktrees/**', '**/e2e/**'],
+    // api/ tests are written for bun:test and run via `bun test` (#110)
+    exclude: ['**/node_modules/**', '**/.claude/worktrees/**', '**/e2e/**', '**/api/**'],
   },
   resolve: {
     alias: {

@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
       collection,
       COUNT(*) as total,
       SUM(CASE WHEN masteryLevel = 100 THEN 1 ELSE 0 END) as mastered,
-      SUM(CASE WHEN nextReview <= ? AND masteryLevel < 100 AND reviewCount > 0 THEN 1 ELSE 0 END) as due
+      -- Mastery-100 maintenance reviews count as due (issue #108)
+      SUM(CASE WHEN nextReview <= ? AND reviewCount > 0 THEN 1 ELSE 0 END) as due
     FROM clozeSentences
     WHERE (blacklisted = 0 OR blacklisted IS NULL) AND language = ?
     GROUP BY collection

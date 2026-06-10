@@ -525,18 +525,34 @@ export default function VocabPage() {
       let updatedCount = 0;
       let matchedCount = 0;
 
-      // Update entries based on Anki intervals
+      // Update entries based on Anki intervals. Sync only ever *upgrades* a
+      // state (issue #108): a freshly-exported card has interval 0 and must
+      // not demote a word the user already marked known.
+      const stateRank: Record<WordState, number> = {
+        new: 0,
+        level1: 1,
+        level2: 2,
+        level3: 3,
+        level4: 4,
+        known: 5,
+        ignored: 5, // never overridden by sync
+      };
+
       for (const entry of entries) {
         const ankiData = wordStates.get(entry.text.toLowerCase());
         if (ankiData) {
           matchedCount++;
+          if (entry.state === "ignored") continue;
+          // New/relearning cards (interval < 1 day) carry no signal yet.
+          if (ankiData.interval < 1) continue;
+
           // Map interval to state:
-          // 0-1 days: level1
+          // 1 day: level1
           // 2-7 days: level2
           // 8-14 days: level3
           // 15-30 days: level4
           // 31+ days: known
-          let newState: WordState = entry.state;
+          let newState: WordState;
           if (ankiData.interval >= 31) {
             newState = "known";
           } else if (ankiData.interval >= 15) {
@@ -545,11 +561,11 @@ export default function VocabPage() {
             newState = "level3";
           } else if (ankiData.interval >= 2) {
             newState = "level2";
-          } else if (ankiData.interval >= 0) {
+          } else {
             newState = "level1";
           }
 
-          if (newState !== entry.state) {
+          if (stateRank[newState] > stateRank[entry.state]) {
             await updateVocabState(entry.id, newState);
             updatedCount++;
           }

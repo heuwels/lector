@@ -522,7 +522,7 @@ export async function getCollectionCounts(): Promise<Record<ClozeCollection, { t
   return res.json();
 }
 
-export async function getStreak(): Promise<{ streak: number; practicedToday: boolean }> {
+export async function getStreak(): Promise<{ streak: number; longest: number; practicedToday: boolean }> {
   const res = await fetch(`/api/stats/streak${langParam()}`);
   return res.json();
 }

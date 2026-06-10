@@ -24,8 +24,10 @@ export async function GET(request: NextRequest) {
     query = 'SELECT * FROM clozeSentences WHERE reviewCount = 0 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
     params.push(lang);
   } else if (mode === 'review') {
-    // Due for review (already seen at least once)
-    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND reviewCount > 0 AND masteryLevel < 100 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
+    // Due for review (already seen at least once). Mastery-100 cards are
+    // included — the scheduler gives them a 14-day maintenance review, which
+    // could otherwise never be served (issue #108).
+    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND reviewCount > 0 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
     params.push(now, lang);
   } else {
     // Default: all due

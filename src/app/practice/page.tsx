@@ -24,16 +24,10 @@ import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
 import { addClozeCard, isAnkiConnected } from '@/lib/anki';
 import { translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
+import { splitTrailingPunctuation } from '@/lib/words';
 
 const ANKI_CLOZE_DECK_SETTING_KEY = 'lector-anki-cloze-deck';
 const DEFAULT_ANKI_CLOZE_DECK = 'Afrikaans::Cloze';
-
-// Strip trailing punctuation from a word, returning [cleanWord, punctuation]
-function splitTrailingPunctuation(word: string): [string, string] {
-  const match = word.match(/^(.+?)([.,!?;:'")\]]+)$/);
-  if (match) return [match[1], match[2]];
-  return [word, ''];
-}
 
 // Helper function to create blanked sentence, moving punctuation outside the blank
 function createBlankedSentence(sentence: string, wordIndex: number): string {
@@ -222,6 +216,19 @@ export default function PracticePage() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
+  // Pending MC feedback timer — must be cancelled on navigation/unmount so a
+  // stale closure can't record a review for a screen the user already left.
+  const mcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearMcTimer = useCallback(() => {
+    if (mcTimerRef.current !== null) {
+      clearTimeout(mcTimerRef.current);
+      mcTimerRef.current = null;
+    }
+  }, []);
+
+  // Cancel any pending MC timer on unmount
+  useEffect(() => clearMcTimer, [clearMcTimer]);
 
   // Load collection counts and seed on mount
   useEffect(() => {
@@ -353,6 +360,7 @@ export default function PracticePage() {
 
   // Load next sentence from queue
   const loadNextSentence = useCallback((sentenceQueue: ClozeSentence[]) => {
+    clearMcTimer();
     if (sentenceQueue.length === 0) {
       setState('complete');
       return;
@@ -381,7 +389,7 @@ export default function PracticePage() {
     if (practiceMode === 'type') {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [practiceMode, generateMcOptionsForSentence]);
+  }, [practiceMode, generateMcOptionsForSentence, clearMcTimer]);
 
   // Start a round with explicit params (used by review buttons)
   const startRoundWith = useCallback(async (collection: ClozeCollection, type: RoundType, size: number) => {
@@ -496,13 +504,17 @@ export default function PracticePage() {
       newMastery = 0;
     }
 
-    const earnedPoints = isCorrect ? calculatePoints(previousMastery) : 0;
+    // No points in the retry phase — the answer was revealed when the card
+    // was first missed this round.
+    const earnedPoints = isCorrect && !isRetryPhase ? calculatePoints(previousMastery) : 0;
     const nextReview = calculateNextReview(newMastery);
 
     // Update database
     await updateClozeAfterReview(current.sentence.id, isCorrect, newMastery, nextReview);
     if (newMastery === 100) {
-      await updateWordState(current.sentence.clozeWord, 'known');
+      // Strip trailing punctuation so the reader's known-word lookup (clean,
+      // lowercased tokens) matches and fluency stats don't double-count.
+      await updateWordState(splitTrailingPunctuation(current.sentence.clozeWord)[0], 'known');
     }
     await incrementDailyStat('clozePracticed');
     if (earnedPoints > 0) {
@@ -534,8 +546,10 @@ export default function PracticePage() {
     if (isCorrect) {
       speak(current.sentence.sentence);
     } else {
-      // Add to retry queue so incorrect answers are re-tested
-      setRetryQueue(prev => [...prev, current.sentence]);
+      // Add to retry queue so incorrect answers are re-tested. The card was
+      // just demoted to mastery 0 in the DB — the queued copy must carry that,
+      // or the retry would promote it straight back from its old level.
+      setRetryQueue(prev => [...prev, { ...current.sentence, masteryLevel: 0 as ClozeMasteryLevel }]);
     }
   };
 
@@ -563,7 +577,8 @@ export default function PracticePage() {
 
     // Delay then submit (without duplicate sound)
     const delay = isCorrect ? 600 : 1200;
-    setTimeout(async () => {
+    mcTimerRef.current = setTimeout(async () => {
+      mcTimerRef.current = null;
       if (!current) return;
 
       const previousMastery = current.sentence.masteryLevel;
@@ -574,12 +589,16 @@ export default function PracticePage() {
         newMastery = 0;
       }
 
-      const earnedPoints = isCorrect ? calculatePoints(previousMastery) : 0;
+      // No points in the retry phase — the answer was revealed when the card
+      // was first missed this round.
+      const earnedPoints = isCorrect && !isRetryPhase ? calculatePoints(previousMastery) : 0;
       const nextReview = calculateNextReview(newMastery);
 
       await updateClozeAfterReview(current.sentence.id, isCorrect, newMastery, nextReview);
       if (newMastery === 100) {
-        await updateWordState(current.sentence.clozeWord, 'known');
+        // Strip trailing punctuation so the reader's known-word lookup (clean,
+        // lowercased tokens) matches and fluency stats don't double-count.
+        await updateWordState(splitTrailingPunctuation(current.sentence.clozeWord)[0], 'known');
       }
       await incrementDailyStat('clozePracticed');
       if (earnedPoints > 0) {
@@ -608,6 +627,10 @@ export default function PracticePage() {
 
       if (isCorrect) {
         speak(current.sentence.sentence);
+      } else {
+        // Re-test wrong answers at the end of the round, demoted to mastery 0
+        // (same as type mode).
+        setRetryQueue(prev => [...prev, { ...current.sentence, masteryLevel: 0 as ClozeMasteryLevel }]);
       }
     }, delay);
   }, [mcLocked, current, mcOptions, mcCorrectIdx, isRetryPhase]);
@@ -690,12 +713,13 @@ export default function PracticePage() {
     try {
       const deckName = localStorage.getItem(ANKI_CLOZE_DECK_SETTING_KEY) || DEFAULT_ANKI_CLOZE_DECK;
 
+      const cleanWord = splitTrailingPunctuation(current.sentence.clozeWord)[0];
       await addClozeCard(
         deckName,
         current.sentence.sentence,
-        current.sentence.clozeWord,
+        cleanWord,
         current.sentence.translation,
-        current.sentence.clozeWord
+        cleanWord
       );
       setAnkiAdded(true);
     } catch (error) {
@@ -854,7 +878,7 @@ export default function PracticePage() {
           <div className="mb-6">
             <div className="mb-2 flex items-center justify-between">
               <button
-                onClick={async () => { setState('setup'); const counts = await getCollectionCounts(); setCollectionCounts(counts); }}
+                onClick={async () => { clearMcTimer(); setState('setup'); const counts = await getCollectionCounts(); setCollectionCounts(counts); }}
                 className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
               >
                 &larr; Back
