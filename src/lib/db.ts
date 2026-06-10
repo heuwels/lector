@@ -17,6 +17,7 @@ export interface Collection {
   coverUrl?: string;
   groupId?: string | null;
   groupName?: string | null;
+  sortOrder?: number;
   language?: string;
   lessonCount: number;
   avgProgress: number;

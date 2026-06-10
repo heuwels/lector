@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language
     WHERE c.language = ?
     GROUP BY c.id
-    ORDER BY c.lastReadAt DESC
+    ORDER BY c.sortOrder ASC, c.lastReadAt DESC
   `).all(lang) as (CollectionRow & { groupName: string | null; lessonCount: number; avgProgress: number })[];
 
   return NextResponse.json(collections);
@@ -30,9 +30,9 @@ export async function POST(request: NextRequest) {
   const lang = resolveLanguage(body.language);
 
   db.prepare(`
-    INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, body.title, body.author || 'Unknown', body.coverUrl || null, lang, now, now);
+    INSERT INTO collections (id, title, author, coverUrl, groupId, language, createdAt, lastReadAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, body.title, body.author || 'Unknown', body.coverUrl || null, body.groupId || null, lang, now, now);
 
   return NextResponse.json({ id });
 }
