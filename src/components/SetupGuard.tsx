@@ -4,16 +4,14 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { getSetting } from '@/lib/data-layer';
 
-function getInitialChecked(pathname: string): boolean {
-  if (pathname === '/setup') return true;
-  if (typeof window === 'undefined') return false;
-  return !!localStorage.getItem('lector-target-language');
-}
-
 export default function SetupGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [checked, setChecked] = useState(() => getInitialChecked(pathname));
+  // The first render must be identical on the server and the client, so we must
+  // not read localStorage here — doing so rendered the spinner on the server but
+  // the children on the client, which was the hydration mismatch. /setup is
+  // always allowed through; every other route resolves in the effect below.
+  const [checked, setChecked] = useState(pathname === '/setup');
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -22,6 +20,13 @@ export default function SetupGuard({ children }: { children: React.ReactNode }) 
     let cancelled = false;
 
     async function checkLanguage() {
+      // Fast path: a cached language means setup is already done — skip the
+      // network round-trip in the common case.
+      if (localStorage.getItem('lector-target-language')) {
+        setChecked(true);
+        return;
+      }
+
       try {
         const serverLang = await getSetting<string>('targetLanguage');
         if (cancelled) return;
