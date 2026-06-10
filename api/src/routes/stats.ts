@@ -1,12 +1,10 @@
 import { Hono } from 'hono';
 import { db, DailyStatsRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { getTodayDate, addDaysToDateString } from '../lib/dates';
+import { activeDateSet, computeStreaks } from '../lib/streak';
 
 const app = new Hono();
-
-function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
-}
 
 // GET /api/stats
 app.get('/', (c) => {
@@ -22,10 +20,8 @@ app.get('/', (c) => {
     query += ' AND date BETWEEN ? AND ?';
     params.push(startDate, endDate);
   } else if (days) {
-    const d = new Date();
-    d.setDate(d.getDate() - parseInt(days) + 1);
-    const start = d.toISOString().split('T')[0];
-    const end = new Date().toISOString().split('T')[0];
+    const end = getTodayDate();
+    const start = addDaysToDateString(end, -(parseInt(days) - 1));
     query += ' AND date BETWEEN ? AND ?';
     params.push(start, end);
   }
@@ -125,17 +121,9 @@ app.get('/fluency', (c) => {
 
   // Weekly growth: words marked known in last 7 days vs previous 7 days
   const today = getTodayDate();
-  const d7 = new Date();
-  d7.setDate(d7.getDate() - 6);
-  const weekStart = d7.toISOString().split('T')[0];
-
-  const d14 = new Date();
-  d14.setDate(d14.getDate() - 13);
-  const prevWeekStart = d14.toISOString().split('T')[0];
-
-  const d8 = new Date();
-  d8.setDate(d8.getDate() - 7);
-  const prevWeekEnd = d8.toISOString().split('T')[0];
+  const weekStart = addDaysToDateString(today, -6);
+  const prevWeekStart = addDaysToDateString(today, -13);
+  const prevWeekEnd = addDaysToDateString(today, -7);
 
   const thisWeekRow = db.prepare(
     'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?'
@@ -163,46 +151,20 @@ app.get('/fluency', (c) => {
 });
 
 // GET /api/stats/streak
+// Unified streak definition (issue #108): a day is active when it has any
+// study activity (lookups, practice, or reading time), with day rollover in
+// the configured time zone. Keep in sync with src/app/api/stats/streak.
 app.get('/streak', (c) => {
   const lang = resolveLanguage(c.req.query('language'));
   const today = getTodayDate();
 
   const rows = db.prepare(
-    'SELECT date, clozePracticed FROM dailyStats WHERE clozePracticed > 0 AND language = ? ORDER BY date DESC'
-  ).all(lang) as Pick<DailyStatsRow, 'date' | 'clozePracticed'>[];
+    'SELECT date, dictionaryLookups, clozePracticed, minutesRead FROM dailyStats WHERE language = ?'
+  ).all(lang) as Pick<DailyStatsRow, 'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead'>[];
 
-  if (rows.length === 0) {
-    return c.json({ streak: 0, practicedToday: false });
-  }
+  const { current, longest, activeToday } = computeStreaks(activeDateSet(rows), today);
 
-  const practicedDates = new Set(rows.map(r => r.date));
-  const practicedToday = practicedDates.has(today);
-
-  let streak = 0;
-  const checkDate = new Date(today + 'T12:00:00');
-
-  if (practicedToday) {
-    streak = 1;
-    checkDate.setDate(checkDate.getDate() - 1);
-  } else {
-    checkDate.setDate(checkDate.getDate() - 1);
-    const yesterday = checkDate.toISOString().split('T')[0];
-    if (!practicedDates.has(yesterday)) {
-      return c.json({ streak: 0, practicedToday: false });
-    }
-  }
-
-  while (true) {
-    const dateStr = checkDate.toISOString().split('T')[0];
-    if (practicedDates.has(dateStr)) {
-      streak++;
-      checkDate.setDate(checkDate.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-
-  return c.json({ streak, practicedToday });
+  return c.json({ streak: current, longest, practicedToday: activeToday });
 });
 
 export default app;

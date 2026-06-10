@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, DailyStatsRow } from '@/lib/server/database';
-
-function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
-}
+import { getTodayDate } from '@/lib/server/dates';
 
 // GET /api/study-ping
 // Returns whether any language study happened today.

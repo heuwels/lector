@@ -17,7 +17,7 @@ import { test, expect, Page, Route } from '@playwright/test';
 
 interface AnkiCall {
   action: string;
-  params?: { note?: { deckName?: string; modelName?: string } };
+  params?: { note?: { deckName?: string; modelName?: string; fields?: Record<string, string> } };
 }
 
 async function seedVocabEntry(page: Page, text: string, sentence: string, translation: string) {
@@ -116,10 +116,15 @@ test.describe('Vocab → Anki bulk export', () => {
     // catches the requests. (Live dev may have configured a non-default port.)
     await page.request.delete('http://localhost:3456/api/settings/ankiConnectUrl').catch(() => {});
 
+    // The sentence must contain the word (as real reader-mined vocab always
+    // does) — a cloze note without a {{c1::}} blank is invalid and rejected.
+    // Ending the sentence with the word + full stop regression-tests the
+    // trailing-punctuation cloze bug (#108).
+    const word = `e2etestword${Date.now().toString(36)}`;
     vocabId = await seedVocabEntry(
       page,
-      `e2etestword${Date.now().toString(36)}`,
-      'Dit is \'n e2e toets sin.',
+      word,
+      `Dit is 'n e2e toets sin met ${word}.`,
       'This is an e2e test sentence.'
     );
   });
@@ -182,6 +187,11 @@ test.describe('Vocab → Anki bulk export', () => {
     expect(addNote).toBeDefined();
     expect(addNote!.params?.note?.modelName).toBe('Cloze');
     expect(addNote!.params?.note?.deckName).toBe('Afrikaans::Cloze');
+
+    // The note must contain a real cloze blank, with the sentence-final
+    // punctuation outside it (#108).
+    const text = addNote!.params?.note?.fields?.Text ?? '';
+    expect(text).toMatch(/\{\{c1::e2etestword[a-z0-9]+\}\}\./);
   });
 
   test('card type choice persists to localStorage across reloads', async ({ page }) => {

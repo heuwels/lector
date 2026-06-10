@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, DailyStatsRow, VocabRow } from '@/lib/server/database';
+import { getTodayDate } from '@/lib/server/dates';
+import { addDaysToDateString } from '@/lib/dates';
 
 // GET /api/stats - Get stats for date range
 export async function GET(request: NextRequest) {
@@ -15,10 +17,8 @@ export async function GET(request: NextRequest) {
     query += ' WHERE date BETWEEN ? AND ?';
     params.push(startDate, endDate);
   } else if (days) {
-    const d = new Date();
-    d.setDate(d.getDate() - parseInt(days) + 1);
-    const start = d.toISOString().split('T')[0];
-    const end = new Date().toISOString().split('T')[0];
+    const end = getTodayDate();
+    const start = addDaysToDateString(end, -(parseInt(days) - 1));
     query += ' WHERE date BETWEEN ? AND ?';
     params.push(start, end);
   }

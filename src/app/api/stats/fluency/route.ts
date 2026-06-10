@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/server/database';
 import { resolveLanguage } from '@/lib/server/active-language';
-
-function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
-}
+import { getTodayDate } from '@/lib/server/dates';
+import { addDaysToDateString } from '@/lib/dates';
 
 // GET /api/stats/fluency - Get fluency benchmarks (word counts, CEFR level, growth)
 export async function GET(request: NextRequest) {
@@ -54,17 +52,9 @@ export async function GET(request: NextRequest) {
 
   // Weekly growth: words marked known in last 7 days vs previous 7 days
   const today = getTodayDate();
-  const d7 = new Date();
-  d7.setDate(d7.getDate() - 6);
-  const weekStart = d7.toISOString().split('T')[0];
-
-  const d14 = new Date();
-  d14.setDate(d14.getDate() - 13);
-  const prevWeekStart = d14.toISOString().split('T')[0];
-
-  const d8 = new Date();
-  d8.setDate(d8.getDate() - 7);
-  const prevWeekEnd = d8.toISOString().split('T')[0];
+  const weekStart = addDaysToDateString(today, -6);
+  const prevWeekStart = addDaysToDateString(today, -13);
+  const prevWeekEnd = addDaysToDateString(today, -7);
 
   const thisWeekRow = db.prepare(
     'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?'

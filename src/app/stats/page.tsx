@@ -9,11 +9,14 @@ import {
   getAllClozeSentences,
   getCollectionCounts,
   getFluencyStats,
+  getStreak,
+  getSetting,
   type DailyStats,
   type WordState,
   type ClozeCollection,
   type FluencyStats,
 } from '@/lib/data-layer';
+import { addDaysToDateString, dateStringInTimeZone, isValidTimeZone } from '@/lib/dates';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
 import VocabGrowthChart from '@/components/VocabGrowthChart';
 
@@ -330,82 +333,6 @@ function FluencyBadge({ fluency }: { fluency: FluencyStats }) {
   );
 }
 
-// Helper function to calculate streak
-function calculateStreak(dailyStats: DailyStats[]): { current: number; longest: number } {
-  if (dailyStats.length === 0) return { current: 0, longest: 0 };
-
-  // Sort by date descending
-  const sorted = [...dailyStats].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-
-  // Check if today or yesterday has activity
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-  let currentStreak = 0;
-  let longestStreak = 0;
-  let tempStreak = 0;
-  let lastDate: Date | null = null;
-
-  // Calculate current streak
-  for (const stat of sorted) {
-    const hasActivity = stat.dictionaryLookups > 0 || stat.clozePracticed > 0;
-    if (!hasActivity) continue;
-
-    if (currentStreak === 0) {
-      // First active day must be today or yesterday
-      if (stat.date === today || stat.date === yesterday) {
-        currentStreak = 1;
-        lastDate = new Date(stat.date);
-      }
-    } else if (lastDate) {
-      const statDate = new Date(stat.date);
-      const dayDiff = Math.round(
-        (lastDate.getTime() - statDate.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      if (dayDiff === 1) {
-        currentStreak++;
-        lastDate = statDate;
-      } else {
-        break;
-      }
-    }
-  }
-
-  // Calculate longest streak
-  lastDate = null;
-  for (const stat of sorted) {
-    const hasActivity = stat.dictionaryLookups > 0 || stat.clozePracticed > 0;
-    if (!hasActivity) {
-      longestStreak = Math.max(longestStreak, tempStreak);
-      tempStreak = 0;
-      lastDate = null;
-      continue;
-    }
-
-    const statDate = new Date(stat.date);
-    if (!lastDate) {
-      tempStreak = 1;
-      lastDate = statDate;
-    } else {
-      const dayDiff = Math.round(
-        (lastDate.getTime() - statDate.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      if (dayDiff === 1) {
-        tempStreak++;
-        lastDate = statDate;
-      } else {
-        longestStreak = Math.max(longestStreak, tempStreak);
-        tempStreak = 1;
-        lastDate = statDate;
-      }
-    }
-  }
-  longestStreak = Math.max(longestStreak, tempStreak);
-
-  return { current: currentStreak, longest: longestStreak };
-}
 
 function SkeletonBlock({ className = '' }: { className?: string }) {
   return (
@@ -486,17 +413,23 @@ export default function StatsPage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        const [vocabStats, collectionCounts, fluency] = await Promise.all([
+        const [vocabStats, collectionCounts, fluency, streakData, tzSetting] = await Promise.all([
           getVocabStats(),
           getCollectionCounts(),
           getFluencyStats(),
+          getStreak(),
+          getSetting<string>('timezone'),
         ]);
 
-        // Get all daily stats for the past year
-        const endDate = new Date().toISOString().split('T')[0];
-        const startDate = new Date();
-        startDate.setFullYear(startDate.getFullYear() - 1);
-        const startDateStr = startDate.toISOString().split('T')[0];
+        // Get all daily stats for the past year. "Today" is a calendar date
+        // in the configured time zone (falling back to this device's zone),
+        // not UTC — otherwise the window misses today's row before 10:00
+        // AEST (issue #108).
+        const timeZone = tzSetting && isValidTimeZone(tzSetting)
+          ? tzSetting
+          : Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const endDate = dateStringInTimeZone(new Date(), timeZone);
+        const startDateStr = addDaysToDateString(endDate, -365);
 
         const dailyStats = await getStatsForDateRange(startDateStr, endDate);
 
@@ -507,8 +440,9 @@ export default function StatsPage() {
         const clozeSentences = await getAllClozeSentences();
         const totalClozeCorrect = clozeSentences.reduce((sum, c) => sum + c.timesCorrect, 0);
 
-        // Calculate streaks
-        const { current: currentStreak, longest: longestStreak } = calculateStreak(dailyStats);
+        // Unified server-side streaks (issue #108) — one definition app-wide.
+        const currentStreak = streakData.streak;
+        const longestStreak = streakData.longest;
 
         // Build activity heatmap data (dictionary lookups per day)
         const activityData = dailyStats.map((d) => ({

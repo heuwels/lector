@@ -6,6 +6,8 @@
 // The URL is overridable via the `ankiConnectUrl` setting so a user with a
 // remote Anki install (e.g. over Tailscale) can point at http://100.x.x.x:8765.
 
+import { splitTrailingPunctuation } from './words';
+
 const DEFAULT_ANKI_CONNECT_URL = 'http://localhost:8765';
 
 let _cachedUrl: string | null = null;
@@ -143,9 +145,13 @@ export async function addBasicCard(
 
   await ensureDeckExists(deckName);
 
+  // Bank words can carry trailing punctuation ("haar.") which would make the
+  // \b…\b pattern unmatchable — match and display the clean form (#68, #108).
+  const [cleanTarget] = splitTrailingPunctuation(targetWord);
+
   // Highlight the target word in the sentence
   const highlightedSentence = sentence.replace(
-    new RegExp(`\\b(${escapeRegex(targetWord)})\\b`, "gi"),
+    new RegExp(`\\b(${escapeRegex(cleanTarget)})\\b`, "gi"),
     "<b>$1</b>"
   );
 
@@ -154,8 +160,8 @@ export async function addBasicCard(
       deckName,
       modelName: "Basic",
       fields: {
-        Front: `${highlightedSentence}<br><br><small>Word: <b>${targetWord}</b></small>`,
-        Back: `${translation}<br><br><b>${targetWord}</b> = ${wordMeaning}`,
+        Front: `${highlightedSentence}<br><br><small>Word: <b>${cleanTarget}</b></small>`,
+        Back: `${translation}<br><br><b>${cleanTarget}</b> = ${wordMeaning}`,
       },
       options: {
         allowDuplicate: true, // Allow duplicates - same word from different sentences is fine
@@ -171,6 +177,21 @@ export async function addBasicCard(
 
   console.log(`[Anki] Successfully added basic note with ID: ${noteId}`);
   return noteId;
+}
+
+/**
+ * Build the cloze-deletion text for a sentence. Strips trailing punctuation
+ * from the target first — bank words can carry it ("haar."), which would make
+ * the \b…\b pattern unmatchable and produce a cloze-less note that
+ * AnkiConnect rejects (#68, #108). Punctuation stays outside the blank.
+ * Exported for tests.
+ */
+export function buildClozeText(sentence: string, targetWord: string): string {
+  const [cleanTarget] = splitTrailingPunctuation(targetWord);
+  return sentence.replace(
+    new RegExp(`\\b(${escapeRegex(cleanTarget)})\\b`, "gi"),
+    "{{c1::$1}}"
+  );
 }
 
 /**
@@ -193,11 +214,14 @@ export async function addClozeCard(
 
   await ensureDeckExists(deckName);
 
-  // Create cloze deletion by replacing the target word
-  const clozeText = sentence.replace(
-    new RegExp(`\\b(${escapeRegex(targetWord)})\\b`, "gi"),
-    "{{c1::$1}}"
-  );
+  const [cleanTarget] = splitTrailingPunctuation(targetWord);
+  const clozeText = buildClozeText(sentence, targetWord);
+
+  // A note without a {{c1::…}} blank is invalid — fail with a clear message
+  // instead of letting AnkiConnect reject it opaquely.
+  if (!clozeText.includes('{{c1::')) {
+    throw new Error(`Could not build cloze: "${cleanTarget}" not found in sentence`);
+  }
 
   console.log(`[Anki] Cloze text: ${clozeText}`);
 
@@ -207,7 +231,7 @@ export async function addClozeCard(
       modelName: "Cloze",
       fields: {
         Text: `${clozeText}<br><br><small>Translation: ${translation}</small>`,
-        Extra: `<b>${targetWord}</b> = ${wordMeaning}`,
+        Extra: `<b>${cleanTarget}</b> = ${wordMeaning}`,
       },
       options: {
         allowDuplicate: true, // Allow duplicates - user may want the same word from different sentences
