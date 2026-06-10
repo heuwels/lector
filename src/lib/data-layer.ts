@@ -64,7 +64,7 @@ export async function getCollection(id: string): Promise<Collection | undefined>
   return res.json();
 }
 
-export async function createCollection(data: { title: string; author?: string }): Promise<string> {
+export async function createCollection(data: { title: string; author?: string; groupId?: string | null }): Promise<string> {
   const res = await fetch('/api/collections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -72,6 +72,14 @@ export async function createCollection(data: { title: string; author?: string })
   });
   const { id } = await res.json();
   return id;
+}
+
+export async function reorderCollections(ids: string[]): Promise<void> {
+  await fetch('/api/collections/reorder', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  });
 }
 
 export async function deleteCollection(id: string): Promise<void> {
@@ -158,6 +166,14 @@ export async function updateLesson(
 
 export async function deleteLesson(id: string): Promise<void> {
   await fetch(`/api/lessons/${id}`, { method: 'DELETE' });
+}
+
+export async function reorderLessons(collectionId: string, ids: string[]): Promise<void> {
+  await fetch(`/api/collections/${collectionId}/lessons/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  });
 }
 
 export async function updateLessonProgress(

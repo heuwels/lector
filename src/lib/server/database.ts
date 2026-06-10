@@ -35,6 +35,7 @@ function getDb(): DatabaseType {
       title TEXT NOT NULL,
       author TEXT NOT NULL DEFAULT 'Unknown',
       coverUrl TEXT,
+      sortOrder INTEGER NOT NULL DEFAULT 0,
       createdAt TEXT NOT NULL,
       lastReadAt TEXT NOT NULL
     );
@@ -228,6 +229,9 @@ function getDb(): DatabaseType {
   const collectionCols = _db.prepare("PRAGMA table_info(collections)").all() as { name: string }[];
   if (!collectionCols.some(c => c.name === 'groupId')) {
     _db.exec('ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL');
+  }
+  if (!collectionCols.some(c => c.name === 'sortOrder')) {
+    _db.exec('ALTER TABLE collections ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0');
   }
 
   // Remove FK constraint on vocab.bookId that references old books table
@@ -494,6 +498,7 @@ export interface CollectionRow {
   author: string;
   coverUrl: string | null;
   groupId: string | null;
+  sortOrder: number;
   createdAt: string;
   lastReadAt: string;
 }

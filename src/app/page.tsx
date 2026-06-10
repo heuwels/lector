@@ -8,11 +8,30 @@ import ImportDropdown from '@/components/ImportDropdown';
 import WebImportModal from '@/components/WebImportModal';
 import PasteImportModal from '@/components/PasteImportModal';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   getAllCollections,
   getAllGroups,
+  createCollection,
   createGroup,
   updateGroup,
   deleteGroup,
+  reorderCollections,
   createStandaloneLesson,
   importEpub,
   getVocabStats,
@@ -32,11 +51,43 @@ export default function Home() {
   const [isPasteImportOpen, setIsPasteImportOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
+  const [newCollectionTitle, setNewCollectionTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Restore collapsed-group state client-side (avoids SSR/hydration mismatch).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('lector-collapsed-groups');
+      if (raw) setCollapsedGroups(new Set(JSON.parse(raw) as string[]));
+    } catch {
+      // ignore malformed storage
+    }
+  }, []);
+
+  function toggleGroup(groupId: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      try {
+        localStorage.setItem('lector-collapsed-groups', JSON.stringify([...next]));
+      } catch {
+        // ignore storage failure
+      }
+      return next;
+    });
+  }
 
   async function loadData() {
     try {
@@ -175,6 +226,34 @@ export default function Home() {
     ]);
     setGroups(updatedGroups);
     setCollections(updatedCollections);
+  }
+
+  async function handleAddCollectionToGroup(groupId: string) {
+    const title = newCollectionTitle.trim();
+    if (!title) return;
+    await createCollection({ title, groupId });
+    setNewCollectionTitle('');
+    setAddingToGroupId(null);
+    const updated = await getAllCollections();
+    setCollections(updated);
+  }
+
+  // Reorder collections within a single group. The library buckets `collections`
+  // by groupId in array order, so we splice the reordered bucket back into the
+  // members' original slots and persist the new order optimistically.
+  function handleCollectionDragEnd(groupId: string, event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setCollections((prev) => {
+      const bucket = prev.filter((c) => c.groupId === groupId);
+      const oldIndex = bucket.findIndex((c) => c.id === active.id);
+      const newIndex = bucket.findIndex((c) => c.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return prev;
+      const newBucket = arrayMove(bucket, oldIndex, newIndex);
+      reorderCollections(newBucket.map((c) => c.id));
+      let bi = 0;
+      return prev.map((c) => (c.groupId === groupId ? newBucket[bi++] : c));
+    });
   }
 
   // Group collections by groupId
@@ -330,12 +409,29 @@ export default function Home() {
               {/* Grouped sections */}
               {groups.map((group) => {
                 const items = groupedCollections.get(group.id) || [];
+                const isCollapsed = collapsedGroups.has(group.id);
                 return (
                   <div key={group.id} data-testid={`group-${group.id}`}>
                     <div className="mb-4 flex items-center gap-3">
-                      <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-                        {group.name}
-                      </h3>
+                      <button
+                        onClick={() => toggleGroup(group.id)}
+                        aria-expanded={!isCollapsed}
+                        aria-label={isCollapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
+                        data-testid={`group-toggle-${group.id}`}
+                        className="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      >
+                        <svg
+                          className={`h-4 w-4 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+                          {group.name}
+                        </h3>
+                      </button>
                       <span className="text-sm text-zinc-400 dark:text-zinc-500">
                         {items.length} {items.length === 1 ? 'item' : 'items'}
                       </span>
@@ -345,16 +441,46 @@ export default function Home() {
                         onDelete={() => handleDeleteGroup(group.id, group.name)}
                       />
                     </div>
-                    {items.length > 0 ? (
-                      <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                        {items.map((collection) => (
-                          <CollectionCard key={collection.id} collection={collection} />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="rounded-xl border border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
-                        No collections in this group yet. Assign collections from their detail page.
-                      </p>
+                    {!isCollapsed && (
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={(e) => handleCollectionDragEnd(group.id, e)}
+                      >
+                        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                          <SortableContext items={items.map((c) => c.id)} strategy={rectSortingStrategy}>
+                            {items.map((collection) => (
+                              <SortableCollectionCard key={collection.id} collection={collection} />
+                            ))}
+                          </SortableContext>
+                          {addingToGroupId === group.id ? (
+                            <AddCollectionTile
+                              value={newCollectionTitle}
+                              onChange={setNewCollectionTitle}
+                              onSubmit={() => handleAddCollectionToGroup(group.id)}
+                              onCancel={() => {
+                                setAddingToGroupId(null);
+                                setNewCollectionTitle('');
+                              }}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAddingToGroupId(group.id);
+                                setNewCollectionTitle('');
+                              }}
+                              data-testid={`add-collection-${group.id}`}
+                              className="group flex min-h-[14rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 text-zinc-400 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-600 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
+                            >
+                              <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                              </svg>
+                              <span className="text-sm font-medium">New collection</span>
+                            </button>
+                          )}
+                        </div>
+                      </DndContext>
                     )}
                   </div>
                 );
@@ -430,6 +556,86 @@ function GroupMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () 
         </div>
       )}
     </div>
+  );
+}
+
+function SortableCollectionCard({ collection }: { collection: Collection }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id: collection.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={`group relative ${isDragging ? 'opacity-60' : ''}`}>
+      <CollectionCard collection={collection} />
+      <button
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        aria-label={`Drag to reorder ${collection.title}`}
+        data-testid={`drag-collection-${collection.id}`}
+        className="absolute left-2 top-2 cursor-grab touch-none rounded-md bg-white/90 p-1 text-zinc-400 opacity-70 shadow-sm transition-opacity hover:text-zinc-700 focus-visible:opacity-100 group-hover:opacity-100 active:cursor-grabbing dark:bg-zinc-800/90 dark:hover:text-zinc-200"
+      >
+        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M7 4a1 1 0 11-2 0 1 1 0 012 0zM7 10a1 1 0 11-2 0 1 1 0 012 0zM7 16a1 1 0 11-2 0 1 1 0 012 0zM13 4a1 1 0 11-2 0 1 1 0 012 0zM13 10a1 1 0 11-2 0 1 1 0 012 0zM13 16a1 1 0 11-2 0 1 1 0 012 0z" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+function AddCollectionTile({
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+      className="flex min-h-[14rem] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-zinc-300 p-4 dark:border-zinc-700"
+    >
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onCancel();
+        }}
+        placeholder="Collection title"
+        autoFocus
+        data-testid="new-collection-input"
+        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+      />
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          data-testid="new-collection-submit"
+          className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          Create
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
 
