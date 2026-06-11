@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitTrailingPunctuation } from '../words';
+import { splitTrailingPunctuation, sentenceContainsWord } from '../words';
 import { buildClozeText } from '../anki';
 
 describe('splitTrailingPunctuation', () => {
@@ -19,6 +19,42 @@ describe('splitTrailingPunctuation', () => {
 
   it("keeps the Afrikaans 'n contraction intact", () => {
     expect(splitTrailingPunctuation("'n")).toEqual(["'n", '']);
+  });
+});
+
+describe('sentenceContainsWord', () => {
+  it('finds a word that appears as a token', () => {
+    expect(sentenceContainsWord('Die vrugte is baie lekker.', 'vrugte')).toBe(true);
+  });
+
+  it('is case-insensitive both ways', () => {
+    expect(sentenceContainsWord('Vrugte is lekker.', 'vrugte')).toBe(true);
+    expect(sentenceContainsWord('die vrugte is lekker', 'Vrugte')).toBe(true);
+  });
+
+  it('rejects substring hits — sien is not in gesien (issue #106)', () => {
+    expect(sentenceContainsWord('Ek het die katte gesien.', 'sien')).toBe(false);
+    expect(sentenceContainsWord('Die vrugte is baie lekker.', 'vrug')).toBe(false);
+  });
+
+  it('matches through surrounding punctuation', () => {
+    expect(sentenceContainsWord('Hy sê: "vrugte!"', 'vrugte')).toBe(true);
+    expect(sentenceContainsWord('Die kat, die hond en die vis.', 'hond')).toBe(true);
+  });
+
+  it('keeps hyphenated words and diacritics intact', () => {
+    expect(sentenceContainsWord('Ons gaan na die Klein-Karoo toe.', 'Klein-Karoo')).toBe(true);
+    expect(sentenceContainsWord('Ons gaan na die Klein-Karoo toe.', 'Karoo')).toBe(false);
+    expect(sentenceContainsWord('Wat sê jy?', 'sê')).toBe(true);
+  });
+
+  it('handles curly-quote wrapping', () => {
+    expect(sentenceContainsWord('Hy skryf ‘vrug’ neer.', 'vrug')).toBe(true);
+  });
+
+  it('handles empty inputs', () => {
+    expect(sentenceContainsWord('', 'vrug')).toBe(false);
+    expect(sentenceContainsWord('Die vrugte is lekker.', '')).toBe(false);
   });
 });
 

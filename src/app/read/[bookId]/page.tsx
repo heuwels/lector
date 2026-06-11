@@ -263,6 +263,14 @@ export default function ReadPage({
     setWordPanel((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
+  // Nested lookup from inside the drawer (issue #106) — e.g. clicking "vrug"
+  // in the gloss "plural of vrug". Re-targets the drawer like a reader word
+  // click, keeping the sentence the user was reading so a save/known action
+  // on the underlying word records where it was encountered.
+  const handleNestedLookup = useCallback((nestedWord: string) => {
+    void handleWordClick(nestedWord, wordPanel.sentence);
+  }, [handleWordClick, wordPanel.sentence]);
+
   const requestContextTranslation = useCallback(async () => {
     setWordPanel((prev) => ({ ...prev, isContextLoading: true }));
     try {
@@ -630,6 +638,7 @@ export default function ReadPage({
         onIgnore={ignoreWord}
         onRequestContextTranslation={requestContextTranslation}
         onRetranslate={retranslateWithAi}
+        onLookupWord={handleNestedLookup}
       />
 
     </div>

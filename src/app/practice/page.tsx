@@ -1278,6 +1278,7 @@ export default function PracticePage() {
         onClose={() => setWordTooltip(null)}
         onSpeak={(text) => speak(text)}
         onRequestContextTranslation={requestContextTranslation}
+        onLookupWord={handleWordClick}
       />
     </div>
   );

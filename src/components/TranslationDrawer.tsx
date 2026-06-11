@@ -3,6 +3,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { WordState, VocabEntry } from '@/lib/db';
+import { findNestedWordRef } from '@/lib/definition-links';
+import { sentenceContainsWord } from '@/lib/words';
 
 /**
  * Shape returned by /api/dictionary/lookup. Mirror of the server-side type — kept in
@@ -34,6 +36,47 @@ const wordStateColors: Record<WordState, { bg: string; text: string; dot: string
 const wordStateLabels: Record<WordState, string> = {
   'new': 'New', 'level1': 'Level 1', 'level2': 'Level 2', 'level3': 'Level 3',
   'level4': 'Level 4', 'known': 'Known', 'ignored': 'Ignored',
+};
+
+/** Link-styled word inside an entry — clicking re-targets the drawer (issue #106). */
+const NestedWordButton = ({
+  word,
+  onLookupWord,
+  testId,
+}: {
+  word: string;
+  onLookupWord: (word: string) => void;
+  testId: string;
+}) => (
+  <button
+    type="button"
+    onClick={() => onLookupWord(word)}
+    data-testid={testId}
+    className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+    title={`Look up ${word}`}
+  >
+    {word}
+  </button>
+);
+
+/** A sense gloss with its form-of reference ("plural of vrug") linkified when
+    a lookup callback is available; plain text otherwise. */
+const Gloss = ({
+  text,
+  onLookupWord,
+}: {
+  text: string;
+  onLookupWord?: (word: string) => void;
+}) => {
+  const ref = onLookupWord ? findNestedWordRef(text) : null;
+  if (!ref || !onLookupWord) return <>{text}</>;
+  return (
+    <>
+      {ref.prefix}
+      <NestedWordButton word={ref.word} onLookupWord={onLookupWord} testId="nested-word-link" />
+      {ref.suffix}
+    </>
+  );
 };
 
 const SpeakerIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
@@ -88,6 +131,9 @@ interface TranslationDrawerProps {
   onRequestContextTranslation?: () => void;
   /** Force a fresh LLM lookup, ignoring cache + local dict. */
   onRetranslate?: () => void;
+  /** Look up a word referenced inside the entry (form-of glosses, lemma stem,
+      related forms — issue #106). When absent, references render as plain text. */
+  onLookupWord?: (word: string) => void;
 }
 
 export default function TranslationDrawer({
@@ -112,6 +158,7 @@ export default function TranslationDrawer({
   onIgnore,
   onRequestContextTranslation,
   onRetranslate,
+  onLookupWord,
 }: TranslationDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [relatedExpanded, setRelatedExpanded] = useState(false);
@@ -144,6 +191,12 @@ export default function TranslationDrawer({
   const currentState = existingEntry?.state ?? 'new';
   const stateColors = wordStateColors[currentState];
   const isPhrase = word.includes(' ');
+  // After a nested lookup (issue #106) the drawer keeps the sentence of the
+  // word the user originally clicked — genuine provenance, but not context
+  // for the current word unless it actually occurs in it ("sien" is not in
+  // "Ek het die katte gesien"). Only offer the in-context AI translation
+  // when it does.
+  const wordOccursInSentence = !!sentence && sentenceContainsWord(sentence, word);
 
   const senses = entry?.senses ?? [];
   const hasRichEntry = senses.length > 0;
@@ -193,7 +246,11 @@ export default function TranslationDrawer({
             {entry?.lemmaInfo && (
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                 {entry.lemmaInfo.label}{' '}
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">{entry.lemmaInfo.stem}</span>
+                {onLookupWord ? (
+                  <NestedWordButton word={entry.lemmaInfo.stem} onLookupWord={onLookupWord} testId="lemma-stem-link" />
+                ) : (
+                  <span className="font-medium text-zinc-700 dark:text-zinc-300">{entry.lemmaInfo.stem}</span>
+                )}
               </p>
             )}
             <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -282,7 +339,9 @@ export default function TranslationDrawer({
                               {sense.partOfSpeech}
                             </span>
                           )}
-                          <span className="text-zinc-700 dark:text-zinc-300">{sense.gloss}</span>
+                          <span className="text-zinc-700 dark:text-zinc-300">
+                            <Gloss text={sense.gloss} onLookupWord={onLookupWord} />
+                          </span>
                         </div>
                       </li>
                     ))}
@@ -304,7 +363,7 @@ export default function TranslationDrawer({
                       </span>
                     )}
                     <span className="text-zinc-800 dark:text-zinc-200 leading-relaxed">
-                      {sense.gloss}
+                      <Gloss text={sense.gloss} onLookupWord={onLookupWord} />
                     </span>
                   </div>
                 </li>
@@ -328,7 +387,7 @@ export default function TranslationDrawer({
           {/* In-context AI button — always offered for single-word lookups so the
               user can ask the LLM to re-read the sentence and give a more nuanced
               translation than the bare dictionary gloss. */}
-          {!isPhrase && !isLoading && !isContextLoading && onRequestContextTranslation && (
+          {!isPhrase && !isLoading && !isContextLoading && onRequestContextTranslation && wordOccursInSentence && (
             <button
               onClick={onRequestContextTranslation}
               className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md
@@ -418,7 +477,11 @@ export default function TranslationDrawer({
               <ul className="space-y-1">
                 {shown.map((r, i) => (
                   <li key={i} className="text-sm">
-                    <span className="font-medium text-zinc-800 dark:text-zinc-200">{r.form}</span>
+                    {onLookupWord ? (
+                      <NestedWordButton word={r.form} onLookupWord={onLookupWord} testId="related-form-link" />
+                    ) : (
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200">{r.form}</span>
+                    )}
                     <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">{r.relation}</span>
                   </li>
                 ))}
