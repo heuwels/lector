@@ -124,8 +124,11 @@ jobs:
       - name: Start container
         # No volume mount: /app/data starts empty, matching the fresh DB the
         # dev-mode webServer guarantees. Container :3000 maps to host :3456,
-        # the origin the e2e specs hardcode.
-        run: docker run -d --name lector-e2e -p 3456:3000 lector:e2e
+        # the origin the e2e specs hardcode. host-gateway lets the in-container
+        # Bun API reach test stubs on the runner (lmstudio-chat.spec.ts).
+        run: |
+          docker run -d --name lector-e2e -p 3456:3000 \
+            --add-host=host.docker.internal:host-gateway lector:e2e
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Wait for app

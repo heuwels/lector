@@ -8,6 +8,15 @@ interface CapturedRequest {
   body: unknown;
 }
 
+// The Bun API fetches lmstudioUrl server-side. Under E2E_EXTERNAL_SERVER the
+// API runs inside the Docker container, where 127.0.0.1 is the container — the
+// stub must bind all interfaces and advertise host.docker.internal instead
+// (resolved natively by Docker Desktop; Linux CI passes
+// --add-host=host.docker.internal:host-gateway on the docker run).
+const EXTERNAL = !!process.env.E2E_EXTERNAL_SERVER;
+const STUB_BIND_HOST = EXTERNAL ? "0.0.0.0" : "127.0.0.1";
+const STUB_ADVERTISED_HOST = EXTERNAL ? "host.docker.internal" : "127.0.0.1";
+
 /**
  * Spin up an in-process stub that pretends to be LM Studio. Captures incoming
  * requests so the test can assert on what lector sent (previous_response_id,
@@ -37,10 +46,10 @@ function startStub(handler: (req: CapturedRequest) => { status: number; body: un
         res.end(JSON.stringify(out.body));
       });
     });
-    server.listen(0, "127.0.0.1", () => {
+    server.listen(0, STUB_BIND_HOST, () => {
       const port = (server.address() as AddressInfo).port;
       resolve({
-        url: `http://127.0.0.1:${port}`,
+        url: `http://${STUB_ADVERTISED_HOST}:${port}`,
         captured,
         close: () => new Promise<void>((r) => server.close(() => r())),
       });
