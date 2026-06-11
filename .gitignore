@@ -48,6 +48,10 @@ next-env.d.ts
 /data/
 .env
 
+# Isolated e2e data dir (playwright.config.ts webServer)
+/tmp/
+
 # Hono API (Bun)
 /api/node_modules
 /api/bun.lock
+/api/.test-data/

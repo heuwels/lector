@@ -179,6 +179,9 @@ function migrateAddLanguageColumn(database: Database) {
 
   for (const table of tablesToMigrate) {
     const cols = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    // Empty = table doesn't exist in this server's schema (journal_entries is
+    // created by the Next side only) — nothing to migrate, and ALTER would throw.
+    if (cols.length === 0) continue;
     if (!cols.some(c => c.name === 'language')) {
       database.exec(`ALTER TABLE ${table} ADD COLUMN language TEXT NOT NULL DEFAULT 'af'`);
     }
