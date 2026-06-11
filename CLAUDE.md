@@ -11,8 +11,11 @@ Every new feature MUST be accompanied by:
   - Edge cases (empty states, error handling, boundary conditions)
 
 Tests live in:
-- `e2e/` - Playwright end-to-end tests
-- Run with: `npm run test:e2e`
+- `src/**/*.test.ts` - vitest unit tests — run with `npm test`
+- `api/src/**/*.test.ts` - bun:test unit tests — run with `cd api && bun test` (vitest excludes `api/**`; don't mix the two runners)
+- `e2e/` - Playwright end-to-end tests — run with `npm run test:e2e` (boots both servers against an isolated `tmp/e2e-data`, never the real `data/`)
+
+CI runs all of these, plus the e2e suite a second time against the production Docker image (`E2E_EXTERNAL_SERVER=1` with the container mapped to :3456) to cover the standalone build and `docker-entrypoint.sh`.
 
 ## Tech Stack
 

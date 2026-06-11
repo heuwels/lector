@@ -1,5 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// E2E_EXTERNAL_SERVER=1 — the app is already running at localhost:3456 (e.g.
+// the production Docker image with `-p 3456:3000`) and Playwright must not
+// spawn the dev servers. The server must be FRESH: several specs assert
+// empty-DB state, which `webServer` otherwise guarantees by wiping
+// tmp/e2e-data. Specs hardcode the localhost:3456 origin, so the external
+// server has to be mapped there — a different origin is not supported.
+const externalServer = !!process.env.E2E_EXTERNAL_SERVER;
+
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
@@ -31,7 +39,7 @@ export default defineConfig({
   // Both servers run against an isolated DATA_DIR so the suite never touches
   // the real data/lector.db (#110). reuseExistingServer is off for the same
   // reason: an already-running dev server would be using the real data dir.
-  webServer: [
+  webServer: externalServer ? undefined : [
     {
       // Fresh DB every run — several specs assert empty-DB state (e.g.
       // fluency expects totalKnownWords 0). The dictionary is re-copied since
