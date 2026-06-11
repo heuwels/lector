@@ -9,3 +9,23 @@ export function splitTrailingPunctuation(word: string): [string, string] {
   if (match) return [match[1], match[2]];
   return [word, ''];
 }
+
+// Letters (incl. Latin diacritics used by Afrikaans), hyphens and apostrophes —
+// anything else separates tokens. Mirrors the word shape in definition-links.ts.
+const NON_TOKEN_CHARS = /[^A-Za-zÀ-ÖØ-öø-ž'’-]+/;
+
+/**
+ * True when `word` appears as a whole token in `sentence` (case-insensitive).
+ * Substring hits don't count: "gesien" does not contain the word "sien".
+ * Used to decide whether a sentence is genuine context for a word — e.g. a
+ * nested dictionary lookup (issue #106) carries the sentence of the word the
+ * user actually clicked, which may only contain an inflected form.
+ */
+export function sentenceContainsWord(sentence: string, word: string): boolean {
+  const target = word.toLowerCase();
+  if (!target) return false;
+  return sentence
+    .toLowerCase()
+    .split(NON_TOKEN_CHARS)
+    .some((token) => token === target || token.replace(/^['’]+|['’]+$/g, '') === target);
+}
