@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "test": "bun test"
+    "test": "rm -rf .test-data && DATA_DIR=.test-data bun test"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.114",
