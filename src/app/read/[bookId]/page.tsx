@@ -227,11 +227,11 @@ export default function ReadPage({
           if (requestId !== translationRequestId.current) return;
           const structured = result.senses && result.senses.length > 0
             ? {
-                senses: result.senses,
-                ipa: result.ipa,
-                etymology: result.etymology,
-                relatedForms: result.relatedForms,
-              }
+              senses: result.senses,
+              ipa: result.ipa,
+              etymology: result.etymology,
+              relatedForms: result.relatedForms,
+            }
             : null;
           setWordPanel((prev) => ({
             ...prev,
@@ -277,11 +277,11 @@ export default function ReadPage({
       const result = await translateWord(wordPanel.word, wordPanel.sentence);
       const structured = result.senses && result.senses.length > 0
         ? {
-            senses: result.senses,
-            ipa: result.ipa,
-            etymology: result.etymology,
-            relatedForms: result.relatedForms,
-          }
+          senses: result.senses,
+          ipa: result.ipa,
+          etymology: result.etymology,
+          relatedForms: result.relatedForms,
+        }
         : null;
       setWordPanel((prev) => {
         // When the dict already has the word: stash the AI gloss in the
@@ -497,11 +497,11 @@ export default function ReadPage({
         const result = await translateWord(wordPanel.word, wordPanel.sentence);
         const structured = result.senses && result.senses.length > 0
           ? {
-              senses: result.senses,
-              ipa: result.ipa,
-              etymology: result.etymology,
-              relatedForms: result.relatedForms,
-            }
+            senses: result.senses,
+            ipa: result.ipa,
+            etymology: result.etymology,
+            relatedForms: result.relatedForms,
+          }
           : null;
         setWordPanel((prev) => ({
           ...prev,
@@ -601,7 +601,6 @@ export default function ReadPage({
 
   return (
     <div className="h-dvh flex flex-col bg-white dark:bg-zinc-900 overflow-x-hidden">
-      {/* Reader */}
       <div className="flex-1 relative overflow-hidden">
         <MarkdownReader
           lesson={lesson}
