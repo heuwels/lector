@@ -228,25 +228,16 @@ export default function Home() {
 
   const hasGroups = groups.length > 0;
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
-        <NavHeader />
-        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex h-64 items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
       <NavHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <section>
+        {isLoading ? (
+          <div className="flex h-64 items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+          </div>
+        ) : (<section>
           <div className="mb-6 flex items-center gap-3">
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Your Library</h2>
             <div className="flex-1" />
@@ -420,7 +411,8 @@ export default function Home() {
           ) : (
             <EmptyState onImport={handleImportClick} />
           )}
-        </section>
+        </section>)}
+
       </main>
     </div>
   );
