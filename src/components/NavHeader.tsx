@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useSyncExternalStore, useEffect, useRef } from 'react';
 import ThemeToggle from './ThemeToggle';
-import { setSetting } from '@/lib/data-layer';
+import { getVocabStats, setSetting } from '@/lib/data-layer';
 import { LANGUAGES, DEFAULT_LANGUAGE, type LanguageCode, type LanguageConfig, isValidLanguageCode } from '@/lib/languages';
 
 const navLinks = [
@@ -113,6 +113,7 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const activeLang = useActiveLanguage();
+  const [knownWordsCount, setKnownWordsCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -131,6 +132,24 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
+
+  useEffect(() =>{
+    const init = async () => {
+        try {
+          const vocabStats = await getVocabStats();
+          const knownCount =
+            vocabStats.byState.level3 +
+            vocabStats.byState.level4 +
+            vocabStats.byState.known;
+          setKnownWordsCount(knownCount);
+    
+        } catch (error) {
+          console.error('Error loading data:', error);
+        }
+    }
+
+    init();
+  }, [])
 
   async function handleSwitch(code: LanguageCode) {
     setIsOpen(false);
@@ -154,6 +173,7 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
         >
           <span>{activeLang.flag}</span>
           <span>{activeLang.code.toUpperCase()}</span>
+          {knownWordsCount && <span title='Words known' className='py-1 px-2 bg-amber-100 rounded-full text-amber-700 border border-amber-500'>{knownWordsCount}</span>}
           <ChevronIcon />
         </button>
         {isOpen && (
@@ -193,6 +213,7 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
       >
         <span className="text-lg">{activeLang.flag}</span>
         <span className="flex-1 text-left">{activeLang.native}</span>
+        {knownWordsCount && <span title='Words known' className='py-1 px-2 bg-amber-100 rounded-full text-amber-700 border border-amber-500'>{knownWordsCount}</span>}
         <ChevronIcon />
       </button>
       {isOpen && (
@@ -212,6 +233,7 @@ function LanguageSelector({ compact = false }: { compact?: boolean }) {
             >
               <span className="text-lg">{lang.flag}</span>
               <span>{lang.native}</span>
+              
             </button>
           ))}
         </div>
