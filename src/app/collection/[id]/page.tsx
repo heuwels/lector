@@ -36,6 +36,7 @@ import {
   type CollectionGroup,
   type LessonSummary,
 } from '@/lib/data-layer';
+import { SortableLessonRow } from '../components';
 
 export default function CollectionPage({
   params,
