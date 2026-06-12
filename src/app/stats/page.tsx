@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import NavHeader from '@/components/NavHeader';
 import {
-  getVocabStats,
   getStatsForDateRange,
   getAllClozeSentences,
   getCollectionCounts,
@@ -23,7 +22,6 @@ import VocabGrowthChart from '@/components/VocabGrowthChart';
 interface StatsData {
   totalKnown: number;
   totalLearning: number;
-  totalWords: number;
   byState: Record<WordState, number>;
   currentStreak: number;
   longestStreak: number;
@@ -310,17 +308,7 @@ function FluencyBadge({ fluency }: { fluency: FluencyStats }) {
           <div data-testid="fluency-known-count" className="text-2xl font-bold text-green-600 dark:text-green-400">
             {totalKnownWords.toLocaleString()}
           </div>
-          <div className="text-sm text-zinc-500 dark:text-zinc-400 inline-flex items-center gap-1">
-            Known
-            <span
-              title="CEFR level uses all known words including bulk-imported lists (e.g., frequency-list imports from Settings). The 'Words Known' tile below counts only entries you've interacted with directly in your vocabulary."
-              className="cursor-help text-zinc-400 dark:text-zinc-500"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </span>
-          </div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400">Known</div>
         </div>
         <div className="text-center p-3 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg">
           <div data-testid="fluency-learning-count" className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
@@ -413,8 +401,7 @@ export default function StatsPage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        const [vocabStats, collectionCounts, fluency, streakData, tzSetting] = await Promise.all([
-          getVocabStats(),
+        const [collectionCounts, fluency, streakData, tzSetting] = await Promise.all([
           getCollectionCounts(),
           getFluencyStats(),
           getStreak(),
@@ -471,29 +458,22 @@ export default function StatsPage() {
           };
         });
 
-        // If we have current vocab stats, use those for the final values
+        // Pin the final values to the live word-state counts so the chart's
+        // endpoint matches the cards. All word counts on this page come from
+        // the knownWords table (via /api/stats/fluency) — one source, so the
+        // fluency badge, top cards, and breakdown always agree.
         if (vocabGrowth.length > 0) {
           const lastEntry = vocabGrowth[vocabGrowth.length - 1];
-          lastEntry.known = vocabStats.byState.known;
-          lastEntry.learning =
-            vocabStats.byState.level1 +
-            vocabStats.byState.level2 +
-            vocabStats.byState.level3 +
-            vocabStats.byState.level4;
-          lastEntry.total = vocabStats.total - vocabStats.byState.ignored;
+          lastEntry.known = fluency.totalKnownWords;
+          lastEntry.learning = fluency.totalLearning;
+          lastEntry.total =
+            fluency.totalKnownWords + fluency.totalLearning + fluency.totalNew;
         }
 
-        const totalLearning =
-          vocabStats.byState.level1 +
-          vocabStats.byState.level2 +
-          vocabStats.byState.level3 +
-          vocabStats.byState.level4;
-
         setStats({
-          totalKnown: vocabStats.byState.known,
-          totalLearning,
-          totalWords: vocabStats.total,
-          byState: vocabStats.byState,
+          totalKnown: fluency.totalKnownWords,
+          totalLearning: fluency.totalLearning,
+          byState: fluency.byState,
           currentStreak,
           longestStreak,
           totalClozeAttempts,

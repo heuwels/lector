@@ -531,6 +531,7 @@ export interface FluencyStats {
   totalKnownWords: number;
   totalLearning: number;
   totalNew: number;
+  byState: Record<WordState, number>;
   estimatedLevel: {
     code: string;
     label: string;

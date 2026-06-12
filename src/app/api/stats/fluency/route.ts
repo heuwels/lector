@@ -19,13 +19,20 @@ export async function GET(request: NextRequest) {
     countMap[row.state] = row.count;
   }
 
-  const totalKnownWords = countMap['known'] || 0;
+  const byState = {
+    new: countMap['new'] || 0,
+    level1: countMap['level1'] || 0,
+    level2: countMap['level2'] || 0,
+    level3: countMap['level3'] || 0,
+    level4: countMap['level4'] || 0,
+    known: countMap['known'] || 0,
+    ignored: countMap['ignored'] || 0,
+  };
+
+  const totalKnownWords = byState.known;
   const totalLearning =
-    (countMap['level1'] || 0) +
-    (countMap['level2'] || 0) +
-    (countMap['level3'] || 0) +
-    (countMap['level4'] || 0);
-  const totalNew = countMap['new'] || 0;
+    byState.level1 + byState.level2 + byState.level3 + byState.level4;
+  const totalNew = byState.new;
 
   // Determine CEFR-style level
   const levels = [
@@ -68,6 +75,7 @@ export async function GET(request: NextRequest) {
     totalKnownWords,
     totalLearning,
     totalNew,
+    byState,
     estimatedLevel: {
       code: currentLevel.code,
       label: currentLevel.label,
