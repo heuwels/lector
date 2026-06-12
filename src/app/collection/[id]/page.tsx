@@ -36,13 +36,9 @@ import {
   type CollectionGroup,
   type LessonSummary,
 } from '@/lib/data-layer';
-import { SortableLessonRow } from '../components';
+import SortableLessonRow from '../components/SortableLessonRow';
 
-export default function CollectionPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function CollectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [collection, setCollection] = useState<Collection | null>(null);
@@ -51,7 +47,10 @@ export default function CollectionPage({
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
-  const [editingInitial, setEditingInitial] = useState<{ title: string; textContent: string } | null>(null);
+  const [editingInitial, setEditingInitial] = useState<{
+    title: string;
+    textContent: string;
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -125,7 +124,10 @@ export default function CollectionPage({
       const newIndex = prev.findIndex((l) => l.id === over.id);
       if (oldIndex < 0 || newIndex < 0) return prev;
       const next = arrayMove(prev, oldIndex, newIndex);
-      reorderLessons(id, next.map((l) => l.id));
+      reorderLessons(
+        id,
+        next.map((l) => l.id),
+      );
       return next;
     });
   }
@@ -136,10 +138,7 @@ export default function CollectionPage({
       if (!name?.trim()) return;
       const newId = await createGroup(name.trim());
       await updateCollection(id, { groupId: newId });
-      const [updatedCol, updatedGroups] = await Promise.all([
-        getCollection(id),
-        getAllGroups(),
-      ]);
+      const [updatedCol, updatedGroups] = await Promise.all([getCollection(id), getAllGroups()]);
       if (updatedCol) setCollection(updatedCol);
       setGroups(updatedGroups);
     } else {
@@ -152,12 +151,12 @@ export default function CollectionPage({
 
   function getContinueLesson(): LessonSummary | undefined {
     // Find first incomplete lesson
-    return lessons.find(l => l.progress_percentComplete < 95);
+    return lessons.find((l) => l.progress_percentComplete < 95);
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
+      <div className="min-h-screen bg-zinc-50 pt-[var(--mobile-topbar-h)] sm:ml-56 sm:pt-0 dark:bg-zinc-950">
         <NavHeader />
         <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
           <div className="flex h-64 items-center justify-center">
@@ -171,10 +170,10 @@ export default function CollectionPage({
   if (!collection) return null;
 
   const continueLesson = getContinueLesson();
-  const completedCount = lessons.filter(l => l.progress_percentComplete >= 95).length;
+  const completedCount = lessons.filter((l) => l.progress_percentComplete >= 95).length;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
+    <div className="min-h-screen bg-zinc-50 pt-[var(--mobile-topbar-h)] sm:ml-56 sm:pt-0 dark:bg-zinc-950">
       <NavHeader />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
@@ -184,18 +183,22 @@ export default function CollectionPage({
           className="mb-6 inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+            />
           </svg>
           Library
         </Link>
 
         {/* Collection header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-            {collection.title}
-          </h1>
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{collection.title}</h1>
           <p className="mt-1 text-zinc-500 dark:text-zinc-400">
-            {collection.author} &middot; {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'}
+            {collection.author} &middot; {lessons.length}{' '}
+            {lessons.length === 1 ? 'lesson' : 'lessons'}
             {completedCount > 0 && ` \u00b7 ${completedCount} completed`}
           </p>
 
@@ -213,7 +216,9 @@ export default function CollectionPage({
             >
               <option value="">None</option>
               {groups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
               ))}
               <option value="__new__">+ New group...</option>
             </select>
@@ -239,8 +244,15 @@ export default function CollectionPage({
 
         {/* Lesson list */}
         <div className="space-y-2">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLessonDragEnd}>
-            <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleLessonDragEnd}
+          >
+            <SortableContext
+              items={lessons.map((l) => l.id)}
+              strategy={verticalListSortingStrategy}
+            >
               {lessons.map((lesson, i) => (
                 <SortableLessonRow
                   key={lesson.id}
@@ -260,7 +272,12 @@ export default function CollectionPage({
             className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-transparent px-5 py-4 text-sm font-medium text-zinc-500 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
             </svg>
             Add lesson
           </button>

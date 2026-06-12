@@ -11,7 +11,8 @@ import {
   submitJournalForCorrection,
   deleteJournalEntry,
 } from '@/lib/data-layer';
-import { EntryModal, HistoryCard } from './components';
+import EntryModal from './components/EntryModal';
+import HistoryCard from './components/HistoryCard';
 import { formatDate } from './utils';
 
 export default function JournalPage() {
@@ -54,7 +55,9 @@ export default function JournalPage() {
           await updateJournalDraft(editingId, text);
           setSaveStatus('Draft saved');
           setTimeout(() => setSaveStatus(null), 2000);
-        } catch { /* silent */ }
+        } catch {
+          /* silent */
+        }
       }, 3000);
     }
   };
@@ -126,18 +129,23 @@ export default function JournalPage() {
   const wordCount = bodyText.trim().split(/\s+/).filter(Boolean).length;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
+    <div className="min-h-screen bg-zinc-50 pt-[var(--mobile-topbar-h)] sm:ml-56 sm:pt-0 dark:bg-zinc-950">
       <NavHeader />
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8 pb-24 sm:pb-8">
-        <div className="flex items-center justify-between mb-6">
+      <main className="mx-auto max-w-3xl px-4 py-8 pb-24 sm:px-6 sm:pb-8 lg:px-8">
+        <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Journal</h1>
           {!showEditor && (
             <button
               onClick={handleNewEntry}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors flex items-center gap-2"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               New Entry
             </button>
@@ -147,12 +155,17 @@ export default function JournalPage() {
         {/* Editor */}
         {showEditor && (
           <section className="mb-10">
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
                 {formatDate(today)}
               </h2>
               <button
-                onClick={() => { setShowEditor(false); setBodyText(''); setEditingId(null); setError(null); }}
+                onClick={() => {
+                  setShowEditor(false);
+                  setBodyText('');
+                  setEditingId(null);
+                  setError(null);
+                }}
                 className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
               >
                 Cancel
@@ -164,7 +177,7 @@ export default function JournalPage() {
                 value={bodyText}
                 onChange={(e) => handleBodyChange(e.target.value)}
                 placeholder="Skryf vandag se joernaal inskrywing in Afrikaans..."
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 text-sm leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-[160px]"
+                className="min-h-[160px] w-full resize-y rounded-lg border border-zinc-300 bg-white p-4 text-sm leading-relaxed text-zinc-900 placeholder-zinc-400 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
                 disabled={isSubmitting}
                 autoFocus
               />
@@ -181,19 +194,30 @@ export default function JournalPage() {
                   <button
                     onClick={handleSaveDraft}
                     disabled={isSaving || isSubmitting || !bodyText.trim()}
-                    className="rounded-lg border border-zinc-300 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+                    className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
                   >
                     {isSaving ? 'Saving...' : 'Save Draft'}
                   </button>
                   <button
                     onClick={handleSubmit}
                     disabled={isSubmitting || !bodyText.trim()}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                   >
                     {isSubmitting && (
-                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
                       </svg>
                     )}
                     {isSubmitting ? 'Correcting...' : 'Submit for Correction'}
@@ -203,7 +227,7 @@ export default function JournalPage() {
             </div>
 
             {error && (
-              <div className="mt-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 p-3 text-sm text-red-700 dark:text-red-300">
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
                 {error}
               </div>
             )}
@@ -213,7 +237,7 @@ export default function JournalPage() {
         {/* Entry list */}
         {entries.length > 0 ? (
           <section>
-            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3">
+            <h2 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
               {entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}
             </h2>
             <div className="space-y-2">
@@ -234,11 +258,11 @@ export default function JournalPage() {
             </div>
           </section>
         ) : !showEditor ? (
-          <div className="text-center py-16">
-            <p className="text-zinc-500 dark:text-zinc-400 mb-4">No journal entries yet</p>
+          <div className="py-16 text-center">
+            <p className="mb-4 text-zinc-500 dark:text-zinc-400">No journal entries yet</p>
             <button
               onClick={handleNewEntry}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
             >
               Write your first entry
             </button>
