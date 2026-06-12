@@ -928,6 +928,11 @@ export default function PracticePage() {
             }[fuzzyStatus];
 
             const words = current.sentence.sentence.split(/\s+/);
+            // The cloze token can carry trailing punctuation (e.g. "huis.") —
+            // render it after the input/blank so it stays visible.
+            const [clozeBase, clozePunct] = splitTrailingPunctuation(
+              words[current.sentence.clozeIndex] ?? ''
+            );
 
             return (
               <div>
@@ -953,7 +958,8 @@ export default function PracticePage() {
                       <span key={i}>
                         {i > 0 && ' '}
                         {i === current.sentence.clozeIndex ? (
-                          practiceMode === 'type' && !mcFallback ? (
+                          <>
+                          {practiceMode === 'type' && !mcFallback ? (
                             <input
                               ref={inputRef}
                               type="text"
@@ -979,16 +985,18 @@ export default function PracticePage() {
                                 ${fuzzyStatus === 'wrong' ? 'text-red-600 dark:text-red-400 focus:ring-red-400' : ''}
                                 ${fuzzyStatus === 'empty' ? 'text-zinc-900 dark:text-zinc-100 focus:ring-blue-400' : ''}
                               `}
-                              style={{ minWidth: `${Math.max(word.length * 0.7, 4)}ch` }}
+                              style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
                             />
                           ) : (
                             <span
                               className="inline-block rounded-lg border-2 border-blue-400 bg-blue-50 px-3 py-1 text-center text-xl font-bold text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"
-                              style={{ minWidth: `${Math.max(word.length * 0.7, 4)}ch` }}
+                              style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
                             >
                               _____
                             </span>
-                          )
+                          )}
+                          {clozePunct}
+                          </>
                         ) : (
                           <span
                             data-testid="cloze-word"
