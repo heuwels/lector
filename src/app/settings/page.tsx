@@ -7,7 +7,6 @@ import { getDeckNames, isAnkiConnected, refreshAnkiUrl } from "@/lib/anki";
 import { getTTSMode, setTTSMode, isGoogleTTSConfigured, speak, type TTSMode } from "@/lib/tts";
 import {
   exportAllData,
-  clearAllData,
   bulkUpdateWordStates,
   getSetting,
   setSetting,
@@ -22,15 +21,12 @@ import {
   createApiToken,
   revokeApiToken,
   type ApiTokenMeta,
-  type VocabEntry,
-  type KnownWord,
   type WordState,
 } from "@/lib/data-layer";
 
 // Settings keys for localStorage
 const SETTINGS_KEYS = {
   ANTHROPIC_API_KEY: "lector-api-key",
-  GOOGLE_CLOUD_API_KEY: "lector-google-api-key",
   ANKI_DECK_NAME: "lector-anki-deck",
   ANKI_CLOZE_DECK_NAME: "lector-anki-cloze-deck",
   DEFAULT_CARD_TYPE: "lector-card-type",
@@ -58,7 +54,6 @@ interface LLMStatus {
 
 interface AppSettings {
   apiKey: string;
-  googleApiKey: string;
   ankiDeckName: string;
   ankiClozeDeckName: string;
   defaultCardType: CardType;
@@ -69,7 +64,6 @@ interface AppSettings {
 
 const defaultSettings: AppSettings = {
   apiKey: "",
-  googleApiKey: "",
   ankiDeckName: "Afrikaans",
   ankiClozeDeckName: "Afrikaans::Cloze",
   defaultCardType: "basic",
@@ -95,8 +89,6 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Data management state
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [clearConfirmText, setCllearConfirmText] = useState("");
   const [exportStatus, setExportStatus] = useState<string | null>(null);
 
   // LLM provider state
@@ -127,7 +119,6 @@ export default function SettingsPage() {
 
   // TTS state
   const [googleTTSAvailable, setGoogleTTSAvailable] = useState<boolean | null>(null);
-  const [showGoogleApiKey, setShowGoogleApiKey] = useState(false);
 
   // Time zone state (server-side setting — drives day rollover for daily
   // stats, streaks and review days; issue #108)
@@ -148,7 +139,6 @@ export default function SettingsPage() {
   useEffect(() => {
     const loadedSettings: AppSettings = {
       apiKey: localStorage.getItem(SETTINGS_KEYS.ANTHROPIC_API_KEY) || "",
-      googleApiKey: localStorage.getItem(SETTINGS_KEYS.GOOGLE_CLOUD_API_KEY) || "",
       ankiDeckName:
         localStorage.getItem(SETTINGS_KEYS.ANKI_DECK_NAME) || "Afrikaans",
       ankiClozeDeckName:
@@ -297,7 +287,6 @@ export default function SettingsPage() {
     // Map to localStorage key
     const storageKeyMap: Record<keyof AppSettings, string> = {
       apiKey: SETTINGS_KEYS.ANTHROPIC_API_KEY,
-      googleApiKey: SETTINGS_KEYS.GOOGLE_CLOUD_API_KEY,
       ankiDeckName: SETTINGS_KEYS.ANKI_DECK_NAME,
       ankiClozeDeckName: SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME,
       defaultCardType: SETTINGS_KEYS.DEFAULT_CARD_TYPE,
@@ -316,13 +305,6 @@ export default function SettingsPage() {
     if (key === "theme") {
       applyTheme(value as Theme);
     }
-  };
-
-  // Mask API key for display
-  const getMaskedApiKey = (key: string): string => {
-    if (!key) return "";
-    if (key.length <= 8) return "*".repeat(key.length);
-    return key.slice(0, 4) + "*".repeat(key.length - 8) + key.slice(-4);
   };
 
   // Save LLM provider setting
@@ -790,28 +772,6 @@ export default function SettingsPage() {
 
     // Reset file input
     e.target.value = "";
-  };
-
-  // Clear all data
-  const handleClearAllData = async () => {
-    if (clearConfirmText !== "DELETE ALL DATA") {
-      setExportStatus("Please type 'DELETE ALL DATA' to confirm.");
-      return;
-    }
-
-    try {
-      await clearAllData();
-      // Also clear localStorage settings
-      Object.values(SETTINGS_KEYS).forEach((key) => {
-        localStorage.removeItem(key);
-      });
-      setSettings(defaultSettings);
-      setShowClearConfirm(false);
-      setCllearConfirmText("");
-      setExportStatus("All data has been cleared.");
-    } catch (error) {
-      setExportStatus(`Clear failed: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
   };
 
   // Helper to download a file
@@ -1483,46 +1443,6 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* Google Cloud API Key */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Google Cloud API Key
-              </label>
-              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
-                For high-quality Afrikaans pronunciation. Get a key from{" "}
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline dark:text-blue-400"
-                >
-                  Google Cloud Console
-                </a>
-                {" "}(enable Text-to-Speech API).
-              </p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type={showGoogleApiKey ? "text" : "password"}
-                    value={showGoogleApiKey ? settings.googleApiKey : getMaskedApiKey(settings.googleApiKey)}
-                    onChange={(e) => saveSetting("googleApiKey", e.target.value)}
-                    placeholder="AIza..."
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                    readOnly={!showGoogleApiKey}
-                  />
-                </div>
-                <button
-                  onClick={() => setShowGoogleApiKey(!showGoogleApiKey)}
-                  className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                >
-                  {showGoogleApiKey ? "Hide" : "Show"}
-                </button>
-              </div>
-              <p className="mt-1 text-xs text-zinc-500">
-                Note: Set GOOGLE_CLOUD_API_KEY in your .env file for server-side use
-              </p>
-            </div>
-
             {/* TTS Mode Toggle */}
             <div className="mb-4">
               <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -1991,53 +1911,6 @@ export default function SettingsPage() {
               </label>
             </div>
 
-            {/* Clear All Data */}
-            <div className="border-t border-zinc-200 pt-4 dark:border-zinc-700">
-              <h3 className="mb-2 text-sm font-medium text-red-600 dark:text-red-400">
-                Danger Zone
-              </h3>
-              {!showClearConfirm ? (
-                <button
-                  onClick={() => setShowClearConfirm(true)}
-                  className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                >
-                  Clear All Data
-                </button>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-sm text-red-600 dark:text-red-400">
-                    This will permanently delete all your books, vocabulary,
-                    progress, and settings. Type{" "}
-                    <span className="font-mono font-bold">DELETE ALL DATA</span>{" "}
-                    to confirm.
-                  </p>
-                  <input
-                    type="text"
-                    value={clearConfirmText}
-                    onChange={(e) => setCllearConfirmText(e.target.value)}
-                    placeholder="DELETE ALL DATA"
-                    className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 dark:border-red-800 dark:bg-zinc-800 dark:text-zinc-100"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleClearAllData}
-                      className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-                    >
-                      Confirm Delete
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowClearConfirm(false);
-                        setCllearConfirmText("");
-                      }}
-                      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </section>
         </div>
       </main>

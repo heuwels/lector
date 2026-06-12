@@ -21,8 +21,7 @@ CI runs all of these, plus the e2e suite a second time against the production Do
 
 - Next.js 16 + React 19
 - Tailwind CSS v4 (class-based dark mode via `@custom-variant`)
-- SQLite (better-sqlite3) for server-side data
-- Dexie (IndexedDB) for client-side vocab
+- SQLite (better-sqlite3) for server-side data; the client persists everything through the API routes (`src/lib/data-layer.ts`)
 - No component library — custom components throughout
 
 ## Key Patterns
@@ -37,7 +36,6 @@ CI runs all of these, plus the e2e suite a second time against the production Do
 - Intervals: 0/1/3/7/14 days for mastery levels 0/25/50/75/100, scheduled at the exact review time (no midnight flooring). Mastery-100 cards keep a 14-day maintenance review and are served when due.
 - Correct answers move up one level (+25). A miss hard-resets the card to mastery 0 and re-queues it at the end of the round; the retry runs from mastery 0 and awards no points (the answer was just shown).
 - Cloze words from the bank can carry trailing punctuation — always strip via `splitTrailingPunctuation` (`src/lib/words.ts`) before matching, displaying, or persisting them.
-- Note: `src/lib/srs.ts` is dead code that describes a different scheme; deletion is tracked in #114. This section documents the live behaviour.
 
 ## Dates, Streaks & Time Zone
 

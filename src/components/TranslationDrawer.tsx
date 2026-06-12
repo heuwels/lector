@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { WordState, VocabEntry } from '@/lib/db';
+import { WordState, VocabEntry } from '@/types';
 import { findNestedWordRef } from '@/lib/definition-links';
 import { sentenceContainsWord } from '@/lib/words';
 
