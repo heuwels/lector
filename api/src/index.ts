@@ -15,7 +15,6 @@ import data from './routes/data';
 import journalCorrect from './routes/journal-correct';
 import llmStatus from './routes/llm-status';
 import tokens from './routes/tokens';
-import translateCompare from './routes/translate-compare';
 import chat from './routes/chat';
 import llmLmstudio from './routes/llm-lmstudio';
 import { authMiddleware } from './lib/auth';
@@ -38,7 +37,6 @@ app.route('/api/data', data);
 app.route('/api/journal-correct', journalCorrect);
 app.route('/api/llm-status', llmStatus);
 app.route('/api/tokens', tokens);
-app.route('/api/translate-compare', translateCompare);
 app.route('/api/chat', chat);
 app.route('/api/llm/lmstudio', llmLmstudio);
 
