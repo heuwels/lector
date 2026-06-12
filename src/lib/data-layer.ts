@@ -1,8 +1,8 @@
 /**
  * Data Layer - Server-side storage via API routes
  *
- * This module provides the same interface as db.ts but uses fetch() to call
- * the server-side API instead of browser-based IndexedDB/Dexie.
+ * All persistence goes through fetch() calls to the server-side API.
+ * Shared domain types live in src/types.
  */
 
 import { DEFAULT_LANGUAGE } from './languages';
@@ -17,7 +17,7 @@ function langParam(prefix: '?' | '&' = '?'): string {
   return `${prefix}language=${getActiveLanguage()}`;
 }
 
-// Re-export types from db.ts for compatibility
+// Re-export the shared domain types for convenience
 export type {
   WordState,
   VocabType,
@@ -33,7 +33,7 @@ export type {
   ClozeSentence,
   DailyStats,
   Settings,
-} from './db';
+} from '@/types';
 
 import type {
   WordState,
@@ -47,7 +47,7 @@ import type {
   DailyStats,
   ClozeCollection,
   ClozeMasteryLevel,
-} from './db';
+} from '@/types';
 
 // ============================================================================
 // Helper Functions - Collections
@@ -735,10 +735,6 @@ export async function revokeApiToken(id: string): Promise<void> {
 // ============================================================================
 // Utility Functions
 // ============================================================================
-
-export async function clearAllData(): Promise<void> {
-  console.warn('clearAllData not implemented for server storage');
-}
 
 export async function exportAllData(): Promise<{
   collections: Collection[];
