@@ -6,7 +6,6 @@ import EmptyState from './components/EmptyState';
 import GroupMenu from './components/GroupMenu';
 import SortableCollectionCard from './components/SortableCollectionCard';
 import NavHeader from '@/components/NavHeader';
-import StatsCard from '@/components/StatsCard';
 import CollectionCard from '@/components/CollectionCard';
 import ImportDropdown from '@/components/ImportDropdown';
 import WebImportModal from '@/components/WebImportModal';
@@ -36,8 +35,6 @@ import {
   reorderCollections,
   createStandaloneLesson,
   importEpub,
-  getVocabStats,
-  getStreak,
   type Collection,
   type CollectionGroup,
 } from '@/lib/data-layer';
