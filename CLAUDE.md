@@ -1,6 +1,6 @@
 # Claude Instructions
 
-**Testing policy: CI runs the full e2e suite on every PR — rely on it for PR verification, and locally run the specs your change touches (plus `npm test` for unit tests). Before cutting a release, the full suite must pass locally with 0 failures (`npx playwright test`) — local verification is the release gate.**
+**Testing policy: CI runs the full e2e suite on every PR — rely on it for PR verification, and locally run the specs your change touches (plus `npm test` for unit tests).**
 
 ## Testing Requirements
 

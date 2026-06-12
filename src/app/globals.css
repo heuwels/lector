@@ -6,32 +6,15 @@
   --mobile-topbar-h: 2.5rem;
   --background: #f9fafb;
   --foreground: #111827;
-
-  /* Word state colors */
-  --word-level1: rgba(59, 130, 246, 0.4);
-  --word-level2: rgba(59, 130, 246, 0.3);
-  --word-level3: rgba(59, 130, 246, 0.2);
-  --word-level4: rgba(59, 130, 246, 0.1);
-  --word-ignored: rgba(156, 163, 175, 0.3);
-  --phrase-highlight: rgba(147, 51, 234, 0.2);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-inter);
 }
 
 .dark {
   --background: #111827;
   --foreground: #f3f4f6;
-
-  --word-level1: rgba(96, 165, 250, 0.4);
-  --word-level2: rgba(96, 165, 250, 0.3);
-  --word-level3: rgba(96, 165, 250, 0.2);
-  --word-level4: rgba(96, 165, 250, 0.1);
-  --word-ignored: rgba(107, 114, 128, 0.3);
-  --phrase-highlight: rgba(167, 139, 250, 0.2);
 }
 
 html, body {
@@ -44,41 +27,3 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
-/* Word highlighting classes */
-.word-level1 { background-color: var(--word-level1); }
-.word-level2 { background-color: var(--word-level2); }
-.word-level3 { background-color: var(--word-level3); }
-.word-level4 { background-color: var(--word-level4); }
-.word-ignored { background-color: var(--word-ignored); color: #9ca3af; }
-.phrase-highlight {
-  background-color: var(--phrase-highlight);
-  text-decoration: underline;
-  text-decoration-color: rgba(147, 51, 234, 0.5);
-}
-
-/* Clickable word styling */
-.clickable-word {
-  cursor: pointer;
-  border-radius: 2px;
-  transition: background-color 0.15s ease;
-}
-
-.clickable-word:hover {
-  background-color: rgba(59, 130, 246, 0.15);
-}
-
-/* Reader styles */
-.reader-content {
-  line-height: 1.9;
-  font-size: 1.375rem;
-  overflow-wrap: break-word;
-  word-break: break-word;
-}
-
-/* Cloze blank styling */
-.cloze-blank {
-  display: inline-block;
-  min-width: 80px;
-  border-bottom: 2px solid currentColor;
-  margin: 0 4px;
-}

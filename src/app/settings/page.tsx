@@ -23,44 +23,8 @@ import {
   type ApiTokenMeta,
   type WordState,
 } from "@/lib/data-layer";
-
-// Settings keys for localStorage
-const SETTINGS_KEYS = {
-  ANTHROPIC_API_KEY: "lector-api-key",
-  ANKI_DECK_NAME: "lector-anki-deck",
-  ANKI_CLOZE_DECK_NAME: "lector-anki-cloze-deck",
-  DEFAULT_CARD_TYPE: "lector-card-type",
-  TTS_SPEED: "lector-tts-speed",
-  THEME: "lector-theme",
-} as const;
-
-type CardType = "basic" | "cloze";
-type Theme = "light" | "dark" | "system";
-type LLMProvider = "ollama" | "anthropic" | "apfel" | "lmstudio";
-type LMStudioLoadStatus = "idle" | "loading" | "loaded" | "errored";
-
-const OLLAMA_MODELS = [
-  { value: "llama3.2:3b", label: "Llama 3.2 3B (fastest, lower quality)" },
-  { value: "llama3.1:8b", label: "Llama 3.1 8B (default, fast)" },
-  { value: "gemma2:9b", label: "Gemma 2 9B (best quality, needs ~6GB RAM)" },
-] as const;
-
-interface LLMStatus {
-  provider: string;
-  model: string;
-  ok: boolean;
-  error?: string;
-}
-
-interface AppSettings {
-  apiKey: string;
-  ankiDeckName: string;
-  ankiClozeDeckName: string;
-  defaultCardType: CardType;
-  ttsSpeed: number;
-  ttsMode: TTSMode;
-  theme: Theme;
-}
+import { OLLAMA_MODELS, SETTINGS_KEYS } from "./constants";
+import { AppSettings, CardType, LLMProvider, LLMStatus, LMStudioLoadStatus, Theme } from './types';
 
 const defaultSettings: AppSettings = {
   apiKey: "",
@@ -198,10 +162,10 @@ export default function SettingsPage() {
     });
 
     // Check LLM status
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
 
     // Load API tokens
-    getApiTokens().then(setApiTokens).catch(() => {});
+    getApiTokens().then(setApiTokens).catch(() => { });
 
     // Time zone: populate the IANA list and the saved value
     setBrowserTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -314,28 +278,28 @@ export default function SettingsPage() {
     // Reset the cached provider on the server
     await fetch('/api/llm-status/reset', { method: 'POST' });
     // Refresh status
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const saveOllamaModel = async (model: string) => {
     setOllamaModel(model);
     await setSetting('ollamaModel', model);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const saveApfelUrl = async (url: string) => {
     setApfelUrl(url);
     await setSetting('apfelUrl', url);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const saveApfelModel = async (model: string) => {
     setApfelModel(model);
     await setSetting('apfelModel', model);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   // Whenever endpoint or apiKey changes, the previously-selected model may not exist
@@ -355,7 +319,7 @@ export default function SettingsPage() {
     await setSetting('lmstudioUrl', url);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const saveLmstudioApiKey = async (key: string) => {
@@ -366,7 +330,7 @@ export default function SettingsPage() {
     setEditingLmstudioApiKey(false);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const clearLmstudioApiKey = async () => {
@@ -376,7 +340,7 @@ export default function SettingsPage() {
     setEditingLmstudioApiKey(false);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const saveLmstudioModel = async (model: string) => {
@@ -385,7 +349,7 @@ export default function SettingsPage() {
     setLmstudioLoadStatus("idle");
     setLmstudioLoadError(null);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const fetchLmstudioModels = async () => {
@@ -449,14 +413,14 @@ export default function SettingsPage() {
     setNewApiKey("");
     setEditingApiKey(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const clearAnthropicApiKey = async () => {
     await deleteSetting('anthropicApiKey');
     setHasApiKey(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const saveClaudeOauthToken = async (token: string) => {
@@ -465,14 +429,14 @@ export default function SettingsPage() {
     setNewOauthToken("");
     setEditingOauthToken(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const clearClaudeOauthToken = async () => {
     await deleteSetting('claudeOauthToken');
     setHasOauthToken(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => {});
+    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
   };
 
   const saveAnthropicAuthMode = async (mode: "api_key" | "oauth") => {
@@ -821,9 +785,8 @@ export default function SettingsPage() {
               {llmStatus && (
                 <div className="flex items-center gap-2">
                   <span
-                    className={`inline-block h-2 w-2 rounded-full ${
-                      llmStatus.ok ? "bg-green-500" : "bg-red-500"
-                    }`}
+                    className={`inline-block h-2 w-2 rounded-full ${llmStatus.ok ? "bg-green-500" : "bg-red-500"
+                      }`}
                   />
                   <span className="text-sm text-zinc-600 dark:text-zinc-400">
                     {llmStatus.ok ? "Connected" : llmStatus.error || "Not connected"}
@@ -888,22 +851,20 @@ export default function SettingsPage() {
                       <button
                         onClick={() => saveAnthropicAuthMode("api_key")}
                         disabled={llmTesting}
-                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                          anthropicAuthMode === "api_key"
-                            ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                            : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                        }`}
+                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${anthropicAuthMode === "api_key"
+                          ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                          : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                          }`}
                       >
                         API Key
                       </button>
                       <button
                         onClick={() => saveAnthropicAuthMode("oauth")}
                         disabled={llmTesting}
-                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                          anthropicAuthMode === "oauth"
-                            ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                            : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                        }`}
+                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${anthropicAuthMode === "oauth"
+                          ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                          : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                          }`}
                       >
                         OAuth Token
                       </button>
@@ -1194,23 +1155,22 @@ export default function SettingsPage() {
                     <span
                       data-testid="lmstudio-load-status"
                       data-status={lmstudioLoadStatus}
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                        lmstudioLoadStatus === "loaded"
-                          ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                          : lmstudioLoadStatus === "loading"
+                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lmstudioLoadStatus === "loaded"
+                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                        : lmstudioLoadStatus === "loading"
                           ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
                           : lmstudioLoadStatus === "errored"
-                          ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                          : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
-                      }`}
+                            ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                            : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+                        }`}
                     >
                       {lmstudioLoadStatus === "idle"
                         ? "Idle"
                         : lmstudioLoadStatus === "loading"
-                        ? "Loading…"
-                        : lmstudioLoadStatus === "loaded"
-                        ? "Loaded"
-                        : "Errored"}
+                          ? "Loading…"
+                          : lmstudioLoadStatus === "loaded"
+                            ? "Loaded"
+                            : "Errored"}
                     </span>
                   </div>
                   {lmstudioLoadError && (
@@ -1282,9 +1242,8 @@ export default function SettingsPage() {
               </h2>
               <div className="flex items-center gap-2">
                 <span
-                  className={`inline-block h-2 w-2 rounded-full ${
-                    ankiConnected ? "bg-green-500" : "bg-red-500"
-                  }`}
+                  className={`inline-block h-2 w-2 rounded-full ${ankiConnected ? "bg-green-500" : "bg-red-500"
+                    }`}
                 />
                 <span className="text-sm text-zinc-600 dark:text-zinc-400">
                   {ankiConnected ? "Connected" : "Not connected"}
@@ -1398,21 +1357,19 @@ export default function SettingsPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => saveSetting("defaultCardType", "basic")}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                    settings.defaultCardType === "basic"
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                      : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                  }`}
+                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${settings.defaultCardType === "basic"
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                    : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    }`}
                 >
                   Basic
                 </button>
                 <button
                   onClick={() => saveSetting("defaultCardType", "cloze")}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                    settings.defaultCardType === "cloze"
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                      : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                  }`}
+                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${settings.defaultCardType === "cloze"
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                    : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    }`}
                 >
                   Cloze
                 </button>
@@ -1432,9 +1389,8 @@ export default function SettingsPage() {
               {googleTTSAvailable !== null && (
                 <div className="flex items-center gap-2">
                   <span
-                    className={`inline-block h-2 w-2 rounded-full ${
-                      googleTTSAvailable ? "bg-green-500" : "bg-yellow-500"
-                    }`}
+                    className={`inline-block h-2 w-2 rounded-full ${googleTTSAvailable ? "bg-green-500" : "bg-yellow-500"
+                      }`}
                   />
                   <span className="text-sm text-zinc-600 dark:text-zinc-400">
                     {googleTTSAvailable ? "Google TTS Active" : "Using Browser TTS"}
@@ -1451,21 +1407,19 @@ export default function SettingsPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => saveSetting("ttsMode", "google")}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                    settings.ttsMode === "google"
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                      : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                  }`}
+                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${settings.ttsMode === "google"
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                    : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    }`}
                 >
                   Google Cloud
                 </button>
                 <button
                   onClick={() => saveSetting("ttsMode", "browser")}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                    settings.ttsMode === "browser"
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                      : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                  }`}
+                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${settings.ttsMode === "browser"
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                    : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    }`}
                 >
                   Browser Built-in
                 </button>
@@ -1526,11 +1480,10 @@ export default function SettingsPage() {
                   <button
                     key={theme}
                     onClick={() => saveSetting("theme", theme)}
-                    className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${
-                      settings.theme === theme
-                        ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                        : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    }`}
+                    className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${settings.theme === theme
+                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                      : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                      }`}
                   >
                     {theme}
                   </button>
@@ -1661,15 +1614,13 @@ export default function SettingsPage() {
                     ].map(({ value, label }) => (
                       <label
                         key={value}
-                        className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                          newTokenScopes.includes(value)
-                            ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                            : "border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                        } ${
-                          newTokenScopes.includes("*") && value !== "*"
+                        className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${newTokenScopes.includes(value)
+                          ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                          : "border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                          } ${newTokenScopes.includes("*") && value !== "*"
                             ? "opacity-50 cursor-not-allowed"
                             : "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                        }`}
+                          }`}
                       >
                         <input
                           type="checkbox"

@@ -25,136 +25,9 @@ import { addClozeCard, isAnkiConnected } from '@/lib/anki';
 import { translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 import { splitTrailingPunctuation } from '@/lib/words';
-
-const ANKI_CLOZE_DECK_SETTING_KEY = 'lector-anki-cloze-deck';
-const DEFAULT_ANKI_CLOZE_DECK = 'Afrikaans::Cloze';
-
-// Helper function to create blanked sentence, moving punctuation outside the blank
-function createBlankedSentence(sentence: string, wordIndex: number): string {
-  const words = sentence.split(/\s+/);
-  const [, punct] = splitTrailingPunctuation(words[wordIndex]);
-  words[wordIndex] = '_____' + punct;
-  return words.join(' ');
-}
-
-// Helper function to normalize text for comparison
-function normalize(s: string): string {
-  return s.toLowerCase().replace(/[.,!?;:'")\]]/g, '').trim();
-}
-
-// Helper function to check answer (case-insensitive, ignores punctuation)
-function checkAnswer(userAnswer: string, correctWord: string): boolean {
-  return normalize(userAnswer) === normalize(correctWord);
-}
-
-// Fuzzy match status for live feedback
-type FuzzyStatus = 'empty' | 'match' | 'partial' | 'wrong';
-
-function getFuzzyStatus(userInput: string, correctWord: string): FuzzyStatus {
-  if (!userInput.trim()) return 'empty';
-
-  const input = normalize(userInput);
-  const correct = normalize(correctWord);
-
-  if (input === correct) return 'match';
-  if (input.length <= correct.length && correct.startsWith(input)) return 'partial';
-
-  return 'wrong';
-}
-
-// Calculate next review date based on mastery level
-function calculateNextReview(mastery: ClozeMasteryLevel): Date {
-  const now = new Date();
-  const intervals: Record<ClozeMasteryLevel, number> = {
-    0: 0,
-    25: 1,
-    50: 3,
-    75: 7,
-    100: 14,
-  };
-  const days = intervals[mastery];
-  return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-}
-
-// Calculate points for correct answer
-function calculatePoints(mastery: ClozeMasteryLevel): number {
-  const pointsMap: Record<ClozeMasteryLevel, number> = {
-    0: 10,
-    25: 15,
-    50: 20,
-    75: 25,
-    100: 30,
-  };
-  return pointsMap[mastery];
-}
-
-// Generate distractors from the queue/pool of cloze words
-function generateDistractors(
-  correctWord: string,
-  pool: ClozeSentence[],
-): string[] {
-  const correctNorm = normalize(correctWord);
-  const correctLen = correctNorm.length;
-
-  const candidates: string[] = [];
-  const seen = new Set<string>();
-  seen.add(correctNorm);
-
-  for (const s of pool) {
-    const norm = normalize(s.clozeWord);
-    if (!seen.has(norm) && norm.length > 0) {
-      seen.add(norm);
-      candidates.push(s.clozeWord);
-    }
-  }
-
-  // Sort by length similarity to the correct word
-  candidates.sort((a, b) => {
-    const diffA = Math.abs(normalize(a).length - correctLen);
-    const diffB = Math.abs(normalize(b).length - correctLen);
-    return diffA - diffB;
-  });
-
-  // Pick top candidates then shuffle
-  const topCandidates = candidates.slice(0, Math.min(12, candidates.length));
-  for (let i = topCandidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [topCandidates[i], topCandidates[j]] = [topCandidates[j], topCandidates[i]];
-  }
-
-  return topCandidates.slice(0, 3);
-}
-
-// Shuffle array (Fisher-Yates)
-function shuffle<T>(arr: T[]): T[] {
-  const result = [...arr];
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
-type PracticeState = 'setup' | 'loading' | 'practicing' | 'feedback' | 'complete' | 'empty';
-type PracticeMode = 'type' | 'mc';
-
-const ROUND_SIZES = [10, 20, 30, 40, 50] as const;
-type RoundSize = typeof ROUND_SIZES[number];
-
-interface CurrentSentence {
-  sentence: ClozeSentence;
-  blankedSentence: string;
-}
-
-const COLLECTION_LABELS: Record<string, string> = {
-  top500: 'Top 500',
-  top1000: '500-1000',
-  top2000: '1000-2000',
-};
-
-const VISIBLE_COLLECTIONS: ClozeCollection[] = ['top500', 'top1000', 'top2000'];
-
-type RoundType = 'new' | 'review';
+import { createBlankedSentence, calculateNextReview, calculatePoints, checkAnswer, generateDistractors, getFuzzyStatus, normalize, shuffle } from './utils';
+import type { CurrentSentence, PracticeMode, PracticeState, RoundSize, RoundType } from './types';
+import { ANKI_CLOZE_DECK_SETTING_KEY, COLLECTION_LABELS, DEFAULT_ANKI_CLOZE_DECK, ROUND_SIZES, VISIBLE_COLLECTIONS } from './constants';
 
 export default function PracticePage() {
   // State
@@ -324,12 +197,12 @@ export default function PracticePage() {
       setWordTooltip((prev) =>
         prev
           ? {
-              ...prev,
-              translation: result.translation,
-              partOfSpeech: result.partOfSpeech || prev.partOfSpeech,
-              dictEntry: null,
-              isContextLoading: false,
-            }
+            ...prev,
+            translation: result.translation,
+            partOfSpeech: result.partOfSpeech || prev.partOfSpeech,
+            dictEntry: null,
+            isContextLoading: false,
+          }
           : prev,
       );
     } catch {
@@ -796,11 +669,10 @@ export default function PracticePage() {
                       <button
                         key={coll}
                         onClick={() => setSelectedCollection(coll)}
-                        className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${
-                          selectedCollection === coll
-                            ? 'bg-blue-500 text-white shadow-md'
-                            : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                        }`}
+                        className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${selectedCollection === coll
+                          ? 'bg-blue-500 text-white shadow-md'
+                          : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                          }`}
                       >
                         <div>{COLLECTION_LABELS[coll]}</div>
                         {count && count.total > 0 && (
@@ -823,11 +695,10 @@ export default function PracticePage() {
                       <button
                         key={size}
                         onClick={() => setRoundSize(size)}
-                        className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                          roundSize === size
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-                        }`}
+                        className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${roundSize === size
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                          }`}
                       >
                         {size}
                       </button>
@@ -839,21 +710,19 @@ export default function PracticePage() {
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => handleSetPracticeMode('type')}
-                      className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                        practiceMode === 'type'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-                      }`}
+                      className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${practiceMode === 'type'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                        }`}
                     >
                       Type
                     </button>
                     <button
                       onClick={() => handleSetPracticeMode('mc')}
-                      className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                        practiceMode === 'mc'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-                      }`}
+                      className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${practiceMode === 'mc'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                        }`}
                     >
                       MC
                     </button>
@@ -959,25 +828,25 @@ export default function PracticePage() {
                         {i > 0 && ' '}
                         {i === current.sentence.clozeIndex ? (
                           <>
-                          {practiceMode === 'type' && !mcFallback ? (
-                            <input
-                              ref={inputRef}
-                              type="text"
-                              value={userAnswer}
-                              onChange={(e) => setUserAnswer(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.repeat) {
-                                  e.preventDefault();
-                                  handleSubmit();
-                                }
-                              }}
-                              autoComplete="off"
-                              autoCapitalize="off"
-                              autoCorrect="off"
-                              spellCheck={false}
-                              placeholder="..."
+                            {practiceMode === 'type' && !mcFallback ? (
+                              <input
+                                ref={inputRef}
+                                type="text"
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.repeat) {
+                                    e.preventDefault();
+                                    handleSubmit();
+                                  }
+                                }}
+                                autoComplete="off"
+                                autoCapitalize="off"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                placeholder="..."
 
-                              className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium outline-none transition-all
+                                className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium outline-none transition-all
                                 focus:ring-2 focus:ring-offset-1
                                 ${inputColorClass}
                                 ${fuzzyStatus === 'match' ? 'text-green-700 dark:text-green-300 focus:ring-green-400' : ''}
@@ -985,17 +854,17 @@ export default function PracticePage() {
                                 ${fuzzyStatus === 'wrong' ? 'text-red-600 dark:text-red-400 focus:ring-red-400' : ''}
                                 ${fuzzyStatus === 'empty' ? 'text-zinc-900 dark:text-zinc-100 focus:ring-blue-400' : ''}
                               `}
-                              style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
-                            />
-                          ) : (
-                            <span
-                              className="inline-block rounded-lg border-2 border-blue-400 bg-blue-50 px-3 py-1 text-center text-xl font-bold text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"
-                              style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
-                            >
-                              _____
-                            </span>
-                          )}
-                          {clozePunct}
+                                style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
+                              />
+                            ) : (
+                              <span
+                                className="inline-block rounded-lg border-2 border-blue-400 bg-blue-50 px-3 py-1 text-center text-xl font-bold text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"
+                                style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
+                              >
+                                _____
+                              </span>
+                            )}
+                            {clozePunct}
                           </>
                         ) : (
                           <span
@@ -1147,11 +1016,10 @@ export default function PracticePage() {
                         <span
                           data-testid="cloze-word"
                           onClick={() => handleWordClick(word)}
-                          className={`cursor-pointer rounded px-1 font-bold ${
-                          feedbackData.isCorrect
+                          className={`cursor-pointer rounded px-1 font-bold ${feedbackData.isCorrect
                             ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70'
                             : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900/70'
-                        }`}>
+                            }`}>
                           {word}
                         </span>
                       ) : (
