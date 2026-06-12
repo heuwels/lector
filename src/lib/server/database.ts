@@ -159,7 +159,8 @@ function getDb(): DatabaseType {
       content TEXT NOT NULL,
       provider TEXT,
       responseId TEXT,
-      createdAt TEXT NOT NULL
+      createdAt TEXT NOT NULL,
+      language TEXT NOT NULL DEFAULT 'af'
     );
     CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt);
 
@@ -395,7 +396,7 @@ function migrateBooks(database: DatabaseType) {
  * Also recreate knownWords with compound PK (word, language).
  */
 function migrateAddLanguageColumn(database: DatabaseType) {
-  const tablesToMigrate = ['collections', 'lessons', 'vocab', 'clozeSentences', 'journal_entries'];
+  const tablesToMigrate = ['collections', 'lessons', 'vocab', 'clozeSentences', 'journal_entries', 'chat_messages'];
 
   for (const table of tablesToMigrate) {
     const cols = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];

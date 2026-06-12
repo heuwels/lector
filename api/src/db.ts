@@ -4,6 +4,7 @@ import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { parseEpub } from './lib/epub-parser';
 import { htmlToMarkdown, countWords } from './lib/html-to-markdown';
+import { LanguageCode } from './lib/languages';
 
 const DATA_DIR = process.env.DATA_DIR || '../data';
 const OLD_DB_PATH = path.join(DATA_DIR, 'afrikaans.db');
@@ -146,7 +147,8 @@ function getDb(): Database {
       content TEXT NOT NULL,
       provider TEXT,
       responseId TEXT,
-      createdAt TEXT NOT NULL
+      createdAt TEXT NOT NULL,
+      language TEXT NOT NULL DEFAULT 'af'
     );
     CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt);
   `);
@@ -165,6 +167,10 @@ function getDb(): Database {
   const chatCols = _db.prepare("PRAGMA table_info(chat_messages)").all() as { name: string }[];
   if (!chatCols.some(c => c.name === 'responseId')) {
     _db.exec('ALTER TABLE chat_messages ADD COLUMN responseId TEXT');
+  }
+
+  if (!chatCols.some(c => c.name === 'language')) {
+    _db.exec('ALTER TABLE chat_messages ADD COLUMN language TEXT NOT NULL DEFAULT \'af\'');
   }
 
   migrateVocabForeignKey(_db);
@@ -498,4 +504,5 @@ export interface ChatMessageRow {
   provider: string | null;
   responseId: string | null;
   createdAt: string;
+  language: LanguageCode;
 }

@@ -3,7 +3,7 @@ import { db, ChatMessageRow } from '../db';
 import { getProvider } from '../lib/llm';
 import { LMStudioProvider, LMStudioInvalidResponseIdError } from '../lib/llm/lmstudio';
 import { resolveLanguage } from '../lib/active-language';
-import { getLanguageConfig } from '../lib/languages';
+import { getLanguageConfig, LanguageCode } from '../lib/languages';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
@@ -27,17 +27,18 @@ app.get('/', (c) => {
 
   const limit = parseInt(c.req.query('limit') || '50');
   const before = c.req.query('before'); // cursor for infinite scroll
+  const lang = resolveLanguage(c.req.query('lang'));
 
   let messages: ChatMessageRow[];
 
   if (before) {
     messages = db
-      .prepare('SELECT * FROM chat_messages WHERE createdAt < ? ORDER BY createdAt DESC LIMIT ?')
-      .all(before, limit) as ChatMessageRow[];
+      .prepare('SELECT * FROM chat_messages WHERE createdAt < ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .all(before, lang, limit) as ChatMessageRow[];
   } else {
     messages = db
-      .prepare('SELECT * FROM chat_messages ORDER BY createdAt DESC LIMIT ?')
-      .all(limit) as ChatMessageRow[];
+      .prepare('SELECT * FROM chat_messages WHERE language = ? ORDER BY createdAt DESC LIMIT ?')
+      .all(lang, limit) as ChatMessageRow[];
   }
 
   return c.json(messages.reverse());
@@ -66,6 +67,7 @@ app.post('/', async (c) => {
       provider: null,
       responseId: null,
       createdAt: now,
+      language: lang
     };
 
     const provider = getProvider();
@@ -76,9 +78,9 @@ app.post('/', async (c) => {
       // Stateful path: LM Studio holds the conversation; we just thread the latest response_id.
       const latestAssistant = db
         .prepare(
-          "SELECT * FROM chat_messages WHERE role = 'assistant' AND responseId IS NOT NULL ORDER BY createdAt DESC LIMIT 1"
+          "SELECT * FROM chat_messages WHERE role = 'assistant' AND responseId IS NOT NULL AND language = ? ORDER BY createdAt DESC LIMIT 1"
         )
-        .get() as ChatMessageRow | undefined;
+        .get(lang) as ChatMessageRow | undefined;
       const previousResponseId = latestAssistant?.responseId || undefined;
 
       try {
@@ -96,7 +98,7 @@ app.post('/', async (c) => {
         if (err instanceof LMStudioInvalidResponseIdError) {
           // Fall back: replay the whole conversation through stateless complete().
           // Happens when the LM Studio server restarted or the response_id expired.
-          const fallback = await runStatelessFallback(provider, userMsg, SYSTEM_PROMPT);
+          const fallback = await runStatelessFallback(provider, lang, userMsg, SYSTEM_PROMPT);
           responseText = fallback;
         } else {
           throw err;
@@ -105,8 +107,8 @@ app.post('/', async (c) => {
     } else {
       // Existing path for all other providers: send the full message history.
       const recentMessages = db
-        .prepare('SELECT * FROM chat_messages ORDER BY createdAt DESC LIMIT ?')
-        .all(MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
+        .prepare('SELECT * FROM chat_messages WHERE language = ? ORDER BY createdAt DESC LIMIT ?')
+        .all(lang, MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
 
       const history = [...recentMessages.reverse(), userMsg];
 
@@ -135,19 +137,20 @@ app.post('/', async (c) => {
       provider: provider.name,
       responseId: newResponseId,
       createdAt: new Date().toISOString(),
+      language: lang
     };
 
     // Save both messages only after LLM succeeds
     const insertMsg = db.prepare(
-      'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt, language) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     insertMsg.run(
       userMsg.id, userMsg.role, userMsg.content, userMsg.provider,
-      userMsg.responseId, userMsg.createdAt,
+      userMsg.responseId, userMsg.createdAt, lang
     );
     insertMsg.run(
       assistantMsg.id, assistantMsg.role, assistantMsg.content, assistantMsg.provider,
-      assistantMsg.responseId, assistantMsg.createdAt,
+      assistantMsg.responseId, assistantMsg.createdAt, lang
     );
 
     return c.json({ userMessage: userMsg, assistantMessage: assistantMsg });
@@ -157,20 +160,22 @@ app.post('/', async (c) => {
   }
 });
 
-// DELETE /api/chat — clear all chat history
+// DELETE /api/chat — clear chat history for the active (or requested) language
 app.delete('/', (c) => {
-  db.prepare('DELETE FROM chat_messages').run();
+  const lang = resolveLanguage(c.req.query('lang'));
+  db.prepare('DELETE FROM chat_messages WHERE language = ?').run(lang);
   return c.json({ ok: true });
 });
 
 async function runStatelessFallback(
   provider: LMStudioProvider,
+  lang: LanguageCode,
   userMsg: ChatMessageRow,
   systemPrompt: string,
 ): Promise<string> {
   const recentMessages = db
-    .prepare('SELECT * FROM chat_messages ORDER BY createdAt DESC LIMIT ?')
-    .all(MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
+    .prepare('SELECT * FROM chat_messages WHERE language = ? ORDER BY createdAt DESC LIMIT ?')
+    .all(lang, MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
 
   const history = [...recentMessages.reverse(), userMsg];
   const chatHistory = history.map((m, i) => {

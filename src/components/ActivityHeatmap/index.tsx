@@ -1,75 +1,11 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
-
-interface ActivityDay {
-  date: string; // YYYY-MM-DD
-  count: number;
-}
-
-interface ActivityHeatmapProps {
-  data: ActivityDay[];
-  colorScheme?: {
-    empty: string;
-    level1: string;
-    level2: string;
-    level3: string;
-    level4: string;
-  };
-}
-
-const darkColorScheme = {
-  empty: '#1e293b',    // slate-800
-  level1: '#166534',   // green-800
-  level2: '#22c55e',   // green-500
-  level3: '#4ade80',   // green-400
-  level4: '#86efac',   // green-300
-};
-
-const lightColorScheme = {
-  empty: '#e2e8f0',    // slate-200
-  level1: '#bbf7d0',   // green-200
-  level2: '#4ade80',   // green-400
-  level3: '#22c55e',   // green-500
-  level4: '#16a34a',   // green-600
-};
-
-function useIsDark() {
-  const [isDark, setIsDark] = useState(true);
-  useEffect(() => {
-    const check = () => setIsDark(document.documentElement.classList.contains('dark'));
-    check();
-    const observer = new MutationObserver(check);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
-  return isDark;
-}
-
-const defaultColorScheme = darkColorScheme;
-
-const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function getColor(count: number, maxCount: number, scheme: typeof defaultColorScheme): string {
-  if (count === 0) return scheme.empty;
-  const ratio = count / maxCount;
-  if (ratio <= 0.25) return scheme.level1;
-  if (ratio <= 0.5) return scheme.level2;
-  if (ratio <= 0.75) return scheme.level3;
-  return scheme.level4;
-}
-
-function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
-}
-
-function getDayOfYear(date: Date): number {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  const oneDay = 1000 * 60 * 60 * 24;
-  return Math.floor(diff / oneDay);
-}
+import { useMemo, } from 'react';
+import { useIsDark } from '@/utils/hooks';
+import { DAYS_OF_WEEK, MONTHS } from './constants';
+import { darkColorScheme, lightColorScheme } from './theme';
+import { type ActivityHeatmapProps } from './types'
+import { formatDate, getColor } from './utils';
 
 export default function ActivityHeatmap({
   data,
@@ -182,7 +118,7 @@ export default function ActivityHeatmap({
         <div className="flex gap-[2px]">
           {weeks.map((week, weekIdx) => (
             <div key={weekIdx} className="flex flex-col gap-[2px]">
-              {week.map((day, dayIdx) => (
+              {week.map((day) => (
                 <div
                   key={day.date}
                   className="w-[12px] h-[12px] rounded-sm transition-colors hover:ring-1 hover:ring-black/20 dark:hover:ring-white/30"

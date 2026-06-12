@@ -1,6 +1,8 @@
 'use client';
 
+import { useActiveLanguage } from '@/utils/hooks';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { EXAMPLE_PROMPTS } from './constants';
 
 interface ChatMessage {
   id: string;
@@ -9,12 +11,6 @@ interface ChatMessage {
   provider: string | null;
   createdAt: string;
 }
-
-const EXAMPLE_PROMPTS = [
-  'What\'s the difference between "hou van" and "hou daarvan"?',
-  'When do I use "het" vs "is" for past tense?',
-  'How do diminutives work in Afrikaans?',
-];
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -27,6 +23,7 @@ export default function ChatWidget() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const initialLoadDone = useRef(false);
+  const activeLang = useActiveLanguage();
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -52,7 +49,7 @@ export default function ChatWidget() {
 
   async function fetchMessages() {
     try {
-      const res = await fetch('/api/chat?limit=50');
+      const res = await fetch(`/api/chat?limit=50&lang=${activeLang.code}`);
       const data = await res.json();
       setMessages(data);
       setHasMore(data.length === 50);
@@ -70,7 +67,7 @@ export default function ChatWidget() {
 
     try {
       const oldest = messages[0];
-      const res = await fetch(`/api/chat?limit=50&before=${encodeURIComponent(oldest.createdAt)}`);
+      const res = await fetch(`/api/chat?limit=50&before=${encodeURIComponent(oldest.createdAt)}&lang=${activeLang.code}`);
       const older = await res.json();
       if (older.length === 0) {
         setHasMore(false);
@@ -112,7 +109,7 @@ export default function ChatWidget() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, language: localStorage.getItem('lector-target-language') || 'af' }),
+        body: JSON.stringify({ message: content, language: activeLang.code }),
       });
 
       if (!res.ok) throw new Error('Failed to send message');
@@ -154,7 +151,7 @@ export default function ChatWidget() {
 
   async function clearChat() {
     try {
-      await fetch('/api/chat', { method: 'DELETE' });
+      await fetch(`/api/chat?lang=${activeLang.code}`, { method: 'DELETE' });
       setMessages([]);
       setHasMore(false);
     } catch (err) {
@@ -206,8 +203,8 @@ export default function ChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Afrikaans Tutor</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Ask anything about Afrikaans</p>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{activeLang.name} Tutor</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Ask anything about {activeLang.name}</p>
             </div>
             <button
               onClick={clearChat}
@@ -233,10 +230,10 @@ export default function ChatWidget() {
             {messages.length === 0 && !loading && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  Ask a question about Afrikaans
+                  Ask a question about {activeLang.name}
                 </p>
                 <div className="space-y-2 w-full">
-                  {EXAMPLE_PROMPTS.map((prompt) => (
+                  {EXAMPLE_PROMPTS[activeLang.code].map((prompt) => (
                     <button
                       key={prompt}
                       onClick={() => sendMessage(prompt)}
@@ -256,11 +253,10 @@ export default function ChatWidget() {
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                    msg.role === 'user'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-                  }`}
+                  className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${msg.role === 'user'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                    }`}
                 >
                   <div className="whitespace-pre-wrap break-words">{msg.content}</div>
                   {msg.role === 'assistant' && msg.provider && (

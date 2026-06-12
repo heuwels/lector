@@ -1,17 +1,6 @@
-export type LanguageCode = 'af' | 'de' | 'es';
+import { LanguageConfig, type LanguageCode } from '@/types/language';
 
-export interface LanguageConfig {
-  name: string;
-  native: string;
-  code: LanguageCode;
-  flag: string;
-  ttsCode: string;
-  ttsVoice: string;
-  tatoebaCode: string;
-  fallbackTts: string[];
-  avoidWords: Set<string>;
-  testPhrase: string;
-}
+export { type LanguageCode, type LanguageConfig } from '@/types/language';
 
 const AF_AVOID_WORDS = new Set([
   "'n", "die", "en", "of", "in", "op", "vir", "met", "na", "van",
