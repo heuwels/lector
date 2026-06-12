@@ -43,6 +43,49 @@ test.describe("Stats Page", () => {
     expect(Math.abs(wordsKnownIdx - learningIdx)).toBe(1);
   });
 
+  test("fluency badge and top cards show the same known/learning counts", async ({
+    page,
+  }) => {
+    // Seed word states through the same API the reader uses, so the counts
+    // are non-zero and both displays have something real to disagree about.
+    const seedRes = await page.request.post("/api/known-words", {
+      data: {
+        updates: [
+          { word: "e2e-stats-agree-one", state: "known" },
+          { word: "e2e-stats-agree-two", state: "known" },
+          { word: "e2e-stats-agree-three", state: "level2" },
+        ],
+        language: "af",
+      },
+    });
+    expect(seedRes.ok()).toBeTruthy();
+
+    await page.goto("/stats");
+    await page.waitForLoadState("networkidle");
+
+    const badgeKnown = page.locator('[data-testid="fluency-known-count"]');
+    const badgeLearning = page.locator('[data-testid="fluency-learning-count"]');
+    await expect(badgeKnown).toBeVisible({ timeout: 10000 });
+
+    const topCards = page.locator('[data-testid="stats-top-cards"]');
+    const knownCardValue = topCards
+      .locator("div.rounded-xl", { hasText: "Words Known" })
+      .locator("p.text-4xl");
+    const learningCardValue = topCards
+      .locator("div.rounded-xl", { hasText: "Learning (L1-L4)" })
+      .locator("p.text-4xl");
+
+    // Both displays must agree, and reflect at least the seeded words
+    const badgeKnownText = (await badgeKnown.innerText()).trim();
+    const badgeLearningText = (await badgeLearning.innerText()).trim();
+    expect((await knownCardValue.innerText()).trim()).toBe(badgeKnownText);
+    expect((await learningCardValue.innerText()).trim()).toBe(badgeLearningText);
+
+    const parseCount = (s: string) => parseInt(s.replace(/,/g, ""), 10);
+    expect(parseCount(badgeKnownText)).toBeGreaterThanOrEqual(2);
+    expect(parseCount(badgeLearningText)).toBeGreaterThanOrEqual(1);
+  });
+
   test("should render skeleton placeholders before stats load, then swap to real content", async ({
     page,
   }) => {

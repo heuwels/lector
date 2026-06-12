@@ -989,3 +989,86 @@ test.describe("Practice - Learn New should not show reviews", () => {
     }
   });
 });
+
+test.describe.serial("Practice - Cloze trailing punctuation", () => {
+  const TEST_COLLECTION = "top2000";
+
+  test("end-of-sentence punctuation stays visible next to the blank", async ({
+    page,
+  }) => {
+    // The round draws due sentences in random order, so make sure the seeded
+    // ones are the only due reviews in this collection.
+    const dueRes = await page.request.get(
+      `/api/cloze/due?mode=review&collection=${TEST_COLLECTION}&limit=50`
+    );
+    for (const s of await dueRes.json()) {
+      await page.request.delete(`/api/cloze/${s.id}`);
+    }
+
+    // Cloze words carry their trailing punctuation, matching the real bank
+    const pastDate = "2020-01-01T00:00:00.000Z";
+    const testSentences = [
+      {
+        id: "test-punct-1",
+        sentence: "Die kat sit op die PUNKTMAT.",
+        clozeWord: "PUNKTMAT.",
+        clozeIndex: 5,
+        translation: "The cat sits on the mat.",
+        source: "tatoeba",
+        collection: TEST_COLLECTION,
+        masteryLevel: 25,
+        nextReview: pastDate,
+        reviewCount: 3,
+        timesCorrect: 2,
+        timesIncorrect: 1,
+      },
+      {
+        id: "test-punct-2",
+        sentence: "Het jy my PUNKTKOS?",
+        clozeWord: "PUNKTKOS?",
+        clozeIndex: 3,
+        translation: "Do you have my food?",
+        source: "tatoeba",
+        collection: TEST_COLLECTION,
+        masteryLevel: 25,
+        nextReview: pastDate,
+        reviewCount: 2,
+        timesCorrect: 1,
+        timesIncorrect: 1,
+      },
+    ];
+
+    const seedRes = await page.request.post("/api/cloze", {
+      data: testSentences,
+    });
+    expect(seedRes.ok()).toBeTruthy();
+
+    try {
+      await waitForSetup(page);
+
+      // Start a review round for the seeded collection from Review Due
+      await page
+        .getByRole("button", { name: /1000-2000\s+\d+ due/ })
+        .click();
+
+      await expect(page.getByText("Fill in the blank")).toBeVisible({
+        timeout: 10000,
+      });
+
+      // The practicing-state sentence (leading-loose) must keep the cloze
+      // word's trailing punctuation visible after the input
+      const sentence = page.locator("p.leading-loose");
+      await expect(sentence).toBeVisible();
+      expect((await sentence.innerText()).trim()).toMatch(/[.?]$/);
+
+      // Same when the blank is shown instead of the input (MC fallback)
+      await page.getByRole("button", { name: "Multiple Choice" }).click();
+      await expect(sentence).toContainText("_____");
+      expect((await sentence.innerText()).trim()).toMatch(/[.?]$/);
+    } finally {
+      for (const s of testSentences) {
+        await page.request.delete(`/api/cloze/${s.id}`);
+      }
+    }
+  });
+});

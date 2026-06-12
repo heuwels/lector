@@ -60,6 +60,15 @@ test.describe("Fluency Benchmarks", () => {
     expect(data).toHaveProperty("totalKnownWords");
     expect(data).toHaveProperty("totalLearning");
     expect(data).toHaveProperty("totalNew");
+    expect(data).toHaveProperty("byState");
+    // The totals must be derived from byState — one calculation app-wide
+    expect(data.totalKnownWords).toBe(data.byState.known);
+    expect(data.totalLearning).toBe(
+      data.byState.level1 +
+        data.byState.level2 +
+        data.byState.level3 +
+        data.byState.level4
+    );
     expect(data).toHaveProperty("estimatedLevel");
     expect(data.estimatedLevel).toHaveProperty("code");
     expect(data.estimatedLevel).toHaveProperty("label");

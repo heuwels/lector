@@ -1,0 +1,23 @@
+# Build output & generated
+.next
+out
+build
+coverage
+playwright-report
+test-results
+tmp
+*.tsbuildinfo
+next-env.d.ts
+package-lock.json
+
+# Data & static assets
+data
+public
+
+# Local-only working dirs
+.claude
+docs
+
+# Bun API deps
+api/node_modules
+api/bun.lock
