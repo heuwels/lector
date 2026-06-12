@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 
 const app = new Hono();
 
+// TODO: add per-language system prompt configuration in Settings
 function getSystemPrompt(langName: string): string {
   return `You are a friendly ${langName} language tutor helping an English speaker learn ${langName}. Answer questions about grammar, vocabulary, usage, idioms, and differences between similar words or phrases. Keep answers concise and educational. Use examples where helpful. Reply in English unless the student writes in ${langName}, in which case reply in ${langName} with an English explanation.`;
 }
