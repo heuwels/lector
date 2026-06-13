@@ -46,7 +46,7 @@ export default function CollectionCard({ collection }: CollectionCardProps) {
 
         {/* Progress overlay */}
         {progressPercent > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
+          <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/60 to-transparent p-3">
             <div className="flex items-center justify-between text-white">
               <span className="text-xs font-medium">{progressPercent}% complete</span>
             </div>
@@ -66,9 +66,11 @@ export default function CollectionCard({ collection }: CollectionCardProps) {
           {collection.title}
         </h3>
         {collection.author && (
-          <p className="mt-1 truncate text-sm text-zinc-500 dark:text-zinc-400">{collection.author}</p>
+          <p className="mt-1 truncate text-sm text-zinc-500 dark:text-zinc-400">
+            {collection.author}
+          </p>
         )}
-        <div className="mt-auto pt-3 flex items-center justify-between">
+        <div className="mt-auto flex items-center justify-between pt-3">
           <span className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
