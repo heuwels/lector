@@ -1,10 +1,10 @@
 'use client';
 
-import { Monitor, Sun, Moon } from 'lucide-react';
+import { Monitor, Sun, Moon, type LucideIcon } from 'lucide-react';
 import { Theme } from '@/types/theme';
 import { useTheme } from '@/utils/hooks';
 
-const options: { value: Theme; icon: React.FC<any>; label: string }[] = [
+const options: { value: Theme; icon: LucideIcon; label: string }[] = [
   { value: 'light', icon: Sun, label: 'Light' },
   { value: 'dark', icon: Moon, label: 'Dark' },
   { value: 'system', icon: Monitor, label: 'System' },
