@@ -26,11 +26,7 @@ import { speak } from '@/lib/tts';
 import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
 
-export default function ReadPage({
-  params,
-}: {
-  params: Promise<{ bookId: string }>;
-}) {
+export default function ReadPage({ params }: { params: Promise<{ bookId: string }> }) {
   const { bookId: lessonId } = use(params);
   const router = useRouter();
 
@@ -189,14 +185,15 @@ export default function ReadPage({
         try {
           const result = await translateWord(word, sentence);
           if (requestId !== translationRequestId.current) return;
-          const structured = result.senses && result.senses.length > 0
-            ? {
-              senses: result.senses,
-              ipa: result.ipa,
-              etymology: result.etymology,
-              relatedForms: result.relatedForms,
-            }
-            : null;
+          const structured =
+            result.senses && result.senses.length > 0
+              ? {
+                  senses: result.senses,
+                  ipa: result.ipa,
+                  etymology: result.etymology,
+                  relatedForms: result.relatedForms,
+                }
+              : null;
           setWordPanel((prev) => ({
             ...prev,
             translation: result.translation,
@@ -231,22 +228,26 @@ export default function ReadPage({
   // in the gloss "plural of vrug". Re-targets the drawer like a reader word
   // click, keeping the sentence the user was reading so a save/known action
   // on the underlying word records where it was encountered.
-  const handleNestedLookup = useCallback((nestedWord: string) => {
-    void handleWordClick(nestedWord, wordPanel.sentence);
-  }, [handleWordClick, wordPanel.sentence]);
+  const handleNestedLookup = useCallback(
+    (nestedWord: string) => {
+      void handleWordClick(nestedWord, wordPanel.sentence);
+    },
+    [handleWordClick, wordPanel.sentence],
+  );
 
   const requestContextTranslation = useCallback(async () => {
     setWordPanel((prev) => ({ ...prev, isContextLoading: true }));
     try {
       const result = await translateWord(wordPanel.word, wordPanel.sentence);
-      const structured = result.senses && result.senses.length > 0
-        ? {
-          senses: result.senses,
-          ipa: result.ipa,
-          etymology: result.etymology,
-          relatedForms: result.relatedForms,
-        }
-        : null;
+      const structured =
+        result.senses && result.senses.length > 0
+          ? {
+              senses: result.senses,
+              ipa: result.ipa,
+              etymology: result.etymology,
+              relatedForms: result.relatedForms,
+            }
+          : null;
       setWordPanel((prev) => {
         // When the dict already has the word: stash the AI gloss in the
         // override slot so the drawer renders it, but leave `translation`
@@ -337,7 +338,7 @@ export default function ReadPage({
       ...prev,
       existingEntry: entry,
     }));
-    setReaderRefreshTrigger(prev => prev + 1);
+    setReaderRefreshTrigger((prev) => prev + 1);
   }, [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation]);
 
   const markAsKnown = useCallback(async () => {
@@ -364,7 +365,7 @@ export default function ReadPage({
 
     await incrementDailyStat('wordsMarkedKnown');
     persistAcceptedTranslation();
-    setReaderRefreshTrigger(prev => prev + 1);
+    setReaderRefreshTrigger((prev) => prev + 1);
     closeWordPanel();
   }, [wordPanel, lessonId, closeWordPanel, resolveExistingEntry, persistAcceptedTranslation]);
 
@@ -390,44 +391,49 @@ export default function ReadPage({
       await updateVocabState(existing.id, 'ignored');
     }
 
-    setReaderRefreshTrigger(prev => prev + 1);
+    setReaderRefreshTrigger((prev) => prev + 1);
     closeWordPanel();
   }, [wordPanel, lessonId, closeWordPanel, resolveExistingEntry]);
 
-  const setWordLevel = useCallback(async (level: 1 | 2 | 3 | 4) => {
-    if (!wordPanel.translation) return;
+  const setWordLevel = useCallback(
+    async (level: 1 | 2 | 3 | 4) => {
+      if (!wordPanel.translation) return;
 
-    const state = `level${level}` as 'level1' | 'level2' | 'level3' | 'level4';
-    const existing = await resolveExistingEntry();
+      const state = `level${level}` as 'level1' | 'level2' | 'level3' | 'level4';
+      const existing = await resolveExistingEntry();
 
-    if (!existing) {
-      const entry: VocabEntry = {
-        id: uuidv4(),
-        text: wordPanel.word.toLowerCase(),
-        type: wordPanel.word.includes(' ') ? 'phrase' : 'word',
-        sentence: wordPanel.sentence,
-        translation: wordPanel.translation,
-        state,
-        stateUpdatedAt: new Date(),
-        reviewCount: 0,
-        bookId: lessonId,
-        createdAt: new Date(),
-        pushedToAnki: false,
-      };
-      await saveVocab(entry);
-      await incrementDailyStat('newWordsSaved');
-      setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
-    } else {
-      await updateVocabState(existing.id, state);
-      setWordPanel((prev) => ({
-        ...prev,
-        existingEntry: prev.existingEntry ? { ...prev.existingEntry, state } : { ...existing, state },
-      }));
-    }
+      if (!existing) {
+        const entry: VocabEntry = {
+          id: uuidv4(),
+          text: wordPanel.word.toLowerCase(),
+          type: wordPanel.word.includes(' ') ? 'phrase' : 'word',
+          sentence: wordPanel.sentence,
+          translation: wordPanel.translation,
+          state,
+          stateUpdatedAt: new Date(),
+          reviewCount: 0,
+          bookId: lessonId,
+          createdAt: new Date(),
+          pushedToAnki: false,
+        };
+        await saveVocab(entry);
+        await incrementDailyStat('newWordsSaved');
+        setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
+      } else {
+        await updateVocabState(existing.id, state);
+        setWordPanel((prev) => ({
+          ...prev,
+          existingEntry: prev.existingEntry
+            ? { ...prev.existingEntry, state }
+            : { ...existing, state },
+        }));
+      }
 
-    persistAcceptedTranslation();
-    setReaderRefreshTrigger(prev => prev + 1);
-  }, [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation]);
+      persistAcceptedTranslation();
+      setReaderRefreshTrigger((prev) => prev + 1);
+    },
+    [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation],
+  );
 
   const handleClose = useCallback(() => {
     if (lesson?.collectionId) {
@@ -459,14 +465,15 @@ export default function ReadPage({
         }));
       } else {
         const result = await translateWord(wordPanel.word, wordPanel.sentence);
-        const structured = result.senses && result.senses.length > 0
-          ? {
-            senses: result.senses,
-            ipa: result.ipa,
-            etymology: result.etymology,
-            relatedForms: result.relatedForms,
-          }
-          : null;
+        const structured =
+          result.senses && result.senses.length > 0
+            ? {
+                senses: result.senses,
+                ipa: result.ipa,
+                etymology: result.etymology,
+                relatedForms: result.relatedForms,
+              }
+            : null;
         setWordPanel((prev) => ({
           ...prev,
           translation: result.translation,
@@ -483,11 +490,14 @@ export default function ReadPage({
     }
   }, [wordPanel.word, wordPanel.sentence]);
 
-  const handleSaveText = useCallback(async (newContent: string) => {
-    await updateLesson(lessonId, { textContent: newContent });
-    setLesson((prev) => (prev ? { ...prev, textContent: newContent } : prev));
-    setReaderRefreshTrigger((prev) => prev + 1);
-  }, [lessonId]);
+  const handleSaveText = useCallback(
+    async (newContent: string) => {
+      await updateLesson(lessonId, { textContent: newContent });
+      setLesson((prev) => (prev ? { ...prev, textContent: newContent } : prev));
+      setReaderRefreshTrigger((prev) => prev + 1);
+    },
+    [lessonId],
+  );
 
   const handleEditingChange = useCallback((editing: boolean) => {
     if (editing) {
@@ -496,7 +506,7 @@ export default function ReadPage({
   }, []);
 
   // Navigate to prev/next lesson in collection
-  const currentIndex = siblings.findIndex(l => l.id === lessonId);
+  const currentIndex = siblings.findIndex((l) => l.id === lessonId);
   const prevLesson = currentIndex > 0 ? siblings[currentIndex - 1] : null;
   const nextLesson = currentIndex < siblings.length - 1 ? siblings[currentIndex + 1] : null;
 
@@ -532,13 +542,22 @@ export default function ReadPage({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [wordPanel.isOpen, wordPanel.existingEntry, wordPanel.translation, closeWordPanel, markAsKnown, ignoreWord, saveWordToVocab, setWordLevel]);
+  }, [
+    wordPanel.isOpen,
+    wordPanel.existingEntry,
+    wordPanel.translation,
+    closeWordPanel,
+    markAsKnown,
+    ignoreWord,
+    saveWordToVocab,
+    setWordLevel,
+  ]);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-zinc-900">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="h-10 w-10 animate-spin rounded-full border-3 border-blue-500 border-t-transparent" />
           <p className="text-zinc-600 dark:text-zinc-400">Loading lesson...</p>
         </div>
       </div>
@@ -547,15 +566,13 @@ export default function ReadPage({
 
   if (error || !lesson) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-white dark:bg-zinc-900 p-8">
-        <div className="text-red-500 dark:text-red-400 text-xl mb-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-white p-8 dark:bg-zinc-900">
+        <div className="mb-4 text-xl text-red-500 dark:text-red-400">
           {error || 'Lesson not found'}
         </div>
         <button
           onClick={() => router.push('/')}
-          className="px-4 py-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg
-            hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors
-            text-zinc-900 dark:text-zinc-100"
+          className="rounded-lg bg-zinc-200 px-4 py-2 text-zinc-900 transition-colors hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600"
         >
           Go to Library
         </button>
@@ -564,8 +581,8 @@ export default function ReadPage({
   }
 
   return (
-    <div className="h-dvh flex flex-col bg-white dark:bg-zinc-900 overflow-x-hidden">
-      <div className="flex-1 relative overflow-hidden">
+    <div className="flex h-dvh flex-col overflow-x-hidden bg-white dark:bg-zinc-900">
+      <div className="relative flex-1 overflow-hidden">
         <MarkdownReader
           lesson={lesson}
           onWordClick={handleWordClick}
@@ -580,20 +597,7 @@ export default function ReadPage({
 
       {/* Translation drawer — slides in from the right */}
       <TranslationDrawer
-        isOpen={wordPanel.isOpen}
-        word={wordPanel.word}
-        sentence={wordPanel.sentence}
-        entry={wordPanel.dictEntry}
-        aiTranslation={wordPanel.translation}
-        aiPartOfSpeech={wordPanel.partOfSpeech}
-        aiContextTranslation={wordPanel.aiContextTranslation}
-        aiContextPartOfSpeech={wordPanel.aiContextPartOfSpeech}
-        aiPhraseDetails={wordPanel.phraseDetails}
-        isDictionaryResult={wordPanel.isDictionaryResult}
-        isLoading={wordPanel.isLoading}
-        isContextLoading={wordPanel.isContextLoading}
-        error={wordPanel.error}
-        existingEntry={wordPanel.existingEntry}
+        {...wordPanel}
         onClose={closeWordPanel}
         onSpeak={(text) => speak(text.split(/\s+/).slice(0, 15).join(' '))}
         onSetLevel={setWordLevel}
@@ -603,7 +607,6 @@ export default function ReadPage({
         onRetranslate={retranslateWithAi}
         onLookupWord={handleNestedLookup}
       />
-
     </div>
   );
 }

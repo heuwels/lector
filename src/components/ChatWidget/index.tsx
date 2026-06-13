@@ -1,5 +1,7 @@
 'use client';
 
+import { MessageCircle, X, SendHorizonal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useActiveLanguage } from '@/utils/hooks';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { EXAMPLE_PROMPTS } from './constants';
@@ -67,7 +69,9 @@ export default function ChatWidget() {
 
     try {
       const oldest = messages[0];
-      const res = await fetch(`/api/chat?limit=50&before=${encodeURIComponent(oldest.createdAt)}&lang=${activeLang.code}`);
+      const res = await fetch(
+        `/api/chat?limit=50&before=${encodeURIComponent(oldest.createdAt)}&lang=${activeLang.code}`,
+      );
       const older = await res.json();
       if (older.length === 0) {
         setHasMore(false);
@@ -130,7 +134,8 @@ export default function ChatWidget() {
         {
           id: 'error-' + Date.now(),
           role: 'assistant' as const,
-          content: 'Sorry, I couldn\'t respond. Check that an LLM provider is configured in Settings.',
+          content:
+            "Sorry, I couldn't respond. Check that an LLM provider is configured in Settings.",
           provider: null,
           createdAt: new Date().toISOString(),
         },
@@ -174,74 +179,78 @@ export default function ChatWidget() {
     }
   }
 
+  const toggleOpen = () => {
+    setIsOpen(!isOpen);
+  };
+
   return (
     <>
       {/* Floating trigger button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center"
+      <Button
+        onClick={toggleOpen}
+        className="fixed right-4 bottom-20 z-50 flex h-12 w-12 rounded-full bg-indigo-600 text-white shadow-lg transition-all hover:bg-indigo-700 hover:shadow-xl sm:right-6 sm:bottom-6"
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
         data-testid="chat-toggle"
       >
-        {isOpen ? (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        ) : (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-        )}
-      </button>
+        {isOpen ? <X /> : <MessageCircle />}
+      </Button>
 
       {/* Chat panel */}
       {isOpen && (
         <div
-          className="fixed bottom-36 right-4 sm:bottom-20 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-96 h-[28rem] bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden"
+          className="fixed right-4 bottom-36 z-50 flex h-[80vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl sm:right-6 sm:bottom-20 sm:w-96 dark:border-gray-700 dark:bg-gray-800"
           data-testid="chat-panel"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
+          <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/80">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{activeLang.name} Tutor</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Ask anything about {activeLang.name}</p>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {activeLang.name} Tutor
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Ask anything about {activeLang.name}
+              </p>
             </div>
-            <button
+            <Button
+              variant="ghost"
               onClick={clearChat}
-              className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+              className="text-xs text-gray-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
               title="Clear chat"
               data-testid="chat-clear"
             >
               Clear
-            </button>
+            </Button>
           </div>
 
           {/* Messages */}
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
+            className="flex-1 space-y-3 overflow-y-auto px-4 py-3"
             data-testid="chat-messages"
           >
             {loadingHistory && (
-              <div className="text-center text-xs text-gray-400 py-2">Loading older messages...</div>
+              <div className="py-2 text-center text-xs text-gray-400">
+                Loading older messages...
+              </div>
             )}
 
             {messages.length === 0 && !loading && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
                   Ask a question about {activeLang.name}
                 </p>
-                <div className="space-y-2 w-full">
+                <div className="w-full space-y-2">
                   {EXAMPLE_PROMPTS[activeLang.code].map((prompt) => (
-                    <button
+                    <Button
+                      variant="ghost"
                       key={prompt}
                       onClick={() => sendMessage(prompt)}
-                      className="block w-full text-left text-xs px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                      className="block h-auto w-full cursor-pointer rounded-lg bg-gray-100 px-3 py-2 text-left text-xs whitespace-normal text-gray-600 transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400"
                       data-testid="chat-example-prompt"
                     >
                       {prompt}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -253,12 +262,13 @@ export default function ChatWidget() {
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${msg.role === 'user'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-                    }`}
+                  className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                    msg.role === 'user'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-gray-100'
+                  }`}
                 >
-                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                  <div className="break-words whitespace-pre-wrap">{msg.content}</div>
                   {msg.role === 'assistant' && msg.provider && (
                     <div className="mt-1 text-[10px] opacity-50" data-testid="chat-provider-label">
                       via {msg.provider}
@@ -270,11 +280,17 @@ export default function ChatWidget() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400">
+                <div className="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-400 dark:bg-gray-700">
                   <span className="inline-flex gap-1">
-                    <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
-                    <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
-                    <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+                    <span className="animate-bounce" style={{ animationDelay: '0ms' }}>
+                      .
+                    </span>
+                    <span className="animate-bounce" style={{ animationDelay: '150ms' }}>
+                      .
+                    </span>
+                    <span className="animate-bounce" style={{ animationDelay: '300ms' }}>
+                      .
+                    </span>
                   </span>
                 </div>
               </div>
@@ -284,8 +300,8 @@ export default function ChatWidget() {
           </div>
 
           {/* Input */}
-          <div className="border-t border-gray-200 dark:border-gray-700 px-3 py-2">
-            <div className="flex gap-2 items-end">
+          <div className="border-t border-gray-200 px-3 py-2 dark:border-gray-700">
+            <div className="flex items-end gap-2">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -293,20 +309,18 @@ export default function ChatWidget() {
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about Afrikaans..."
                 rows={1}
-                className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-transparent focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                 disabled={loading}
                 data-testid="chat-input"
               />
-              <button
+              <Button
                 onClick={() => sendMessage()}
                 disabled={loading || !input.trim()}
-                className="rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 text-white transition-colors"
+                className="cursor-pointer bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="chat-send"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
+                <SendHorizonal className="-rotate-90" />
+              </Button>
             </div>
           </div>
         </div>

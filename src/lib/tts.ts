@@ -6,25 +6,16 @@ import { getActiveLanguage } from './data-layer';
 const DEFAULT_RATE = 0.9;
 
 // Afrikaans language code
-const AFRIKAANS_LANG = "af-ZA";
+const AFRIKAANS_LANG = 'af-ZA';
 
 // Fallback languages if Afrikaans is not available
-const FALLBACK_LANGS = ["af", "nl-NL", "nl"]; // Dutch is somewhat similar
+const FALLBACK_LANGS = ['af', 'nl-NL', 'nl']; // Dutch is somewhat similar
 
 // Preferred voice name patterns (higher quality voices)
-const PREFERRED_VOICE_PATTERNS = [
-  /google/i,
-  /premium/i,
-  /enhanced/i,
-  /natural/i,
-  /neural/i,
-];
+const PREFERRED_VOICE_PATTERNS = [/google/i, /premium/i, /enhanced/i, /natural/i, /neural/i];
 
 // Voice names to avoid (often robotic sounding)
-const AVOID_VOICE_PATTERNS = [
-  /espeak/i,
-  /mbrola/i,
-];
+const AVOID_VOICE_PATTERNS = [/espeak/i, /mbrola/i];
 
 // Cached voice selection for browser TTS
 let cachedVoice: SpeechSynthesisVoice | undefined;
@@ -45,14 +36,14 @@ export type TTSMode = 'google' | 'browser';
  * @returns true if browser TTS is available
  */
 export function isTTSAvailable(): boolean {
-  return typeof window !== "undefined" && "speechSynthesis" in window;
+  return typeof window !== 'undefined' && 'speechSynthesis' in window;
 }
 
 /**
  * Get the current TTS mode preference
  */
 export function getTTSMode(): TTSMode {
-  if (typeof window === "undefined") return 'browser';
+  if (typeof window === 'undefined') return 'browser';
   return (localStorage.getItem(TTS_MODE_KEY) as TTSMode) || 'google';
 }
 
@@ -60,7 +51,7 @@ export function getTTSMode(): TTSMode {
  * Set the TTS mode preference
  */
 export function setTTSMode(mode: TTSMode): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   localStorage.setItem(TTS_MODE_KEY, mode);
 }
 
@@ -92,7 +83,7 @@ function scoreVoice(voice: SpeechSynthesisVoice): number {
 
   // Prefer exact language match
   if (voice.lang === AFRIKAANS_LANG) score += 3;
-  if (voice.lang.startsWith("af")) score += 2;
+  if (voice.lang.startsWith('af')) score += 2;
 
   return score;
 }
@@ -120,7 +111,7 @@ function getAfrikaansVoice(): SpeechSynthesisVoice | undefined {
   // Check for user's saved preference
   const savedVoiceName = localStorage.getItem(VOICE_PREF_KEY);
   if (savedVoiceName) {
-    const savedVoice = voices.find(v => v.name === savedVoiceName);
+    const savedVoice = voices.find((v) => v.name === savedVoiceName);
     if (savedVoice) {
       cachedVoice = savedVoice;
       voiceInitialized = true;
@@ -129,9 +120,9 @@ function getAfrikaansVoice(): SpeechSynthesisVoice | undefined {
   }
 
   // Find all candidate voices (Afrikaans or Dutch)
-  const allLangs = [AFRIKAANS_LANG, "af", ...FALLBACK_LANGS];
-  const candidateVoices = voices.filter(v =>
-    allLangs.some(lang => v.lang === lang || v.lang.startsWith(lang.split("-")[0]))
+  const allLangs = [AFRIKAANS_LANG, 'af', ...FALLBACK_LANGS];
+  const candidateVoices = voices.filter((v) =>
+    allLangs.some((lang) => v.lang === lang || v.lang.startsWith(lang.split('-')[0])),
   );
 
   if (candidateVoices.length === 0) {
@@ -160,7 +151,7 @@ export function setPreferredVoice(voiceName: string): void {
   if (!isTTSAvailable()) return;
 
   const voices = window.speechSynthesis.getVoices();
-  const voice = voices.find(v => v.name === voiceName);
+  const voice = voices.find((v) => v.name === voiceName);
 
   if (voice) {
     cachedVoice = voice;
@@ -216,7 +207,7 @@ async function speakWithGoogle(text: string, rate: number): Promise<boolean> {
  */
 function speakWithBrowser(text: string, rate: number): void {
   if (!isTTSAvailable()) {
-    console.warn("Text-to-speech is not available in this browser");
+    console.warn('Text-to-speech is not available in this browser');
     return;
   }
 
@@ -245,7 +236,7 @@ function speakWithBrowser(text: string, rate: number): void {
 }
 
 /**
- * Speak text in Afrikaans
+ * Speaks text via system audio
  * Uses Google Cloud TTS if available, falls back to browser TTS
  * @param text - The text to speak
  * @param rate - Speech rate (default 0.9 for clearer learning)
@@ -254,12 +245,10 @@ export async function speak(text: string, rate: number = DEFAULT_RATE): Promise<
   const mode = getTTSMode();
 
   if (mode === 'google') {
-    // Try Google TTS first
     const success = await speakWithGoogle(text, rate);
     if (success) return;
   }
 
-  // Fall back to browser TTS
   speakWithBrowser(text, rate);
 }
 
@@ -294,9 +283,7 @@ export function getAvailableVoices(): SpeechSynthesisVoice[] {
   const relevantLangs = [AFRIKAANS_LANG, ...FALLBACK_LANGS];
 
   return voices.filter((v) =>
-    relevantLangs.some(
-      (lang) => v.lang === lang || v.lang.startsWith(lang.split("-")[0])
-    )
+    relevantLangs.some((lang) => v.lang === lang || v.lang.startsWith(lang.split('-')[0])),
   );
 }
 
@@ -328,11 +315,7 @@ export function waitForVoices(): Promise<SpeechSynthesisVoice[]> {
     }
 
     // Wait for voiceschanged event
-    window.speechSynthesis.addEventListener(
-      "voiceschanged",
-      initializeAndResolve,
-      { once: true }
-    );
+    window.speechSynthesis.addEventListener('voiceschanged', initializeAndResolve, { once: true });
 
     // Timeout after 3 seconds
     setTimeout(initializeAndResolve, 3000);

@@ -14,7 +14,8 @@ export default function NavHeader() {
   return (
     <>
       {/* Mobile top bar — language selector, visible only on mobile */}
-      <div className="fixed top-0 right-0 left-0 z-50 flex h-[var(--mobile-topbar-h)] items-center justify-end border-b border-zinc-200 bg-white/80 px-3 backdrop-blur-sm sm:hidden dark:border-zinc-800 dark:bg-zinc-950/80">
+      <div className="fixed top-0 right-0 left-0 z-50 flex h-[var(--mobile-topbar-h)] items-center justify-between border-b border-zinc-200 bg-white/80 px-3 py-2 backdrop-blur-sm sm:hidden dark:border-zinc-800 dark:bg-zinc-950/80">
+        <Image src="/logo.svg" alt="Lector" width={28} height={28} className="rounded" />
         <LanguageSelector compact />
       </div>
 
@@ -38,7 +39,7 @@ export default function NavHeader() {
         {/* Navigation links */}
         <nav className="flex-1 space-y-1 px-3 py-2">
           {navLinks.map((link) => {
-            return <NavLink link={link} pathname={pathname} isMobile={false} />;
+            return <NavLink key={link.href} link={link} pathname={pathname} isMobile={false} />;
           })}
         </nav>
 
@@ -52,7 +53,7 @@ export default function NavHeader() {
       <nav className="fixed right-0 bottom-0 left-0 z-50 border-t border-zinc-200 bg-white sm:hidden dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex items-stretch">
           {navLinks.map((link) => {
-            return <NavLink link={link} pathname={pathname} isMobile />;
+            return <NavLink key={link.href} link={link} pathname={pathname} isMobile />;
           })}
         </div>
       </nav>
