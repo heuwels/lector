@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Folder } from 'lucide-react';
+import { ChevronDown, Folder, Plus } from 'lucide-react';
 import AddCollectionTile from './components/AddCollectionTile';
 import EmptyState from './components/EmptyState';
 import GroupMenu from './components/GroupMenu';
@@ -347,19 +347,9 @@ export default function Home() {
                           data-testid={`group-toggle-${group.id}`}
                           className="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
-                          <svg
+                          <ChevronDown
                             className={`h-4 w-4 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 9l-7 7-7-7"
-                            />
-                          </svg>
+                          />
                           <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
                             {group.name}
                           </h3>
@@ -411,19 +401,7 @@ export default function Home() {
                                 data-testid={`add-collection-${group.id}`}
                                 className="group flex min-h-[14rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 text-zinc-400 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-600 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
                               >
-                                <svg
-                                  className="h-8 w-8"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={1.5}
-                                    d="M12 4v16m8-8H4"
-                                  />
-                                </svg>
+                                <Plus className="h-8 w-8" strokeWidth={1.5} />
                                 <span className="text-sm font-medium">New collection</span>
                               </button>
                             )}

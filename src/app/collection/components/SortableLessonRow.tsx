@@ -1,5 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Check, ChevronRight, GripVertical, SquarePen, Trash2 } from 'lucide-react';
 import { LessonSummary } from '@/types';
 import Link from 'next/link';
 
@@ -45,9 +46,7 @@ export default function SortableLessonRow({
         data-testid={`drag-lesson-${lesson.id}`}
         className="flex-shrink-0 cursor-grab touch-none rounded-md p-1 text-zinc-300 hover:text-zinc-500 active:cursor-grabbing dark:text-zinc-600 dark:hover:text-zinc-400"
       >
-        <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M7 4a1 1 0 11-2 0 1 1 0 012 0zM7 10a1 1 0 11-2 0 1 1 0 012 0zM7 16a1 1 0 11-2 0 1 1 0 012 0zM13 4a1 1 0 11-2 0 1 1 0 012 0zM13 10a1 1 0 11-2 0 1 1 0 012 0zM13 16a1 1 0 11-2 0 1 1 0 012 0z" />
-        </svg>
+        <GripVertical className="h-5 w-5" />
       </button>
 
       <Link href={`/read/${lesson.id}`} className="flex min-w-0 flex-1 items-center gap-4">
@@ -59,18 +58,7 @@ export default function SortableLessonRow({
               : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
           }`}
         >
-          {isComplete ? (
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          ) : (
-            index + 1
-          )}
+          {isComplete ? <Check className="h-4 w-4" /> : index + 1}
         </div>
 
         {/* Lesson info */}
@@ -94,14 +82,7 @@ export default function SortableLessonRow({
           </div>
         )}
 
-        <svg
-          className="h-4 w-4 flex-shrink-0 text-zinc-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
+        <ChevronRight className="h-4 w-4 flex-shrink-0 text-zinc-400" />
       </Link>
 
       {/* Edit button */}
@@ -111,14 +92,7 @@ export default function SortableLessonRow({
         title="Edit lesson"
         data-testid={`edit-lesson-${lesson.id}`}
       >
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-          />
-        </svg>
+        <SquarePen className="h-4 w-4" />
       </button>
 
       {/* Delete button */}
@@ -127,14 +101,7 @@ export default function SortableLessonRow({
         className="flex-shrink-0 rounded-lg p-2 text-zinc-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
         title="Delete lesson"
       >
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-          />
-        </svg>
+        <Trash2 className="h-4 w-4" />
       </button>
     </div>
   );

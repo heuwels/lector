@@ -6,7 +6,7 @@ import type { WordState } from '@/types';
 import { sentenceContainsWord } from '@/lib/words';
 import { TranslationDrawerProps } from './types';
 import { wordStateColors, wordStateLabels } from './constants';
-import { SpeakerIcon } from '../icons';
+import { ChevronRight, RefreshCw, Volume2, X, Zap } from 'lucide-react';
 import NestedWordButton from './components/NestedWordButton';
 import Gloss from './components/Gloss';
 
@@ -111,7 +111,7 @@ export default function TranslationDrawer({
                 title="Hear pronunciation"
                 aria-label="Hear pronunciation"
               >
-                <SpeakerIcon className="w-5 h-5" />
+                <Volume2 className="w-5 h-5" />
               </button>
               {entry?.ipa && (
                 <span className="text-sm font-mono text-zinc-500 dark:text-zinc-400">
@@ -165,9 +165,7 @@ export default function TranslationDrawer({
             aria-label="Close"
             title="Close (Esc)"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -198,9 +196,7 @@ export default function TranslationDrawer({
               {hasRichEntry && (
                 <details className="mt-3 group">
                   <summary className="cursor-pointer text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 list-none flex items-center gap-1">
-                    <svg className="w-3 h-3 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
+                    <ChevronRight className="w-3 h-3 transition-transform group-open:rotate-90" />
                     Show dictionary ({senses.length})
                   </summary>
                   <ol className="mt-2 space-y-2">
@@ -271,9 +267,7 @@ export default function TranslationDrawer({
                 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
               title="Translate using AI with sentence context"
             >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+              <Zap className="w-3 h-3" />
               In context
             </button>
           )}
@@ -390,7 +384,7 @@ export default function TranslationDrawer({
                 title="Hear sentence"
                 aria-label="Hear sentence"
               >
-                <SpeakerIcon className="w-4 h-4" />
+                <Volume2 className="w-4 h-4" />
               </button>
             </div>
           </section>
@@ -459,9 +453,7 @@ export default function TranslationDrawer({
               className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
               title="Force fresh AI lookup (ignores dictionary)"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              <RefreshCw className="w-3.5 h-3.5" />
               Re-translate with AI
             </button>
           )}

@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronDown, Plus } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { IMPORT_OPTIONS } from './constants';
 import type { ImportDropdownProps, ImportSource } from './types';
@@ -73,28 +74,9 @@ export default function ImportDropdown({
           </>
         ) : (
           <>
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
+            <Plus className="h-5 w-5" />
             Import
-            <svg
-              className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </>
         )}
       </button>

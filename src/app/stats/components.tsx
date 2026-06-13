@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronUp } from "lucide-react";
 import NavHeader from "@/components/NavHeader";
 import { ClozeCollection, FluencyStats, WordState } from "@/lib/data-layer";
 
@@ -229,13 +230,9 @@ export function FluencyBadge({ fluency }: { fluency: FluencyStats }) {
                                 }`}
                         >
                             {growthDelta > 0 ? (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                                </svg>
+                                <ChevronUp className="w-4 h-4" />
                             ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                                <ChevronDown className="w-4 h-4" />
                             )}
                             {Math.abs(growthDelta)} vs last week
                         </span>

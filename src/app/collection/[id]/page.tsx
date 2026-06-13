@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft, Plus } from 'lucide-react';
 import NavHeader from '@/components/NavHeader';
 import LessonFormModal from '@/components/LessonFormModal';
 import {
@@ -182,14 +183,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
           href="/"
           className="mb-6 inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
         >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
-            />
-          </svg>
+          <ArrowLeft className="h-4 w-4" />
           Library
         </Link>
 
@@ -271,14 +265,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
             data-testid="add-lesson"
             className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-transparent px-5 py-4 text-sm font-medium text-zinc-500 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
+            <Plus className="h-4 w-4" />
             Add lesson
           </button>
         </div>

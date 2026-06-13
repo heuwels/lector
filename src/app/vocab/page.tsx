@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { ArrowLeft, Check, X } from 'lucide-react';
 import NavHeader from '@/components/NavHeader';
 import VocabList from '@/components/VocabList';
 import {
@@ -24,7 +25,6 @@ import {
 } from '@/lib/anki';
 import VocabStats from './components/VocabStats';
 import VocabDetailModal from './components/VocabDetailModal';
-
 
 export default function VocabPage() {
   const [entries, setEntries] = useState<VocabEntry[]>([]);
@@ -306,14 +306,7 @@ export default function VocabPage() {
                 href="/"
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                  />
-                </svg>
+                <ArrowLeft className="h-6 w-6" />
               </Link>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Vocabulary</h1>
             </div>
@@ -341,41 +334,21 @@ export default function VocabPage() {
       {/* Notification */}
       {notification && (
         <div
-          className={`fixed top-4 right-4 z-50 rounded-lg px-4 py-3 shadow-lg ${notification.type === 'success'
-            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-            : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-            }`}
+          className={`fixed top-4 right-4 z-50 rounded-lg px-4 py-3 shadow-lg ${
+            notification.type === 'success'
+              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+          }`}
         >
           <div className="flex items-center gap-2">
             {notification.type === 'success' ? (
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+              <Check className="h-5 w-5" />
             ) : (
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X className="h-5 w-5" />
             )}
             <span>{notification.message}</span>
             <button onClick={() => setNotification(null)} className="ml-2 hover:opacity-70">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
