@@ -2,139 +2,15 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { WordState, VocabEntry } from '@/types';
-import { findNestedWordRef } from '@/lib/definition-links';
+import type { WordState } from '@/types';
 import { sentenceContainsWord } from '@/lib/words';
+import { TranslationDrawerProps } from './types';
+import { wordStateColors, wordStateLabels } from './constants';
+import { SpeakerIcon } from '../icons';
+import NestedWordButton from './components/NestedWordButton';
+import Gloss from './components/Gloss';
 
-/**
- * Shape returned by /api/dictionary/lookup. Mirror of the server-side type — kept in
- * sync with src/lib/server/dictionary-db.ts. Optional fields may be absent for sparse
- * Wiktionary entries.
- */
-export interface ExpandedDictionaryEntry {
-  word: string;
-  rank?: number;
-  ipa?: string;
-  etymology?: string;
-  senses: Array<{ partOfSpeech: string; gloss: string }>;
-  relatedForms?: Array<{ form: string; relation: string }>;
-  lemmaInfo?: { stem: string; label: string };
-  /** `dict` = built-in kaikki dict, `cache` = user-learned AI translation. */
-  source?: 'dict' | 'cache';
-}
-
-const wordStateColors: Record<WordState, { bg: string; text: string; dot: string; ring: string }> = {
-  'new':     { bg: 'bg-blue-100 dark:bg-blue-900/40',     text: 'text-blue-700 dark:text-blue-300',     dot: 'bg-blue-500',   ring: 'ring-blue-500' },
-  'level1':  { bg: 'bg-red-100 dark:bg-red-900/40',       text: 'text-red-700 dark:text-red-300',       dot: 'bg-red-500',    ring: 'ring-red-500' },
-  'level2':  { bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500', ring: 'ring-orange-500' },
-  'level3':  { bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500', ring: 'ring-yellow-500' },
-  'level4':  { bg: 'bg-lime-100 dark:bg-lime-900/40',     text: 'text-lime-700 dark:text-lime-300',     dot: 'bg-lime-500',   ring: 'ring-lime-500' },
-  'known':   { bg: 'bg-green-100 dark:bg-green-900/40',   text: 'text-green-700 dark:text-green-300',   dot: 'bg-green-500',  ring: 'ring-green-500' },
-  'ignored': { bg: 'bg-gray-100 dark:bg-gray-800',        text: 'text-gray-500 dark:text-gray-400',     dot: 'bg-gray-400',   ring: 'ring-gray-400' },
-};
-
-const wordStateLabels: Record<WordState, string> = {
-  'new': 'New', 'level1': 'Level 1', 'level2': 'Level 2', 'level3': 'Level 3',
-  'level4': 'Level 4', 'known': 'Known', 'ignored': 'Ignored',
-};
-
-/** Link-styled word inside an entry — clicking re-targets the drawer (issue #106). */
-const NestedWordButton = ({
-  word,
-  onLookupWord,
-  testId,
-}: {
-  word: string;
-  onLookupWord: (word: string) => void;
-  testId: string;
-}) => (
-  <button
-    type="button"
-    onClick={() => onLookupWord(word)}
-    data-testid={testId}
-    className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
-    title={`Look up ${word}`}
-  >
-    {word}
-  </button>
-);
-
-/** A sense gloss with its form-of reference ("plural of vrug") linkified when
-    a lookup callback is available; plain text otherwise. */
-const Gloss = ({
-  text,
-  onLookupWord,
-}: {
-  text: string;
-  onLookupWord?: (word: string) => void;
-}) => {
-  const ref = onLookupWord ? findNestedWordRef(text) : null;
-  if (!ref || !onLookupWord) return <>{text}</>;
-  return (
-    <>
-      {ref.prefix}
-      <NestedWordButton word={ref.word} onLookupWord={onLookupWord} testId="nested-word-link" />
-      {ref.suffix}
-    </>
-  );
-};
-
-const SpeakerIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-  </svg>
-);
-
-interface TranslationDrawerProps {
-  isOpen: boolean;
-  word: string;
-  sentence: string;
-
-  /** Rich definition from local dictionary. Null while loading or when not found. */
-  entry?: ExpandedDictionaryEntry | null;
-
-  /** AI fallback translation (used when entry is null/absent). */
-  aiTranslation?: string | null;
-  aiPartOfSpeech?: string | null;
-  /** Active AI in-context override. When set, the drawer shows this in place
-      of the dictionary senses (but `entry` stays in state so the page's save
-      handlers can keep the dictionary translation as canonical). */
-  aiContextTranslation?: string | null;
-  aiContextPartOfSpeech?: string | null;
-  /** Rich AI phrase details — populated when the word is a multi-word phrase. */
-  aiPhraseDetails?: {
-    literalBreakdown?: string;
-    idiomaticMeaning?: string;
-    usageNotes?: string;
-    register?: string;
-  } | null;
-
-  /** Whether the displayed result came from the on-device dictionary. */
-  isDictionaryResult?: boolean;
-
-  isLoading?: boolean;
-  isContextLoading?: boolean;
-  error?: string | null;
-
-  /** Existing vocab record (if word was previously saved). */
-  existingEntry?: VocabEntry | null;
-
-  onClose: () => void;
-  onSpeak: (text: string) => void;
-  /** Optional — provide to enable level 1-4 buttons in the footer. */
-  onSetLevel?: (level: 1 | 2 | 3 | 4) => void;
-  /** Optional — provide to enable the Known action. */
-  onMarkKnown?: () => void;
-  /** Optional — provide to enable the Ignore action. */
-  onIgnore?: () => void;
-  /** Request a fresh contextual translation from the AI (uses surrounding sentence). */
-  onRequestContextTranslation?: () => void;
-  /** Force a fresh LLM lookup, ignoring cache + local dict. */
-  onRetranslate?: () => void;
-  /** Look up a word referenced inside the entry (form-of glosses, lemma stem,
-      related forms — issue #106). When absent, references render as plain text. */
-  onLookupWord?: (word: string) => void;
-}
+export { type ExpandedDictionaryEntry } from './types';
 
 export default function TranslationDrawer({
   isOpen,

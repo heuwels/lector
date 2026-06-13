@@ -69,20 +69,18 @@ export default function ClozeFeedback({
 
   return (
     <div
-      className={`rounded-xl border-2 p-6 transition-all ${
-        isCorrect
-          ? 'border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 dark:border-green-800 dark:from-green-950/40 dark:to-emerald-950/40'
-          : 'border-red-200 bg-gradient-to-br from-red-50 to-rose-50 dark:border-red-800 dark:from-red-950/40 dark:to-rose-950/40'
-      }`}
+      className={`rounded-xl border-2 p-6 transition-all ${isCorrect
+        ? 'border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 dark:border-green-800 dark:from-green-950/40 dark:to-emerald-950/40'
+        : 'border-red-200 bg-gradient-to-br from-red-50 to-rose-50 dark:border-red-800 dark:from-red-950/40 dark:to-rose-950/40'
+        }`}
     >
       {/* Result header */}
       <div className="mb-4 flex items-center gap-3">
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-full ${
-            isCorrect
-              ? 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400'
-              : 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400'
-          }`}
+          className={`flex h-10 w-10 items-center justify-center rounded-full ${isCorrect
+            ? 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400'
+            : 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400'
+            }`}
         >
           {isCorrect ? (
             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,9 +94,8 @@ export default function ClozeFeedback({
         </div>
         <div>
           <h3
-            className={`text-xl font-bold ${
-              isCorrect ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
-            }`}
+            className={`text-xl font-bold ${isCorrect ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+              }`}
           >
             {isCorrect ? 'Correct!' : 'Incorrect'}
           </h3>
@@ -121,11 +118,10 @@ export default function ClozeFeedback({
         <div className="flex items-center gap-2 text-sm">
           <span className="font-medium text-zinc-500 dark:text-zinc-400">Correct answer:</span>
           <span
-            className={`rounded px-2 py-0.5 font-bold ${
-              isCorrect
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300'
-            }`}
+            className={`rounded px-2 py-0.5 font-bold ${isCorrect
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
+              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300'
+              }`}
           >
             {correctWord}
           </span>
@@ -144,17 +140,15 @@ export default function ClozeFeedback({
           <span className="font-medium text-zinc-500 dark:text-zinc-400">Mastery Level</span>
           <span className="flex items-center gap-2">
             <span
-              className={`font-semibold ${
-                isCorrect ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-              }`}
+              className={`font-semibold ${isCorrect ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                }`}
             >
               {masteryLabels[newMastery]}
             </span>
             {masteryChange !== 0 && (
               <span
-                className={`text-xs font-bold ${
-                  masteryChange > 0 ? 'text-green-500' : 'text-red-500'
-                }`}
+                className={`text-xs font-bold ${masteryChange > 0 ? 'text-green-500' : 'text-red-500'
+                  }`}
               >
                 {masteryChange > 0 ? '+' : ''}{masteryChange}%
               </span>
@@ -163,11 +157,10 @@ export default function ClozeFeedback({
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
           <div
-            className={`h-full transition-all duration-500 ${
-              isCorrect
-                ? 'bg-gradient-to-r from-green-400 to-emerald-500'
-                : 'bg-gradient-to-r from-red-400 to-rose-500'
-            }`}
+            className={`h-full transition-all duration-500 ${isCorrect
+              ? 'bg-gradient-to-r from-green-400 to-emerald-500'
+              : 'bg-gradient-to-r from-red-400 to-rose-500'
+              }`}
             style={{ width: `${newMastery}%` }}
           />
         </div>
@@ -190,15 +183,14 @@ export default function ClozeFeedback({
             type="button"
             onClick={onAddToAnki}
             disabled={isAddingToAnki || ankiAdded || !!ankiError}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-              ankiAdded
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'
-                : ankiError
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${ankiAdded
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'
+              : ankiError
                 ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
                 : isAddingToAnki
-                ? 'bg-zinc-100 text-zinc-400 cursor-wait dark:bg-zinc-800 dark:text-zinc-500'
-                : 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300 dark:hover:bg-purple-900/70'
-            }`}
+                  ? 'bg-zinc-100 text-zinc-400 cursor-wait dark:bg-zinc-800 dark:text-zinc-500'
+                  : 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300 dark:hover:bg-purple-900/70'
+              }`}
             title={ankiError || undefined}
           >
             {ankiAdded ? (
@@ -238,15 +230,14 @@ export default function ClozeFeedback({
           type="button"
           onClick={handleExplain}
           disabled={isExplaining || !!explanation}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-            explanation
-              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'
-              : explainError
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${explanation
+            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'
+            : explainError
               ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
               : isExplaining
-              ? 'bg-zinc-100 text-zinc-400 cursor-wait dark:bg-zinc-800 dark:text-zinc-500'
-              : 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70'
-          }`}
+                ? 'bg-zinc-100 text-zinc-400 cursor-wait dark:bg-zinc-800 dark:text-zinc-500'
+                : 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70'
+            }`}
         >
           {explanation ? (
             <>
