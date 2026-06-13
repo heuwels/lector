@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
-import NavHeader from "@/components/NavHeader";
-import { getDeckNames, isAnkiConnected, refreshAnkiUrl } from "@/lib/anki";
-import { getTTSMode, setTTSMode, isGoogleTTSConfigured, speak, type TTSMode } from "@/lib/tts";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
+import NavHeader from '@/components/NavHeader';
+import { getDeckNames, isAnkiConnected, refreshAnkiUrl } from '@/lib/anki';
+import { getTTSMode, setTTSMode, isGoogleTTSConfigured, speak, type TTSMode } from '@/lib/tts';
 import {
   exportAllData,
   bulkUpdateWordStates,
@@ -22,18 +22,19 @@ import {
   revokeApiToken,
   type ApiTokenMeta,
   type WordState,
-} from "@/lib/data-layer";
-import { OLLAMA_MODELS, SETTINGS_KEYS } from "./constants";
+} from '@/lib/data-layer';
+import { OLLAMA_MODELS, SETTINGS_KEYS } from './constants';
 import { AppSettings, CardType, LLMProvider, LLMStatus, LMStudioLoadStatus, Theme } from './types';
+import { Button } from '@/components/ui/button';
 
 const defaultSettings: AppSettings = {
-  apiKey: "",
-  ankiDeckName: "Afrikaans",
-  ankiClozeDeckName: "Afrikaans::Cloze",
-  defaultCardType: "basic",
+  apiKey: '',
+  ankiDeckName: 'Afrikaans',
+  ankiClozeDeckName: 'Afrikaans::Cloze',
+  defaultCardType: 'basic',
   ttsSpeed: 1.0,
-  ttsMode: "google",
-  theme: "system",
+  ttsMode: 'google',
+  theme: 'system',
 };
 
 export default function SettingsPage() {
@@ -45,10 +46,10 @@ export default function SettingsPage() {
   const [ankiDecks, setAnkiDecks] = useState<string[]>([]);
   const [ankiLoading, setAnkiLoading] = useState(false);
   const [ankiError, setAnkiError] = useState<string | null>(null);
-  const [ankiConnectUrl, setAnkiConnectUrl] = useState("http://localhost:8765");
+  const [ankiConnectUrl, setAnkiConnectUrl] = useState('http://localhost:8765');
 
   // Import state
-  const [importText, setImportText] = useState("");
+  const [importText, setImportText] = useState('');
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,28 +57,28 @@ export default function SettingsPage() {
   const [exportStatus, setExportStatus] = useState<string | null>(null);
 
   // LLM provider state
-  const [llmProvider, setLlmProvider] = useState<LLMProvider>("ollama");
-  const [ollamaModel, setOllamaModel] = useState("llama3.1:8b");
-  const [apfelUrl, setApfelUrl] = useState("http://localhost:11434");
-  const [apfelModel, setApfelModel] = useState("default");
-  const [lmstudioUrl, setLmstudioUrl] = useState("http://localhost:1234");
+  const [llmProvider, setLlmProvider] = useState<LLMProvider>('ollama');
+  const [ollamaModel, setOllamaModel] = useState('llama3.1:8b');
+  const [apfelUrl, setApfelUrl] = useState('http://localhost:11434');
+  const [apfelModel, setApfelModel] = useState('default');
+  const [lmstudioUrl, setLmstudioUrl] = useState('http://localhost:1234');
   const [hasLmstudioApiKey, setHasLmstudioApiKey] = useState(false);
-  const [newLmstudioApiKey, setNewLmstudioApiKey] = useState("");
+  const [newLmstudioApiKey, setNewLmstudioApiKey] = useState('');
   const [editingLmstudioApiKey, setEditingLmstudioApiKey] = useState(false);
-  const [lmstudioModel, setLmstudioModel] = useState("");
+  const [lmstudioModel, setLmstudioModel] = useState('');
   const [lmstudioModels, setLmstudioModels] = useState<string[]>([]);
   const [lmstudioFetchingModels, setLmstudioFetchingModels] = useState(false);
   const [lmstudioFetchError, setLmstudioFetchError] = useState<string | null>(null);
-  const [lmstudioLoadStatus, setLmstudioLoadStatus] = useState<LMStudioLoadStatus>("idle");
+  const [lmstudioLoadStatus, setLmstudioLoadStatus] = useState<LMStudioLoadStatus>('idle');
   const [lmstudioLoadError, setLmstudioLoadError] = useState<string | null>(null);
   const lmstudioAutoFetchedForUrl = useRef<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [hasOauthToken, setHasOauthToken] = useState(false);
-  const [newApiKey, setNewApiKey] = useState("");
-  const [newOauthToken, setNewOauthToken] = useState("");
+  const [newApiKey, setNewApiKey] = useState('');
+  const [newOauthToken, setNewOauthToken] = useState('');
   const [editingApiKey, setEditingApiKey] = useState(false);
   const [editingOauthToken, setEditingOauthToken] = useState(false);
-  const [anthropicAuthMode, setAnthropicAuthMode] = useState<"api_key" | "oauth">("api_key");
+  const [anthropicAuthMode, setAnthropicAuthMode] = useState<'api_key' | 'oauth'>('api_key');
   const [llmStatus, setLlmStatus] = useState<LLMStatus | null>(null);
   const [llmTesting, setLlmTesting] = useState(false);
 
@@ -86,15 +87,15 @@ export default function SettingsPage() {
 
   // Time zone state (server-side setting — drives day rollover for daily
   // stats, streaks and review days; issue #108)
-  const [timezone, setTimezone] = useState<string>("");
+  const [timezone, setTimezone] = useState<string>('');
   const [timezones, setTimezones] = useState<string[]>([]);
-  const [browserTimeZone, setBrowserTimeZone] = useState<string>("");
+  const [browserTimeZone, setBrowserTimeZone] = useState<string>('');
 
   // API Token state
   const [apiTokens, setApiTokens] = useState<ApiTokenMeta[]>([]);
   const [showTokenForm, setShowTokenForm] = useState(false);
-  const [newTokenName, setNewTokenName] = useState("");
-  const [newTokenScopes, setNewTokenScopes] = useState<string[]>(["*"]);
+  const [newTokenName, setNewTokenName] = useState('');
+  const [newTokenScopes, setNewTokenScopes] = useState<string[]>(['*']);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -102,19 +103,15 @@ export default function SettingsPage() {
   // Load settings from localStorage on mount
   useEffect(() => {
     const loadedSettings: AppSettings = {
-      apiKey: localStorage.getItem(SETTINGS_KEYS.ANTHROPIC_API_KEY) || "",
-      ankiDeckName:
-        localStorage.getItem(SETTINGS_KEYS.ANKI_DECK_NAME) || "Afrikaans",
+      apiKey: localStorage.getItem(SETTINGS_KEYS.ANTHROPIC_API_KEY) || '',
+      ankiDeckName: localStorage.getItem(SETTINGS_KEYS.ANKI_DECK_NAME) || 'Afrikaans',
       ankiClozeDeckName:
-        localStorage.getItem(SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME) || "Afrikaans::Cloze",
+        localStorage.getItem(SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME) || 'Afrikaans::Cloze',
       defaultCardType:
-        (localStorage.getItem(SETTINGS_KEYS.DEFAULT_CARD_TYPE) as CardType) ||
-        "basic",
-      ttsSpeed: parseFloat(
-        localStorage.getItem(SETTINGS_KEYS.TTS_SPEED) || "1.0"
-      ),
+        (localStorage.getItem(SETTINGS_KEYS.DEFAULT_CARD_TYPE) as CardType) || 'basic',
+      ttsSpeed: parseFloat(localStorage.getItem(SETTINGS_KEYS.TTS_SPEED) || '1.0'),
       ttsMode: getTTSMode(),
-      theme: (localStorage.getItem(SETTINGS_KEYS.THEME) as Theme) || "system",
+      theme: (localStorage.getItem(SETTINGS_KEYS.THEME) as Theme) || 'system',
     };
     setSettings(loadedSettings);
 
@@ -131,7 +128,8 @@ export default function SettingsPage() {
 
     // Load LLM provider settings from server
     getSetting<string>('llmProvider').then((p) => {
-      if (p === 'ollama' || p === 'anthropic' || p === 'apfel' || p === 'lmstudio') setLlmProvider(p);
+      if (p === 'ollama' || p === 'anthropic' || p === 'apfel' || p === 'lmstudio')
+        setLlmProvider(p);
     });
     getSetting<string>('ollamaModel').then((m) => {
       if (m) setOllamaModel(m);
@@ -162,10 +160,15 @@ export default function SettingsPage() {
     });
 
     // Check LLM status
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
 
     // Load API tokens
-    getApiTokens().then(setApiTokens).catch(() => { });
+    getApiTokens()
+      .then(setApiTokens)
+      .catch(() => {});
 
     // Time zone: populate the IANA list and the saved value
     setBrowserTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -173,7 +176,7 @@ export default function SettingsPage() {
       supportedValuesOf?: (key: 'timeZone') => string[];
     };
     setTimezones(
-      intlWithSupported.supportedValuesOf ? intlWithSupported.supportedValuesOf('timeZone') : []
+      intlWithSupported.supportedValuesOf ? intlWithSupported.supportedValuesOf('timeZone') : [],
     );
     getSetting<string>('timezone').then((tz) => {
       if (tz) setTimezone(tz);
@@ -198,7 +201,9 @@ export default function SettingsPage() {
         setAnkiDecks(decks);
       }
     } catch {
-      setAnkiError("Failed to connect to Anki. Make sure Anki is running with AnkiConnect installed.");
+      setAnkiError(
+        'Failed to connect to Anki. Make sure Anki is running with AnkiConnect installed.',
+      );
       setAnkiConnected(false);
     } finally {
       setAnkiLoading(false);
@@ -214,7 +219,7 @@ export default function SettingsPage() {
   // don't persist the fetched list, only the selected model id). Tracks the
   // last URL we fetched for to avoid refetching after a fetch returns empty.
   useEffect(() => {
-    if (llmProvider !== "lmstudio") return;
+    if (llmProvider !== 'lmstudio') return;
     if (!lmstudioUrl) return;
     if (lmstudioFetchingModels) return;
     if (lmstudioModels.length > 0) return;
@@ -227,25 +232,22 @@ export default function SettingsPage() {
   // Apply theme to document
   const applyTheme = (theme: Theme) => {
     const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else if (theme === "light") {
-      root.classList.remove("dark");
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else if (theme === 'light') {
+      root.classList.remove('dark');
     } else {
       // System preference
-      if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        root.classList.add("dark");
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        root.classList.add('dark');
       } else {
-        root.classList.remove("dark");
+        root.classList.remove('dark');
       }
     }
   };
 
   // Save individual setting
-  const saveSetting = <K extends keyof AppSettings>(
-    key: K,
-    value: AppSettings[K]
-  ) => {
+  const saveSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
 
     // Map to localStorage key
@@ -255,18 +257,18 @@ export default function SettingsPage() {
       ankiClozeDeckName: SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME,
       defaultCardType: SETTINGS_KEYS.DEFAULT_CARD_TYPE,
       ttsSpeed: SETTINGS_KEYS.TTS_SPEED,
-      ttsMode: "", // Handled separately
+      ttsMode: '', // Handled separately
       theme: SETTINGS_KEYS.THEME,
     };
 
-    if (key === "ttsMode") {
+    if (key === 'ttsMode') {
       setTTSMode(value as TTSMode);
     } else {
       localStorage.setItem(storageKeyMap[key], String(value));
     }
 
     // Apply theme immediately if changed
-    if (key === "theme") {
+    if (key === 'theme') {
       applyTheme(value as Theme);
     }
   };
@@ -278,40 +280,52 @@ export default function SettingsPage() {
     // Reset the cached provider on the server
     await fetch('/api/llm-status/reset', { method: 'POST' });
     // Refresh status
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const saveOllamaModel = async (model: string) => {
     setOllamaModel(model);
     await setSetting('ollamaModel', model);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const saveApfelUrl = async (url: string) => {
     setApfelUrl(url);
     await setSetting('apfelUrl', url);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const saveApfelModel = async (model: string) => {
     setApfelModel(model);
     await setSetting('apfelModel', model);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   // Whenever endpoint or apiKey changes, the previously-selected model may not exist
   // on the new endpoint and any prior load status is stale. Clear them so the user
   // re-fetches and re-loads. We don't auto-fetch models — the user owns that action.
   const resetLmstudioModelSelection = async () => {
-    setLmstudioModel("");
+    setLmstudioModel('');
     setLmstudioModels([]);
     setLmstudioFetchError(null);
-    setLmstudioLoadStatus("idle");
+    setLmstudioLoadStatus('idle');
     setLmstudioLoadError(null);
-    await setSetting('lmstudioModel', "");
+    await setSetting('lmstudioModel', '');
   };
 
   const saveLmstudioUrl = async (url: string) => {
@@ -319,37 +333,49 @@ export default function SettingsPage() {
     await setSetting('lmstudioUrl', url);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const saveLmstudioApiKey = async (key: string) => {
     if (!key.trim()) return;
     await setSetting('lmstudioApiKey', key);
     setHasLmstudioApiKey(true);
-    setNewLmstudioApiKey("");
+    setNewLmstudioApiKey('');
     setEditingLmstudioApiKey(false);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const clearLmstudioApiKey = async () => {
     await deleteSetting('lmstudioApiKey');
     setHasLmstudioApiKey(false);
-    setNewLmstudioApiKey("");
+    setNewLmstudioApiKey('');
     setEditingLmstudioApiKey(false);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const saveLmstudioModel = async (model: string) => {
     setLmstudioModel(model);
     await setSetting('lmstudioModel', model);
-    setLmstudioLoadStatus("idle");
+    setLmstudioLoadStatus('idle');
     setLmstudioLoadError(null);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const fetchLmstudioModels = async () => {
@@ -370,7 +396,7 @@ export default function SettingsPage() {
         const list: string[] = Array.isArray(data?.models) ? data.models : [];
         setLmstudioModels(list);
         if (list.length === 0) {
-          setLmstudioFetchError("No models reported by this endpoint");
+          setLmstudioFetchError('No models reported by this endpoint');
         }
       }
     } catch (err) {
@@ -383,7 +409,7 @@ export default function SettingsPage() {
 
   const loadLmstudioModel = async () => {
     if (!lmstudioModel) return;
-    setLmstudioLoadStatus("loading");
+    setLmstudioLoadStatus('loading');
     setLmstudioLoadError(null);
     try {
       const res = await fetch('/api/llm/lmstudio/load', {
@@ -396,13 +422,13 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        setLmstudioLoadStatus("errored");
+        setLmstudioLoadStatus('errored');
         setLmstudioLoadError(data?.error || `Status ${res.status}`);
       } else {
-        setLmstudioLoadStatus("loaded");
+        setLmstudioLoadStatus('loaded');
       }
     } catch (err) {
-      setLmstudioLoadStatus("errored");
+      setLmstudioLoadStatus('errored');
       setLmstudioLoadError(err instanceof Error ? err.message : 'Load failed');
     }
   };
@@ -410,36 +436,48 @@ export default function SettingsPage() {
   const saveAnthropicApiKey = async (key: string) => {
     await setSetting('anthropicApiKey', key);
     setHasApiKey(true);
-    setNewApiKey("");
+    setNewApiKey('');
     setEditingApiKey(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const clearAnthropicApiKey = async () => {
     await deleteSetting('anthropicApiKey');
     setHasApiKey(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const saveClaudeOauthToken = async (token: string) => {
     await setSetting('claudeOauthToken', token);
     setHasOauthToken(true);
-    setNewOauthToken("");
+    setNewOauthToken('');
     setEditingOauthToken(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
   const clearClaudeOauthToken = async () => {
     await deleteSetting('claudeOauthToken');
     setHasOauthToken(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status').then(r => r.json()).then(setLlmStatus).catch(() => { });
+    fetch('/api/llm-status')
+      .then((r) => r.json())
+      .then(setLlmStatus)
+      .catch(() => {});
   };
 
-  const saveAnthropicAuthMode = async (mode: "api_key" | "oauth") => {
+  const saveAnthropicAuthMode = async (mode: 'api_key' | 'oauth') => {
     setAnthropicAuthMode(mode);
     await setSetting('anthropicAuthMode', mode);
     await fetch('/api/llm-status/reset', { method: 'POST' });
@@ -447,9 +485,15 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/llm-status/test', { method: 'POST' });
       const data = await res.json();
-      setLlmStatus(prev => prev ? { ...prev, ok: data.ok, error: data.error } : { provider: llmProvider, model: ollamaModel, ok: data.ok, error: data.error });
+      setLlmStatus((prev) =>
+        prev
+          ? { ...prev, ok: data.ok, error: data.error }
+          : { provider: llmProvider, model: ollamaModel, ok: data.ok, error: data.error },
+      );
     } catch {
-      setLlmStatus(prev => prev ? { ...prev, ok: false, error: 'Failed to reach server' } : null);
+      setLlmStatus((prev) =>
+        prev ? { ...prev, ok: false, error: 'Failed to reach server' } : null,
+      );
     } finally {
       setLlmTesting(false);
     }
@@ -460,9 +504,15 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/llm-status/test', { method: 'POST' });
       const data = await res.json();
-      setLlmStatus(prev => prev ? { ...prev, ok: data.ok, error: data.error } : { provider: llmProvider, model: ollamaModel, ok: data.ok, error: data.error });
+      setLlmStatus((prev) =>
+        prev
+          ? { ...prev, ok: data.ok, error: data.error }
+          : { provider: llmProvider, model: ollamaModel, ok: data.ok, error: data.error },
+      );
     } catch {
-      setLlmStatus(prev => prev ? { ...prev, ok: false, error: 'Failed to reach server' } : null);
+      setLlmStatus((prev) =>
+        prev ? { ...prev, ok: false, error: 'Failed to reach server' } : null,
+      );
     } finally {
       setLlmTesting(false);
     }
@@ -492,14 +542,20 @@ export default function SettingsPage() {
   // Map LingQ status to our word state
   const lingqStatusToState = (status: string): WordState => {
     switch (status) {
-      case '1': return 'level1';
-      case '2': return 'level2';
-      case '3': return 'level3';
-      case '4': return 'level4';
+      case '1':
+        return 'level1';
+      case '2':
+        return 'level2';
+      case '3':
+        return 'level3';
+      case '4':
+        return 'level4';
       case 'K':
       case 'k':
-      case '5': return 'known';
-      default: return 'level1';
+      case '5':
+        return 'known';
+      default:
+        return 'level1';
     }
   };
 
@@ -516,20 +572,21 @@ export default function SettingsPage() {
         .filter((line) => line.length > 0);
 
       if (lines.length === 0) {
-        setImportStatus("No data found in file.");
+        setImportStatus('No data found in file.');
         return;
       }
 
       // Check if this looks like a LingQ export (has header row)
       const firstLine = lines[0].toLowerCase();
-      const isLingQFormat = firstLine.includes('term') || firstLine.includes('hint') || firstLine.includes('status');
+      const isLingQFormat =
+        firstLine.includes('term') || firstLine.includes('hint') || firstLine.includes('status');
 
       if (isLingQFormat) {
         // LingQ CSV format: term, hint (translation), status, etc.
         const header = parseCSVLine(lines[0].toLowerCase());
-        const termIdx = header.findIndex(h => h === 'term' || h === 'word');
-        const hintIdx = header.findIndex(h => h === 'hint' || h === 'translation');
-        const statusIdx = header.findIndex(h => h === 'status');
+        const termIdx = header.findIndex((h) => h === 'term' || h === 'word');
+        const hintIdx = header.findIndex((h) => h === 'hint' || h === 'translation');
+        const statusIdx = header.findIndex((h) => h === 'status');
 
         if (termIdx === -1) {
           setImportStatus("Could not find 'term' column in LingQ export.");
@@ -555,34 +612,38 @@ export default function SettingsPage() {
 
         // Import with states and translations
         await importLingQWords(imports);
-        const knownCount = imports.filter(i => i.state === 'known').length;
+        const knownCount = imports.filter((i) => i.state === 'known').length;
         const learningCount = imports.length - knownCount;
         setImportStatus(
-          `Imported ${imports.length} words from LingQ: ${knownCount} known, ${learningCount} learning.`
+          `Imported ${imports.length} words from LingQ: ${knownCount} known, ${learningCount} learning.`,
         );
       } else {
         // Simple format: one word per line or first CSV column
-        const words = lines.map((line) => {
-          const parts = line.split(",");
-          return parts[0].trim().toLowerCase();
-        }).filter(w => w.length > 0);
+        const words = lines
+          .map((line) => {
+            const parts = line.split(',');
+            return parts[0].trim().toLowerCase();
+          })
+          .filter((w) => w.length > 0);
 
         await importKnownWords(words);
         setImportStatus(`Successfully imported ${words.length} words as known.`);
       }
     } catch (error) {
-      setImportStatus(`Error importing file: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setImportStatus(
+        `Error importing file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
 
     // Reset file input
     if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      fileInputRef.current.value = '';
     }
   };
 
   // Import LingQ words with their states and translations
   const importLingQWords = async (
-    imports: { word: string; state: WordState; translation?: string }[]
+    imports: { word: string; state: WordState; translation?: string }[],
   ) => {
     for (const item of imports) {
       // Check if word already exists
@@ -591,7 +652,13 @@ export default function SettingsPage() {
       if (existing) {
         // Update state if the LingQ state is "more known"
         const stateRank: Record<WordState, number> = {
-          'new': 0, 'level1': 1, 'level2': 2, 'level3': 3, 'level4': 4, 'known': 5, 'ignored': -1
+          new: 0,
+          level1: 1,
+          level2: 2,
+          level3: 3,
+          level4: 4,
+          known: 5,
+          ignored: -1,
         };
         if (stateRank[item.state] > stateRank[existing.state]) {
           await updateVocabState(existing.id, item.state);
@@ -614,7 +681,7 @@ export default function SettingsPage() {
     }
 
     // Also update known words table for fast lookup
-    const updates = imports.map(i => ({ word: i.word, state: i.state }));
+    const updates = imports.map((i) => ({ word: i.word, state: i.state }));
     await bulkUpdateWordStates(updates);
   };
 
@@ -626,20 +693,20 @@ export default function SettingsPage() {
       .filter((word) => word.length > 0);
 
     if (words.length === 0) {
-      setImportStatus("No words to import.");
+      setImportStatus('No words to import.');
       return;
     }
 
     await importKnownWords(words);
     setImportStatus(`Successfully imported ${words.length} words as known.`);
-    setImportText("");
+    setImportText('');
   };
 
   // Import words as known
   const importKnownWords = async (words: string[]) => {
     const updates = words.map((word) => ({
       word,
-      state: "known" as WordState,
+      state: 'known' as WordState,
     }));
     await bulkUpdateWordStates(updates);
   };
@@ -649,17 +716,17 @@ export default function SettingsPage() {
     try {
       const vocab = await getAllVocab();
       const csv = [
-        "text,type,sentence,translation,state,createdAt",
+        'text,type,sentence,translation,state,createdAt',
         ...vocab.map(
           (v) =>
-            `"${v.text}","${v.type}","${v.sentence.replace(/"/g, '""')}","${v.translation.replace(/"/g, '""')}","${v.state}","${v.createdAt.toISOString()}"`
+            `"${v.text}","${v.type}","${v.sentence.replace(/"/g, '""')}","${v.translation.replace(/"/g, '""')}","${v.state}","${v.createdAt.toISOString()}"`,
         ),
-      ].join("\n");
+      ].join('\n');
 
-      downloadFile(csv, "afrikaans-vocab.csv", "text/csv");
-      setExportStatus("Vocab exported as CSV.");
+      downloadFile(csv, 'afrikaans-vocab.csv', 'text/csv');
+      setExportStatus('Vocab exported as CSV.');
     } catch (error) {
-      setExportStatus(`Export failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setExportStatus(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -668,10 +735,10 @@ export default function SettingsPage() {
     try {
       const vocab = await getAllVocab();
       const json = JSON.stringify(vocab, null, 2);
-      downloadFile(json, "afrikaans-vocab.json", "application/json");
-      setExportStatus("Vocab exported as JSON.");
+      downloadFile(json, 'afrikaans-vocab.json', 'application/json');
+      setExportStatus('Vocab exported as JSON.');
     } catch (error) {
-      setExportStatus(`Export failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setExportStatus(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -679,14 +746,12 @@ export default function SettingsPage() {
   const exportKnownWords = async () => {
     try {
       const knownWords = await getAllKnownWords();
-      const words = knownWords
-        .filter((w) => w.state === "known")
-        .map((w) => w.word);
-      const text = words.join("\n");
-      downloadFile(text, "afrikaans-known-words.txt", "text/plain");
+      const words = knownWords.filter((w) => w.state === 'known').map((w) => w.word);
+      const text = words.join('\n');
+      downloadFile(text, 'afrikaans-known-words.txt', 'text/plain');
       setExportStatus(`Exported ${words.length} known words.`);
     } catch (error) {
-      setExportStatus(`Export failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setExportStatus(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -700,10 +765,10 @@ export default function SettingsPage() {
         version: 2,
       };
       const json = JSON.stringify(exportData, null, 2);
-      downloadFile(json, "lector-backup.json", "application/json");
-      setExportStatus("Full backup exported.");
+      downloadFile(json, 'lector-backup.json', 'application/json');
+      setExportStatus('Full backup exported.');
     } catch (error) {
-      setExportStatus(`Backup failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setExportStatus(`Backup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -718,7 +783,7 @@ export default function SettingsPage() {
 
       // Validate backup format
       if (!data.version || !data.exportedAt) {
-        throw new Error("Invalid backup file format");
+        throw new Error('Invalid backup file format');
       }
 
       // Use the server-side import API
@@ -726,27 +791,25 @@ export default function SettingsPage() {
 
       if (result.success) {
         const counts = result.imported;
-        setExportStatus(`Backup imported: ${counts.collections || 0} collections, ${counts.lessons || 0} lessons, ${counts.vocab || 0} vocab, ${counts.knownWords || 0} known words, ${counts.clozeSentences || 0} cloze sentences.`);
+        setExportStatus(
+          `Backup imported: ${counts.collections || 0} collections, ${counts.lessons || 0} lessons, ${counts.vocab || 0} vocab, ${counts.knownWords || 0} known words, ${counts.clozeSentences || 0} cloze sentences.`,
+        );
       } else {
-        throw new Error("Import failed");
+        throw new Error('Import failed');
       }
     } catch (error) {
-      setExportStatus(`Import failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setExportStatus(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     // Reset file input
-    e.target.value = "";
+    e.target.value = '';
   };
 
   // Helper to download a file
-  const downloadFile = (
-    content: string,
-    filename: string,
-    mimeType: string
-  ) => {
+  const downloadFile = (content: string, filename: string, mimeType: string) => {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     document.body.appendChild(a);
@@ -756,10 +819,10 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 sm:ml-56">
+    <div className="min-h-screen bg-zinc-50 sm:ml-56 dark:bg-zinc-950">
       <NavHeader />
       {/* Header — mobile only, desktop uses sidebar */}
-      <header className="sm:hidden sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur-sm sm:hidden dark:border-zinc-800 dark:bg-zinc-900/80">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link
             href="/"
@@ -767,9 +830,7 @@ export default function SettingsPage() {
           >
             &larr; Back
           </Link>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            Settings
-          </h1>
+          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Settings</h1>
           <div className="w-12" /> {/* Spacer for centering */}
         </div>
       </header>
@@ -785,17 +846,20 @@ export default function SettingsPage() {
               {llmStatus && (
                 <div className="flex items-center gap-2">
                   <span
-                    className={`inline-block h-2 w-2 rounded-full ${llmStatus.ok ? "bg-green-500" : "bg-red-500"
-                      }`}
+                    className={`inline-block h-2 w-2 rounded-full ${
+                      llmStatus.ok ? 'bg-green-500' : 'bg-red-500'
+                    }`}
                   />
                   <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {llmStatus.ok ? "Connected" : llmStatus.error || "Not connected"}
+                    {llmStatus.ok ? 'Connected' : llmStatus.error || 'Not connected'}
                   </span>
                 </div>
               )}
             </div>
             <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Choose how translations are powered. Ollama runs locally (no API key needed). Anthropic uses cloud AI for higher quality. Apfel is an OpenAI-compatible API you can self-host.
+              Choose how translations are powered. Ollama runs locally (no API key needed).
+              Anthropic uses cloud AI for higher quality. Apfel is an OpenAI-compatible API you can
+              self-host.
             </p>
 
             {/* Provider selector */}
@@ -806,7 +870,7 @@ export default function SettingsPage() {
               <select
                 value={llmProvider}
                 onChange={(e) => saveLLMProvider(e.target.value as LLMProvider)}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               >
                 <option value="ollama">Ollama (local)</option>
                 <option value="anthropic">Anthropic (cloud)</option>
@@ -816,7 +880,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Ollama settings */}
-            {llmProvider === "ollama" && (
+            {llmProvider === 'ollama' && (
               <div className="mb-4">
                 <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   Model
@@ -824,7 +888,7 @@ export default function SettingsPage() {
                 <select
                   value={ollamaModel}
                   onChange={(e) => saveOllamaModel(e.target.value)}
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                 >
                   {OLLAMA_MODELS.map((m) => (
                     <option key={m.value} value={m.value}>
@@ -839,7 +903,7 @@ export default function SettingsPage() {
             )}
 
             {/* Anthropic settings */}
-            {llmProvider === "anthropic" && (
+            {llmProvider === 'anthropic' && (
               <div className="mb-4 space-y-4">
                 {/* Auth mode toggle — only when both credentials are configured */}
                 {hasApiKey && hasOauthToken && (
@@ -849,28 +913,31 @@ export default function SettingsPage() {
                     </label>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => saveAnthropicAuthMode("api_key")}
+                        onClick={() => saveAnthropicAuthMode('api_key')}
                         disabled={llmTesting}
-                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${anthropicAuthMode === "api_key"
-                          ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                          : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                          }`}
+                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                          anthropicAuthMode === 'api_key'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                            : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                        }`}
                       >
                         API Key
                       </button>
                       <button
-                        onClick={() => saveAnthropicAuthMode("oauth")}
+                        onClick={() => saveAnthropicAuthMode('oauth')}
                         disabled={llmTesting}
-                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${anthropicAuthMode === "oauth"
-                          ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                          : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                          }`}
+                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                          anthropicAuthMode === 'oauth'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                            : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                        }`}
                       >
                         OAuth Token
                       </button>
                     </div>
                     <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                      Both credentials are configured. Choose which to use — connection will be tested automatically.
+                      Both credentials are configured. Choose which to use — connection will be
+                      tested automatically.
                     </p>
                   </div>
                 )}
@@ -881,7 +948,7 @@ export default function SettingsPage() {
                     API Key
                   </label>
                   <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
-                    Get your API key from{" "}
+                    Get your API key from{' '}
                     <a
                       href="https://console.anthropic.com/"
                       target="_blank"
@@ -917,7 +984,7 @@ export default function SettingsPage() {
                         value={newApiKey}
                         onChange={(e) => setNewApiKey(e.target.value)}
                         placeholder="sk-ant-api..."
-                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                       />
                       <button
                         onClick={() => saveAnthropicApiKey(newApiKey)}
@@ -928,7 +995,10 @@ export default function SettingsPage() {
                       </button>
                       {editingApiKey && (
                         <button
-                          onClick={() => { setEditingApiKey(false); setNewApiKey(""); }}
+                          onClick={() => {
+                            setEditingApiKey(false);
+                            setNewApiKey('');
+                          }}
                           className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                         >
                           Cancel
@@ -940,7 +1010,9 @@ export default function SettingsPage() {
 
                 <div className="relative flex items-center py-2">
                   <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
-                  <span className="mx-3 flex-shrink text-xs text-zinc-400 dark:text-zinc-500">or</span>
+                  <span className="mx-3 flex-shrink text-xs text-zinc-400 dark:text-zinc-500">
+                    or
+                  </span>
                   <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
                 </div>
 
@@ -950,7 +1022,11 @@ export default function SettingsPage() {
                     OAuth Token <span className="font-normal text-zinc-400">(Pro/Team plan)</span>
                   </label>
                   <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
-                    Uses your Claude Pro or Team subscription credits. Run <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">claude setup-token</code> to obtain a token. Note: slower initial startup than API keys.
+                    Uses your Claude Pro or Team subscription credits. Run{' '}
+                    <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+                      claude setup-token
+                    </code>{' '}
+                    to obtain a token. Note: slower initial startup than API keys.
                   </p>
                   {hasOauthToken && !editingOauthToken ? (
                     <div className="flex items-center gap-2">
@@ -978,7 +1054,7 @@ export default function SettingsPage() {
                         value={newOauthToken}
                         onChange={(e) => setNewOauthToken(e.target.value)}
                         placeholder="sk-ant-oat01-..."
-                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                       />
                       <button
                         onClick={() => saveClaudeOauthToken(newOauthToken)}
@@ -989,7 +1065,10 @@ export default function SettingsPage() {
                       </button>
                       {editingOauthToken && (
                         <button
-                          onClick={() => { setEditingOauthToken(false); setNewOauthToken(""); }}
+                          onClick={() => {
+                            setEditingOauthToken(false);
+                            setNewOauthToken('');
+                          }}
                           className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                         >
                           Cancel
@@ -1002,7 +1081,7 @@ export default function SettingsPage() {
             )}
 
             {/* LM Studio settings */}
-            {llmProvider === "lmstudio" && (
+            {llmProvider === 'lmstudio' && (
               <div className="mb-4 space-y-4" data-testid="lmstudio-settings">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -1014,10 +1093,12 @@ export default function SettingsPage() {
                     onChange={(e) => saveLmstudioUrl(e.target.value)}
                     placeholder="http://localhost:1234"
                     data-testid="lmstudio-endpoint"
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   />
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                    The URL of your LM Studio server (default port 1234). The app talks to it server-side, so localhost works even when lector is hosted elsewhere — set this to a reachable address.
+                    The URL of your LM Studio server (default port 1234). The app talks to it
+                    server-side, so localhost works even when lector is hosted elsewhere — set this
+                    to a reachable address.
                   </p>
                 </div>
 
@@ -1058,7 +1139,7 @@ export default function SettingsPage() {
                         onChange={(e) => setNewLmstudioApiKey(e.target.value)}
                         placeholder="leave empty unless your LM Studio is behind auth"
                         data-testid="lmstudio-api-key"
-                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                       />
                       <button
                         type="button"
@@ -1074,7 +1155,7 @@ export default function SettingsPage() {
                           type="button"
                           onClick={() => {
                             setEditingLmstudioApiKey(false);
-                            setNewLmstudioApiKey("");
+                            setNewLmstudioApiKey('');
                           }}
                           className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                         >
@@ -1084,7 +1165,8 @@ export default function SettingsPage() {
                     </div>
                   )}
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                    Sent as a Bearer token from the server (never exposed to the browser after save). Only needed for reverse-proxied or LM Studio Cloud setups.
+                    Sent as a Bearer token from the server (never exposed to the browser after
+                    save). Only needed for reverse-proxied or LM Studio Cloud setups.
                   </p>
                 </div>
 
@@ -1097,7 +1179,7 @@ export default function SettingsPage() {
                       value={lmstudioModel}
                       onChange={(e) => saveLmstudioModel(e.target.value)}
                       data-testid="lmstudio-model"
-                      className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                      className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                     >
                       {/* Always include an empty placeholder so a freshly-fetched
                           dropdown doesn't visually show a "selected" model that
@@ -1105,9 +1187,9 @@ export default function SettingsPage() {
                       <option value="" disabled>
                         {lmstudioModels.length === 0
                           ? lmstudioFetchingModels
-                            ? "Fetching models…"
-                            : "— click “Fetch models” to populate —"
-                          : "Select a model…"}
+                            ? 'Fetching models…'
+                            : '— click “Fetch models” to populate —'
+                          : 'Select a model…'}
                       </option>
                       {lmstudioModel && !lmstudioModels.includes(lmstudioModel) && (
                         <option value={lmstudioModel}>{lmstudioModel} (saved)</option>
@@ -1125,7 +1207,7 @@ export default function SettingsPage() {
                       data-testid="lmstudio-fetch-models"
                       className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                     >
-                      {lmstudioFetchingModels ? "Fetching..." : "Fetch models"}
+                      {lmstudioFetchingModels ? 'Fetching...' : 'Fetch models'}
                     </button>
                   </div>
                   {lmstudioFetchError && (
@@ -1146,31 +1228,32 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={loadLmstudioModel}
-                      disabled={!lmstudioModel || lmstudioLoadStatus === "loading"}
+                      disabled={!lmstudioModel || lmstudioLoadStatus === 'loading'}
                       data-testid="lmstudio-load"
                       className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                     >
-                      {lmstudioLoadStatus === "loading" ? "Loading..." : "Load"}
+                      {lmstudioLoadStatus === 'loading' ? 'Loading...' : 'Load'}
                     </button>
                     <span
                       data-testid="lmstudio-load-status"
                       data-status={lmstudioLoadStatus}
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${lmstudioLoadStatus === "loaded"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                        : lmstudioLoadStatus === "loading"
-                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-                          : lmstudioLoadStatus === "errored"
-                            ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                            : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
-                        }`}
+                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                        lmstudioLoadStatus === 'loaded'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                          : lmstudioLoadStatus === 'loading'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                            : lmstudioLoadStatus === 'errored'
+                              ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400'
+                      }`}
                     >
-                      {lmstudioLoadStatus === "idle"
-                        ? "Idle"
-                        : lmstudioLoadStatus === "loading"
-                          ? "Loading…"
-                          : lmstudioLoadStatus === "loaded"
-                            ? "Loaded"
-                            : "Errored"}
+                      {lmstudioLoadStatus === 'idle'
+                        ? 'Idle'
+                        : lmstudioLoadStatus === 'loading'
+                          ? 'Loading…'
+                          : lmstudioLoadStatus === 'loaded'
+                            ? 'Loaded'
+                            : 'Errored'}
                     </span>
                   </div>
                   {lmstudioLoadError && (
@@ -1182,14 +1265,15 @@ export default function SettingsPage() {
                     </p>
                   )}
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                    Loads the selected model on the LM Studio server. Make sure LM Studio&apos;s &ldquo;auto-load&rdquo; is enabled if you want JIT loading on chat too.
+                    Loads the selected model on the LM Studio server. Make sure LM Studio&apos;s
+                    &ldquo;auto-load&rdquo; is enabled if you want JIT loading on chat too.
                   </p>
                 </div>
               </div>
             )}
 
             {/* Apfel settings */}
-            {llmProvider === "apfel" && (
+            {llmProvider === 'apfel' && (
               <div className="mb-4 space-y-4">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -1200,7 +1284,7 @@ export default function SettingsPage() {
                     value={apfelUrl}
                     onChange={(e) => saveApfelUrl(e.target.value)}
                     placeholder="http://localhost:11434"
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   />
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
                     The URL of your Apfel instance (OpenAI-compatible API)
@@ -1215,7 +1299,7 @@ export default function SettingsPage() {
                     value={apfelModel}
                     onChange={(e) => saveApfelModel(e.target.value)}
                     placeholder="default"
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   />
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
                     The model name configured on your Apfel server
@@ -1224,14 +1308,9 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Test connection */}
-            <button
-              onClick={testLLMConnection}
-              disabled={llmTesting}
-              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-            >
-              {llmTesting ? "Testing..." : "Test Connection"}
-            </button>
+            <Button variant="secondary" onClick={testLLMConnection} disabled={llmTesting}>
+              {llmTesting ? 'Testing...' : 'Test Connection'}
+            </Button>
           </section>
 
           {/* Anki Settings Section */}
@@ -1242,19 +1321,16 @@ export default function SettingsPage() {
               </h2>
               <div className="flex items-center gap-2">
                 <span
-                  className={`inline-block h-2 w-2 rounded-full ${ankiConnected ? "bg-green-500" : "bg-red-500"
-                    }`}
+                  className={`inline-block h-2 w-2 rounded-full ${
+                    ankiConnected ? 'bg-green-500' : 'bg-red-500'
+                  }`}
                 />
                 <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {ankiConnected ? "Connected" : "Not connected"}
+                  {ankiConnected ? 'Connected' : 'Not connected'}
                 </span>
-                <button
-                  onClick={checkAnkiConnection}
-                  disabled={ankiLoading}
-                  className="ml-2 text-sm text-blue-600 hover:underline disabled:opacity-50 dark:text-blue-400"
-                >
-                  {ankiLoading ? "Checking..." : "Refresh"}
-                </button>
+                <Button variant="link" onClick={checkAnkiConnection} disabled={ankiLoading}>
+                  {ankiLoading ? 'Checking...' : 'Refresh'}
+                </Button>
               </div>
             </div>
 
@@ -1280,7 +1356,7 @@ export default function SettingsPage() {
                   refreshAnkiUrl();
                 }}
                 placeholder="http://localhost:8765"
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
               />
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
                 Use Tailscale IP for remote Anki (e.g., http://100.x.x.x:8765)
@@ -1295,8 +1371,8 @@ export default function SettingsPage() {
               {ankiConnected && ankiDecks.length > 0 ? (
                 <select
                   value={settings.ankiDeckName}
-                  onChange={(e) => saveSetting("ankiDeckName", e.target.value)}
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  onChange={(e) => saveSetting('ankiDeckName', e.target.value)}
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                 >
                   {ankiDecks.map((deck) => (
                     <option key={deck} value={deck}>
@@ -1308,9 +1384,9 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   value={settings.ankiDeckName}
-                  onChange={(e) => saveSetting("ankiDeckName", e.target.value)}
+                  onChange={(e) => saveSetting('ankiDeckName', e.target.value)}
                   placeholder="Deck name"
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                 />
               )}
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
@@ -1326,8 +1402,8 @@ export default function SettingsPage() {
               {ankiConnected && ankiDecks.length > 0 ? (
                 <select
                   value={settings.ankiClozeDeckName}
-                  onChange={(e) => saveSetting("ankiClozeDeckName", e.target.value)}
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  onChange={(e) => saveSetting('ankiClozeDeckName', e.target.value)}
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                 >
                   {ankiDecks.map((deck) => (
                     <option key={deck} value={deck}>
@@ -1339,9 +1415,9 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   value={settings.ankiClozeDeckName}
-                  onChange={(e) => saveSetting("ankiClozeDeckName", e.target.value)}
+                  onChange={(e) => saveSetting('ankiClozeDeckName', e.target.value)}
                   placeholder="Cloze deck name"
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                 />
               )}
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
@@ -1356,20 +1432,22 @@ export default function SettingsPage() {
               </label>
               <div className="flex gap-2">
                 <button
-                  onClick={() => saveSetting("defaultCardType", "basic")}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${settings.defaultCardType === "basic"
-                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                    : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    }`}
+                  onClick={() => saveSetting('defaultCardType', 'basic')}
+                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                    settings.defaultCardType === 'basic'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
                 >
                   Basic
                 </button>
                 <button
-                  onClick={() => saveSetting("defaultCardType", "cloze")}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${settings.defaultCardType === "cloze"
-                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                    : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    }`}
+                  onClick={() => saveSetting('defaultCardType', 'cloze')}
+                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                    settings.defaultCardType === 'cloze'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
                 >
                   Cloze
                 </button>
@@ -1389,11 +1467,12 @@ export default function SettingsPage() {
               {googleTTSAvailable !== null && (
                 <div className="flex items-center gap-2">
                   <span
-                    className={`inline-block h-2 w-2 rounded-full ${googleTTSAvailable ? "bg-green-500" : "bg-yellow-500"
-                      }`}
+                    className={`inline-block h-2 w-2 rounded-full ${
+                      googleTTSAvailable ? 'bg-green-500' : 'bg-yellow-500'
+                    }`}
                   />
                   <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {googleTTSAvailable ? "Google TTS Active" : "Using Browser TTS"}
+                    {googleTTSAvailable ? 'Google TTS Active' : 'Using Browser TTS'}
                   </span>
                 </div>
               )}
@@ -1406,20 +1485,22 @@ export default function SettingsPage() {
               </label>
               <div className="flex gap-2">
                 <button
-                  onClick={() => saveSetting("ttsMode", "google")}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${settings.ttsMode === "google"
-                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                    : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    }`}
+                  onClick={() => saveSetting('ttsMode', 'google')}
+                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                    settings.ttsMode === 'google'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
                 >
                   Google Cloud
                 </button>
                 <button
-                  onClick={() => saveSetting("ttsMode", "browser")}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${settings.ttsMode === "browser"
-                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                    : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    }`}
+                  onClick={() => saveSetting('ttsMode', 'browser')}
+                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                    settings.ttsMode === 'browser'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
                 >
                   Browser Built-in
                 </button>
@@ -1432,7 +1513,7 @@ export default function SettingsPage() {
             {/* Test TTS */}
             <div className="mb-4">
               <button
-                onClick={() => speak("Hallo, hoe gaan dit met jou?", settings.ttsSpeed)}
+                onClick={() => speak('Hallo, hoe gaan dit met jou?', settings.ttsSpeed)}
                 className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
                 Test Voice
@@ -1443,9 +1524,7 @@ export default function SettingsPage() {
             <div>
               <label className="mb-2 flex items-center justify-between text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 <span>Speech Speed</span>
-                <span className="font-mono text-zinc-500">
-                  {settings.ttsSpeed.toFixed(1)}x
-                </span>
+                <span className="font-mono text-zinc-500">{settings.ttsSpeed.toFixed(1)}x</span>
               </label>
               <input
                 type="range"
@@ -1453,9 +1532,7 @@ export default function SettingsPage() {
                 max="2"
                 step="0.1"
                 value={settings.ttsSpeed}
-                onChange={(e) =>
-                  saveSetting("ttsSpeed", parseFloat(e.target.value))
-                }
+                onChange={(e) => saveSetting('ttsSpeed', parseFloat(e.target.value))}
                 className="w-full accent-blue-500"
               />
               <div className="mt-1 flex justify-between text-xs text-zinc-500">
@@ -1476,14 +1553,15 @@ export default function SettingsPage() {
                 Theme
               </label>
               <div className="flex gap-2">
-                {(["light", "dark", "system"] as Theme[]).map((theme) => (
+                {(['light', 'dark', 'system'] as Theme[]).map((theme) => (
                   <button
                     key={theme}
-                    onClick={() => saveSetting("theme", theme)}
-                    className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${settings.theme === theme
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                      : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                      }`}
+                    onClick={() => saveSetting('theme', theme)}
+                    className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${
+                      settings.theme === theme
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                        : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                    }`}
                   >
                     {theme}
                   </button>
@@ -1503,7 +1581,7 @@ export default function SettingsPage() {
             <select
               value={timezone}
               onChange={(e) => saveTimezone(e.target.value)}
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
             >
               <option value="">Auto — server time zone</option>
               {timezones.map((tz) => (
@@ -1525,21 +1603,22 @@ export default function SettingsPage() {
           {/* API Tokens Section */}
           <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                API Tokens
-              </h2>
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">API Tokens</h2>
               {!showTokenForm && !createdToken && (
-                <button
-                  onClick={() => { setShowTokenForm(true); setTokenError(null); }}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                <Button
+                  onClick={() => {
+                    setShowTokenForm(true);
+                    setTokenError(null);
+                  }}
                 >
                   Generate Token
-                </button>
+                </Button>
               )}
             </div>
 
             <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Create personal access tokens for CLI or API access. Tokens are scoped to specific permissions.
+              Create personal access tokens for CLI or API access. Tokens are scoped to specific
+              permissions.
             </p>
 
             {tokenError && (
@@ -1555,7 +1634,7 @@ export default function SettingsPage() {
                   Copy this token now — it won&apos;t be shown again.
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100 select-all break-all border border-amber-200 dark:border-amber-800">
+                  <code className="flex-1 rounded border border-amber-200 bg-white px-3 py-2 font-mono text-sm break-all text-zinc-900 select-all dark:border-amber-800 dark:bg-zinc-800 dark:text-zinc-100">
                     {createdToken}
                   </code>
                   <button
@@ -1566,7 +1645,7 @@ export default function SettingsPage() {
                     }}
                     className="shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                   >
-                    {tokenCopied ? "Copied!" : "Copy"}
+                    {tokenCopied ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
                 <button
@@ -1590,7 +1669,7 @@ export default function SettingsPage() {
                     value={newTokenName}
                     onChange={(e) => setNewTokenName(e.target.value)}
                     placeholder="e.g. CLI, Automation, Backup script"
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   />
                 </div>
 
@@ -1600,40 +1679,42 @@ export default function SettingsPage() {
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { value: "*", label: "Full Access" },
-                      { value: "collections:read", label: "Collections (read)" },
-                      { value: "collections:write", label: "Collections (write)" },
-                      { value: "vocab:read", label: "Vocabulary (read)" },
-                      { value: "vocab:write", label: "Vocabulary (write)" },
-                      { value: "stats:read", label: "Stats (read)" },
-                      { value: "stats:write", label: "Stats (write)" },
-                      { value: "settings:read", label: "Settings (read)" },
-                      { value: "settings:write", label: "Settings (write)" },
-                      { value: "data:export", label: "Data Export" },
-                      { value: "data:import", label: "Data Import" },
+                      { value: '*', label: 'Full Access' },
+                      { value: 'collections:read', label: 'Collections (read)' },
+                      { value: 'collections:write', label: 'Collections (write)' },
+                      { value: 'vocab:read', label: 'Vocabulary (read)' },
+                      { value: 'vocab:write', label: 'Vocabulary (write)' },
+                      { value: 'stats:read', label: 'Stats (read)' },
+                      { value: 'stats:write', label: 'Stats (write)' },
+                      { value: 'settings:read', label: 'Settings (read)' },
+                      { value: 'settings:write', label: 'Settings (write)' },
+                      { value: 'data:export', label: 'Data Export' },
+                      { value: 'data:import', label: 'Data Import' },
                     ].map(({ value, label }) => (
                       <label
                         key={value}
-                        className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${newTokenScopes.includes(value)
-                          ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                          : "border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                          } ${newTokenScopes.includes("*") && value !== "*"
-                            ? "opacity-50 cursor-not-allowed"
-                            : "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                          }`}
+                        className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                          newTokenScopes.includes(value)
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                            : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                        } ${
+                          newTokenScopes.includes('*') && value !== '*'
+                            ? 'cursor-not-allowed opacity-50'
+                            : 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700'
+                        }`}
                       >
                         <input
                           type="checkbox"
-                          checked={newTokenScopes.includes("*") || newTokenScopes.includes(value)}
-                          disabled={newTokenScopes.includes("*") && value !== "*"}
+                          checked={newTokenScopes.includes('*') || newTokenScopes.includes(value)}
+                          disabled={newTokenScopes.includes('*') && value !== '*'}
                           onChange={(e) => {
-                            if (value === "*") {
-                              setNewTokenScopes(e.target.checked ? ["*"] : []);
+                            if (value === '*') {
+                              setNewTokenScopes(e.target.checked ? ['*'] : []);
                             } else {
                               setNewTokenScopes((prev) =>
                                 e.target.checked
-                                  ? [...prev.filter((s) => s !== "*"), value]
-                                  : prev.filter((s) => s !== value)
+                                  ? [...prev.filter((s) => s !== '*'), value]
+                                  : prev.filter((s) => s !== value),
                               );
                             }
                           }}
@@ -1649,11 +1730,11 @@ export default function SettingsPage() {
                   <button
                     onClick={async () => {
                       if (!newTokenName.trim()) {
-                        setTokenError("Token name is required");
+                        setTokenError('Token name is required');
                         return;
                       }
                       if (newTokenScopes.length === 0) {
-                        setTokenError("Select at least one scope");
+                        setTokenError('Select at least one scope');
                         return;
                       }
                       try {
@@ -1664,12 +1745,14 @@ export default function SettingsPage() {
                         });
                         setCreatedToken(result.token);
                         setShowTokenForm(false);
-                        setNewTokenName("");
-                        setNewTokenScopes(["*"]);
+                        setNewTokenName('');
+                        setNewTokenScopes(['*']);
                         const tokens = await getApiTokens();
                         setApiTokens(tokens);
                       } catch (err) {
-                        setTokenError(err instanceof Error ? err.message : "Failed to create token");
+                        setTokenError(
+                          err instanceof Error ? err.message : 'Failed to create token',
+                        );
                       }
                     }}
                     disabled={!newTokenName.trim() || newTokenScopes.length === 0}
@@ -1680,8 +1763,8 @@ export default function SettingsPage() {
                   <button
                     onClick={() => {
                       setShowTokenForm(false);
-                      setNewTokenName("");
-                      setNewTokenScopes(["*"]);
+                      setNewTokenName('');
+                      setNewTokenScopes(['*']);
                       setTokenError(null);
                     }}
                     className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
@@ -1702,33 +1785,33 @@ export default function SettingsPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                           {token.name}
                         </span>
                         <div className="flex flex-wrap gap-1">
-                          {(token.scopes.includes("*")
-                            ? ["Full Access"]
-                            : token.scopes
-                          ).map((scope) => (
-                            <span
-                              key={scope}
-                              className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                            >
-                              {scope}
-                            </span>
-                          ))}
+                          {(token.scopes.includes('*') ? ['Full Access'] : token.scopes).map(
+                            (scope) => (
+                              <span
+                                key={scope}
+                                className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                              >
+                                {scope}
+                              </span>
+                            ),
+                          )}
                         </div>
                       </div>
                       <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                         Created {new Date(token.createdAt).toLocaleDateString()}
                         {token.lastUsedAt
                           ? ` · Last used ${new Date(token.lastUsedAt).toLocaleDateString()}`
-                          : " · Never used"}
+                          : ' · Never used'}
                       </div>
                     </div>
                     <button
                       onClick={async () => {
-                        if (!confirm(`Revoke token "${token.name}"? This cannot be undone.`)) return;
+                        if (!confirm(`Revoke token "${token.name}"? This cannot be undone.`))
+                          return;
                         await revokeApiToken(token.id);
                         setApiTokens((prev) => prev.filter((t) => t.id !== token.id));
                       }}
@@ -1754,7 +1837,8 @@ export default function SettingsPage() {
               Import Known Words
             </h2>
             <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Import words you already know. Supports <strong>LingQ exports</strong> (with status levels and translations) or simple word lists.
+              Import words you already know. Supports <strong>LingQ exports</strong> (with status
+              levels and translations) or simple word lists.
             </p>
             <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-500">
               LingQ: Vocabulary → Settings gear → Export LingQs → Upload the CSV here
@@ -1787,22 +1871,16 @@ export default function SettingsPage() {
                 onChange={(e) => setImportText(e.target.value)}
                 placeholder="die&#10;en&#10;is&#10;van&#10;..."
                 rows={6}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
               />
             </div>
 
-            <button
-              onClick={handleTextImport}
-              disabled={!importText.trim()}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <Button variant="secondary" onClick={handleTextImport} disabled={!importText.trim()}>
               Import
-            </button>
+            </Button>
 
             {importStatus && (
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-                {importStatus}
-              </p>
+              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{importStatus}</p>
             )}
           </section>
 
@@ -1812,29 +1890,12 @@ export default function SettingsPage() {
               Export Data
             </h2>
             <div className="flex flex-wrap gap-3">
-              <button
-                onClick={exportVocabCSV}
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              >
-                Export Vocab (CSV)
-              </button>
-              <button
-                onClick={exportVocabJSON}
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              >
-                Export Vocab (JSON)
-              </button>
-              <button
-                onClick={exportKnownWords}
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              >
-                Export Known Words
-              </button>
+              <Button onClick={exportVocabCSV}>Export Vocab (CSV)</Button>
+              <Button onClick={exportVocabJSON}>Export Vocab (JSON)</Button>
+              <Button onClick={exportKnownWords}>Export Known Words</Button>
             </div>
             {exportStatus && (
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-                {exportStatus}
-              </p>
+              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{exportStatus}</p>
             )}
           </section>
 
@@ -1845,12 +1906,13 @@ export default function SettingsPage() {
             </h2>
 
             <div className="mb-6 flex flex-wrap gap-3">
-              <button
+              <Button
+                variant="secondary"
                 onClick={exportFullBackup}
                 className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
                 Export Full Backup
-              </button>
+              </Button>
               <label className="cursor-pointer rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
                 Import Backup
                 <input
@@ -1861,7 +1923,6 @@ export default function SettingsPage() {
                 />
               </label>
             </div>
-
           </section>
         </div>
       </main>

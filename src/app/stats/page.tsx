@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Book, CheckCircle, Flame } from 'lucide-react';
 import Link from 'next/link';
 import NavHeader from '@/components/NavHeader';
 import {
@@ -14,7 +15,14 @@ import {
 import { addDaysToDateString, dateStringInTimeZone, isValidTimeZone } from '@/lib/dates';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
 import VocabGrowthChart from '@/components/VocabGrowthChart';
-import { ClozeStats, FluencyBadge, SentenceMastery, StatCard, StatsSkeleton, WordStateBreakdown } from './components';
+import {
+  ClozeStats,
+  FluencyBadge,
+  SentenceMastery,
+  StatCard,
+  StatsSkeleton,
+  WordStateBreakdown,
+} from './components';
 import { StatsData } from './types';
 
 export default function StatsPage() {
@@ -35,9 +43,10 @@ export default function StatsPage() {
         // in the configured time zone (falling back to this device's zone),
         // not UTC — otherwise the window misses today's row before 10:00
         // AEST (issue #108).
-        const timeZone = tzSetting && isValidTimeZone(tzSetting)
-          ? tzSetting
-          : Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const timeZone =
+          tzSetting && isValidTimeZone(tzSetting)
+            ? tzSetting
+            : Intl.DateTimeFormat().resolvedOptions().timeZone;
         const endDate = dateStringInTimeZone(new Date(), timeZone);
         const startDateStr = addDaysToDateString(endDate, -365);
 
@@ -62,7 +71,7 @@ export default function StatsPage() {
 
         // Build vocab growth data (cumulative over time)
         const sortedDailyStats = [...dailyStats].sort(
-          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
         );
 
         let cumulativeKnown = 0;
@@ -89,8 +98,7 @@ export default function StatsPage() {
           const lastEntry = vocabGrowth[vocabGrowth.length - 1];
           lastEntry.known = fluency.totalKnownWords;
           lastEntry.learning = fluency.totalLearning;
-          lastEntry.total =
-            fluency.totalKnownWords + fluency.totalLearning + fluency.totalNew;
+          lastEntry.total = fluency.totalKnownWords + fluency.totalLearning + fluency.totalNew;
         }
 
         setStats({
@@ -124,10 +132,10 @@ export default function StatsPage() {
 
   if (!stats) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="text-center">
-          <p className="text-red-500 dark:text-red-400 mb-4">Failed to load statistics</p>
-          <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">
+          <p className="mb-4 text-red-500 dark:text-red-400">Failed to load statistics</p>
+          <Link href="/" className="text-blue-600 hover:underline dark:text-blue-400">
             Return home
           </Link>
         </div>
@@ -136,11 +144,11 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
+    <div className="min-h-screen bg-zinc-50 pt-[var(--mobile-topbar-h)] sm:ml-56 sm:pt-0 dark:bg-zinc-950">
       <NavHeader />
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="mx-auto max-w-7xl px-6 py-8">
         {/* Date subtitle */}
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
+        <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
           {new Date().toLocaleDateString('en-US', {
             weekday: 'long',
             year: 'numeric',
@@ -153,59 +161,26 @@ export default function StatsPage() {
         <FluencyBadge fluency={stats.fluency} />
 
         {/* Top stat cards */}
-        <div data-testid="stats-top-cards" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div data-testid="stats-top-cards" className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
           <StatCard
             label="Words Known"
             value={stats.totalKnown}
             color="green"
-            icon={
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            }
+            icon={<CheckCircle size="24" />}
           />
           <StatCard
             label="Learning (L1-L4)"
             value={stats.totalLearning}
             sublabel="Words in progress"
             color="yellow"
-            icon={
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                />
-              </svg>
-            }
+            icon={<Book size="24" />}
           />
           <StatCard
             label="Current Streak"
             value={`${stats.currentStreak} days`}
             sublabel={`Longest: ${stats.longestStreak} days`}
             color="orange"
-            icon={
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z"
-                />
-              </svg>
-            }
+            icon={<Flame size="24" />}
           />
         </div>
 
@@ -220,7 +195,7 @@ export default function StatsPage() {
         </div>
 
         {/* Detailed breakdowns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
           <WordStateBreakdown byState={stats.byState} />
           <ClozeStats
             attempts={stats.totalClozeAttempts}
