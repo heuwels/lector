@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, ChatMessageRow } from '@/lib/server/database';
+import { resolveLanguage } from '@/lib/server/active-language';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,17 +20,18 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const limit = parseInt(searchParams.get('limit') || '50');
   const before = searchParams.get('before');
+  const lang = resolveLanguage(searchParams.get('lang'));
 
   let messages: ChatMessageRow[];
 
   if (before) {
     messages = db
-      .prepare('SELECT * FROM chat_messages WHERE createdAt < ? ORDER BY createdAt DESC LIMIT ?')
-      .all(before, limit) as ChatMessageRow[];
+      .prepare('SELECT * FROM chat_messages WHERE createdAt < ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .all(before, lang, limit) as ChatMessageRow[];
   } else {
     messages = db
-      .prepare('SELECT * FROM chat_messages ORDER BY createdAt DESC LIMIT ?')
-      .all(limit) as ChatMessageRow[];
+      .prepare('SELECT * FROM chat_messages WHERE language = ? ORDER BY createdAt DESC LIMIT ?')
+      .all(lang, limit) as ChatMessageRow[];
   }
 
   return NextResponse.json(messages.reverse());
@@ -57,8 +59,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE /api/chat — clear all chat history
-export async function DELETE() {
-  db.prepare('DELETE FROM chat_messages').run();
+// DELETE /api/chat — clear chat history for the active (or requested) language
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const lang = resolveLanguage(searchParams.get('lang'));
+  db.prepare('DELETE FROM chat_messages WHERE language = ?').run(lang);
   return NextResponse.json({ ok: true });
 }

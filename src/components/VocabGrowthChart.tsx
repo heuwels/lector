@@ -1,5 +1,6 @@
 'use client';
 
+import { useIsDark } from '@/utils/hooks';
 import { useState, useEffect } from 'react';
 import {
   XAxis,
@@ -33,18 +34,6 @@ interface CustomTooltipProps {
     color: string;
   }>;
   label?: string;
-}
-
-function useIsDark() {
-  const [isDark, setIsDark] = useState(true);
-  useEffect(() => {
-    const check = () => setIsDark(document.documentElement.classList.contains('dark'));
-    check();
-    const observer = new MutationObserver(check);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
-  return isDark;
 }
 
 function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
