@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import LanguageSelector from '@/components/LanguageSelector';
-import { iconMap, navLinks } from './constants';
+import { navLinks } from './constants';
+import NavLink from './components/NavLink';
 
 export default function NavHeader() {
   const pathname = usePathname();
@@ -37,22 +38,7 @@ export default function NavHeader() {
         {/* Navigation links */}
         <nav className="flex-1 space-y-1 px-3 py-2">
           {navLinks.map((link) => {
-            const isActive = pathname === link.href;
-            const Icon = iconMap[link.href];
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
-                    : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-50'
-                }`}
-              >
-                <Icon />
-                {link.label}
-              </Link>
-            );
+            return <NavLink link={link} pathname={pathname} isMobile={false} />;
           })}
         </nav>
 
@@ -66,20 +52,7 @@ export default function NavHeader() {
       <nav className="fixed right-0 bottom-0 left-0 z-50 border-t border-zinc-200 bg-white sm:hidden dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex items-stretch">
           {navLinks.map((link) => {
-            const isActive = pathname === link.href;
-            const Icon = iconMap[link.href];
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
-                  isActive ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-500 dark:text-zinc-400'
-                }`}
-              >
-                <Icon />
-                {link.label}
-              </Link>
-            );
+            return <NavLink link={link} pathname={pathname} isMobile />;
           })}
         </div>
       </nav>
