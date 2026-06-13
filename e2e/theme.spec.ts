@@ -9,6 +9,21 @@ async function clickThemeButton(page: Page, title: string) {
   await page.waitForTimeout(200);
 }
 
+// Perceived brightness (0–255) of the body background. Tailwind v4 emits
+// colours as lab()/oklch() and getComputedStyle returns them verbatim, so we
+// normalize through a canvas to sRGB before measuring. This keeps the check
+// independent of the exact palette and colour-string format.
+async function getBodyBrightness(page: Page): Promise<number> {
+  return page.locator("body").evaluate((el) => {
+    const raw = getComputedStyle(el).backgroundColor;
+    const ctx = document.createElement("canvas").getContext("2d")!;
+    ctx.fillStyle = raw;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    return 0.299 * r + 0.587 * g + 0.114 * b;
+  });
+}
+
 test.describe("Theme Toggle", () => {
   test.beforeEach(async ({ page }) => {
     // Use desktop viewport so sidebar is visible
@@ -51,12 +66,8 @@ test.describe("Theme Toggle", () => {
     const stored = await page.evaluate(() => localStorage.getItem("theme"));
     expect(stored).toBe("light");
 
-    // Body should have light background
-    const bodyBg = await page.locator("body").evaluate((el) => {
-      return getComputedStyle(el).backgroundColor;
-    });
-    // Light mode bg-gray-50 = rgb(249, 250, 251)
-    expect(bodyBg).toContain("249");
+    // Body should have a light background (bg-gray-50)
+    expect(await getBodyBrightness(page)).toBeGreaterThan(200);
   });
 
   test("should switch to dark mode when Dark button is clicked", async ({
@@ -81,12 +92,8 @@ test.describe("Theme Toggle", () => {
     const stored = await page.evaluate(() => localStorage.getItem("theme"));
     expect(stored).toBe("dark");
 
-    // Body should have dark background
-    const bodyBg = await page.locator("body").evaluate((el) => {
-      return getComputedStyle(el).backgroundColor;
-    });
-    // Dark mode bg-gray-900 = rgb(17, 24, 39)
-    expect(bodyBg).toContain("17");
+    // Body should have a dark background (bg-gray-900)
+    expect(await getBodyBrightness(page)).toBeLessThan(60);
   });
 
   test("should persist theme across page navigation", async ({ page }) => {

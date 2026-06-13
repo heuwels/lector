@@ -22,7 +22,7 @@ CI runs all of these, plus the e2e suite a second time against the production Do
 - Next.js 16 + React 19
 - Tailwind CSS v4 (class-based dark mode via `@custom-variant`)
 - SQLite (better-sqlite3) for server-side data; the client persists everything through the API routes (`src/lib/data-layer.ts`)
-- No component library — custom components throughout
+- shadcn/ui (Base UI primitives, `base-vega` style, zinc tokens) is initialized — add primitives with `npx shadcn@latest add <component>` into `src/components/ui/` and extend them there. Adoption is gradual: prefer `ui/` components in new/touched code, don't hand-roll buttons/dialogs/menus, and don't mass-migrate existing ones
 
 ## Key Patterns
 

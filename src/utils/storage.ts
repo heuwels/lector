@@ -1,6 +1,7 @@
 import { LANGUAGE_CHANGE_EVENT } from "@/constants/storage";
 import { DEFAULT_LANGUAGE, isValidLanguageCode, LANGUAGES } from "@/lib/languages";
 import { LanguageConfig } from "@/types/language";
+import { Theme } from "@/types/theme";
 
 export function subscribeToStorage(callback: () => void) {
     window.addEventListener('storage', callback);
@@ -21,4 +22,9 @@ export function getLanguageSnapshot(): LanguageConfig {
     const stored = localStorage.getItem('lector-target-language') as keyof typeof LANGUAGES | null;
     if (stored && isValidLanguageCode(stored)) return LANGUAGES[stored];
     return LANGUAGES[DEFAULT_LANGUAGE];
+}
+
+export function getStoredTheme(): Theme {
+  if (typeof window === 'undefined') return 'system';
+  return (localStorage.getItem('theme') as Theme) || 'system';
 }
