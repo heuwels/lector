@@ -62,12 +62,18 @@ describe('isActiveDay', () => {
     expect(isActiveDay({ date: 'd', dictionaryLookups: 1 })).toBe(true);
     expect(isActiveDay({ date: 'd', clozePracticed: 5 })).toBe(true);
     expect(isActiveDay({ date: 'd', minutesRead: 12 })).toBe(true);
+    // An Anki-only day keeps the streak alive (reviews synced from AnkiConnect).
+    expect(isActiveDay({ date: 'd', ankiReviews: 8 })).toBe(true);
   });
 
   it('is false for zero or missing activity', () => {
-    expect(isActiveDay({ date: 'd', dictionaryLookups: 0, clozePracticed: 0, minutesRead: 0 })).toBe(false);
+    expect(
+      isActiveDay({ date: 'd', dictionaryLookups: 0, clozePracticed: 0, minutesRead: 0, ankiReviews: 0 }),
+    ).toBe(false);
     expect(isActiveDay({ date: 'd' })).toBe(false);
-    expect(isActiveDay({ date: 'd', dictionaryLookups: null, minutesRead: null })).toBe(false);
+    expect(isActiveDay({ date: 'd', dictionaryLookups: null, minutesRead: null, ankiReviews: null })).toBe(
+      false,
+    );
   });
 });
 
@@ -79,5 +85,12 @@ describe('activeDateSet', () => {
     ]);
     expect(set.has('2026-06-09')).toBe(true);
     expect(set.has('2026-06-10')).toBe(false);
+  });
+
+  it('includes a day that only had Anki reviews', () => {
+    const set = activeDateSet([
+      { date: '2026-06-09', dictionaryLookups: 0, clozePracticed: 0, minutesRead: 0, ankiReviews: 12 },
+    ]);
+    expect(set.has('2026-06-09')).toBe(true);
   });
 });

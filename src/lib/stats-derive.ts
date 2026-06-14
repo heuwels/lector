@@ -63,14 +63,19 @@ export function deriveReadingStats(rows: LessonReadingRow[]): ReadingStats {
 /**
  * Composite daily study-activity magnitude. Matches the streak's definition of
  * an active day (`isActiveDay` in ./streak: a dictionary lookup, cloze review,
- * or reading minute), so the activity heatmap agrees with the streak. Before
- * this the heatmap counted dictionary lookups only, leaving cloze-only days
- * uncoloured even though they keep a streak alive.
+ * reading minute, or an Anki review), so the activity heatmap agrees with the
+ * streak. Before this the heatmap counted dictionary lookups only, leaving
+ * cloze-only days uncoloured even though they keep a streak alive.
  */
 export function compositeActivityCount(
-  d: Pick<DailyStats, 'dictionaryLookups' | 'clozePracticed' | 'minutesRead'>,
+  d: Pick<DailyStats, 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'>,
 ): number {
-  return (d.dictionaryLookups || 0) + (d.clozePracticed || 0) + (d.minutesRead || 0);
+  return (
+    (d.dictionaryLookups || 0) +
+    (d.clozePracticed || 0) +
+    (d.minutesRead || 0) +
+    (d.ankiReviews || 0)
+  );
 }
 
 /**

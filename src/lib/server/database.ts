@@ -118,6 +118,7 @@ function getDb(): DatabaseType {
       clozePracticed INTEGER DEFAULT 0,
       points INTEGER DEFAULT 0,
       dictionaryLookups INTEGER DEFAULT 0,
+      ankiReviews INTEGER DEFAULT 0,
       sessionStartedAt TEXT
     );
 
@@ -255,6 +256,14 @@ function getDb(): DatabaseType {
 
   // Add language column to tables for multi-language support
   migrateAddLanguageColumn(_db);
+
+  // dailyStats.ankiReviews — Anki reviews/day synced from AnkiConnect, counted
+  // toward the activity heatmap + streak. Added after the language migration
+  // (which recreates dailyStats) so the column survives the table rebuild.
+  const dailyCols = _db.prepare('PRAGMA table_info(dailyStats)').all() as { name: string }[];
+  if (!dailyCols.some((c) => c.name === 'ankiReviews')) {
+    _db.exec('ALTER TABLE dailyStats ADD COLUMN ankiReviews INTEGER DEFAULT 0');
+  }
 
   return _db;
 }
@@ -620,6 +629,7 @@ export interface DailyStatsRow {
   clozePracticed: number;
   points: number;
   dictionaryLookups: number;
+  ankiReviews: number;
   sessionStartedAt: string | null;
 }
 
