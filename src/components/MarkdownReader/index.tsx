@@ -11,7 +11,7 @@ import {
 } from '@/lib/data-layer';
 import type { WordState } from '@/types';
 import { snapToWordBoundaries } from './utils';
-import { darkStateColors, stateColors } from './theme';
+import { stateClasses } from './theme';
 import { MarkdownReaderProps } from './types';
 
 export default function MarkdownReader({
@@ -28,7 +28,6 @@ export default function MarkdownReader({
     const containerRef = useRef<HTMLDivElement>(null);
     const [knownWordsMap, setKnownWordsMap] = useState<Map<string, WordState>>(new Map());
     const [highlightedPhrase, setHighlightedPhrase] = useState<string[]>([]);
-    const [isDarkMode, setIsDarkMode] = useState(false);
     const [scrollPercentage, setScrollPercentage] = useState(0);
     const [isEditing, setIsEditing] = useState(false);
     const [draftContent, setDraftContent] = useState('');
@@ -65,15 +64,6 @@ export default function MarkdownReader({
             setIsSaving(false);
         }
     }, [draftContent, onSaveText, onEditingChange]);
-
-    // Detect dark mode
-    useEffect(() => {
-        const check = () => setIsDarkMode(document.documentElement.classList.contains('dark'));
-        check();
-        const observer = new MutationObserver(check);
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => observer.disconnect();
-    }, []);
 
     // Load known words map
     useEffect(() => {
@@ -156,7 +146,7 @@ export default function MarkdownReader({
             }
         }
 
-        const colors = isDarkMode ? darkStateColors : stateColors;
+        const colors = stateClasses;
         let wordIndex = 0;
 
         return parts.map((part, i) => {
@@ -175,8 +165,8 @@ export default function MarkdownReader({
                             onWordClick(part.text, sentence);
                         }}
                         data-phrase-highlighted={isPhraseHighlighted || undefined}
-                        className={`cursor-pointer rounded px-0.5 hover:ring-2 hover:ring-blue-400 ${colorClass}`}
-                        style={isPhraseHighlighted ? { backgroundColor: 'rgba(99, 102, 241, 0.25)' } : undefined}
+                        className={`cursor-pointer rounded-[7px] px-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${colorClass}`}
+                        style={isPhraseHighlighted ? { backgroundColor: 'color-mix(in srgb, var(--clay) 22%, transparent)' } : undefined}
                     >
                         {part.text}
                     </span>

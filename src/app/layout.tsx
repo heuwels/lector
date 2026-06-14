@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Literata } from 'next/font/google';
+import { Nunito, Literata } from 'next/font/google';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import ChatWidget from '@/components/ChatWidget';
@@ -7,9 +7,11 @@ import SetupGuard from '@/components/SetupGuard';
 import './globals.css';
 import NavHeader from '@/components/NavHeader';
 
-const inter = Inter({
-  variable: '--font-inter',
+// Nunito is the UI/chrome font; Literata stays the reading body (issue #147 §2.1).
+const nunito = Nunito({
+  variable: '--font-nunito',
   subsets: ['latin'],
+  weight: ['400', '600', '700', '800'],
 });
 
 const literata = Literata({
@@ -40,7 +42,7 @@ export default function RootLayout({
       </head>
 
       <body
-        className={`${inter.variable} ${literata.variable} flex min-h-screen flex-col bg-gray-50 font-sans text-gray-900 antialiased sm:flex-row dark:bg-gray-900 dark:text-gray-100`}
+        className={`${nunito.variable} ${literata.variable} flex min-h-screen flex-col bg-background font-sans text-foreground antialiased sm:flex-row`}
       >
         <NavHeader />
 

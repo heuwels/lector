@@ -732,18 +732,15 @@ export default function PracticePage() {
 
               {/* Collection */}
               <div className="mb-4">
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {VISIBLE_COLLECTIONS.map((coll) => {
                     const count = collectionCounts?.[coll];
                     return (
-                      <button
+                      <Button
                         key={coll}
                         onClick={() => setSelectedCollection(coll)}
-                        className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${
-                          selectedCollection === coll
-                            ? 'bg-blue-500 text-white shadow-md'
-                            : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                        }`}
+                        variant={selectedCollection === coll ? 'default' : 'secondary'}
+                        className="flex h-14 flex-col justify-center gap-0"
                       >
                         <div>{COLLECTION_LABELS[coll]}</div>
                         {count && count.total > 0 && (
@@ -751,7 +748,7 @@ export default function PracticePage() {
                             {count.mastered}/{count.total} mastered
                           </div>
                         )}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -765,60 +762,49 @@ export default function PracticePage() {
                   </label>
                   <div className="flex gap-1.5">
                     {ROUND_SIZES.map((size) => (
-                      <button
+                      <Button
                         key={size}
+                        size="sm"
+                        variant={roundSize === size ? 'default' : 'secondary'}
                         onClick={() => {
                           setOriginalRoundSize(size);
                           setRoundSize(size);
                         }}
-                        className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                          roundSize === size
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-                        }`}
                       >
                         {size}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
-                <div className="w-40">
+                <div className="">
                   <label className="mb-2 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     Mode
                   </label>
                   <div className="flex gap-1.5">
-                    <button
+                    <Button
                       onClick={() => handleSetPracticeMode('type')}
-                      className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                        practiceMode === 'type'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-                      }`}
+                      variant={practiceMode === 'type' ? 'default' : 'secondary'}
                     >
                       Type
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={() => handleSetPracticeMode('mc')}
-                      className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                        practiceMode === 'mc'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-                      }`}
+                      variant={practiceMode === 'mc' ? 'default' : 'secondary'}
                     >
                       MC
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
 
               {/* Start button */}
-              <button
+              <Button
                 onClick={() => startRoundWith(selectedCollection, 'new', roundSize)}
                 disabled={!seeded}
-                className="w-full rounded-xl bg-blue-600 py-3.5 text-lg font-bold text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+                className="w-full"
               >
                 {seeded ? 'Start' : 'Loading...'}
-              </button>
+              </Button>
             </div>
           </div>
         )}
