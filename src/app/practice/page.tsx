@@ -54,7 +54,7 @@ export default function PracticePage() {
   const [queue, setQueue] = useState<ClozeSentence[]>([]);
   const [current, setCurrent] = useState<CurrentSentence | null>(null);
   const [userAnswer, setUserAnswer] = useState('');
-  const [roundSize, setRoundSize] = useState<RoundSize>(20);
+  const [roundSize, setRoundSize] = useState<number>(20);
   const [roundProgress, setRoundProgress] = useState(0);
   const [roundCorrect, setRoundCorrect] = useState(0);
   const [points, setPoints] = useState(0);
@@ -79,7 +79,6 @@ export default function PracticePage() {
     ClozeCollection,
     { total: number; due: number; mastered: number }
   > | null>(null);
-  const [recentWords, setRecentWords] = useState<string[]>([]);
 
   // Feedback state
   const [feedbackData, setFeedbackData] = useState<{
@@ -318,7 +317,6 @@ export default function PracticePage() {
       setRoundCorrect(0);
       setRetryQueue([]);
       setIsRetryPhase(false);
-      setRecentWords([]);
 
       try {
         let sentences: ClozeSentence[];
@@ -555,13 +553,6 @@ export default function PracticePage() {
 
   // Handle next sentence
   const handleNext = useCallback(async () => {
-    if (current) {
-      setRecentWords((prev) => {
-        const updated = [current.sentence.clozeWord.toLowerCase(), ...prev].slice(0, 10);
-        return updated;
-      });
-    }
-
     const remainingQueue = queue.slice(1);
     setQueue(remainingQueue);
 
@@ -669,6 +660,7 @@ export default function PracticePage() {
   const handleSentenceBlacklisted = useCallback(async () => {
     const remainingQueue = queue.slice(1);
     setQueue(remainingQueue);
+    setRoundSize(roundSize - 1);
 
     if (remainingQueue.length > 0) {
       loadNextSentence(remainingQueue);
@@ -687,7 +679,6 @@ export default function PracticePage() {
 
   return (
     <>
-
       <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Setup screen */}
         {state === 'setup' && (

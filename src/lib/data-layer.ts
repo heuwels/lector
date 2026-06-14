@@ -627,10 +627,9 @@ export async function getJournalEntry(id: string): Promise<JournalEntry | undefi
   return res.json();
 }
 
-export async function createJournalEntry(
-  body: string,
-  entryDate?: string,
-): Promise<{ id: string; entryDate: string }> {
+export async function createJournalEntry(body: string): Promise<{ id: string }> {
+  const entryDate = new Date().toISOString().split('T')[0];
+
   const res = await fetch('/api/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

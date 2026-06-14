@@ -15,6 +15,7 @@ import {
 import EntryModal from './components/EntryModal';
 import HistoryCard from './components/HistoryCard';
 import { formatDate } from './utils';
+import { Button } from '@/components/ui/button';
 
 export default function JournalPage() {
   const [bodyText, setBodyText] = useState('');
@@ -27,8 +28,6 @@ export default function JournalPage() {
   const [showEditor, setShowEditor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const today = new Date().toISOString().split('T')[0];
 
   // Load entries
   useEffect(() => {
@@ -71,7 +70,7 @@ export default function JournalPage() {
       if (editingId) {
         await updateJournalDraft(editingId, bodyText);
       } else {
-        const result = await createJournalEntry(bodyText, today);
+        const result = await createJournalEntry(bodyText);
         setEditingId(result.id);
       }
       await refreshEntries();
@@ -91,7 +90,7 @@ export default function JournalPage() {
     try {
       let id = editingId;
       if (!id) {
-        const result = await createJournalEntry(bodyText, today);
+        const result = await createJournalEntry(bodyText);
         id = result.id;
         setEditingId(id);
       } else {
@@ -134,13 +133,10 @@ export default function JournalPage() {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Journal</h1>
         {!showEditor && (
-          <button
-            onClick={handleNewEntry}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-          >
+          <Button onClick={handleNewEntry}>
             <Plus className="h-4 w-4" />
             New Entry
-          </button>
+          </Button>
         )}
       </div>
 
@@ -149,19 +145,19 @@ export default function JournalPage() {
         <section className="mb-10">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              {formatDate(today)}
+              {formatDate(new Date().toISOString())}
             </h2>
-            <button
+            <Button
               onClick={() => {
                 setShowEditor(false);
                 setBodyText('');
                 setEditingId(null);
                 setError(null);
               }}
-              className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+              variant="destructive"
             >
               Cancel
-            </button>
+            </Button>
           </div>
 
           <div className="space-y-3">
@@ -236,12 +232,7 @@ export default function JournalPage() {
       ) : !showEditor ? (
         <div className="py-16 text-center">
           <p className="mb-4 text-zinc-500 dark:text-zinc-400">No journal entries yet</p>
-          <button
-            onClick={handleNewEntry}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-          >
-            Write your first entry
-          </button>
+          <Button onClick={handleNewEntry}>Write your first entry</Button>
         </div>
       ) : null}
 
