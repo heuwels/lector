@@ -5,7 +5,7 @@ export const navLinks = [
   { href: '/practice', label: 'Cloze' },
   { href: '/journal', label: 'Journal' },
   { href: '/vocab', label: 'Vocab' },
-  { href: '/stats', label: 'Stats' },
+  { href: '/stats', label: 'Statistics' },
   { href: '/settings', label: 'Settings' },
 ];
 

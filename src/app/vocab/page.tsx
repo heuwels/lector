@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, X } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import VocabList from '@/components/VocabList';
 import {
   type VocabEntry,
@@ -303,63 +303,42 @@ export default function VocabPage() {
   }, [entries, ankiConnected, ankiDeck]);
 
   return (
-    <>
-      {/* Header — mobile only, desktop uses sidebar */}
-      <header className="border-b border-gray-200 bg-white sm:hidden dark:border-gray-800 dark:bg-gray-900">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/"
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </Link>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Vocabulary</h1>
-            </div>
-
-            {/* Anki connection status */}
-            <div className="flex items-center gap-2">
-              {ankiConnected === null ? (
-                <span className="text-sm text-gray-500">Checking Anki connection...</span>
-              ) : ankiConnected ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                  Anki Connected
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800 dark:bg-red-900 dark:text-red-200">
-                  <span className="h-2 w-2 rounded-full bg-red-500" />
-                  Anki Disconnected
-                </span>
-              )}
-            </div>
-          </div>
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Settings</h1>
+        <div className="flex items-center gap-2">
+          {ankiConnected === null ? (
+            <span className="text-sm text-gray-500">Checking Anki connection...</span>
+          ) : ankiConnected ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
+              <span className="h-2 w-2 rounded-full bg-green-500" />
+              Anki Connected
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800 dark:bg-red-900 dark:text-red-200">
+              <span className="h-2 w-2 rounded-full bg-red-500" />
+              Anki Disconnected
+            </span>
+          )}
         </div>
-      </header>
+      </div>
+      {/* Stats */}
+      {stats && (
+        <div className="mb-6">
+          <VocabStats stats={stats} />
+        </div>
+      )}
 
-      {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Stats */}
-        {stats && (
-          <div className="mb-6">
-            <VocabStats stats={stats} />
-          </div>
-        )}
-
-        {/* Vocabulary List - exclude ignored words */}
-        <VocabList
-          entries={entries.filter((e) => e.state !== 'ignored')}
-          collections={collections}
-          onEntryClick={handleEntryClick}
-          onExportToAnki={handleExportToAnki}
-          onMarkAsKnown={handleMarkAsKnown}
-          onSyncWithAnki={handleSyncWithAnki}
-          isLoading={isLoading}
-        />
-      </main>
-
-      {/* Detail Modal */}
+      {/* Vocabulary List - exclude ignored words */}
+      <VocabList
+        entries={entries.filter((e) => e.state !== 'ignored')}
+        collections={collections}
+        onEntryClick={handleEntryClick}
+        onExportToAnki={handleExportToAnki}
+        onMarkAsKnown={handleMarkAsKnown}
+        onSyncWithAnki={handleSyncWithAnki}
+        isLoading={isLoading}
+      />
       {selectedEntry && (
         <VocabDetailModal
           entry={selectedEntry}
@@ -368,6 +347,6 @@ export default function VocabPage() {
           onDelete={handleDeleteEntry}
         />
       )}
-    </>
+    </main>
   );
 }

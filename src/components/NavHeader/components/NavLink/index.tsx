@@ -1,15 +1,15 @@
 import Link from 'next/link';
 import { iconMap } from '../../constants';
+import { usePathname } from 'next/navigation';
 
 export default function NavLink({
   link,
-  pathname,
   isMobile,
 }: {
   isMobile: boolean;
-  pathname: string;
   link: { href: string; label: string };
 }) {
+  const pathname = usePathname();
   const isActive = pathname === link.href;
   const Icon = iconMap[link.href];
   const linkClasses = isMobile

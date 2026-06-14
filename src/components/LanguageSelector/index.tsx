@@ -41,10 +41,10 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
 
   const knownBadge = knownWordsCount ? (
     <span
-      title="Words known"
-      className="rounded-full border border-amber-500 bg-amber-100 px-2 py-1 text-amber-700"
+      title={`Words known: ${knownWordsCount}`}
+      className="rounded-full border border-amber-500 bg-amber-100 px-1 py-px text-amber-700 sm:px-2 sm:py-1"
     >
-      {knownWordsCount}
+      {knownWordsCount > 1000 ? `${(knownWordsCount / 1000).toFixed(1)}K` : knownWordsCount}
     </span>
   ) : null;
 

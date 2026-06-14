@@ -818,1112 +818,1086 @@ export default function SettingsPage() {
   };
 
   return (
-    <>
-      {/* Header — mobile only, desktop uses sidebar */}
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur-sm sm:hidden dark:border-zinc-800 dark:bg-zinc-900/80">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <Link
-            href="/"
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            &larr; Back
-          </Link>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Settings</h1>
-          <div className="w-12" /> {/* Spacer for centering */}
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <div className="space-y-8">
-          {/* AI Provider Section */}
-          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                AI Provider
-              </h2>
-              {llmStatus && (
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-block h-2 w-2 rounded-full ${
-                      llmStatus.ok ? 'bg-green-500' : 'bg-red-500'
-                    }`}
-                  />
-                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {llmStatus.ok ? 'Connected' : llmStatus.error || 'Not connected'}
-                  </span>
-                </div>
-              )}
-            </div>
-            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Choose how translations are powered. Ollama runs locally (no API key needed).
-              Anthropic uses cloud AI for higher quality. Apfel is an OpenAI-compatible API you can
-              self-host.
-            </p>
-
-            {/* Provider selector */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Provider
-              </label>
-              <select
-                value={llmProvider}
-                onChange={(e) => saveLLMProvider(e.target.value as LLMProvider)}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-              >
-                <option value="ollama">Ollama (local)</option>
-                <option value="anthropic">Anthropic (cloud)</option>
-                <option value="apfel">Apfel (self-hosted)</option>
-                <option value="lmstudio">LM Studio (local)</option>
-              </select>
-            </div>
-
-            {/* Ollama settings */}
-            {llmProvider === 'ollama' && (
-              <div className="mb-4">
-                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Model
-                </label>
-                <select
-                  value={ollamaModel}
-                  onChange={(e) => saveOllamaModel(e.target.value)}
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                >
-                  {OLLAMA_MODELS.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                  The model will be downloaded automatically on first use.
-                </p>
-              </div>
-            )}
-
-            {/* Anthropic settings */}
-            {llmProvider === 'anthropic' && (
-              <div className="mb-4 space-y-4">
-                {/* Auth mode toggle — only when both credentials are configured */}
-                {hasApiKey && hasOauthToken && (
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                      Authentication Method
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => saveAnthropicAuthMode('api_key')}
-                        disabled={llmTesting}
-                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                          anthropicAuthMode === 'api_key'
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                            : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                        }`}
-                      >
-                        API Key
-                      </button>
-                      <button
-                        onClick={() => saveAnthropicAuthMode('oauth')}
-                        disabled={llmTesting}
-                        className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                          anthropicAuthMode === 'oauth'
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                            : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                        }`}
-                      >
-                        OAuth Token
-                      </button>
-                    </div>
-                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                      Both credentials are configured. Choose which to use — connection will be
-                      tested automatically.
-                    </p>
-                  </div>
-                )}
-
-                {/* API Key */}
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    API Key
-                  </label>
-                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
-                    Get your API key from{' '}
-                    <a
-                      href="https://console.anthropic.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline dark:text-blue-400"
-                    >
-                      console.anthropic.com
-                    </a>
-                  </p>
-                  {hasApiKey && !editingApiKey ? (
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                        <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                        Configured
-                      </span>
-                      <button
-                        onClick={() => setEditingApiKey(true)}
-                        className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                      >
-                        Replace
-                      </button>
-                      <button
-                        onClick={clearAnthropicApiKey}
-                        className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={newApiKey}
-                        onChange={(e) => setNewApiKey(e.target.value)}
-                        placeholder="sk-ant-api..."
-                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                      />
-                      <button
-                        onClick={() => saveAnthropicApiKey(newApiKey)}
-                        disabled={!newApiKey.trim()}
-                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Save
-                      </button>
-                      {editingApiKey && (
-                        <button
-                          onClick={() => {
-                            setEditingApiKey(false);
-                            setNewApiKey('');
-                          }}
-                          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="relative flex items-center py-2">
-                  <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
-                  <span className="mx-3 flex-shrink text-xs text-zinc-400 dark:text-zinc-500">
-                    or
-                  </span>
-                  <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
-                </div>
-
-                {/* OAuth Token */}
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    OAuth Token <span className="font-normal text-zinc-400">(Pro/Team plan)</span>
-                  </label>
-                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
-                    Uses your Claude Pro or Team subscription credits. Run{' '}
-                    <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
-                      claude setup-token
-                    </code>{' '}
-                    to obtain a token. Note: slower initial startup than API keys.
-                  </p>
-                  {hasOauthToken && !editingOauthToken ? (
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                        <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                        Configured
-                      </span>
-                      <button
-                        onClick={() => setEditingOauthToken(true)}
-                        className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                      >
-                        Replace
-                      </button>
-                      <button
-                        onClick={clearClaudeOauthToken}
-                        className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={newOauthToken}
-                        onChange={(e) => setNewOauthToken(e.target.value)}
-                        placeholder="sk-ant-oat01-..."
-                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                      />
-                      <button
-                        onClick={() => saveClaudeOauthToken(newOauthToken)}
-                        disabled={!newOauthToken.trim()}
-                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Save
-                      </button>
-                      {editingOauthToken && (
-                        <button
-                          onClick={() => {
-                            setEditingOauthToken(false);
-                            setNewOauthToken('');
-                          }}
-                          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* LM Studio settings */}
-            {llmProvider === 'lmstudio' && (
-              <div className="mb-4 space-y-4" data-testid="lmstudio-settings">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Endpoint
-                  </label>
-                  <input
-                    type="text"
-                    value={lmstudioUrl}
-                    onChange={(e) => saveLmstudioUrl(e.target.value)}
-                    placeholder="http://localhost:1234"
-                    data-testid="lmstudio-endpoint"
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                  />
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                    The URL of your LM Studio server (default port 1234). The app talks to it
-                    server-side, so localhost works even when lector is hosted elsewhere — set this
-                    to a reachable address.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    API Key (optional)
-                  </label>
-                  {hasLmstudioApiKey && !editingLmstudioApiKey ? (
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                        data-testid="lmstudio-api-key-status"
-                      >
-                        Configured
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setEditingLmstudioApiKey(true)}
-                        className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                        data-testid="lmstudio-api-key-replace"
-                      >
-                        Replace
-                      </button>
-                      <button
-                        type="button"
-                        onClick={clearLmstudioApiKey}
-                        className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                        data-testid="lmstudio-api-key-clear"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={newLmstudioApiKey}
-                        onChange={(e) => setNewLmstudioApiKey(e.target.value)}
-                        placeholder="leave empty unless your LM Studio is behind auth"
-                        data-testid="lmstudio-api-key"
-                        className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => saveLmstudioApiKey(newLmstudioApiKey)}
-                        disabled={!newLmstudioApiKey.trim()}
-                        className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                        data-testid="lmstudio-api-key-save"
-                      >
-                        Save
-                      </button>
-                      {editingLmstudioApiKey && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingLmstudioApiKey(false);
-                            setNewLmstudioApiKey('');
-                          }}
-                          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                    Sent as a Bearer token from the server (never exposed to the browser after
-                    save). Only needed for reverse-proxied or LM Studio Cloud setups.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Model
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={lmstudioModel}
-                      onChange={(e) => saveLmstudioModel(e.target.value)}
-                      data-testid="lmstudio-model"
-                      className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                    >
-                      {/* Always include an empty placeholder so a freshly-fetched
-                          dropdown doesn't visually show a "selected" model that
-                          state doesn't actually know about (would leave Load disabled). */}
-                      <option value="" disabled>
-                        {lmstudioModels.length === 0
-                          ? lmstudioFetchingModels
-                            ? 'Fetching models…'
-                            : '— click “Fetch models” to populate —'
-                          : 'Select a model…'}
-                      </option>
-                      {lmstudioModel && !lmstudioModels.includes(lmstudioModel) && (
-                        <option value={lmstudioModel}>{lmstudioModel} (saved)</option>
-                      )}
-                      {lmstudioModels.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={fetchLmstudioModels}
-                      disabled={lmstudioFetchingModels || !lmstudioUrl}
-                      data-testid="lmstudio-fetch-models"
-                      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    >
-                      {lmstudioFetchingModels ? 'Fetching...' : 'Fetch models'}
-                    </button>
-                  </div>
-                  {lmstudioFetchError && (
-                    <p
-                      className="mt-1 text-xs text-red-600 dark:text-red-400"
-                      data-testid="lmstudio-fetch-error"
-                    >
-                      {lmstudioFetchError}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Load model
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={loadLmstudioModel}
-                      disabled={!lmstudioModel || lmstudioLoadStatus === 'loading'}
-                      data-testid="lmstudio-load"
-                      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                    >
-                      {lmstudioLoadStatus === 'loading' ? 'Loading...' : 'Load'}
-                    </button>
-                    <span
-                      data-testid="lmstudio-load-status"
-                      data-status={lmstudioLoadStatus}
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                        lmstudioLoadStatus === 'loaded'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          : lmstudioLoadStatus === 'loading'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                            : lmstudioLoadStatus === 'errored'
-                              ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                              : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400'
-                      }`}
-                    >
-                      {lmstudioLoadStatus === 'idle'
-                        ? 'Idle'
-                        : lmstudioLoadStatus === 'loading'
-                          ? 'Loading…'
-                          : lmstudioLoadStatus === 'loaded'
-                            ? 'Loaded'
-                            : 'Errored'}
-                    </span>
-                  </div>
-                  {lmstudioLoadError && (
-                    <p
-                      className="mt-1 text-xs text-red-600 dark:text-red-400"
-                      data-testid="lmstudio-load-error"
-                    >
-                      {lmstudioLoadError}
-                    </p>
-                  )}
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                    Loads the selected model on the LM Studio server. Make sure LM Studio&apos;s
-                    &ldquo;auto-load&rdquo; is enabled if you want JIT loading on chat too.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Apfel settings */}
-            {llmProvider === 'apfel' && (
-              <div className="mb-4 space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Server URL
-                  </label>
-                  <input
-                    type="text"
-                    value={apfelUrl}
-                    onChange={(e) => saveApfelUrl(e.target.value)}
-                    placeholder="http://localhost:11434"
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                  />
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                    The URL of your Apfel instance (OpenAI-compatible API)
-                  </p>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Model
-                  </label>
-                  <input
-                    type="text"
-                    value={apfelModel}
-                    onChange={(e) => saveApfelModel(e.target.value)}
-                    placeholder="default"
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                  />
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                    The model name configured on your Apfel server
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <Button variant="secondary" onClick={testLLMConnection} disabled={llmTesting}>
-              {llmTesting ? 'Testing...' : 'Test Connection'}
-            </Button>
-          </section>
-
-          {/* Anki Settings Section */}
-          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                Anki Integration
-              </h2>
+    <main className="mx-auto max-w-3xl px-4 py-8">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Settings</h1>
+      </div>
+      <div className="space-y-8">
+        {/* AI Provider Section */}
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">AI Provider</h2>
+            {llmStatus && (
               <div className="flex items-center gap-2">
                 <span
                   className={`inline-block h-2 w-2 rounded-full ${
-                    ankiConnected ? 'bg-green-500' : 'bg-red-500'
+                    llmStatus.ok ? 'bg-green-500' : 'bg-red-500'
                   }`}
                 />
                 <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {ankiConnected ? 'Connected' : 'Not connected'}
+                  {llmStatus.ok ? 'Connected' : llmStatus.error || 'Not connected'}
                 </span>
-                <Button variant="link" onClick={checkAnkiConnection} disabled={ankiLoading}>
-                  {ankiLoading ? 'Checking...' : 'Refresh'}
-                </Button>
-              </div>
-            </div>
-
-            {ankiError && (
-              <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
-                {ankiError}
               </div>
             )}
+          </div>
+          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+            Choose how translations are powered. Ollama runs locally (no API key needed). Anthropic
+            uses cloud AI for higher quality. Apfel is an OpenAI-compatible API you can self-host.
+          </p>
 
-            {/* AnkiConnect URL */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                AnkiConnect URL
-              </label>
-              <input
-                type="text"
-                value={ankiConnectUrl}
-                onChange={(e) => {
-                  setAnkiConnectUrl(e.target.value);
-                  setSetting('ankiConnectUrl', e.target.value);
-                  // Invalidate the anki.ts URL cache so the next request
-                  // (e.g. the connection check below) uses the new value.
-                  refreshAnkiUrl();
-                }}
-                placeholder="http://localhost:8765"
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-              />
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                Use Tailscale IP for remote Anki (e.g., http://100.x.x.x:8765)
-              </p>
-            </div>
-
-            {/* Deck Selector */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Vocab Deck
-              </label>
-              {ankiConnected && ankiDecks.length > 0 ? (
-                <select
-                  value={settings.ankiDeckName}
-                  onChange={(e) => saveSetting('ankiDeckName', e.target.value)}
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                >
-                  {ankiDecks.map((deck) => (
-                    <option key={deck} value={deck}>
-                      {deck}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={settings.ankiDeckName}
-                  onChange={(e) => saveSetting('ankiDeckName', e.target.value)}
-                  placeholder="Deck name"
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                />
-              )}
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                Deck for basic cards from reader vocabulary
-              </p>
-            </div>
-
-            {/* Cloze Deck Name */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Cloze Practice Deck
-              </label>
-              {ankiConnected && ankiDecks.length > 0 ? (
-                <select
-                  value={settings.ankiClozeDeckName}
-                  onChange={(e) => saveSetting('ankiClozeDeckName', e.target.value)}
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                >
-                  {ankiDecks.map((deck) => (
-                    <option key={deck} value={deck}>
-                      {deck}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={settings.ankiClozeDeckName}
-                  onChange={(e) => saveSetting('ankiClozeDeckName', e.target.value)}
-                  placeholder="Cloze deck name"
-                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                />
-              )}
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                Deck for cloze cards from practice mode
-              </p>
-            </div>
-
-            {/* Card Type Toggle */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Default Card Type
-              </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => saveSetting('defaultCardType', 'basic')}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                    settings.defaultCardType === 'basic'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                  }`}
-                >
-                  Basic
-                </button>
-                <button
-                  onClick={() => saveSetting('defaultCardType', 'cloze')}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                    settings.defaultCardType === 'cloze'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                  }`}
-                >
-                  Cloze
-                </button>
-              </div>
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                Basic shows front/back, Cloze creates fill-in-the-blank cards
-              </p>
-            </div>
-          </section>
-
-          {/* TTS Settings Section */}
-          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                Text-to-Speech
-              </h2>
-              {googleTTSAvailable !== null && (
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-block h-2 w-2 rounded-full ${
-                      googleTTSAvailable ? 'bg-green-500' : 'bg-yellow-500'
-                    }`}
-                  />
-                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {googleTTSAvailable ? 'Google TTS Active' : 'Using Browser TTS'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* TTS Mode Toggle */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Voice Engine
-              </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => saveSetting('ttsMode', 'google')}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                    settings.ttsMode === 'google'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                  }`}
-                >
-                  Google Cloud
-                </button>
-                <button
-                  onClick={() => saveSetting('ttsMode', 'browser')}
-                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-                    settings.ttsMode === 'browser'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                  }`}
-                >
-                  Browser Built-in
-                </button>
-              </div>
-              <p className="mt-1 text-xs text-zinc-500">
-                Google Cloud has better pronunciation, browser is free
-              </p>
-            </div>
-
-            {/* Test TTS */}
-            <div className="mb-4">
-              <button
-                onClick={() => speak('Hallo, hoe gaan dit met jou?', settings.ttsSpeed)}
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              >
-                Test Voice
-              </button>
-            </div>
-
-            {/* Speed Slider */}
-            <div>
-              <label className="mb-2 flex items-center justify-between text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                <span>Speech Speed</span>
-                <span className="font-mono text-zinc-500">{settings.ttsSpeed.toFixed(1)}x</span>
-              </label>
-              <input
-                type="range"
-                min="0.5"
-                max="2"
-                step="0.1"
-                value={settings.ttsSpeed}
-                onChange={(e) => saveSetting('ttsSpeed', parseFloat(e.target.value))}
-                className="w-full accent-blue-500"
-              />
-              <div className="mt-1 flex justify-between text-xs text-zinc-500">
-                <span>0.5x (Slow)</span>
-                <span>1.0x</span>
-                <span>2.0x (Fast)</span>
-              </div>
-            </div>
-          </section>
-
-          {/* Theme Section */}
-          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Appearance
-            </h2>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Theme
-              </label>
-              <div className="flex gap-2">
-                {(['light', 'dark', 'system'] as Theme[]).map((theme) => (
-                  <button
-                    key={theme}
-                    onClick={() => saveSetting('theme', theme)}
-                    className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${
-                      settings.theme === theme
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                        : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                    }`}
-                  >
-                    {theme}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* Time Zone Section */}
-          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="mb-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Time Zone
-            </h2>
-            <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
-              Daily stats, streaks and review days roll over at midnight in this time zone.
-            </p>
+          {/* Provider selector */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Provider
+            </label>
             <select
-              value={timezone}
-              onChange={(e) => saveTimezone(e.target.value)}
+              value={llmProvider}
+              onChange={(e) => saveLLMProvider(e.target.value as LLMProvider)}
               className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
             >
-              <option value="">Auto — server time zone</option>
-              {timezones.map((tz) => (
-                <option key={tz} value={tz}>
-                  {tz}
-                </option>
-              ))}
+              <option value="ollama">Ollama (local)</option>
+              <option value="anthropic">Anthropic (cloud)</option>
+              <option value="apfel">Apfel (self-hosted)</option>
+              <option value="lmstudio">LM Studio (local)</option>
             </select>
-            {browserTimeZone && timezone !== browserTimeZone && (
-              <button
-                onClick={() => saveTimezone(browserTimeZone)}
-                className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          </div>
+
+          {/* Ollama settings */}
+          {llmProvider === 'ollama' && (
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Model
+              </label>
+              <select
+                value={ollamaModel}
+                onChange={(e) => saveOllamaModel(e.target.value)}
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               >
-                Use this device&apos;s time zone ({browserTimeZone})
-              </button>
-            )}
-          </section>
-
-          {/* API Tokens Section */}
-          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">API Tokens</h2>
-              {!showTokenForm && !createdToken && (
-                <Button
-                  onClick={() => {
-                    setShowTokenForm(true);
-                    setTokenError(null);
-                  }}
-                >
-                  Generate Token
-                </Button>
-              )}
+                {OLLAMA_MODELS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                The model will be downloaded automatically on first use.
+              </p>
             </div>
+          )}
 
-            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Create personal access tokens for CLI or API access. Tokens are scoped to specific
-              permissions.
-            </p>
+          {/* Anthropic settings */}
+          {llmProvider === 'anthropic' && (
+            <div className="mb-4 space-y-4">
+              {/* Auth mode toggle — only when both credentials are configured */}
+              {hasApiKey && hasOauthToken && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Authentication Method
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => saveAnthropicAuthMode('api_key')}
+                      disabled={llmTesting}
+                      className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                        anthropicAuthMode === 'api_key'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                          : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      API Key
+                    </button>
+                    <button
+                      onClick={() => saveAnthropicAuthMode('oauth')}
+                      disabled={llmTesting}
+                      className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                        anthropicAuthMode === 'oauth'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                          : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      OAuth Token
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                    Both credentials are configured. Choose which to use — connection will be tested
+                    automatically.
+                  </p>
+                </div>
+              )}
 
-            {tokenError && (
-              <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
-                {tokenError}
-              </div>
-            )}
-
-            {/* One-time token display */}
-            {createdToken && (
-              <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/20">
-                <p className="mb-2 text-sm font-medium text-amber-800 dark:text-amber-300">
-                  Copy this token now — it won&apos;t be shown again.
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 rounded border border-amber-200 bg-white px-3 py-2 font-mono text-sm break-all text-zinc-900 select-all dark:border-amber-800 dark:bg-zinc-800 dark:text-zinc-100">
-                    {createdToken}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(createdToken);
-                      setTokenCopied(true);
-                      setTimeout(() => setTokenCopied(false), 2000);
-                    }}
-                    className="shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+              {/* API Key */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  API Key
+                </label>
+                <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+                  Get your API key from{' '}
+                  <a
+                    href="https://console.anthropic.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline dark:text-blue-400"
                   >
-                    {tokenCopied ? 'Copied!' : 'Copy'}
+                    console.anthropic.com
+                  </a>
+                </p>
+                {hasApiKey && !editingApiKey ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                      <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                      Configured
+                    </span>
+                    <button
+                      onClick={() => setEditingApiKey(true)}
+                      className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    >
+                      Replace
+                    </button>
+                    <button
+                      onClick={clearAnthropicApiKey}
+                      className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={newApiKey}
+                      onChange={(e) => setNewApiKey(e.target.value)}
+                      placeholder="sk-ant-api..."
+                      className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    />
+                    <button
+                      onClick={() => saveAnthropicApiKey(newApiKey)}
+                      disabled={!newApiKey.trim()}
+                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    {editingApiKey && (
+                      <button
+                        onClick={() => {
+                          setEditingApiKey(false);
+                          setNewApiKey('');
+                        }}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
+                <span className="mx-3 flex-shrink text-xs text-zinc-400 dark:text-zinc-500">
+                  or
+                </span>
+                <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
+              </div>
+
+              {/* OAuth Token */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  OAuth Token <span className="font-normal text-zinc-400">(Pro/Team plan)</span>
+                </label>
+                <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+                  Uses your Claude Pro or Team subscription credits. Run{' '}
+                  <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+                    claude setup-token
+                  </code>{' '}
+                  to obtain a token. Note: slower initial startup than API keys.
+                </p>
+                {hasOauthToken && !editingOauthToken ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                      <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                      Configured
+                    </span>
+                    <button
+                      onClick={() => setEditingOauthToken(true)}
+                      className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    >
+                      Replace
+                    </button>
+                    <button
+                      onClick={clearClaudeOauthToken}
+                      className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={newOauthToken}
+                      onChange={(e) => setNewOauthToken(e.target.value)}
+                      placeholder="sk-ant-oat01-..."
+                      className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    />
+                    <button
+                      onClick={() => saveClaudeOauthToken(newOauthToken)}
+                      disabled={!newOauthToken.trim()}
+                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    {editingOauthToken && (
+                      <button
+                        onClick={() => {
+                          setEditingOauthToken(false);
+                          setNewOauthToken('');
+                        }}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* LM Studio settings */}
+          {llmProvider === 'lmstudio' && (
+            <div className="mb-4 space-y-4" data-testid="lmstudio-settings">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Endpoint
+                </label>
+                <input
+                  type="text"
+                  value={lmstudioUrl}
+                  onChange={(e) => saveLmstudioUrl(e.target.value)}
+                  placeholder="http://localhost:1234"
+                  data-testid="lmstudio-endpoint"
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                />
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  The URL of your LM Studio server (default port 1234). The app talks to it
+                  server-side, so localhost works even when lector is hosted elsewhere — set this to
+                  a reachable address.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  API Key (optional)
+                </label>
+                {hasLmstudioApiKey && !editingLmstudioApiKey ? (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                      data-testid="lmstudio-api-key-status"
+                    >
+                      Configured
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingLmstudioApiKey(true)}
+                      className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                      data-testid="lmstudio-api-key-replace"
+                    >
+                      Replace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearLmstudioApiKey}
+                      className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                      data-testid="lmstudio-api-key-clear"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={newLmstudioApiKey}
+                      onChange={(e) => setNewLmstudioApiKey(e.target.value)}
+                      placeholder="leave empty unless your LM Studio is behind auth"
+                      data-testid="lmstudio-api-key"
+                      className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => saveLmstudioApiKey(newLmstudioApiKey)}
+                      disabled={!newLmstudioApiKey.trim()}
+                      className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                      data-testid="lmstudio-api-key-save"
+                    >
+                      Save
+                    </button>
+                    {editingLmstudioApiKey && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingLmstudioApiKey(false);
+                          setNewLmstudioApiKey('');
+                        }}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  Sent as a Bearer token from the server (never exposed to the browser after save).
+                  Only needed for reverse-proxied or LM Studio Cloud setups.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Model
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={lmstudioModel}
+                    onChange={(e) => saveLmstudioModel(e.target.value)}
+                    data-testid="lmstudio-model"
+                    className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  >
+                    {/* Always include an empty placeholder so a freshly-fetched
+                          dropdown doesn't visually show a "selected" model that
+                          state doesn't actually know about (would leave Load disabled). */}
+                    <option value="" disabled>
+                      {lmstudioModels.length === 0
+                        ? lmstudioFetchingModels
+                          ? 'Fetching models…'
+                          : '— click “Fetch models” to populate —'
+                        : 'Select a model…'}
+                    </option>
+                    {lmstudioModel && !lmstudioModels.includes(lmstudioModel) && (
+                      <option value={lmstudioModel}>{lmstudioModel} (saved)</option>
+                    )}
+                    {lmstudioModels.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={fetchLmstudioModels}
+                    disabled={lmstudioFetchingModels || !lmstudioUrl}
+                    data-testid="lmstudio-fetch-models"
+                    className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  >
+                    {lmstudioFetchingModels ? 'Fetching...' : 'Fetch models'}
                   </button>
                 </div>
+                {lmstudioFetchError && (
+                  <p
+                    className="mt-1 text-xs text-red-600 dark:text-red-400"
+                    data-testid="lmstudio-fetch-error"
+                  >
+                    {lmstudioFetchError}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Load model
+                </label>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={loadLmstudioModel}
+                    disabled={!lmstudioModel || lmstudioLoadStatus === 'loading'}
+                    data-testid="lmstudio-load"
+                    className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  >
+                    {lmstudioLoadStatus === 'loading' ? 'Loading...' : 'Load'}
+                  </button>
+                  <span
+                    data-testid="lmstudio-load-status"
+                    data-status={lmstudioLoadStatus}
+                    className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                      lmstudioLoadStatus === 'loaded'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : lmstudioLoadStatus === 'loading'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                          : lmstudioLoadStatus === 'errored'
+                            ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                            : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400'
+                    }`}
+                  >
+                    {lmstudioLoadStatus === 'idle'
+                      ? 'Idle'
+                      : lmstudioLoadStatus === 'loading'
+                        ? 'Loading…'
+                        : lmstudioLoadStatus === 'loaded'
+                          ? 'Loaded'
+                          : 'Errored'}
+                  </span>
+                </div>
+                {lmstudioLoadError && (
+                  <p
+                    className="mt-1 text-xs text-red-600 dark:text-red-400"
+                    data-testid="lmstudio-load-error"
+                  >
+                    {lmstudioLoadError}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  Loads the selected model on the LM Studio server. Make sure LM Studio&apos;s
+                  &ldquo;auto-load&rdquo; is enabled if you want JIT loading on chat too.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Apfel settings */}
+          {llmProvider === 'apfel' && (
+            <div className="mb-4 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Server URL
+                </label>
+                <input
+                  type="text"
+                  value={apfelUrl}
+                  onChange={(e) => saveApfelUrl(e.target.value)}
+                  placeholder="http://localhost:11434"
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                />
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  The URL of your Apfel instance (OpenAI-compatible API)
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Model
+                </label>
+                <input
+                  type="text"
+                  value={apfelModel}
+                  onChange={(e) => saveApfelModel(e.target.value)}
+                  placeholder="default"
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                />
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  The model name configured on your Apfel server
+                </p>
+              </div>
+            </div>
+          )}
+
+          <Button variant="secondary" onClick={testLLMConnection} disabled={llmTesting}>
+            {llmTesting ? 'Testing...' : 'Test Connection'}
+          </Button>
+        </section>
+
+        {/* Anki Settings Section */}
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              Anki Integration
+            </h2>
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${
+                  ankiConnected ? 'bg-green-500' : 'bg-red-500'
+                }`}
+              />
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                {ankiConnected ? 'Connected' : 'Not connected'}
+              </span>
+              <Button variant="link" onClick={checkAnkiConnection} disabled={ankiLoading}>
+                {ankiLoading ? 'Checking...' : 'Refresh'}
+              </Button>
+            </div>
+          </div>
+
+          {ankiError && (
+            <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+              {ankiError}
+            </div>
+          )}
+
+          {/* AnkiConnect URL */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              AnkiConnect URL
+            </label>
+            <input
+              type="text"
+              value={ankiConnectUrl}
+              onChange={(e) => {
+                setAnkiConnectUrl(e.target.value);
+                setSetting('ankiConnectUrl', e.target.value);
+                // Invalidate the anki.ts URL cache so the next request
+                // (e.g. the connection check below) uses the new value.
+                refreshAnkiUrl();
+              }}
+              placeholder="http://localhost:8765"
+              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            />
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+              Use Tailscale IP for remote Anki (e.g., http://100.x.x.x:8765)
+            </p>
+          </div>
+
+          {/* Deck Selector */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Vocab Deck
+            </label>
+            {ankiConnected && ankiDecks.length > 0 ? (
+              <select
+                value={settings.ankiDeckName}
+                onChange={(e) => saveSetting('ankiDeckName', e.target.value)}
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              >
+                {ankiDecks.map((deck) => (
+                  <option key={deck} value={deck}>
+                    {deck}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={settings.ankiDeckName}
+                onChange={(e) => saveSetting('ankiDeckName', e.target.value)}
+                placeholder="Deck name"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+            )}
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+              Deck for basic cards from reader vocabulary
+            </p>
+          </div>
+
+          {/* Cloze Deck Name */}
+          <div>
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Cloze Practice Deck
+            </label>
+            {ankiConnected && ankiDecks.length > 0 ? (
+              <select
+                value={settings.ankiClozeDeckName}
+                onChange={(e) => saveSetting('ankiClozeDeckName', e.target.value)}
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              >
+                {ankiDecks.map((deck) => (
+                  <option key={deck} value={deck}>
+                    {deck}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={settings.ankiClozeDeckName}
+                onChange={(e) => saveSetting('ankiClozeDeckName', e.target.value)}
+                placeholder="Cloze deck name"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+            )}
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+              Deck for cloze cards from practice mode
+            </p>
+          </div>
+
+          {/* Card Type Toggle */}
+          <div>
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Default Card Type
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => saveSetting('defaultCardType', 'basic')}
+                className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                  settings.defaultCardType === 'basic'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                    : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                }`}
+              >
+                Basic
+              </button>
+              <button
+                onClick={() => saveSetting('defaultCardType', 'cloze')}
+                className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                  settings.defaultCardType === 'cloze'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                    : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                }`}
+              >
+                Cloze
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+              Basic shows front/back, Cloze creates fill-in-the-blank cards
+            </p>
+          </div>
+        </section>
+
+        {/* TTS Settings Section */}
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              Text-to-Speech
+            </h2>
+            {googleTTSAvailable !== null && (
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-block h-2 w-2 rounded-full ${
+                    googleTTSAvailable ? 'bg-green-500' : 'bg-yellow-500'
+                  }`}
+                />
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                  {googleTTSAvailable ? 'Google TTS Active' : 'Using Browser TTS'}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* TTS Mode Toggle */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Voice Engine
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => saveSetting('ttsMode', 'google')}
+                className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                  settings.ttsMode === 'google'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                    : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                }`}
+              >
+                Google Cloud
+              </button>
+              <button
+                onClick={() => saveSetting('ttsMode', 'browser')}
+                className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                  settings.ttsMode === 'browser'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                    : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                }`}
+              >
+                Browser Built-in
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">
+              Google Cloud has better pronunciation, browser is free
+            </p>
+          </div>
+
+          {/* Test TTS */}
+          <div className="mb-4">
+            <button
+              onClick={() => speak('Hallo, hoe gaan dit met jou?', settings.ttsSpeed)}
+              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              Test Voice
+            </button>
+          </div>
+
+          {/* Speed Slider */}
+          <div>
+            <label className="mb-2 flex items-center justify-between text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <span>Speech Speed</span>
+              <span className="font-mono text-zinc-500">{settings.ttsSpeed.toFixed(1)}x</span>
+            </label>
+            <input
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.1"
+              value={settings.ttsSpeed}
+              onChange={(e) => saveSetting('ttsSpeed', parseFloat(e.target.value))}
+              className="w-full accent-blue-500"
+            />
+            <div className="mt-1 flex justify-between text-xs text-zinc-500">
+              <span>0.5x (Slow)</span>
+              <span>1.0x</span>
+              <span>2.0x (Fast)</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Theme Section */}
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Appearance
+          </h2>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Theme
+            </label>
+            <div className="flex gap-2">
+              {(['light', 'dark', 'system'] as Theme[]).map((theme) => (
                 <button
-                  onClick={() => setCreatedToken(null)}
-                  className="mt-3 text-sm text-amber-700 underline hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
+                  key={theme}
+                  onClick={() => saveSetting('theme', theme)}
+                  className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${
+                    settings.theme === theme
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
                 >
-                  I&apos;ve saved this token
+                  {theme}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Time Zone Section */}
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Time Zone</h2>
+          <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+            Daily stats, streaks and review days roll over at midnight in this time zone.
+          </p>
+          <select
+            value={timezone}
+            onChange={(e) => saveTimezone(e.target.value)}
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          >
+            <option value="">Auto — server time zone</option>
+            {timezones.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
+          {browserTimeZone && timezone !== browserTimeZone && (
+            <button
+              onClick={() => saveTimezone(browserTimeZone)}
+              className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              Use this device&apos;s time zone ({browserTimeZone})
+            </button>
+          )}
+        </section>
+
+        {/* API Tokens Section */}
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">API Tokens</h2>
+            {!showTokenForm && !createdToken && (
+              <Button
+                onClick={() => {
+                  setShowTokenForm(true);
+                  setTokenError(null);
+                }}
+              >
+                Generate Token
+              </Button>
+            )}
+          </div>
+
+          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+            Create personal access tokens for CLI or API access. Tokens are scoped to specific
+            permissions.
+          </p>
+
+          {tokenError && (
+            <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+              {tokenError}
+            </div>
+          )}
+
+          {/* One-time token display */}
+          {createdToken && (
+            <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/20">
+              <p className="mb-2 text-sm font-medium text-amber-800 dark:text-amber-300">
+                Copy this token now — it won&apos;t be shown again.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded border border-amber-200 bg-white px-3 py-2 font-mono text-sm break-all text-zinc-900 select-all dark:border-amber-800 dark:bg-zinc-800 dark:text-zinc-100">
+                  {createdToken}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(createdToken);
+                    setTokenCopied(true);
+                    setTimeout(() => setTokenCopied(false), 2000);
+                  }}
+                  className="shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                >
+                  {tokenCopied ? 'Copied!' : 'Copy'}
                 </button>
               </div>
-            )}
+              <button
+                onClick={() => setCreatedToken(null)}
+                className="mt-3 text-sm text-amber-700 underline hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
+              >
+                I&apos;ve saved this token
+              </button>
+            </div>
+          )}
 
-            {/* Create token form */}
-            {showTokenForm && (
-              <div className="mb-4 rounded-md border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-                <div className="mb-3">
-                  <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Token Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newTokenName}
-                    onChange={(e) => setNewTokenName(e.target.value)}
-                    placeholder="e.g. CLI, Automation, Backup script"
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                  />
+          {/* Create token form */}
+          {showTokenForm && (
+            <div className="mb-4 rounded-md border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+              <div className="mb-3">
+                <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Token Name
+                </label>
+                <input
+                  type="text"
+                  value={newTokenName}
+                  onChange={(e) => setNewTokenName(e.target.value)}
+                  placeholder="e.g. CLI, Automation, Backup script"
+                  className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Scopes
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: '*', label: 'Full Access' },
+                    { value: 'collections:read', label: 'Collections (read)' },
+                    { value: 'collections:write', label: 'Collections (write)' },
+                    { value: 'vocab:read', label: 'Vocabulary (read)' },
+                    { value: 'vocab:write', label: 'Vocabulary (write)' },
+                    { value: 'stats:read', label: 'Stats (read)' },
+                    { value: 'stats:write', label: 'Stats (write)' },
+                    { value: 'settings:read', label: 'Settings (read)' },
+                    { value: 'settings:write', label: 'Settings (write)' },
+                    { value: 'data:export', label: 'Data Export' },
+                    { value: 'data:import', label: 'Data Import' },
+                  ].map(({ value, label }) => (
+                    <label
+                      key={value}
+                      className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                        newTokenScopes.includes(value)
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                          : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                      } ${
+                        newTokenScopes.includes('*') && value !== '*'
+                          ? 'cursor-not-allowed opacity-50'
+                          : 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={newTokenScopes.includes('*') || newTokenScopes.includes(value)}
+                        disabled={newTokenScopes.includes('*') && value !== '*'}
+                        onChange={(e) => {
+                          if (value === '*') {
+                            setNewTokenScopes(e.target.checked ? ['*'] : []);
+                          } else {
+                            setNewTokenScopes((prev) =>
+                              e.target.checked
+                                ? [...prev.filter((s) => s !== '*'), value]
+                                : prev.filter((s) => s !== value),
+                            );
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      {label}
+                    </label>
+                  ))}
                 </div>
+              </div>
 
-                <div className="mb-3">
-                  <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Scopes
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { value: '*', label: 'Full Access' },
-                      { value: 'collections:read', label: 'Collections (read)' },
-                      { value: 'collections:write', label: 'Collections (write)' },
-                      { value: 'vocab:read', label: 'Vocabulary (read)' },
-                      { value: 'vocab:write', label: 'Vocabulary (write)' },
-                      { value: 'stats:read', label: 'Stats (read)' },
-                      { value: 'stats:write', label: 'Stats (write)' },
-                      { value: 'settings:read', label: 'Settings (read)' },
-                      { value: 'settings:write', label: 'Settings (write)' },
-                      { value: 'data:export', label: 'Data Export' },
-                      { value: 'data:import', label: 'Data Import' },
-                    ].map(({ value, label }) => (
-                      <label
-                        key={value}
-                        className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                          newTokenScopes.includes(value)
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                            : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
-                        } ${
-                          newTokenScopes.includes('*') && value !== '*'
-                            ? 'cursor-not-allowed opacity-50'
-                            : 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={newTokenScopes.includes('*') || newTokenScopes.includes(value)}
-                          disabled={newTokenScopes.includes('*') && value !== '*'}
-                          onChange={(e) => {
-                            if (value === '*') {
-                              setNewTokenScopes(e.target.checked ? ['*'] : []);
-                            } else {
-                              setNewTokenScopes((prev) =>
-                                e.target.checked
-                                  ? [...prev.filter((s) => s !== '*'), value]
-                                  : prev.filter((s) => s !== value),
-                              );
-                            }
-                          }}
-                          className="rounded"
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={async () => {
-                      if (!newTokenName.trim()) {
-                        setTokenError('Token name is required');
-                        return;
-                      }
-                      if (newTokenScopes.length === 0) {
-                        setTokenError('Select at least one scope');
-                        return;
-                      }
-                      try {
-                        setTokenError(null);
-                        const result = await createApiToken({
-                          name: newTokenName.trim(),
-                          scopes: newTokenScopes,
-                        });
-                        setCreatedToken(result.token);
-                        setShowTokenForm(false);
-                        setNewTokenName('');
-                        setNewTokenScopes(['*']);
-                        const tokens = await getApiTokens();
-                        setApiTokens(tokens);
-                      } catch (err) {
-                        setTokenError(
-                          err instanceof Error ? err.message : 'Failed to create token',
-                        );
-                      }
-                    }}
-                    disabled={!newTokenName.trim() || newTokenScopes.length === 0}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Create Token
-                  </button>
-                  <button
-                    onClick={() => {
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    if (!newTokenName.trim()) {
+                      setTokenError('Token name is required');
+                      return;
+                    }
+                    if (newTokenScopes.length === 0) {
+                      setTokenError('Select at least one scope');
+                      return;
+                    }
+                    try {
+                      setTokenError(null);
+                      const result = await createApiToken({
+                        name: newTokenName.trim(),
+                        scopes: newTokenScopes,
+                      });
+                      setCreatedToken(result.token);
                       setShowTokenForm(false);
                       setNewTokenName('');
                       setNewTokenScopes(['*']);
-                      setTokenError(null);
-                    }}
-                    className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                      const tokens = await getApiTokens();
+                      setApiTokens(tokens);
+                    } catch (err) {
+                      setTokenError(err instanceof Error ? err.message : 'Failed to create token');
+                    }
+                  }}
+                  disabled={!newTokenName.trim() || newTokenScopes.length === 0}
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Create Token
+                </button>
+                <button
+                  onClick={() => {
+                    setShowTokenForm(false);
+                    setNewTokenName('');
+                    setNewTokenScopes(['*']);
+                    setTokenError(null);
+                  }}
+                  className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                >
+                  Cancel
+                </button>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Token list */}
-            {apiTokens.length > 0 ? (
-              <div className="space-y-2">
-                {apiTokens.map((token) => (
-                  <div
-                    key={token.id}
-                    className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                          {token.name}
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          {(token.scopes.includes('*') ? ['Full Access'] : token.scopes).map(
-                            (scope) => (
-                              <span
-                                key={scope}
-                                className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                              >
-                                {scope}
-                              </span>
-                            ),
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        Created {new Date(token.createdAt).toLocaleDateString()}
-                        {token.lastUsedAt
-                          ? ` · Last used ${new Date(token.lastUsedAt).toLocaleDateString()}`
-                          : ' · Never used'}
+          {/* Token list */}
+          {apiTokens.length > 0 ? (
+            <div className="space-y-2">
+              {apiTokens.map((token) => (
+                <div
+                  key={token.id}
+                  className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                        {token.name}
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {(token.scopes.includes('*') ? ['Full Access'] : token.scopes).map(
+                          (scope) => (
+                            <span
+                              key={scope}
+                              className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                            >
+                              {scope}
+                            </span>
+                          ),
+                        )}
                       </div>
                     </div>
-                    <button
-                      onClick={async () => {
-                        if (!confirm(`Revoke token "${token.name}"? This cannot be undone.`))
-                          return;
-                        await revokeApiToken(token.id);
-                        setApiTokens((prev) => prev.filter((t) => t.id !== token.id));
-                      }}
-                      className="ml-3 shrink-0 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
-                    >
-                      Revoke
-                    </button>
+                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      Created {new Date(token.createdAt).toLocaleDateString()}
+                      {token.lastUsedAt
+                        ? ` · Last used ${new Date(token.lastUsedAt).toLocaleDateString()}`
+                        : ' · Never used'}
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              !showTokenForm && (
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  No tokens created yet. Generate one to use the CLI or access the API remotely.
-                </p>
-              )
-            )}
-          </section>
-
-          {/* Known Words Import Section */}
-          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Import Known Words
-            </h2>
-            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Import words you already know. Supports <strong>LingQ exports</strong> (with status
-              levels and translations) or simple word lists.
-            </p>
-            <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-500">
-              LingQ: Vocabulary → Settings gear → Export LingQs → Upload the CSV here
-            </p>
-
-            {/* CSV Upload */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Upload CSV File
-              </label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.txt"
-                onChange={handleFileUpload}
-                className="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100 dark:text-zinc-400 dark:file:bg-blue-900/20 dark:file:text-blue-400"
-              />
-              <p className="mt-1 text-xs text-zinc-500">
-                CSV with words in the first column, or a plain text file
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Revoke token "${token.name}"? This cannot be undone.`)) return;
+                      await revokeApiToken(token.id);
+                      setApiTokens((prev) => prev.filter((t) => t.id !== token.id));
+                    }}
+                    className="ml-3 shrink-0 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            !showTokenForm && (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                No tokens created yet. Generate one to use the CLI or access the API remotely.
               </p>
-            </div>
+            )
+          )}
+        </section>
 
-            {/* Text Area Import */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Or Paste Words (one per line)
-              </label>
-              <textarea
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                placeholder="die&#10;en&#10;is&#10;van&#10;..."
-                rows={6}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-              />
-            </div>
+        {/* Known Words Import Section */}
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Import Known Words
+          </h2>
+          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+            Import words you already know. Supports <strong>LingQ exports</strong> (with status
+            levels and translations) or simple word lists.
+          </p>
+          <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-500">
+            LingQ: Vocabulary → Settings gear → Export LingQs → Upload the CSV here
+          </p>
 
-            <Button variant="secondary" onClick={handleTextImport} disabled={!importText.trim()}>
-              Import
+          {/* CSV Upload */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Upload CSV File
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.txt"
+              onChange={handleFileUpload}
+              className="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100 dark:text-zinc-400 dark:file:bg-blue-900/20 dark:file:text-blue-400"
+            />
+            <p className="mt-1 text-xs text-zinc-500">
+              CSV with words in the first column, or a plain text file
+            </p>
+          </div>
+
+          {/* Text Area Import */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Or Paste Words (one per line)
+            </label>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder="die&#10;en&#10;is&#10;van&#10;..."
+              rows={6}
+              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            />
+          </div>
+
+          <Button variant="secondary" onClick={handleTextImport} disabled={!importText.trim()}>
+            Import
+          </Button>
+
+          {importStatus && (
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{importStatus}</p>
+          )}
+        </section>
+
+        {/* Export Section */}
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Export Data
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={exportVocabCSV}>Export Vocab (CSV)</Button>
+            <Button onClick={exportVocabJSON}>Export Vocab (JSON)</Button>
+            <Button onClick={exportKnownWords}>Export Known Words</Button>
+          </div>
+          {exportStatus && (
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{exportStatus}</p>
+          )}
+        </section>
+
+        {/* Data Management Section */}
+        <section className="rounded-lg border border-red-200 bg-white p-6 dark:border-red-900/50 dark:bg-zinc-900">
+          <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Data Management
+          </h2>
+
+          <div className="mb-6 flex flex-wrap gap-3">
+            <Button
+              variant="secondary"
+              onClick={exportFullBackup}
+              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              Export Full Backup
             </Button>
-
-            {importStatus && (
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{importStatus}</p>
-            )}
-          </section>
-
-          {/* Export Section */}
-          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Export Data
-            </h2>
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={exportVocabCSV}>Export Vocab (CSV)</Button>
-              <Button onClick={exportVocabJSON}>Export Vocab (JSON)</Button>
-              <Button onClick={exportKnownWords}>Export Known Words</Button>
-            </div>
-            {exportStatus && (
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{exportStatus}</p>
-            )}
-          </section>
-
-          {/* Data Management Section */}
-          <section className="rounded-lg border border-red-200 bg-white p-6 dark:border-red-900/50 dark:bg-zinc-900">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Data Management
-            </h2>
-
-            <div className="mb-6 flex flex-wrap gap-3">
-              <Button
-                variant="secondary"
-                onClick={exportFullBackup}
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              >
-                Export Full Backup
-              </Button>
-              <label className="cursor-pointer rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
-                Import Backup
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleBackupImport}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </section>
-        </div>
-      </main>
-    </>
+            <label className="cursor-pointer rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
+              Import Backup
+              <input type="file" accept=".json" onChange={handleBackupImport} className="hidden" />
+            </label>
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }
