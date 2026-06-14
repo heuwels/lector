@@ -50,7 +50,7 @@ export default function RootLayout({
         <ChatWidget />
         {/* Spacer for mobile bottom nav — invisible on sm+ */}
         <div className="h-16 sm:hidden" aria-hidden="true" />
-        <Toaster theme="system" />
+        <Toaster theme="system" duration={5000} />
       </body>
     </html>
   );
