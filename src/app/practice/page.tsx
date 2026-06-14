@@ -348,7 +348,7 @@ export default function PracticePage() {
   // Start a round using current state values
   const startRound = useCallback(() => {
     startRoundWith(selectedCollection, roundType, originalRoundSize);
-  }, [selectedCollection, roundType, roundSize, startRoundWith]);
+  }, [selectedCollection, roundType, roundSize, startRoundWith, originalRoundSize]);
 
   // Handle hint - reveal next letter
   const handleHint = useCallback(() => {
