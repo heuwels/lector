@@ -45,6 +45,7 @@ import {
 import BlacklistSentence from './components/BlacklistSentence';
 import { Button } from '@/components/ui/button';
 import EmptyState from './components/EmptyState';
+import PageHeader from '@/components/PageHeader';
 
 export default function PracticePage() {
   // State
@@ -678,9 +679,7 @@ export default function PracticePage() {
         {/* Setup screen */}
         {state === 'setup' && (
           <div className="py-6">
-            <h1 className="mb-6 text-center text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              Cloze Practice
-            </h1>
+            <PageHeader title="Cloze Practice"></PageHeader>
 
             {/* Review Due section */}
             {(() => {

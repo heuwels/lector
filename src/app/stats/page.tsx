@@ -13,6 +13,7 @@ import {
 } from '@/lib/data-layer';
 import { addDaysToDateString, dateStringInTimeZone, isValidTimeZone } from '@/lib/dates';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
+import PageHeader from '@/components/PageHeader';
 import VocabGrowthChart from '@/components/VocabGrowthChart';
 import {
   ClozeStats,
@@ -144,8 +145,7 @@ export default function StatsPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Settings</h1>
+      <PageHeader title="Statistics">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {new Date().toLocaleDateString('en-US', {
             weekday: 'long',
@@ -154,7 +154,7 @@ export default function StatsPage() {
             day: 'numeric',
           })}
         </p>
-      </div>
+      </PageHeader>
       <FluencyBadge fluency={stats.fluency} />
 
       {/* Top stat cards */}

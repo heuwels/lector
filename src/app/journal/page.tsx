@@ -14,6 +14,7 @@ import EntryModal from './components/EntryModal';
 import HistoryCard from './components/HistoryCard';
 import { formatDate } from './utils';
 import { Button } from '@/components/ui/button';
+import PageHeader from '@/components/PageHeader';
 
 export default function JournalPage() {
   const [bodyText, setBodyText] = useState('');
@@ -128,17 +129,14 @@ export default function JournalPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 pb-24 sm:px-6 sm:pb-8 lg:px-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Journal</h1>
+      <PageHeader title="Journal">
         {!showEditor && (
           <Button onClick={handleNewEntry}>
             <Plus className="h-4 w-4" />
             New Entry
           </Button>
         )}
-      </div>
-
-      {/* Editor */}
+      </PageHeader>
       {showEditor && (
         <section className="mb-10">
           <div className="mb-3 flex items-center justify-between">
@@ -205,8 +203,6 @@ export default function JournalPage() {
           )}
         </section>
       )}
-
-      {/* Entry list */}
       {entries.length > 0 ? (
         <section>
           <h2 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
@@ -235,8 +231,6 @@ export default function JournalPage() {
           <Button onClick={handleNewEntry}>Write your first entry</Button>
         </div>
       ) : null}
-
-      {/* Detail modal */}
       {selectedEntry && <EntryModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />}
     </main>
   );

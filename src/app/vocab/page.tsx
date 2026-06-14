@@ -25,6 +25,7 @@ import {
 import VocabStats from './components/VocabStats';
 import VocabDetailModal from './components/VocabDetailModal';
 import { toast } from 'sonner';
+import PageHeader from '@/components/PageHeader';
 
 export default function VocabPage() {
   const [entries, setEntries] = useState<VocabEntry[]>([]);
@@ -304,8 +305,7 @@ export default function VocabPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Settings</h1>
+      <PageHeader title="Vocabulary">
         <div className="flex items-center gap-2">
           {ankiConnected === null ? (
             <span className="text-sm text-gray-500">Checking Anki connection...</span>
@@ -321,15 +321,12 @@ export default function VocabPage() {
             </span>
           )}
         </div>
-      </div>
-      {/* Stats */}
+      </PageHeader>
       {stats && (
         <div className="mb-6">
           <VocabStats stats={stats} />
         </div>
       )}
-
-      {/* Vocabulary List - exclude ignored words */}
       <VocabList
         entries={entries.filter((e) => e.state !== 'ignored')}
         collections={collections}

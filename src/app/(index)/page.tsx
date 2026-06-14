@@ -39,6 +39,7 @@ import {
   type CollectionGroup,
 } from '@/lib/data-layer';
 import { Button } from '@/components/ui/button';
+import PageHeader from '@/components/PageHeader';
 
 export default function Home() {
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -244,69 +245,67 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <PageHeader title="Your Library">
+        <div className="flex items-center space-x-2">
+          {isCreatingGroup ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCreateGroup();
+              }}
+              className="flex items-center gap-2"
+            >
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Group name"
+                autoFocus
+                data-testid="new-group-input"
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+              <Button type="submit" data-testid="new-group-submit">
+                Add
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  setIsCreatingGroup(false);
+                  setNewGroupName('');
+                }}
+              >
+                Cancel
+              </Button>
+            </form>
+          ) : (
+            <Button onClick={() => setIsCreatingGroup(true)} data-testid="new-group-btn">
+              <Folder size="16" />
+              New Group
+            </Button>
+          )}
+
+          <ImportDropdown
+            onFileImport={handleImportClick}
+            onUrlImport={() => setIsWebImportOpen(true)}
+            onPasteImport={() => setIsPasteImportOpen(true)}
+            isImporting={isImporting}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".epub,.md,.markdown"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </div>
+      </PageHeader>
       {isLoading ? (
         <div className="flex h-64 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
         </div>
       ) : (
         <section>
-          <div className="mb-6 flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Your Library</h2>
-            <div className="flex-1" />
-
-            {isCreatingGroup ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleCreateGroup();
-                }}
-                className="flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  placeholder="Group name"
-                  autoFocus
-                  data-testid="new-group-input"
-                  className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                />
-                <Button type="submit" data-testid="new-group-submit">
-                  Add
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => {
-                    setIsCreatingGroup(false);
-                    setNewGroupName('');
-                  }}
-                >
-                  Cancel
-                </Button>
-              </form>
-            ) : (
-              <Button onClick={() => setIsCreatingGroup(true)} data-testid="new-group-btn">
-                <Folder size="16" />
-                New Group
-              </Button>
-            )}
-
-            <ImportDropdown
-              onFileImport={handleImportClick}
-              onUrlImport={() => setIsWebImportOpen(true)}
-              onPasteImport={() => setIsPasteImportOpen(true)}
-              isImporting={isImporting}
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".epub,.md,.markdown"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
-
           <WebImportModal
             isOpen={isWebImportOpen}
             onClose={() => setIsWebImportOpen(false)}
@@ -325,7 +324,11 @@ export default function Home() {
                 const items = groupedCollections.get(group.id) || [];
                 const isCollapsed = collapsedGroups.has(group.id);
                 return (
-                  <div key={group.id} data-testid={`group-${group.id}`}>
+                  <div
+                    key={group.id}
+                    data-testid={`group-${group.id}`}
+                    className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+                  >
                     <div className="mb-4 flex items-center gap-3">
                       <button
                         onClick={() => toggleGroup(group.id)}
@@ -398,7 +401,10 @@ export default function Home() {
 
               {/* Ungrouped */}
               {ungrouped.length > 0 && (
-                <div data-testid="ungrouped-section">
+                <div
+                  data-testid="ungrouped-section"
+                  className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+                >
                   {hasGroups && (
                     <h3 className="mb-4 text-lg font-semibold text-zinc-800 dark:text-zinc-200">
                       Ungrouped
