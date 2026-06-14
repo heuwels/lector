@@ -5,6 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getLanguageSnapshot, getStoredTheme, subscribeToStorage } from './storage';
 import { applyTheme, getEffectiveTheme } from './theme';
 import { Theme } from '@/types/theme';
+import { SETTINGS_KEYS } from '@/app/settings/constants';
 
 export function useIsDark() {
   const [isDark, setIsDark] = useState(true);
@@ -19,7 +20,11 @@ export function useIsDark() {
 }
 
 export function useActiveLanguage(): LanguageConfig {
-  return useSyncExternalStore(subscribeToStorage, getLanguageSnapshot, () => LANGUAGES[DEFAULT_LANGUAGE]);
+  return useSyncExternalStore(
+    subscribeToStorage,
+    getLanguageSnapshot,
+    () => LANGUAGES[DEFAULT_LANGUAGE],
+  );
 }
 
 export function useTheme() {
@@ -45,7 +50,7 @@ export function useTheme() {
 
   const setTheme = (t: Theme) => {
     setThemeState(t);
-    localStorage.setItem('theme', t);
+    localStorage.setItem(SETTINGS_KEYS.THEME, t);
     applyTheme(t);
   };
 
