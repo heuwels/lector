@@ -52,9 +52,9 @@ export default function TTSSettings() {
   }, [activeLang, ttsSpeed]);
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+    <section className="panel p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Text-to-Speech</h2>
+        <h2 className="text-lg font-semibold text-foreground">Text-to-Speech</h2>
         {googleTTSAvailable !== null && (
           <div className="flex items-center gap-2">
             <span
@@ -80,8 +80,8 @@ export default function TTSSettings() {
             onClick={() => handleTTSModeChanged('google')}
             className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
               currentTTSMode === 'google'
-                ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                ? 'border-primary bg-[var(--primary-soft)] text-primary'
+                : 'border-border bg-card text-foreground hover:bg-accent'
             }`}
           >
             Google Cloud
@@ -90,8 +90,8 @@ export default function TTSSettings() {
             onClick={() => handleTTSModeChanged('browser')}
             className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
               currentTTSMode === 'browser'
-                ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                ? 'border-primary bg-[var(--primary-soft)] text-primary'
+                : 'border-border bg-card text-foreground hover:bg-accent'
             }`}
           >
             Browser Built-in
@@ -105,7 +105,7 @@ export default function TTSSettings() {
       <div className="mb-4">
         <Button
           onClick={testSpeaking}
-          className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
         >
           Test Voice
         </Button>

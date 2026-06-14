@@ -29,9 +29,9 @@ export default function APITokens() {
   };
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+    <section className="panel p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">API Tokens</h2>
+        <h2 className="text-lg font-semibold text-foreground">API Tokens</h2>
         {!showTokenForm && !createdToken && (
           <Button
             onClick={() => {
@@ -75,7 +75,7 @@ export default function APITokens() {
 
       {/* Create token form */}
       {showTokenForm && (
-        <div className="mb-4 rounded-md border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+        <div className="mb-4 rounded-md border border-border bg-muted p-4">
           <div className="mb-3">
             <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Token Name
@@ -85,7 +85,7 @@ export default function APITokens() {
               value={newTokenName}
               onChange={(e) => setNewTokenName(e.target.value)}
               placeholder="e.g. CLI, Automation, Backup script"
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
             />
           </div>
 
@@ -111,8 +111,8 @@ export default function APITokens() {
                   key={value}
                   className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
                     newTokenScopes.includes(value)
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                      ? 'border-primary bg-[var(--primary-soft)] text-primary'
+                      : 'border-input bg-background text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
                   } ${
                     newTokenScopes.includes('*') && value !== '*'
                       ? 'cursor-not-allowed opacity-50'
@@ -170,7 +170,7 @@ export default function APITokens() {
                 }
               }}
               disabled={!newTokenName.trim() || newTokenScopes.length === 0}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Create Token
             </button>
@@ -181,7 +181,7 @@ export default function APITokens() {
                 setNewTokenScopes(['*']);
                 setTokenError(null);
               }}
-              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+              className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
             >
               Cancel
             </button>
@@ -206,7 +206,7 @@ export default function APITokens() {
                     {(token.scopes.includes('*') ? ['Full Access'] : token.scopes).map((scope) => (
                       <span
                         key={scope}
-                        className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-medium text-primary"
                       >
                         {scope}
                       </span>

@@ -50,8 +50,8 @@ export default function Export() {
   };
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Export Data</h2>
+    <section className="panel p-6">
+      <h2 className="mb-4 text-lg font-semibold text-foreground">Export Data</h2>
       <div className="flex flex-wrap gap-3">
         <Button onClick={exportVocabCSV}>Export Vocab (CSV)</Button>
         <Button onClick={exportVocabJSON}>Export Vocab (JSON)</Button>

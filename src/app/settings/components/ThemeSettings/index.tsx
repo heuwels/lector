@@ -9,8 +9,8 @@ export default function ThemeSettings() {
   };
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Appearance</h2>
+    <section className="panel p-6">
+      <h2 className="mb-4 text-lg font-semibold text-foreground">Appearance</h2>
       <div>
         <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Theme
@@ -23,8 +23,8 @@ export default function ThemeSettings() {
               onClick={() => handleThemeChanged(themeOpt)}
               className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${
                 theme === themeOpt
-                  ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                  : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                  ? 'border-primary bg-[var(--primary-soft)] text-primary'
+                  : 'border-border bg-card text-foreground hover:bg-accent'
               }`}
             >
               {themeOpt}

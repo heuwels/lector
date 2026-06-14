@@ -42,15 +42,15 @@ export default function Timezone() {
   };
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="mb-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Time Zone</h2>
+    <section className="panel p-6">
+      <h2 className="mb-1 text-lg font-semibold text-foreground">Time Zone</h2>
       <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
         Daily stats, streaks and review days roll over at midnight in this time zone.
       </p>
       <select
         value={timezone}
         onChange={(e) => saveTimezone(e.target.value)}
-        className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
       >
         <option value="">Auto — server time zone</option>
         {timezones.map((tz) => (

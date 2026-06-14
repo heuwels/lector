@@ -310,9 +310,9 @@ export default function LLMSettings() {
   };
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+    <section className="panel p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">AI Provider</h2>
+        <h2 className="text-lg font-semibold text-foreground">AI Provider</h2>
         <div className="flex items-center gap-2">
           <span
             className={clsx(`inline-block h-2 w-2 rounded-full`, {
@@ -342,7 +342,7 @@ export default function LLMSettings() {
         <select
           value={llmProvider}
           onChange={(e) => saveLLMProvider(e.target.value as LLMProvider)}
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
         >
           <option value="ollama">Ollama (local)</option>
           <option value="anthropic">Anthropic (cloud)</option>
@@ -360,7 +360,7 @@ export default function LLMSettings() {
           <select
             value={ollamaModel}
             onChange={(e) => saveOllamaModel(e.target.value)}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
           >
             {OLLAMA_MODELS.map((m) => (
               <option key={m.value} value={m.value}>
@@ -389,8 +389,8 @@ export default function LLMSettings() {
                   disabled={isFetchingLlmStatus}
                   className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
                     anthropicAuthMode === 'api_key'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      ? 'border-primary bg-[var(--primary-soft)] text-primary'
+                      : 'border-border bg-card text-foreground hover:bg-accent'
                   }`}
                 >
                   API Key
@@ -400,8 +400,8 @@ export default function LLMSettings() {
                   disabled={isFetchingLlmStatus}
                   className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
                     anthropicAuthMode === 'oauth'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      ? 'border-primary bg-[var(--primary-soft)] text-primary'
+                      : 'border-border bg-card text-foreground hover:bg-accent'
                   }`}
                 >
                   OAuth Token
@@ -425,7 +425,7 @@ export default function LLMSettings() {
                 href="https://console.anthropic.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline dark:text-blue-400"
+                className="text-primary hover:underline"
               >
                 console.anthropic.com
               </a>
@@ -438,13 +438,13 @@ export default function LLMSettings() {
                 </span>
                 <button
                   onClick={() => setEditingApiKey(true)}
-                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
                 >
                   Replace
                 </button>
                 <button
                   onClick={clearAnthropicApiKey}
-                  className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                  className="rounded-md border border-destructive/40 bg-background px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
                 >
                   Clear
                 </button>
@@ -456,12 +456,12 @@ export default function LLMSettings() {
                   value={newApiKey}
                   onChange={(e) => setNewApiKey(e.target.value)}
                   placeholder="sk-ant-api..."
-                  className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
                 />
                 <button
                   onClick={() => saveAnthropicApiKey(newApiKey)}
                   disabled={!newApiKey.trim()}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Save
                 </button>
@@ -471,7 +471,7 @@ export default function LLMSettings() {
                       setEditingApiKey(false);
                       setNewApiKey('');
                     }}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
                   >
                     Cancel
                   </button>
@@ -493,7 +493,7 @@ export default function LLMSettings() {
             </label>
             <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
               Uses your Claude Pro or Team subscription credits. Run{' '}
-              <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">claude setup-token</code>{' '}
+              <code className="rounded bg-muted px-1">claude setup-token</code>{' '}
               to obtain a token. Note: slower initial startup than API keys.
             </p>
             {hasOauthToken && !editingOauthToken ? (
@@ -504,13 +504,13 @@ export default function LLMSettings() {
                 </span>
                 <button
                   onClick={() => setEditingOauthToken(true)}
-                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
                 >
                   Replace
                 </button>
                 <button
                   onClick={clearClaudeOauthToken}
-                  className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                  className="rounded-md border border-destructive/40 bg-background px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
                 >
                   Clear
                 </button>
@@ -522,12 +522,12 @@ export default function LLMSettings() {
                   value={newOauthToken}
                   onChange={(e) => setNewOauthToken(e.target.value)}
                   placeholder="sk-ant-oat01-..."
-                  className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
                 />
                 <button
                   onClick={() => saveClaudeOauthToken(newOauthToken)}
                   disabled={!newOauthToken.trim()}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Save
                 </button>
@@ -537,7 +537,7 @@ export default function LLMSettings() {
                       setEditingOauthToken(false);
                       setNewOauthToken('');
                     }}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
                   >
                     Cancel
                   </button>
@@ -561,7 +561,7 @@ export default function LLMSettings() {
               onChange={(e) => saveLmstudioUrl(e.target.value)}
               placeholder="http://localhost:1234"
               data-testid="lmstudio-endpoint"
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
             />
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
               The URL of your LM Studio server (default port 1234). The app talks to it server-side,
@@ -585,7 +585,7 @@ export default function LLMSettings() {
                 <button
                   type="button"
                   onClick={() => setEditingLmstudioApiKey(true)}
-                  className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  className="rounded-md border border-input bg-background px-3 py-1 text-xs font-medium text-foreground hover:bg-accent"
                   data-testid="lmstudio-api-key-replace"
                 >
                   Replace
@@ -593,7 +593,7 @@ export default function LLMSettings() {
                 <button
                   type="button"
                   onClick={clearLmstudioApiKey}
-                  className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                  className="rounded-md border border-destructive/40 bg-background px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
                   data-testid="lmstudio-api-key-clear"
                 >
                   Clear
@@ -607,13 +607,13 @@ export default function LLMSettings() {
                   onChange={(e) => setNewLmstudioApiKey(e.target.value)}
                   placeholder="leave empty unless your LM Studio is behind auth"
                   data-testid="lmstudio-api-key"
-                  className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
                 />
                 <button
                   type="button"
                   onClick={() => saveLmstudioApiKey(newLmstudioApiKey)}
                   disabled={!newLmstudioApiKey.trim()}
-                  className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  className="rounded-md bg-primary px-3 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   data-testid="lmstudio-api-key-save"
                 >
                   Save
@@ -625,7 +625,7 @@ export default function LLMSettings() {
                       setEditingLmstudioApiKey(false);
                       setNewLmstudioApiKey('');
                     }}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
                   >
                     Cancel
                   </button>
@@ -647,7 +647,7 @@ export default function LLMSettings() {
                 value={lmstudioModel}
                 onChange={(e) => saveLmstudioModel(e.target.value)}
                 data-testid="lmstudio-model"
-                className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none disabled:opacity-50 "
               >
                 {/* Always include an empty placeholder so a freshly-fetched
                           dropdown doesn't visually show a "selected" model that
@@ -673,7 +673,7 @@ export default function LLMSettings() {
                 onClick={fetchLmstudioModels}
                 disabled={lmstudioFetchingModels || !lmstudioUrl}
                 data-testid="lmstudio-fetch-models"
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50"
               >
                 {lmstudioFetchingModels ? 'Fetching...' : 'Fetch models'}
               </button>
@@ -698,7 +698,7 @@ export default function LLMSettings() {
                 onClick={loadLmstudioModel}
                 disabled={!lmstudioModel || lmstudioLoadStatus === 'loading'}
                 data-testid="lmstudio-load"
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50"
               >
                 {lmstudioLoadStatus === 'loading' ? 'Loading...' : 'Load'}
               </button>
@@ -709,10 +709,10 @@ export default function LLMSettings() {
                   lmstudioLoadStatus === 'loaded'
                     ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                     : lmstudioLoadStatus === 'loading'
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                      ? 'bg-[var(--primary-soft)] text-primary'
                       : lmstudioLoadStatus === 'errored'
                         ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                        : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400'
+                        : 'bg-secondary text-secondary-foreground'
                 }`}
               >
                 {lmstudioLoadStatus === 'idle'
@@ -752,7 +752,7 @@ export default function LLMSettings() {
               value={apfelUrl}
               onChange={(e) => saveApfelUrl(e.target.value)}
               placeholder="http://localhost:11434"
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
             />
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
               The URL of your Apfel instance (OpenAI-compatible API)
@@ -767,7 +767,7 @@ export default function LLMSettings() {
               value={apfelModel}
               onChange={(e) => saveApfelModel(e.target.value)}
               placeholder="default"
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
             />
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
               The model name configured on your Apfel server

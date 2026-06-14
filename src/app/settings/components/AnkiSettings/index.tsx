@@ -48,9 +48,9 @@ export default function AnkiSettings() {
   }, [checkAnkiConnection]);
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+    <section className="panel p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Anki Integration</h2>
+        <h2 className="text-lg font-semibold text-foreground">Anki Integration</h2>
         <div className="flex items-center gap-2">
           <span
             className={`inline-block h-2 w-2 rounded-full ${
@@ -87,7 +87,7 @@ export default function AnkiSettings() {
             refreshAnkiUrl();
           }}
           placeholder="http://localhost:8765"
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
         />
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
           Hint: Use Tailscale IP for remote Anki (e.g., http://100.x.x.x:8765)
@@ -102,7 +102,7 @@ export default function AnkiSettings() {
           <select
             value={ankiDeckName}
             onChange={(e) => localStorage.setItem(SETTINGS_KEYS.ANKI_DECK_NAME, e.target.value)}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
           >
             {ankiDecks.map((deck) => (
               <option key={deck} value={deck}>
@@ -116,7 +116,7 @@ export default function AnkiSettings() {
             value={ankiDeckName}
             onChange={(e) => localStorage.setItem(SETTINGS_KEYS.ANKI_DECK_NAME, e.target.value)}
             placeholder="Deck name"
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
           />
         )}
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
@@ -134,7 +134,7 @@ export default function AnkiSettings() {
             onChange={(e) =>
               localStorage.setItem(SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME, e.target.value)
             }
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
           >
             {ankiDecks.map((deck) => (
               <option key={deck} value={deck}>
@@ -150,7 +150,7 @@ export default function AnkiSettings() {
               localStorage.setItem(SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME, e.target.value)
             }
             placeholder="Cloze deck name"
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
           />
         )}
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
@@ -167,8 +167,8 @@ export default function AnkiSettings() {
             onClick={() => localStorage.setItem(SETTINGS_KEYS.DEFAULT_CARD_TYPE, 'basic')}
             className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
               defaultCardType === 'basic'
-                ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                ? 'border-primary bg-[var(--primary-soft)] text-primary'
+                : 'border-border bg-card text-foreground hover:bg-accent'
             }`}
           >
             Basic
@@ -177,8 +177,8 @@ export default function AnkiSettings() {
             onClick={() => localStorage.setItem(SETTINGS_KEYS.DEFAULT_CARD_TYPE, 'cloze')}
             className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
               defaultCardType === 'cloze'
-                ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                ? 'border-primary bg-[var(--primary-soft)] text-primary'
+                : 'border-border bg-card text-foreground hover:bg-accent'
             }`}
           >
             Cloze

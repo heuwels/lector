@@ -167,8 +167,8 @@ export default function KnownWordsImport() {
   };
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+    <section className="panel p-6">
+      <h2 className="mb-4 text-lg font-semibold text-foreground">
         Import Known Words
       </h2>
       <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
@@ -206,7 +206,7 @@ export default function KnownWordsImport() {
           onChange={(e) => setImportText(e.target.value)}
           placeholder="die&#10;en&#10;is&#10;van&#10;..."
           rows={6}
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
         />
       </div>
 
