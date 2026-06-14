@@ -58,19 +58,28 @@ describe('deriveReadingStats', () => {
 });
 
 describe('compositeActivityCount', () => {
-  it('sums the three streak signals', () => {
+  it('sums the activity signals (lookups + cloze + reading + Anki)', () => {
     expect(
-      compositeActivityCount({ dictionaryLookups: 5, clozePracticed: 3, minutesRead: 12 }),
-    ).toBe(20);
+      compositeActivityCount({
+        dictionaryLookups: 5,
+        clozePracticed: 3,
+        minutesRead: 12,
+        ankiReviews: 7,
+      }),
+    ).toBe(27);
   });
 
   it('is non-zero whenever any single signal is present (matches the streak)', () => {
-    expect(compositeActivityCount({ dictionaryLookups: 0, clozePracticed: 4, minutesRead: 0 })).toBe(
-      4,
-    );
-    expect(compositeActivityCount({ dictionaryLookups: 0, clozePracticed: 0, minutesRead: 0 })).toBe(
-      0,
-    );
+    expect(
+      compositeActivityCount({ dictionaryLookups: 0, clozePracticed: 4, minutesRead: 0, ankiReviews: 0 }),
+    ).toBe(4);
+    // An Anki-only day still registers on the heatmap, like the streak.
+    expect(
+      compositeActivityCount({ dictionaryLookups: 0, clozePracticed: 0, minutesRead: 0, ankiReviews: 6 }),
+    ).toBe(6);
+    expect(
+      compositeActivityCount({ dictionaryLookups: 0, clozePracticed: 0, minutesRead: 0, ankiReviews: 0 }),
+    ).toBe(0);
   });
 
   it('tolerates missing fields', () => {

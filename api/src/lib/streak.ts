@@ -1,6 +1,7 @@
 // Mirror of src/lib/streak.ts for the Bun API — keep in sync.
 // Single source of truth for streak math (issue #108): a day counts toward
-// the streak when any study activity happened (lookup, practice, or reading).
+// the streak when any study activity happened (lookup, practice, reading, or
+// an Anki review synced into dailyStats.ankiReviews).
 
 import { addDaysToDateString } from './dates';
 
@@ -9,13 +10,15 @@ export interface DailyActivityRow {
   dictionaryLookups?: number | null;
   clozePracticed?: number | null;
   minutesRead?: number | null;
+  ankiReviews?: number | null;
 }
 
 export function isActiveDay(row: DailyActivityRow): boolean {
   return (
     (row.dictionaryLookups ?? 0) > 0 ||
     (row.clozePracticed ?? 0) > 0 ||
-    (row.minutesRead ?? 0) > 0
+    (row.minutesRead ?? 0) > 0 ||
+    (row.ankiReviews ?? 0) > 0
   );
 }
 

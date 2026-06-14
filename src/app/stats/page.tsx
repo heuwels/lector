@@ -11,10 +11,12 @@ import {
   getReadingStats,
   getStreak,
   getSetting,
+  syncAnkiReviews,
 } from '@/lib/data-layer';
 import { dateStringInTimeZone, isValidTimeZone } from '@/lib/dates';
 import { compositeActivityCount, sliceSeriesByDays } from '@/lib/stats-derive';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
+import AnkiReviewsChart from '@/components/AnkiReviewsChart';
 import PageHeader from '@/components/PageHeader';
 import VocabGrowthChart from '@/components/VocabGrowthChart';
 import {
@@ -37,6 +39,11 @@ export default function StatsPage() {
   useEffect(() => {
     async function loadStats() {
       try {
+        // Best-effort: pull Anki's review history into dailyStats first, so the
+        // streak and activity heatmap below include today's Anki study. No-ops
+        // when Anki isn't running (see /api/anki/sync-reviews).
+        await syncAnkiReviews().catch(() => {});
+
         const [collectionCounts, fluency, reading, streakData, tzSetting] = await Promise.all([
           getCollectionCounts(),
           getFluencyStats(),
@@ -76,6 +83,13 @@ export default function StatsPage() {
         const activityData = last365.map((d) => ({
           date: d.date,
           count: compositeActivityCount(d),
+          // Per-type breakdown so the heatmap tooltip can show what made up the day.
+          parts: {
+            dictionaryLookups: d.dictionaryLookups || 0,
+            clozePracticed: d.clozePracticed || 0,
+            minutesRead: d.minutesRead || 0,
+            ankiReviews: d.ankiReviews || 0,
+          },
         }));
 
         // Build vocab growth data (cumulative over all history)
@@ -110,6 +124,16 @@ export default function StatsPage() {
           lastEntry.total = fluency.totalKnownWords + fluency.totalLearning + fluency.totalNew;
         }
 
+        // Anki reviews/day: chart the last 90 days, but decide the
+        // connected-vs-preview state from full history so a previously-synced
+        // user keeps their chart even after a quiet spell.
+        const ankiHasData = sortedDailyStats.some((d) => (d.ankiReviews ?? 0) > 0);
+        const ankiReviews = sliceSeriesByDays(
+          sortedDailyStats.map((d) => ({ date: d.date, reviews: d.ankiReviews ?? 0 })),
+          90,
+          endDate,
+        );
+
         setStats({
           totalKnown: fluency.totalKnownWords,
           totalLearning: fluency.totalLearning,
@@ -123,6 +147,8 @@ export default function StatsPage() {
           dailyStats,
           vocabGrowth,
           activityData,
+          ankiReviews,
+          ankiHasData,
           collectionCounts,
           fluency,
           endDate,
@@ -220,6 +246,11 @@ export default function StatsPage() {
       {/* Activity Heatmap */}
       <div className="mb-8">
         <ActivityHeatmap data={stats.activityData} unit="actions" />
+      </div>
+
+      {/* Anki Reviews */}
+      <div className="mb-8">
+        <AnkiReviewsChart data={stats.ankiReviews} hasData={stats.ankiHasData} />
       </div>
 
       {/* Detailed breakdowns */}

@@ -64,7 +64,7 @@ app.put('/today', async (c) => {
   const field = body.field as string;
   const amount = body.amount ?? 1;
 
-  const allowedFields = ['wordsRead', 'newWordsSaved', 'wordsMarkedKnown', 'minutesRead', 'clozePracticed', 'points', 'dictionaryLookups'];
+  const allowedFields = ['wordsRead', 'newWordsSaved', 'wordsMarkedKnown', 'minutesRead', 'clozePracticed', 'points', 'dictionaryLookups', 'ankiReviews'];
   if (!allowedFields.includes(field)) {
     return c.json({ error: 'Invalid field' }, 400);
   }
@@ -160,15 +160,18 @@ app.get('/fluency', (c) => {
 
 // GET /api/stats/streak
 // Unified streak definition (issue #108): a day is active when it has any
-// study activity (lookups, practice, or reading time), with day rollover in
-// the configured time zone. Keep in sync with src/app/api/stats/streak.
+// study activity (lookups, practice, reading time, or Anki reviews), with day
+// rollover in the configured time zone. Keep in sync with src/app/api/stats/streak.
 app.get('/streak', (c) => {
   const lang = resolveLanguage(c.req.query('language'));
   const today = getTodayDate();
 
   const rows = db.prepare(
-    'SELECT date, dictionaryLookups, clozePracticed, minutesRead FROM dailyStats WHERE language = ?'
-  ).all(lang) as Pick<DailyStatsRow, 'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead'>[];
+    'SELECT date, dictionaryLookups, clozePracticed, minutesRead, ankiReviews FROM dailyStats WHERE language = ?'
+  ).all(lang) as Pick<
+    DailyStatsRow,
+    'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'
+  >[];
 
   const { current, longest, activeToday } = computeStreaks(activeDateSet(rows), today);
 
