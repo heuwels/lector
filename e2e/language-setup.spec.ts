@@ -81,9 +81,11 @@ test.describe("Language Setup & Switching", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    // Compact selector in the mobile top bar (scope to the fixed top bar)
-    const topbar = page.locator("div.fixed.top-0");
-    const selector = topbar.getByTestId("language-selector");
+    // Compact selector in the mobile top bar. At this viewport the desktop
+    // sidebar (and its language-selector) is hidden, so target the visible one
+    // rather than coupling to the bar's positioning classes (which the layout
+    // refactor changed from `fixed top-0` to an in-flow flex child).
+    const selector = page.locator('[data-testid="language-selector"]:visible');
     await expect(selector).toBeVisible();
     await selector.click();
 
