@@ -59,7 +59,7 @@ test.describe('Theme Toggle', () => {
     const stored = await page.evaluate((key) => localStorage.getItem(key), SETTINGS_KEYS.THEME);
     expect(stored).toBe('light');
 
-    // Body should have a light background (bg-gray-50)
+    // Body should have a light background (warm sand)
     expect(await getBodyBrightness(page)).toBeGreaterThan(200);
   });
 
@@ -81,7 +81,7 @@ test.describe('Theme Toggle', () => {
     const stored = await page.evaluate((key) => localStorage.getItem(key), SETTINGS_KEYS.THEME);
     expect(stored).toBe('dark');
 
-    // Body should have a dark background (bg-gray-900)
+    // Body should have a dark background (warm espresso)
     expect(await getBodyBrightness(page)).toBeLessThan(60);
   });
 

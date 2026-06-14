@@ -45,7 +45,7 @@ test.describe.serial("Practice - Setup Screen", () => {
     await btn.click();
 
     // Should have selected state (blue background)
-    await expect(btn).toHaveClass(/bg-blue-500/);
+    await expect(btn).toHaveClass(/bg-primary/);
   });
 
   test("should switch round size", async ({ page }) => {
@@ -53,7 +53,7 @@ test.describe.serial("Practice - Setup Screen", () => {
 
     const btn10 = page.getByRole("button", { name: "10", exact: true });
     await btn10.click();
-    await expect(btn10).toHaveClass(/bg-blue-500/);
+    await expect(btn10).toHaveClass(/bg-primary/);
   });
 
   test("should switch between Type and MC modes", async ({ page }) => {
@@ -64,11 +64,11 @@ test.describe.serial("Practice - Setup Screen", () => {
 
     // Select MC mode
     await mcBtn.click();
-    await expect(mcBtn).toHaveClass(/bg-blue-500/);
+    await expect(mcBtn).toHaveClass(/bg-primary/);
 
     // Switch back to Type
     await typeBtn.click();
-    await expect(typeBtn).toHaveClass(/bg-blue-500/);
+    await expect(typeBtn).toHaveClass(/bg-primary/);
   });
 });
 
@@ -318,7 +318,7 @@ test.describe.serial("Practice - Multiple Choice Mode", () => {
     await page.waitForTimeout(500);
 
     // The correct answer button should have green styling
-    const greenBtn = mcGrid.locator("button.border-green-500");
+    const greenBtn = mcGrid.locator("button.border-primary");
     await expect(greenBtn).toBeVisible({ timeout: 2000 });
 
     // Wait for auto-advance
@@ -348,7 +348,7 @@ test.describe.serial("Practice - Multiple Choice Mode", () => {
     await page.waitForTimeout(500);
 
     // No button should have been selected (no green/red border)
-    const selectedBtn = mcGrid.locator("button.border-green-500, button.border-red-500");
+    const selectedBtn = mcGrid.locator("button.border-primary, button.border-destructive");
     await expect(selectedBtn).toHaveCount(0);
 
     // The instruction text should still be visible (not advanced)
@@ -740,7 +740,7 @@ test.describe("Practice - Incorrect Type Answer Feedback", () => {
 });
 
 test.describe("Practice - Fuzzy Input Coloring", () => {
-  test("should show green border only for exact prefix matches", async ({
+  test("should show sage border only for exact prefix matches", async ({
     page,
   }) => {
     await waitForSetup(page);
@@ -763,14 +763,14 @@ test.describe("Practice - Fuzzy Input Coloring", () => {
     expect(firstLetter.length).toBe(1);
 
     // Typing correct prefix should show green (partial match)
-    await expect(input).toHaveClass(/border-green-400/);
+    await expect(input).toHaveClass(/border-primary/);
 
     // Now type a wrong character after the correct prefix
     await input.fill(firstLetter + "zzz");
     await page.waitForTimeout(100);
 
     // Should show red border (wrong)
-    await expect(input).toHaveClass(/border-red-400/);
+    await expect(input).toHaveClass(/border-destructive/);
   });
 
   test("should show red for divergent input even with shared prefix", async ({
@@ -798,7 +798,7 @@ test.describe("Practice - Fuzzy Input Coloring", () => {
     expect(twoLetters.length).toBe(2);
 
     // Correct prefix should be green
-    await expect(input).toHaveClass(/border-green-400/);
+    await expect(input).toHaveClass(/border-primary/);
 
     // Replace last character with wrong one to simulate divergence
     // e.g. correct is "he" from "heel", type "h~" instead
@@ -807,10 +807,10 @@ test.describe("Practice - Fuzzy Input Coloring", () => {
     await page.waitForTimeout(100);
 
     // Should be red since it's not a prefix of the correct word
-    await expect(input).toHaveClass(/border-red-400/);
+    await expect(input).toHaveClass(/border-destructive/);
   });
 
-  test("should show blue border when input is empty", async ({ page }) => {
+  test("should show clay border when input is empty", async ({ page }) => {
     await waitForSetup(page);
 
     await page.getByRole("button", { name: "10", exact: true }).click();
@@ -823,11 +823,11 @@ test.describe("Practice - Fuzzy Input Coloring", () => {
 
     const input = page.locator('input[placeholder="..."]');
 
-    // Empty input should have blue border
-    await expect(input).toHaveClass(/border-blue-400/);
+    // Empty input should have the clay (neutral) border
+    await expect(input).toHaveClass(/var\(--clay\)/);
   });
 
-  test("should show green-500 border and Submit button when answer is correct", async ({
+  test("should show sage border and Submit button when answer is correct", async ({
     page,
   }) => {
     await waitForSetup(page);
@@ -853,8 +853,8 @@ test.describe("Practice - Fuzzy Input Coloring", () => {
       await page.waitForTimeout(100);
     }
 
-    // Full correct answer should show green-500 border (match)
-    await expect(input).toHaveClass(/border-green-500/);
+    // Full correct answer should show sage border (match)
+    await expect(input).toHaveClass(/border-primary/);
 
     // Button should say "Submit" not "Check"
     await expect(
