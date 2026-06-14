@@ -819,8 +819,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 sm:ml-56 dark:bg-zinc-950">
-      <NavHeader />
+    <>
       {/* Header — mobile only, desktop uses sidebar */}
       <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur-sm sm:hidden dark:border-zinc-800 dark:bg-zinc-900/80">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
@@ -1926,6 +1925,6 @@ export default function SettingsPage() {
           </section>
         </div>
       </main>
-    </div>
+    </>
   );
 }

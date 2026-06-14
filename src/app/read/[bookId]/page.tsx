@@ -594,10 +594,24 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           nextLesson={nextLesson}
         />
       </div>
-
-      {/* Translation drawer — slides in from the right */}
       <TranslationDrawer
-        {...wordPanel}
+        isOpen={wordPanel.isOpen}
+        word={wordPanel.word}
+        sentence={wordPanel.sentence}
+        // WordPanelState field names differ from TranslationDrawerProps; map them
+        // explicitly. A spread silently dropped these (all props optional, so tsc
+        // stayed green) and the drawer rendered "No definition found" for every word.
+        entry={wordPanel.dictEntry}
+        aiTranslation={wordPanel.translation}
+        aiPartOfSpeech={wordPanel.partOfSpeech}
+        aiContextTranslation={wordPanel.aiContextTranslation}
+        aiContextPartOfSpeech={wordPanel.aiContextPartOfSpeech}
+        aiPhraseDetails={wordPanel.phraseDetails}
+        isDictionaryResult={wordPanel.isDictionaryResult}
+        isLoading={wordPanel.isLoading}
+        isContextLoading={wordPanel.isContextLoading}
+        error={wordPanel.error}
+        existingEntry={wordPanel.existingEntry}
         onClose={closeWordPanel}
         onSpeak={(text) => speak(text.split(/\s+/).slice(0, 15).join(' '))}
         onSetLevel={setWordLevel}

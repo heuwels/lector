@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Ban, CheckCircle, Clock, Star, Volume2 } from 'lucide-react';
+import { toast } from 'sonner';
 import NavHeader from '@/components/NavHeader';
 import ClozeFeedback from '@/components/ClozeFeedback';
 import TranslationDrawer from '@/components/TranslationDrawer';
@@ -16,7 +17,6 @@ import {
   getTodayStats,
   incrementDailyStat,
   migrateClozeSentences,
-  blacklistClozeSentence,
   seedSentenceBank,
   updateWordState,
 } from '@/lib/data-layer';
@@ -44,6 +44,9 @@ import {
   ROUND_SIZES,
   VISIBLE_COLLECTIONS,
 } from './constants';
+import BlacklistSentence from './components/BlacklistSentence';
+import { Button } from '@/components/ui/button';
+import EmptyState from './components/EmptyState';
 
 export default function PracticePage() {
   // State
@@ -94,7 +97,6 @@ export default function PracticePage() {
   const [hintLetters, setHintLetters] = useState(0);
   const [retryQueue, setRetryQueue] = useState<ClozeSentence[]>([]);
   const [isRetryPhase, setIsRetryPhase] = useState(false);
-  const [blacklistToast, setBlacklistToast] = useState(false);
 
   // Word definition tooltip state
   const [wordTooltip, setWordTooltip] = useState<{
@@ -374,29 +376,6 @@ export default function PracticePage() {
     setUserAnswer(correctWord.slice(0, revealCount));
     inputRef.current?.focus();
   }, [current, hintLetters, userAnswer]);
-
-  // Handle blacklisting a sentence
-  const handleBlacklist = useCallback(async () => {
-    if (!current) return;
-    await blacklistClozeSentence(current.sentence.id);
-    setBlacklistToast(true);
-    setTimeout(() => setBlacklistToast(false), 1500);
-
-    const remainingQueue = queue.slice(1);
-    setQueue(remainingQueue);
-
-    if (remainingQueue.length > 0) {
-      loadNextSentence(remainingQueue);
-    } else if (retryQueue.length > 0) {
-      const retryList = [...retryQueue];
-      setRetryQueue([]);
-      setQueue(retryList);
-      setIsRetryPhase(true);
-      loadNextSentence(retryList);
-    } else {
-      setState('complete');
-    }
-  }, [current, queue, retryQueue, loadNextSentence]);
 
   // Core submission logic (shared between type and MC modes)
   const processAnswer = async (submittedAnswer: string) => {
@@ -679,11 +658,35 @@ export default function PracticePage() {
     speak(current.sentence.sentence);
   };
 
+  const handleBackPressed = async () => {
+    setState('setup');
+    const counts = await getCollectionCounts();
+    setCollectionCounts(counts);
+  };
+
+  const handleNewRoundPressed = () => startRoundWith(selectedCollection, 'new', roundSize);
+
+  const handleSentenceBlacklisted = useCallback(async () => {
+    const remainingQueue = queue.slice(1);
+    setQueue(remainingQueue);
+
+    if (remainingQueue.length > 0) {
+      loadNextSentence(remainingQueue);
+    } else if (retryQueue.length > 0) {
+      const retryList = [...retryQueue];
+      setRetryQueue([]);
+      setQueue(retryList);
+      setIsRetryPhase(true);
+      loadNextSentence(retryList);
+    } else {
+      setState('complete');
+    }
+  }, [queue, retryQueue, loadNextSentence]);
+
   const progressPercent = roundSize > 0 ? Math.min((roundProgress / roundSize) * 100, 100) : 0;
 
   return (
-    <div className="min-h-screen bg-zinc-50 pt-[var(--mobile-topbar-h)] sm:ml-56 sm:pt-0 dark:bg-zinc-950">
-      <NavHeader />
+    <>
 
       <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Setup screen */}
@@ -909,14 +912,10 @@ export default function PracticePage() {
                             ? 'Choose the correct word'
                             : 'Fill in the blank'}
                         </span>
-                        <button
-                          type="button"
-                          onClick={handleBlacklist}
-                          className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800 dark:hover:text-red-400"
-                          title="Skip &amp; hide this sentence"
-                        >
-                          <Ban className="h-4 w-4" />
-                        </button>
+                        <BlacklistSentence
+                          current={current}
+                          onSentenceBlacklisted={handleSentenceBlacklisted}
+                        />
                       </div>
                       <p className="text-xl leading-loose font-medium text-zinc-900 dark:text-zinc-50">
                         {words.map((word, i) => (
@@ -1051,21 +1050,6 @@ export default function PracticePage() {
                         </button>
                       </div>
                     )}
-
-                    {/* TTS hint (MC mode) */}
-                    {(practiceMode === 'mc' || mcFallback) && !mcLocked && ttsSupported && (
-                      <div className="mb-2 flex justify-center">
-                        <button
-                          type="button"
-                          onClick={handleSpeak}
-                          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                        >
-                          <Volume2 className="h-4 w-4" />
-                          Listen (Space)
-                        </button>
-                      </div>
-                    )}
-
                     {/* Mastery indicator */}
                     <div className="mt-6 flex items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                       <span>Mastery:</span>
@@ -1090,14 +1074,10 @@ export default function PracticePage() {
                       {feedbackData.isCorrect ? 'Correct!' : 'Incorrect'}
                     </span>
                     {ttsSupported && feedbackData.isCorrect && (
-                      <button
-                        type="button"
-                        onClick={handleSpeak}
-                        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
-                      >
+                      <Button type="button" onClick={handleSpeak} variant="ghost">
                         <Volume2 className="h-4 w-4" />
                         Listen Again
-                      </button>
+                      </Button>
                     )}
                   </div>
                   <p className="text-xl leading-relaxed font-medium text-zinc-900 dark:text-zinc-50">
@@ -1151,7 +1131,6 @@ export default function PracticePage() {
               </div>
             )}
 
-            {/* Complete state */}
             {state === 'complete' && (
               <div className="py-8 text-center">
                 <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400">
@@ -1167,78 +1146,34 @@ export default function PracticePage() {
                   {points.toLocaleString()} total points
                 </p>
                 <div className="flex justify-center gap-3">
-                  <button
+                  <Button
+                    variant={'secondary'}
                     type="button"
                     onClick={async () => {
                       setState('setup');
                       const counts = await getCollectionCounts();
                       setCollectionCounts(counts);
                     }}
-                    className="rounded-xl bg-zinc-200 px-6 py-3 font-semibold text-zinc-700 transition-all hover:bg-zinc-300 active:scale-95 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                   >
                     Change Settings
-                  </button>
-                  <button
-                    type="button"
-                    onClick={startRound}
-                    className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition-all hover:bg-blue-700 active:scale-95 dark:bg-blue-500 dark:hover:bg-blue-600"
-                  >
+                  </Button>
+                  <Button type="button" onClick={startRound}>
                     Play Again
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
 
-            {/* Empty state - no sentences available */}
             {state === 'empty' && (
-              <div className="py-8 text-center">
-                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400">
-                  <Clock className="h-8 w-8" />
-                </div>
-                <h2 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {roundType === 'review' ? 'Nothing to Review' : 'No New Sentences'}
-                </h2>
-                <p className="mx-auto mb-6 max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
-                  {roundType === 'review'
-                    ? 'No sentences are due for review right now. Try learning new ones or check back later.'
-                    : "You've seen all the sentences in this collection. Try a different collection or review existing ones."}
-                </p>
-                <div className="flex justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setState('setup');
-                      const counts = await getCollectionCounts();
-                      setCollectionCounts(counts);
-                    }}
-                    className="rounded-xl bg-zinc-200 px-6 py-3 font-semibold text-zinc-700 transition-all hover:bg-zinc-300 active:scale-95 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                  >
-                    Back
-                  </button>
-                  {roundType === 'review' && (
-                    <button
-                      type="button"
-                      onClick={() => startRoundWith(selectedCollection, 'new', roundSize)}
-                      className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition-all hover:bg-blue-700 active:scale-95 dark:bg-blue-500 dark:hover:bg-blue-600"
-                    >
-                      Learn New Instead
-                    </button>
-                  )}
-                </div>
-              </div>
+              <EmptyState
+                roundType={roundType}
+                onBackPressed={handleBackPressed}
+                onLearnNewPressed={handleNewRoundPressed}
+              />
             )}
-          </div>
-        )}
-
-        {/* Blacklist toast */}
-        {blacklistToast && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-lg bg-zinc-800 px-4 py-2 text-sm text-white shadow-lg dark:bg-zinc-200 dark:text-zinc-900">
-            Sentence hidden
           </div>
         )}
       </main>
-
-      {/* Word definition drawer — slides in from the right */}
       <TranslationDrawer
         isOpen={!!wordTooltip}
         word={wordTooltip?.word ?? ''}
@@ -1254,6 +1189,6 @@ export default function PracticePage() {
         onRequestContextTranslation={requestContextTranslation}
         onLookupWord={handleWordClick}
       />
-    </div>
+    </>
   );
 }

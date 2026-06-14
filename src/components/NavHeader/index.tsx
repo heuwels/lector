@@ -14,13 +14,13 @@ export default function NavHeader() {
   return (
     <>
       {/* Mobile top bar — language selector, visible only on mobile */}
-      <div className="fixed top-0 right-0 left-0 z-50 flex h-[var(--mobile-topbar-h)] items-center justify-between border-b border-zinc-200 bg-white/80 px-3 py-2 backdrop-blur-sm sm:hidden dark:border-zinc-800 dark:bg-zinc-950/80">
+      <div className="flex h-[var(--mobile-topbar-h)] items-center justify-between border-b border-zinc-200 bg-white/80 px-3 py-2 backdrop-blur-sm sm:hidden dark:border-zinc-800 dark:bg-zinc-950/80">
         <Image src="/logo.svg" alt="Lector" width={28} height={28} className="rounded" />
         <LanguageSelector compact />
       </div>
 
       {/* Desktop left sidebar — hidden on mobile */}
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-56 border-r border-zinc-200 bg-white sm:flex sm:flex-col dark:border-zinc-800 dark:bg-zinc-950">
+      <aside className="left-0 z-50 hidden h-screen w-56 border-r border-zinc-200 bg-white sm:flex sm:flex-col dark:border-zinc-800 dark:bg-zinc-950">
         {/* App name */}
         <div className="flex h-16 items-center px-5">
           <Link href="/" className="flex items-center gap-2">

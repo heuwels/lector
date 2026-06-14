@@ -64,7 +64,11 @@ export async function getCollection(id: string): Promise<Collection | undefined>
   return res.json();
 }
 
-export async function createCollection(data: { title: string; author?: string; groupId?: string | null }): Promise<string> {
+export async function createCollection(data: {
+  title: string;
+  author?: string;
+  groupId?: string | null;
+}): Promise<string> {
   const res = await fetch('/api/collections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -86,7 +90,10 @@ export async function deleteCollection(id: string): Promise<void> {
   await fetch(`/api/collections/${id}`, { method: 'DELETE' });
 }
 
-export async function updateCollection(id: string, data: { title?: string; author?: string; groupId?: string | null }): Promise<void> {
+export async function updateCollection(
+  id: string,
+  data: { title?: string; author?: string; groupId?: string | null },
+): Promise<void> {
   await fetch(`/api/collections/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -113,7 +120,10 @@ export async function createGroup(name: string): Promise<string> {
   return id;
 }
 
-export async function updateGroup(id: string, data: { name?: string; sortOrder?: number }): Promise<void> {
+export async function updateGroup(
+  id: string,
+  data: { name?: string; sortOrder?: number },
+): Promise<void> {
   await fetch(`/api/groups/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -142,7 +152,7 @@ export async function getLesson(id: string): Promise<Lesson | undefined> {
 
 export async function addLessonToCollection(
   collectionId: string,
-  data: { title: string; textContent: string }
+  data: { title: string; textContent: string },
 ): Promise<string> {
   const res = await fetch(`/api/collections/${collectionId}/lessons`, {
     method: 'POST',
@@ -155,7 +165,7 @@ export async function addLessonToCollection(
 
 export async function updateLesson(
   id: string,
-  data: { title?: string; textContent?: string }
+  data: { title?: string; textContent?: string },
 ): Promise<void> {
   await fetch(`/api/lessons/${id}`, {
     method: 'PUT',
@@ -178,7 +188,7 @@ export async function reorderLessons(collectionId: string, ids: string[]): Promi
 
 export async function updateLessonProgress(
   id: string,
-  progress: { scrollPosition?: number; percentComplete?: number }
+  progress: { scrollPosition?: number; percentComplete?: number },
 ): Promise<void> {
   await fetch(`/api/lessons/${id}/progress`, {
     method: 'PUT',
@@ -334,7 +344,10 @@ export async function updateWordState(word: string, state: WordState): Promise<v
   await fetch('/api/known-words', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ updates: [{ word: word.toLowerCase(), state }], language: getActiveLanguage() }),
+    body: JSON.stringify({
+      updates: [{ word: word.toLowerCase(), state }],
+      language: getActiveLanguage(),
+    }),
   });
 }
 
@@ -351,7 +364,7 @@ export async function getAllKnownWords(): Promise<KnownWord[]> {
 }
 
 export async function bulkUpdateWordStates(
-  updates: Array<{ word: string; state: WordState }>
+  updates: Array<{ word: string; state: WordState }>,
 ): Promise<void> {
   await fetch('/api/known-words', {
     method: 'POST',
@@ -404,7 +417,7 @@ export async function updateClozeAfterReview(
   id: string,
   correct: boolean,
   newMasteryLevel: ClozeMasteryLevel,
-  nextReview: Date
+  nextReview: Date,
 ): Promise<number> {
   const res = await fetch(`/api/cloze/${id}/review`, {
     method: 'POST',
@@ -428,9 +441,11 @@ export async function getAllClozeSentences(): Promise<ClozeSentence[]> {
   }));
 }
 
-export async function getClozeSentenceByTatoebaId(tatoebaSentenceId: number): Promise<ClozeSentence | undefined> {
+export async function getClozeSentenceByTatoebaId(
+  tatoebaSentenceId: number,
+): Promise<ClozeSentence | undefined> {
   const all = await getAllClozeSentences();
-  return all.find(s => s.tatoebaSentenceId === tatoebaSentenceId);
+  return all.find((s) => s.tatoebaSentenceId === tatoebaSentenceId);
 }
 
 export async function getClozeSentencesForWord(word: string): Promise<ClozeSentence[]> {
@@ -447,12 +462,14 @@ export async function bulkSaveClozeSentences(sentences: ClozeSentence[]): Promis
   await fetch('/api/cloze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(sentences.map(s => ({
-      ...s,
-      nextReview: s.nextReview.toISOString(),
-      lastReviewed: s.lastReviewed?.toISOString(),
-      language: getActiveLanguage(),
-    }))),
+    body: JSON.stringify(
+      sentences.map((s) => ({
+        ...s,
+        nextReview: s.nextReview.toISOString(),
+        lastReviewed: s.lastReviewed?.toISOString(),
+        language: getActiveLanguage(),
+      })),
+    ),
   });
 }
 
@@ -469,10 +486,18 @@ export async function blacklistClozeSentence(id: string): Promise<void> {
   });
 }
 
+export async function unblacklistClozeSentence(id: string): Promise<void> {
+  await fetch(`/api/cloze/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ blacklisted: 0 }),
+  });
+}
+
 export async function getClozeSentencesByCollection(
   collection: ClozeCollection,
   limit: number = 20,
-  excludeWords: string[] = []
+  excludeWords: string[] = [],
 ): Promise<ClozeSentence[]> {
   const params = new URLSearchParams({
     collection,
@@ -496,7 +521,7 @@ export async function getClozeSentencesByCollection(
 export async function getNewSentencesByCollection(
   collection: ClozeCollection,
   limit: number = 20,
-  excludeWords: string[] = []
+  excludeWords: string[] = [],
 ): Promise<ClozeSentence[]> {
   const params = new URLSearchParams({
     collection,
@@ -517,12 +542,18 @@ export async function getNewSentencesByCollection(
   }));
 }
 
-export async function getCollectionCounts(): Promise<Record<ClozeCollection, { total: number; due: number; mastered: number }>> {
+export async function getCollectionCounts(): Promise<
+  Record<ClozeCollection, { total: number; due: number; mastered: number }>
+> {
   const res = await fetch(`/api/cloze/counts${langParam()}`);
   return res.json();
 }
 
-export async function getStreak(): Promise<{ streak: number; longest: number; practicedToday: boolean }> {
+export async function getStreak(): Promise<{
+  streak: number;
+  longest: number;
+  practicedToday: boolean;
+}> {
   const res = await fetch(`/api/stats/streak${langParam()}`);
   return res.json();
 }
@@ -577,7 +608,10 @@ export interface JournalEntry {
   updatedAt: string;
 }
 
-export async function getJournalEntries(limit: number = 20, offset: number = 0): Promise<JournalEntry[]> {
+export async function getJournalEntries(
+  limit: number = 20,
+  offset: number = 0,
+): Promise<JournalEntry[]> {
   const res = await fetch(`/api/journal?limit=${limit}&offset=${offset}${langParam('&')}`);
   return res.json();
 }
@@ -593,7 +627,10 @@ export async function getJournalEntry(id: string): Promise<JournalEntry | undefi
   return res.json();
 }
 
-export async function createJournalEntry(body: string, entryDate?: string): Promise<{ id: string; entryDate: string }> {
+export async function createJournalEntry(
+  body: string,
+  entryDate?: string,
+): Promise<{ id: string; entryDate: string }> {
   const res = await fetch('/api/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -610,7 +647,9 @@ export async function updateJournalDraft(id: string, body: string): Promise<void
   });
 }
 
-export async function submitJournalForCorrection(id: string): Promise<{ correctedBody: string; corrections: Correction[] }> {
+export async function submitJournalForCorrection(
+  id: string,
+): Promise<{ correctedBody: string; corrections: Correction[] }> {
   const res = await fetch(`/api/journal/${id}/correct`, { method: 'POST' });
   if (!res.ok) {
     const err = await res.json();
@@ -640,7 +679,7 @@ export async function getTodayStats(): Promise<DailyStats> {
 
 export async function incrementDailyStat(
   field: keyof Omit<DailyStats, 'date'>,
-  amount: number = 1
+  amount: number = 1,
 ): Promise<void> {
   await fetch(`/api/stats/today${langParam()}`, {
     method: 'PUT',
@@ -651,7 +690,7 @@ export async function incrementDailyStat(
 
 export async function getStatsForDateRange(
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<DailyStats[]> {
   const res = await fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`);
   return res.json();

@@ -243,197 +243,188 @@ export default function Home() {
   const hasGroups = groups.length > 0;
 
   return (
-    <div className="min-h-screen bg-zinc-50 pt-[var(--mobile-topbar-h)] sm:ml-56 sm:pt-0 dark:bg-zinc-950">
-      <NavHeader />
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      {isLoading ? (
+        <div className="flex h-64 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+        </div>
+      ) : (
+        <section>
+          <div className="mb-6 flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Your Library</h2>
+            <div className="flex-1" />
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        {isLoading ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
-          </div>
-        ) : (
-          <section>
-            <div className="mb-6 flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Your Library</h2>
-              <div className="flex-1" />
-
-              {isCreatingGroup ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleCreateGroup();
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  <input
-                    type="text"
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    placeholder="Group name"
-                    autoFocus
-                    data-testid="new-group-input"
-                    className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                  />
-                  <button
-                    type="submit"
-                    data-testid="new-group-submit"
-                    className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCreatingGroup(false);
-                      setNewGroupName('');
-                    }}
-                    className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-                  >
-                    Cancel
-                  </button>
-                </form>
-              ) : (
+            {isCreatingGroup ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleCreateGroup();
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="Group name"
+                  autoFocus
+                  data-testid="new-group-input"
+                  className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                />
                 <button
-                  onClick={() => setIsCreatingGroup(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                  data-testid="new-group-btn"
+                  type="submit"
+                  data-testid="new-group-submit"
+                  className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
                 >
-                  <Folder size="16" />
-                  New Group
+                  Add
                 </button>
-              )}
-
-              <ImportDropdown
-                onFileImport={handleImportClick}
-                onUrlImport={() => setIsWebImportOpen(true)}
-                onPasteImport={() => setIsPasteImportOpen(true)}
-                isImporting={isImporting}
-              />
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".epub,.md,.markdown"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </div>
-
-            <WebImportModal
-              isOpen={isWebImportOpen}
-              onClose={() => setIsWebImportOpen(false)}
-              onSave={handleWebImportSave}
-            />
-            <PasteImportModal
-              isOpen={isPasteImportOpen}
-              onClose={() => setIsPasteImportOpen(false)}
-              onSave={handlePasteImportSave}
-            />
-
-            {collections.length > 0 || hasGroups ? (
-              <div className="space-y-10">
-                {/* Grouped sections */}
-                {groups.map((group) => {
-                  const items = groupedCollections.get(group.id) || [];
-                  const isCollapsed = collapsedGroups.has(group.id);
-                  return (
-                    <div key={group.id} data-testid={`group-${group.id}`}>
-                      <div className="mb-4 flex items-center gap-3">
-                        <button
-                          onClick={() => toggleGroup(group.id)}
-                          aria-expanded={!isCollapsed}
-                          aria-label={
-                            isCollapsed ? `Expand ${group.name}` : `Collapse ${group.name}`
-                          }
-                          data-testid={`group-toggle-${group.id}`}
-                          className="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                        >
-                          <ChevronDown
-                            className={`h-4 w-4 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-                          />
-                          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-                            {group.name}
-                          </h3>
-                        </button>
-                        <span className="text-sm text-zinc-400 dark:text-zinc-500">
-                          {items.length} {items.length === 1 ? 'item' : 'items'}
-                        </span>
-                        <div className="flex-1" />
-                        <GroupMenu
-                          onRename={() => handleRenameGroup(group.id, group.name)}
-                          onDelete={() => handleDeleteGroup(group.id, group.name)}
-                        />
-                      </div>
-                      {!isCollapsed && (
-                        <DndContext
-                          sensors={sensors}
-                          collisionDetection={closestCenter}
-                          onDragEnd={(e) => handleCollectionDragEnd(group.id, e)}
-                        >
-                          <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                            <SortableContext
-                              items={items.map((c) => c.id)}
-                              strategy={rectSortingStrategy}
-                            >
-                              {items.map((collection) => (
-                                <SortableCollectionCard
-                                  key={collection.id}
-                                  collection={collection}
-                                />
-                              ))}
-                            </SortableContext>
-                            {addingToGroupId === group.id ? (
-                              <AddCollectionTile
-                                value={newCollectionTitle}
-                                onChange={setNewCollectionTitle}
-                                onSubmit={() => handleAddCollectionToGroup(group.id)}
-                                onCancel={() => {
-                                  setAddingToGroupId(null);
-                                  setNewCollectionTitle('');
-                                }}
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAddingToGroupId(group.id);
-                                  setNewCollectionTitle('');
-                                }}
-                                data-testid={`add-collection-${group.id}`}
-                                className="group flex min-h-[14rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 text-zinc-400 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-600 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
-                              >
-                                <Plus className="h-8 w-8" strokeWidth={1.5} />
-                                <span className="text-sm font-medium">New collection</span>
-                              </button>
-                            )}
-                          </div>
-                        </DndContext>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Ungrouped */}
-                {ungrouped.length > 0 && (
-                  <div data-testid="ungrouped-section">
-                    {hasGroups && (
-                      <h3 className="mb-4 text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-                        Ungrouped
-                      </h3>
-                    )}
-                    <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                      {ungrouped.map((collection) => (
-                        <CollectionCard key={collection.id} collection={collection} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingGroup(false);
+                    setNewGroupName('');
+                  }}
+                  className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                >
+                  Cancel
+                </button>
+              </form>
             ) : (
-              <EmptyState onImport={handleImportClick} />
+              <button
+                onClick={() => setIsCreatingGroup(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                data-testid="new-group-btn"
+              >
+                <Folder size="16" />
+                New Group
+              </button>
             )}
-          </section>
-        )}
-      </main>
-    </div>
+
+            <ImportDropdown
+              onFileImport={handleImportClick}
+              onUrlImport={() => setIsWebImportOpen(true)}
+              onPasteImport={() => setIsPasteImportOpen(true)}
+              isImporting={isImporting}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".epub,.md,.markdown"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+
+          <WebImportModal
+            isOpen={isWebImportOpen}
+            onClose={() => setIsWebImportOpen(false)}
+            onSave={handleWebImportSave}
+          />
+          <PasteImportModal
+            isOpen={isPasteImportOpen}
+            onClose={() => setIsPasteImportOpen(false)}
+            onSave={handlePasteImportSave}
+          />
+
+          {collections.length > 0 || hasGroups ? (
+            <div className="space-y-10">
+              {/* Grouped sections */}
+              {groups.map((group) => {
+                const items = groupedCollections.get(group.id) || [];
+                const isCollapsed = collapsedGroups.has(group.id);
+                return (
+                  <div key={group.id} data-testid={`group-${group.id}`}>
+                    <div className="mb-4 flex items-center gap-3">
+                      <button
+                        onClick={() => toggleGroup(group.id)}
+                        aria-expanded={!isCollapsed}
+                        aria-label={isCollapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
+                        data-testid={`group-toggle-${group.id}`}
+                        className="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      >
+                        <ChevronDown
+                          className={`h-4 w-4 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                        />
+                        <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+                          {group.name}
+                        </h3>
+                      </button>
+                      <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                        {items.length} {items.length === 1 ? 'item' : 'items'}
+                      </span>
+                      <div className="flex-1" />
+                      <GroupMenu
+                        onRename={() => handleRenameGroup(group.id, group.name)}
+                        onDelete={() => handleDeleteGroup(group.id, group.name)}
+                      />
+                    </div>
+                    {!isCollapsed && (
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={(e) => handleCollectionDragEnd(group.id, e)}
+                      >
+                        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                          <SortableContext
+                            items={items.map((c) => c.id)}
+                            strategy={rectSortingStrategy}
+                          >
+                            {items.map((collection) => (
+                              <SortableCollectionCard key={collection.id} collection={collection} />
+                            ))}
+                          </SortableContext>
+                          {addingToGroupId === group.id ? (
+                            <AddCollectionTile
+                              value={newCollectionTitle}
+                              onChange={setNewCollectionTitle}
+                              onSubmit={() => handleAddCollectionToGroup(group.id)}
+                              onCancel={() => {
+                                setAddingToGroupId(null);
+                                setNewCollectionTitle('');
+                              }}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAddingToGroupId(group.id);
+                                setNewCollectionTitle('');
+                              }}
+                              data-testid={`add-collection-${group.id}`}
+                              className="group flex min-h-[14rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 text-zinc-400 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-600 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
+                            >
+                              <Plus className="h-8 w-8" strokeWidth={1.5} />
+                              <span className="text-sm font-medium">New collection</span>
+                            </button>
+                          )}
+                        </div>
+                      </DndContext>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Ungrouped */}
+              {ungrouped.length > 0 && (
+                <div data-testid="ungrouped-section">
+                  {hasGroups && (
+                    <h3 className="mb-4 text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+                      Ungrouped
+                    </h3>
+                  )}
+                  <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                    {ungrouped.map((collection) => (
+                      <CollectionCard key={collection.id} collection={collection} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <EmptyState onImport={handleImportClick} />
+          )}
+        </section>
+      )}
+    </main>
   );
 }

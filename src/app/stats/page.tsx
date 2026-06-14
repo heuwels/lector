@@ -144,69 +144,66 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 pt-[var(--mobile-topbar-h)] sm:ml-56 sm:pt-0 dark:bg-zinc-950">
-      <NavHeader />
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        {/* Date subtitle */}
-        <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
-          {new Date().toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
-        </p>
+    <main className="mx-auto max-w-7xl px-6 py-8">
+      {/* Date subtitle */}
+      <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
+        {new Date().toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })}
+      </p>
 
-        {/* Fluency level */}
-        <FluencyBadge fluency={stats.fluency} />
+      {/* Fluency level */}
+      <FluencyBadge fluency={stats.fluency} />
 
-        {/* Top stat cards */}
-        <div data-testid="stats-top-cards" className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <StatCard
-            label="Words Known"
-            value={stats.totalKnown}
-            color="green"
-            icon={<CheckCircle size="24" />}
-          />
-          <StatCard
-            label="Learning (L1-L4)"
-            value={stats.totalLearning}
-            sublabel="Words in progress"
-            color="yellow"
-            icon={<Book size="24" />}
-          />
-          <StatCard
-            label="Current Streak"
-            value={`${stats.currentStreak} days`}
-            sublabel={`Longest: ${stats.longestStreak} days`}
-            color="orange"
-            icon={<Flame size="24" />}
-          />
-        </div>
+      {/* Top stat cards */}
+      <div data-testid="stats-top-cards" className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+        <StatCard
+          label="Words Known"
+          value={stats.totalKnown}
+          color="green"
+          icon={<CheckCircle size="24" />}
+        />
+        <StatCard
+          label="Learning (L1-L4)"
+          value={stats.totalLearning}
+          sublabel="Words in progress"
+          color="yellow"
+          icon={<Book size="24" />}
+        />
+        <StatCard
+          label="Current Streak"
+          value={`${stats.currentStreak} days`}
+          sublabel={`Longest: ${stats.longestStreak} days`}
+          color="orange"
+          icon={<Flame size="24" />}
+        />
+      </div>
 
-        {/* Vocabulary Growth Chart */}
-        <div className="mb-8">
-          <VocabGrowthChart data={stats.vocabGrowth} />
-        </div>
+      {/* Vocabulary Growth Chart */}
+      <div className="mb-8">
+        <VocabGrowthChart data={stats.vocabGrowth} />
+      </div>
 
-        {/* Activity Heatmap */}
-        <div className="mb-8">
-          <ActivityHeatmap data={stats.activityData} />
-        </div>
+      {/* Activity Heatmap */}
+      <div className="mb-8">
+        <ActivityHeatmap data={stats.activityData} />
+      </div>
 
-        {/* Detailed breakdowns */}
-        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-          <WordStateBreakdown byState={stats.byState} />
-          <ClozeStats
-            attempts={stats.totalClozeAttempts}
-            correct={stats.totalClozeCorrect}
-            points={stats.totalPoints}
-          />
-        </div>
+      {/* Detailed breakdowns */}
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+        <WordStateBreakdown byState={stats.byState} />
+        <ClozeStats
+          attempts={stats.totalClozeAttempts}
+          correct={stats.totalClozeCorrect}
+          points={stats.totalPoints}
+        />
+      </div>
 
-        {/* Sentence Mastery */}
-        <SentenceMastery collectionCounts={stats.collectionCounts} />
-      </main>
-    </div>
+      {/* Sentence Mastery */}
+      <SentenceMastery collectionCounts={stats.collectionCounts} />
+    </main>
   );
 }

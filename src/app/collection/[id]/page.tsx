@@ -157,14 +157,11 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-50 pt-[var(--mobile-topbar-h)] sm:ml-56 sm:pt-0 dark:bg-zinc-950">
-        <NavHeader />
-        <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-          <div className="flex h-64 items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
-          </div>
-        </main>
-      </div>
+      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+        <div className="flex h-64 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+        </div>
+      </main>
     );
   }
 
@@ -174,119 +171,112 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   const completedCount = lessons.filter((l) => l.progress_percentComplete >= 95).length;
 
   return (
-    <div className="min-h-screen bg-zinc-50 pt-[var(--mobile-topbar-h)] sm:ml-56 sm:pt-0 dark:bg-zinc-950">
-      <NavHeader />
+    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+      {/* Back link */}
+      <Link
+        href="/"
+        className="mb-6 inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Library
+      </Link>
 
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        {/* Back link */}
-        <Link
-          href="/"
-          className="mb-6 inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Library
-        </Link>
+      {/* Collection header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{collection.title}</h1>
+        <p className="mt-1 text-zinc-500 dark:text-zinc-400">
+          {collection.author} &middot; {lessons.length}{' '}
+          {lessons.length === 1 ? 'lesson' : 'lessons'}
+          {completedCount > 0 && ` \u00b7 ${completedCount} completed`}
+        </p>
 
-        {/* Collection header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{collection.title}</h1>
-          <p className="mt-1 text-zinc-500 dark:text-zinc-400">
-            {collection.author} &middot; {lessons.length}{' '}
-            {lessons.length === 1 ? 'lesson' : 'lessons'}
-            {completedCount > 0 && ` \u00b7 ${completedCount} completed`}
-          </p>
-
-          {/* Group selector */}
-          <div className="mt-3 flex items-center gap-2">
-            <label htmlFor="group-select" className="text-sm text-zinc-500 dark:text-zinc-400">
-              Group:
-            </label>
-            <select
-              id="group-select"
-              value={collection.groupId || ''}
-              onChange={(e) => handleGroupChange(e.target.value)}
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              data-testid="group-select"
-            >
-              <option value="">None</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-              <option value="__new__">+ New group...</option>
-            </select>
-          </div>
-
-          <div className="mt-4 flex items-center gap-3">
-            {continueLesson && (
-              <Link
-                href={`/read/${continueLesson.id}`}
-                className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-              >
-                Continue Reading
-              </Link>
-            )}
-            <button
-              onClick={handleDelete}
-              className="rounded-lg px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-            >
-              Delete
-            </button>
-          </div>
+        {/* Group selector */}
+        <div className="mt-3 flex items-center gap-2">
+          <label htmlFor="group-select" className="text-sm text-zinc-500 dark:text-zinc-400">
+            Group:
+          </label>
+          <select
+            id="group-select"
+            value={collection.groupId || ''}
+            onChange={(e) => handleGroupChange(e.target.value)}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            data-testid="group-select"
+          >
+            <option value="">None</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+            <option value="__new__">+ New group...</option>
+          </select>
         </div>
 
-        {/* Lesson list */}
-        <div className="space-y-2">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleLessonDragEnd}
-          >
-            <SortableContext
-              items={lessons.map((l) => l.id)}
-              strategy={verticalListSortingStrategy}
+        <div className="mt-4 flex items-center gap-3">
+          {continueLesson && (
+            <Link
+              href={`/read/${continueLesson.id}`}
+              className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
-              {lessons.map((lesson, i) => (
-                <SortableLessonRow
-                  key={lesson.id}
-                  lesson={lesson}
-                  index={i}
-                  onEdit={openEditLesson}
-                  onDelete={handleDeleteLesson}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-
-          {/* Add lesson button */}
+              Continue Reading
+            </Link>
+          )}
           <button
-            onClick={() => setIsAddOpen(true)}
-            data-testid="add-lesson"
-            className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-transparent px-5 py-4 text-sm font-medium text-zinc-500 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+            onClick={handleDelete}
+            className="rounded-lg px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
           >
-            <Plus className="h-4 w-4" />
-            Add lesson
+            Delete
           </button>
         </div>
+      </div>
 
-        <LessonFormModal
-          isOpen={isAddOpen}
-          mode="create"
-          onClose={() => setIsAddOpen(false)}
-          onSave={handleAddLesson}
-        />
-        <LessonFormModal
-          isOpen={editingLessonId !== null}
-          mode="edit"
-          initial={editingInitial}
-          onClose={() => {
-            setEditingLessonId(null);
-            setEditingInitial(null);
-          }}
-          onSave={handleEditLesson}
-        />
-      </main>
-    </div>
+      {/* Lesson list */}
+      <div className="space-y-2">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleLessonDragEnd}
+        >
+          <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+            {lessons.map((lesson, i) => (
+              <SortableLessonRow
+                key={lesson.id}
+                lesson={lesson}
+                index={i}
+                onEdit={openEditLesson}
+                onDelete={handleDeleteLesson}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+
+        {/* Add lesson button */}
+        <button
+          onClick={() => setIsAddOpen(true)}
+          data-testid="add-lesson"
+          className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-transparent px-5 py-4 text-sm font-medium text-zinc-500 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+        >
+          <Plus className="h-4 w-4" />
+          Add lesson
+        </button>
+      </div>
+
+      <LessonFormModal
+        isOpen={isAddOpen}
+        mode="create"
+        onClose={() => setIsAddOpen(false)}
+        onSave={handleAddLesson}
+      />
+      <LessonFormModal
+        isOpen={editingLessonId !== null}
+        mode="edit"
+        initial={editingInitial}
+        onClose={() => {
+          setEditingLessonId(null);
+          setEditingInitial(null);
+        }}
+        onSave={handleEditLesson}
+      />
+    </main>
   );
 }
