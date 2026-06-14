@@ -820,7 +820,7 @@ export default function PracticePage() {
                   const counts = await getCollectionCounts();
                   setCollectionCounts(counts);
                 }}
-                className="text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 &larr; Back
               </button>
@@ -838,9 +838,9 @@ export default function PracticePage() {
                   {roundProgress}/{roundSize}
                 </span>
               </div>
-              <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+              <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-[color-mix(in_srgb,var(--primary)_55%,#fff)] to-primary transition-all duration-500"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -952,18 +952,18 @@ export default function PracticePage() {
                       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {mcOptions.map((option, idx) => {
                           let btnClass =
-                            'border-zinc-200 bg-zinc-50 text-zinc-900 hover:bg-zinc-100 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700';
+                            'border-border bg-card text-foreground hover:bg-accent';
 
                           if (mcSelected !== null) {
                             if (idx === mcCorrectIdx) {
                               btnClass =
-                                'border-green-500 bg-green-50 text-green-800 dark:border-green-400 dark:bg-green-950/50 dark:text-green-200';
+                                'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary';
                             } else if (idx === mcSelected) {
                               btnClass =
-                                'border-red-500 bg-red-50 text-red-800 dark:border-red-400 dark:bg-red-950/50 dark:text-red-200';
+                                'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive';
                             } else {
                               btnClass =
-                                'border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500';
+                                'border-border bg-card text-muted-foreground opacity-60';
                             }
                           }
 
@@ -975,7 +975,7 @@ export default function PracticePage() {
                               disabled={mcLocked}
                               className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left text-lg font-medium transition-all active:scale-[0.98] ${btnClass}`}
                             >
-                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-sm font-bold text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
                                 {idx + 1}
                               </span>
                               {option}
@@ -988,22 +988,22 @@ export default function PracticePage() {
                     {/* Type mode buttons */}
                     {practiceMode === 'type' && !mcFallback && (
                       <div className="flex justify-center gap-2">
-                        <button
+                        <Button
                           type="button"
+                          variant="secondary"
                           onClick={() => {
                             if (!current) return;
                             generateMcOptionsForSentence(current.sentence, queue);
                             setMcFallback(true);
                           }}
-                          className="rounded-xl bg-purple-50 px-4 py-3 text-sm font-medium text-purple-600 transition-all hover:bg-purple-100 dark:bg-purple-950/30 dark:text-purple-400 dark:hover:bg-purple-950/50"
                           title="Switch to multiple choice for this question"
                         >
                           Multiple Choice
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
+                          variant="secondary"
                           onClick={handleHint}
-                          className="rounded-xl bg-zinc-100 px-4 py-3 text-sm font-medium text-zinc-600 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
                           title="Reveal next letter"
                         >
                           Hint (
@@ -1011,27 +1011,23 @@ export default function PracticePage() {
                             ? `${hintLetters} letter${hintLetters > 1 ? 's' : ''}`
                             : '?'}
                           )
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
+                          size="lg"
                           onClick={handleSubmit}
                           disabled={!userAnswer.trim()}
-                          className={`rounded-xl px-6 py-3 text-lg font-semibold transition-all ${
-                            fuzzyStatus === 'match'
-                              ? 'bg-green-600 text-white hover:bg-green-700 active:scale-95 dark:bg-green-500 dark:hover:bg-green-600'
-                              : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 dark:bg-blue-500 dark:hover:bg-blue-600'
-                          } disabled:opacity-40`}
                         >
                           {fuzzyStatus === 'match' ? 'Submit' : 'Check'}
-                        </button>
+                        </Button>
                       </div>
                     )}
                     {/* Mastery indicator */}
                     <div className="mt-6 flex items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                       <span>Mastery:</span>
-                      <div className="flex h-2 w-24 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                      <div className="flex h-2 w-24 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="bg-blue-500 transition-all"
+                          className="bg-primary transition-all"
                           style={{ width: `${current.sentence.masteryLevel}%` }}
                         />
                       </div>
