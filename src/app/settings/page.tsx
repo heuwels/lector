@@ -1,7 +1,7 @@
 'use client';
 
+import clsx from 'clsx';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Link from 'next/link';
 import { getDeckNames, isAnkiConnected, refreshAnkiUrl } from '@/lib/anki';
 import { getTTSMode, setTTSMode, isGoogleTTSConfigured, speak, type TTSMode } from '@/lib/tts';
 import {
@@ -78,8 +78,8 @@ export default function SettingsPage() {
   const [editingApiKey, setEditingApiKey] = useState(false);
   const [editingOauthToken, setEditingOauthToken] = useState(false);
   const [anthropicAuthMode, setAnthropicAuthMode] = useState<'api_key' | 'oauth'>('api_key');
+  const [isFetchingLlmStatus, setIsFetchingLlmStatus] = useState(false);
   const [llmStatus, setLlmStatus] = useState<LLMStatus | null>(null);
-  const [llmTesting, setLlmTesting] = useState(false);
 
   // TTS state
   const [googleTTSAvailable, setGoogleTTSAvailable] = useState<boolean | null>(null);
@@ -159,10 +159,7 @@ export default function SettingsPage() {
     });
 
     // Check LLM status
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    primeLlmStatus();
 
     // Load API tokens
     getApiTokens()
@@ -272,6 +269,20 @@ export default function SettingsPage() {
     }
   };
 
+  const primeLlmStatus = async () => {
+    setIsFetchingLlmStatus(true);
+
+    try {
+      const req = await fetch('/api/llm-status');
+      const res = await req.json();
+
+      setLlmStatus(res);
+    } catch (_) {
+    } finally {
+      setIsFetchingLlmStatus(false);
+    }
+  };
+
   // Save LLM provider setting
   const saveLLMProvider = async (provider: LLMProvider) => {
     setLlmProvider(provider);
@@ -279,40 +290,28 @@ export default function SettingsPage() {
     // Reset the cached provider on the server
     await fetch('/api/llm-status/reset', { method: 'POST' });
     // Refresh status
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const saveOllamaModel = async (model: string) => {
     setOllamaModel(model);
     await setSetting('ollamaModel', model);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const saveApfelUrl = async (url: string) => {
     setApfelUrl(url);
     await setSetting('apfelUrl', url);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const saveApfelModel = async (model: string) => {
     setApfelModel(model);
     await setSetting('apfelModel', model);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   // Whenever endpoint or apiKey changes, the previously-selected model may not exist
@@ -332,10 +331,7 @@ export default function SettingsPage() {
     await setSetting('lmstudioUrl', url);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const saveLmstudioApiKey = async (key: string) => {
@@ -346,10 +342,7 @@ export default function SettingsPage() {
     setEditingLmstudioApiKey(false);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const clearLmstudioApiKey = async () => {
@@ -359,10 +352,7 @@ export default function SettingsPage() {
     setEditingLmstudioApiKey(false);
     await resetLmstudioModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const saveLmstudioModel = async (model: string) => {
@@ -371,10 +361,7 @@ export default function SettingsPage() {
     setLmstudioLoadStatus('idle');
     setLmstudioLoadError(null);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const fetchLmstudioModels = async () => {
@@ -438,20 +425,14 @@ export default function SettingsPage() {
     setNewApiKey('');
     setEditingApiKey(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const clearAnthropicApiKey = async () => {
     await deleteSetting('anthropicApiKey');
     setHasApiKey(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const saveClaudeOauthToken = async (token: string) => {
@@ -460,27 +441,21 @@ export default function SettingsPage() {
     setNewOauthToken('');
     setEditingOauthToken(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const clearClaudeOauthToken = async () => {
     await deleteSetting('claudeOauthToken');
     setHasOauthToken(false);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    fetch('/api/llm-status')
-      .then((r) => r.json())
-      .then(setLlmStatus)
-      .catch(() => {});
+    await primeLlmStatus();
   };
 
   const saveAnthropicAuthMode = async (mode: 'api_key' | 'oauth') => {
     setAnthropicAuthMode(mode);
     await setSetting('anthropicAuthMode', mode);
     await fetch('/api/llm-status/reset', { method: 'POST' });
-    setLlmTesting(true);
+    setIsFetchingLlmStatus(true);
     try {
       const res = await fetch('/api/llm-status/test', { method: 'POST' });
       const data = await res.json();
@@ -494,12 +469,12 @@ export default function SettingsPage() {
         prev ? { ...prev, ok: false, error: 'Failed to reach server' } : null,
       );
     } finally {
-      setLlmTesting(false);
+      setIsFetchingLlmStatus(false);
     }
   };
 
   const testLLMConnection = async () => {
-    setLlmTesting(true);
+    setIsFetchingLlmStatus(true);
     try {
       const res = await fetch('/api/llm-status/test', { method: 'POST' });
       const data = await res.json();
@@ -513,7 +488,7 @@ export default function SettingsPage() {
         prev ? { ...prev, ok: false, error: 'Failed to reach server' } : null,
       );
     } finally {
-      setLlmTesting(false);
+      setIsFetchingLlmStatus(true);
     }
   };
 
@@ -827,18 +802,21 @@ export default function SettingsPage() {
         <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">AI Provider</h2>
-            {llmStatus && (
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${
-                    llmStatus.ok ? 'bg-green-500' : 'bg-red-500'
-                  }`}
-                />
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {llmStatus.ok ? 'Connected' : llmStatus.error || 'Not connected'}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <span
+                className={clsx(`inline-block h-2 w-2 rounded-full`, {
+                  'bg-green-500': llmStatus?.ok,
+                  'bg-red-500': !llmStatus?.ok,
+                  'bg-yellow-500': isFetchingLlmStatus,
+                })}
+              />
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                {llmStatus?.ok ? 'Connected' : llmStatus?.error || 'Not connected'}
+                <Button variant="link" onClick={testLLMConnection} disabled={isFetchingLlmStatus}>
+                  {isFetchingLlmStatus ? 'Checking...' : 'Refresh'}
+                </Button>
+              </span>
+            </div>
           </div>
           <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
             Choose how translations are powered. Ollama runs locally (no API key needed). Anthropic
@@ -897,7 +875,7 @@ export default function SettingsPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => saveAnthropicAuthMode('api_key')}
-                      disabled={llmTesting}
+                      disabled={isFetchingLlmStatus}
                       className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
                         anthropicAuthMode === 'api_key'
                           ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
@@ -908,7 +886,7 @@ export default function SettingsPage() {
                     </button>
                     <button
                       onClick={() => saveAnthropicAuthMode('oauth')}
-                      disabled={llmTesting}
+                      disabled={isFetchingLlmStatus}
                       className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
                         anthropicAuthMode === 'oauth'
                           ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
@@ -1290,10 +1268,6 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
-
-          <Button variant="secondary" onClick={testLLMConnection} disabled={llmTesting}>
-            {llmTesting ? 'Testing...' : 'Test Connection'}
-          </Button>
         </section>
 
         {/* Anki Settings Section */}

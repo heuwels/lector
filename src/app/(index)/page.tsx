@@ -38,6 +38,7 @@ import {
   type Collection,
   type CollectionGroup,
 } from '@/lib/data-layer';
+import { Button } from '@/components/ui/button';
 
 export default function Home() {
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -270,33 +271,25 @@ export default function Home() {
                   data-testid="new-group-input"
                   className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                 />
-                <button
-                  type="submit"
-                  data-testid="new-group-submit"
-                  className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                >
+                <Button type="submit" data-testid="new-group-submit">
                   Add
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="destructive"
                   onClick={() => {
                     setIsCreatingGroup(false);
                     setNewGroupName('');
                   }}
-                  className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
                 >
                   Cancel
-                </button>
+                </Button>
               </form>
             ) : (
-              <button
-                onClick={() => setIsCreatingGroup(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                data-testid="new-group-btn"
-              >
+              <Button onClick={() => setIsCreatingGroup(true)} data-testid="new-group-btn">
                 <Folder size="16" />
                 New Group
-              </button>
+              </Button>
             )}
 
             <ImportDropdown
