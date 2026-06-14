@@ -24,6 +24,7 @@ import {
 } from '@/lib/anki';
 import VocabStats from './components/VocabStats';
 import VocabDetailModal from './components/VocabDetailModal';
+import { toast } from 'sonner';
 
 export default function VocabPage() {
   const [entries, setEntries] = useState<VocabEntry[]>([]);
@@ -37,7 +38,7 @@ export default function VocabPage() {
   const [ankiConnected, setAnkiConnected] = useState<boolean | null>(null);
   const [ankiDeck, setAnkiDeck] = useState('Afrikaans');
   const [ankiClozeDeck, setAnkiClozeDeck] = useState('Afrikaans::Cloze');
-  const [notification, setNotification] = useState<{
+  const [notification] = useState<{
     type: 'success' | 'error';
     message: string;
   } | null>(null);
@@ -69,7 +70,9 @@ export default function VocabPage() {
       setStats(statsData);
     } catch (error) {
       console.error('Failed to load data:', error);
-      showNotification('error', 'Failed to load vocabulary data');
+      toast.error('Failed to load vocabulary data', {
+        duration: 2000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -97,11 +100,6 @@ export default function VocabPage() {
     }
   };
 
-  const showNotification = (type: 'success' | 'error', message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 5000);
-  };
-
   // Handle entry click to view/edit
   const handleEntryClick = (entry: VocabEntry) => {
     setSelectedEntry(entry);
@@ -120,10 +118,14 @@ export default function VocabPage() {
       if (selectedEntry?.id === id) {
         setSelectedEntry((prev) => (prev ? { ...prev, ...updates } : null));
       }
-      showNotification('success', 'Entry updated successfully');
+      toast.success('Entry updated successfully', {
+        duration: 5000,
+      });
     } catch (error) {
       console.error('Failed to update entry:', error);
-      showNotification('error', 'Failed to update entry');
+      toast.error('Failed to update entry', {
+        duration: 5000,
+      });
       throw error;
     }
   };
@@ -133,10 +135,14 @@ export default function VocabPage() {
     try {
       await deleteVocabEntry(id);
       await loadData();
-      showNotification('success', 'Entry deleted');
+      toast.success('Entry deleted', {
+        duration: 5000,
+      });
     } catch (error) {
       console.error('Failed to delete entry:', error);
-      showNotification('error', 'Failed to delete entry');
+      toast.error('Failed to delete entry', {
+        duration: 5000,
+      });
       throw error;
     }
   };
@@ -148,16 +154,17 @@ export default function VocabPage() {
   const handleExportToAnki = useCallback(
     async (ids: string[], cardType: 'basic' | 'cloze') => {
       if (!ankiConnected) {
-        showNotification(
-          'error',
-          'Anki is not connected. Make sure Anki is running with AnkiConnect.',
-        );
+        toast.error('Anki is not connected. Make sure Anki is running with AnkiConnect.', {
+          duration: 5000,
+        });
         return;
       }
 
       const entriesToExport = entries.filter((e) => ids.includes(e.id) && !e.pushedToAnki);
       if (entriesToExport.length === 0) {
-        showNotification('error', 'All selected entries have already been synced to Anki.');
+        toast.error('All selected entries have already been synced to Anki.', {
+          duration: 5000,
+        });
         return;
       }
 
@@ -188,15 +195,16 @@ export default function VocabPage() {
       await loadData();
 
       if (errorCount === 0) {
-        showNotification(
-          'success',
+        toast.success(
           `Exported ${successCount} ${cardLabel} card${successCount === 1 ? '' : 's'} to "${targetDeck}"`,
+          {
+            duration: 5000,
+          },
         );
       } else {
-        showNotification(
-          'error',
-          `Exported ${successCount} ${cardLabel} cards, ${errorCount} failed`,
-        );
+        toast.error(`Exported ${successCount} ${cardLabel} cards, ${errorCount} failed`, {
+          duration: 5000,
+        });
       }
     },
     [entries, ankiConnected, ankiDeck, ankiClozeDeck],
@@ -209,29 +217,30 @@ export default function VocabPage() {
         await updateVocabState(id, 'known');
       }
       await loadData();
-      showNotification('success', `Marked ${ids.length} entries as known`);
+      toast.success(`Marked ${ids.length} entries as known`, {
+        duration: 5000,
+      });
     } catch (error) {
       console.error('Failed to mark as known:', error);
-      showNotification('error', 'Failed to mark entries as known');
+      toast.error('Failed to mark entries as known', {
+        duration: 5000,
+      });
     }
   }, []);
 
   // Sync with Anki to update mastery levels
   const handleSyncWithAnki = useCallback(async () => {
     if (!ankiConnected) {
-      showNotification(
-        'error',
-        'Anki is not connected. Make sure Anki is running with AnkiConnect.',
-      );
+      toast.error('Anki is not connected. Make sure Anki is running with AnkiConnect.', {
+        duration: 5000,
+      });
       return;
     }
 
     try {
       // Get deck name from settings
       const deckName = localStorage.getItem('lector-anki-deck') || ankiDeck;
-      console.log(`Syncing with Anki deck: "${deckName}"`);
       const wordStates = await syncWordStates(deckName);
-      console.log(`Found ${wordStates.size} words in Anki`);
       let updatedCount = 0;
       let matchedCount = 0;
 
@@ -283,13 +292,17 @@ export default function VocabPage() {
       }
 
       await loadData();
-      showNotification(
-        'success',
+      toast.success(
         `Found ${wordStates.size} cards in "${deckName}". Matched ${matchedCount} vocab entries, updated ${updatedCount}.`,
+        {
+          duration: 5000,
+        },
       );
     } catch (error) {
       console.error('Failed to sync with Anki:', error);
-      showNotification('error', 'Failed to sync with Anki');
+      toast.error('Failed to sync with Anki', {
+        duration: 5000,
+      });
     }
   }, [entries, ankiConnected, ankiDeck]);
 
@@ -328,29 +341,6 @@ export default function VocabPage() {
           </div>
         </div>
       </header>
-
-      {/* Notification */}
-      {notification && (
-        <div
-          className={`fixed top-4 right-4 z-50 rounded-lg px-4 py-3 shadow-lg ${
-            notification.type === 'success'
-              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {notification.type === 'success' ? (
-              <Check className="h-5 w-5" />
-            ) : (
-              <X className="h-5 w-5" />
-            )}
-            <span>{notification.message}</span>
-            <button onClick={() => setNotification(null)} className="ml-2 hover:opacity-70">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Main Content */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
