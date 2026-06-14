@@ -31,7 +31,7 @@ test.describe('Theme Toggle', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     // Clear stored theme before each test
     await page.goto('/settings');
-    await page.evaluate(() => localStorage.removeItem(SETTINGS_KEYS.THEME));
+    await page.evaluate((key) => localStorage.removeItem(key), SETTINGS_KEYS.THEME);
   });
 
   test('should default to system theme (dark in CI/headless)', async ({ page }) => {
@@ -56,7 +56,7 @@ test.describe('Theme Toggle', () => {
     expect(hasDark).toBe(false);
 
     // localStorage should be 'light'
-    const stored = await page.evaluate(() => localStorage.getItem(SETTINGS_KEYS.THEME));
+    const stored = await page.evaluate((key) => localStorage.getItem(key), SETTINGS_KEYS.THEME);
     expect(stored).toBe('light');
 
     // Body should have a light background (bg-gray-50)
@@ -78,7 +78,7 @@ test.describe('Theme Toggle', () => {
     expect(hasDark).toBe(true);
 
     // localStorage should be 'dark'
-    const stored = await page.evaluate(() => localStorage.getItem(SETTINGS_KEYS.THEME));
+    const stored = await page.evaluate((key) => localStorage.getItem(key), SETTINGS_KEYS.THEME);
     expect(stored).toBe('dark');
 
     // Body should have a dark background (bg-gray-900)
@@ -101,7 +101,7 @@ test.describe('Theme Toggle', () => {
     expect(hasDark).toBe(false);
 
     // localStorage should still be 'light'
-    const stored = await page.evaluate(() => localStorage.getItem(SETTINGS_KEYS.THEME));
+    const stored = await page.evaluate((key) => localStorage.getItem(key), SETTINGS_KEYS.THEME);
     expect(stored).toBe('light');
   });
 
