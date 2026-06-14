@@ -50,7 +50,7 @@ export default function BlacklistSentence({
     });
 
     onSentenceBlacklisted();
-  }, [current]);
+  }, [current, handleUndoBlacklist, onSentenceBlacklisted]);
 
   return (
     <Button

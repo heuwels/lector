@@ -12,17 +12,21 @@ export default function Timezone() {
 
   // Load settings from localStorage on mount
   useEffect(() => {
-    // Time zone: populate the IANA list and the saved value
-    setBrowserTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
-    const intlWithSupported = Intl as typeof Intl & {
-      supportedValuesOf?: (key: 'timeZone') => string[];
+    const init = () => {
+      // Time zone: populate the IANA list and the saved value
+      setBrowserTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+      const intlWithSupported = Intl as typeof Intl & {
+        supportedValuesOf?: (key: 'timeZone') => string[];
+      };
+      setTimezones(
+        intlWithSupported.supportedValuesOf ? intlWithSupported.supportedValuesOf('timeZone') : [],
+      );
+      getSetting<string>('timezone').then((tz) => {
+        if (tz) setTimezone(tz);
+      });
     };
-    setTimezones(
-      intlWithSupported.supportedValuesOf ? intlWithSupported.supportedValuesOf('timeZone') : [],
-    );
-    getSetting<string>('timezone').then((tz) => {
-      if (tz) setTimezone(tz);
-    });
+
+    init();
   }, []);
 
   // Save the day-rollover time zone ('' = auto, server's zone)
@@ -32,6 +36,7 @@ export default function Timezone() {
       await setSetting('timezone', tz);
       toast.success(`Timezone updated to ${tz}`);
     } catch (e) {
+      console.error(e);
       toast.error('Failed to change timezone');
     }
   };

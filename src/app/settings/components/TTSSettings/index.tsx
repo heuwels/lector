@@ -11,10 +11,14 @@ export default function TTSSettings() {
   const [googleTTSAvailable, setGoogleTTSAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
-    setCurrentTTSMode(getTTSMode());
-    // Check if Google TTS is configured
-    isGoogleTTSConfigured().then(setGoogleTTSAvailable);
-    setTTSSpeed(parseFloat(localStorage.getItem(SETTINGS_KEYS.TTS_SPEED) || '1.0'));
+    const init = () => {
+      setCurrentTTSMode(getTTSMode());
+      // Check if Google TTS is configured
+      isGoogleTTSConfigured().then(setGoogleTTSAvailable);
+      setTTSSpeed(parseFloat(localStorage.getItem(SETTINGS_KEYS.TTS_SPEED) || '1.0'));
+    };
+
+    init();
   }, []);
 
   const handleTTSModeChanged = (ttsMode: TTSMode) => {

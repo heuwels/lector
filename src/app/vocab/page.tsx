@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import VocabList from '@/components/VocabList';
 import {
   type VocabEntry,

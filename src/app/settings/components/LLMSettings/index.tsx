@@ -4,6 +4,7 @@ import { deleteSetting, getSetting, setSetting } from '@/lib/data-layer';
 import { Button } from '@/components/ui/button';
 import { OLLAMA_MODELS } from './constants';
 import { LLMProvider, LLMStatus, LMStudioLoadStatus } from './types';
+import { toast } from 'sonner';
 
 export default function LLMSettings() {
   const [llmProvider, setLlmProvider] = useState<LLMProvider>('ollama');
@@ -91,7 +92,9 @@ export default function LLMSettings() {
       const res = await req.json();
 
       setLlmStatus(res);
-    } catch (_) {
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to fetch LLM Status');
     } finally {
       setIsFetchingLlmStatus(false);
     }

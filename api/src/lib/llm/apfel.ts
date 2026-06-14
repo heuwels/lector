@@ -44,6 +44,7 @@ export class ApfelProvider implements LLMProvider {
       }
       return { ok: true };
     } catch (err) {
+      console.error(err);
       return { ok: false, error: `Cannot reach Apfel at ${this.baseUrl}` };
     }
   }

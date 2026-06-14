@@ -63,9 +63,12 @@ export class OllamaProvider implements LLMProvider {
       const models = (data.models || []).map((m: { name: string }) => m.name);
       return {
         ok: true,
-        ...(models.length === 0 ? { error: `No models loaded. Will pull ${this.model} on first use.` } : {}),
+        ...(models.length === 0
+          ? { error: `No models loaded. Will pull ${this.model} on first use.` }
+          : {}),
       };
     } catch (err) {
+      console.error(err);
       return { ok: false, error: `Cannot reach Ollama at ${this.baseUrl}` };
     }
   }

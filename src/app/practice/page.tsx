@@ -20,7 +20,7 @@ import {
 } from '@/lib/data-layer';
 import { speak, isTTSAvailable } from '@/lib/tts';
 import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
-import { addClozeCard, isAnkiConnected } from '@/lib/anki';
+import { addClozeCard } from '@/lib/anki';
 import { translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 import { splitTrailingPunctuation } from '@/lib/words';
@@ -53,6 +53,7 @@ export default function PracticePage() {
   const [queue, setQueue] = useState<ClozeSentence[]>([]);
   const [current, setCurrent] = useState<CurrentSentence | null>(null);
   const [userAnswer, setUserAnswer] = useState('');
+  const [originalRoundSize, setOriginalRoundSize] = useState<number>(20);
   const [roundSize, setRoundSize] = useState<number>(20);
   const [roundProgress, setRoundProgress] = useState(0);
   const [roundCorrect, setRoundCorrect] = useState(0);
@@ -308,6 +309,7 @@ export default function PracticePage() {
       setState('loading');
       setSelectedCollection(collection);
       setRoundType(type);
+      setOriginalRoundSize(size as RoundSize);
       setRoundSize(size as RoundSize);
       setRoundProgress(0);
       setRoundCorrect(0);
@@ -345,7 +347,7 @@ export default function PracticePage() {
 
   // Start a round using current state values
   const startRound = useCallback(() => {
-    startRoundWith(selectedCollection, roundType, roundSize);
+    startRoundWith(selectedCollection, roundType, originalRoundSize);
   }, [selectedCollection, roundType, roundSize, startRoundWith]);
 
   // Handle hint - reveal next letter
@@ -544,7 +546,7 @@ export default function PracticePage() {
         }
       }, delay);
     },
-    [mcLocked, current, mcOptions, mcCorrectIdx, isRetryPhase],
+    [mcLocked, hintLetters, current, mcOptions, mcCorrectIdx, isRetryPhase],
   );
 
   // Handle next sentence
@@ -563,7 +565,7 @@ export default function PracticePage() {
     } else {
       setState('complete');
     }
-  }, [current, queue, retryQueue, loadNextSentence]);
+  }, [queue, retryQueue, loadNextSentence]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -669,7 +671,7 @@ export default function PracticePage() {
     } else {
       setState('complete');
     }
-  }, [queue, retryQueue, loadNextSentence]);
+  }, [queue, retryQueue, roundSize, loadNextSentence]);
 
   const progressPercent = roundSize > 0 ? Math.min((roundProgress / roundSize) * 100, 100) : 0;
 
@@ -765,7 +767,10 @@ export default function PracticePage() {
                     {ROUND_SIZES.map((size) => (
                       <button
                         key={size}
-                        onClick={() => setRoundSize(size)}
+                        onClick={() => {
+                          setOriginalRoundSize(size);
+                          setRoundSize(size);
+                        }}
                         className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
                           roundSize === size
                             ? 'bg-blue-500 text-white'
