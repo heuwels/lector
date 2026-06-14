@@ -158,7 +158,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     return (
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-foreground" />
         </div>
       </main>
     );
@@ -174,7 +174,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
       {/* Back link */}
       <Link
         href="/"
-        className="mb-6 inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+        className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
         Library
@@ -182,8 +182,8 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
 
       {/* Collection header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{collection.title}</h1>
-        <p className="mt-1 text-zinc-500 dark:text-zinc-400">
+        <h1 className="text-3xl font-bold text-foreground">{collection.title}</h1>
+        <p className="mt-1 text-muted-foreground">
           {collection.author} &middot; {lessons.length}{' '}
           {lessons.length === 1 ? 'lesson' : 'lessons'}
           {completedCount > 0 && ` \u00b7 ${completedCount} completed`}
@@ -191,14 +191,14 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
 
         {/* Group selector */}
         <div className="mt-3 flex items-center gap-2">
-          <label htmlFor="group-select" className="text-sm text-zinc-500 dark:text-zinc-400">
+          <label htmlFor="group-select" className="text-sm text-muted-foreground">
             Group:
           </label>
           <select
             id="group-select"
             value={collection.groupId || ''}
             onChange={(e) => handleGroupChange(e.target.value)}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
             data-testid="group-select"
           >
             <option value="">None</option>
@@ -215,14 +215,14 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
           {continueLesson && (
             <Link
               href={`/read/${continueLesson.id}`}
-              className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               Continue Reading
             </Link>
           )}
           <button
             onClick={handleDelete}
-            className="rounded-lg px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            className="rounded-lg px-4 py-2.5 text-sm text-destructive hover:bg-accent"
           >
             Delete
           </button>
@@ -253,7 +253,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
         <button
           onClick={() => setIsAddOpen(true)}
           data-testid="add-lesson"
-          className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-transparent px-5 py-4 text-sm font-medium text-zinc-500 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+          className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-transparent px-5 py-4 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
         >
           <Plus className="h-4 w-4" />
           Add lesson

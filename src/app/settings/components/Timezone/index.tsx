@@ -44,7 +44,7 @@ export default function Timezone() {
   return (
     <section className="panel p-6">
       <h2 className="mb-1 text-lg font-semibold text-foreground">Time Zone</h2>
-      <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="mb-4 text-sm text-muted-foreground">
         Daily stats, streaks and review days roll over at midnight in this time zone.
       </p>
       <select

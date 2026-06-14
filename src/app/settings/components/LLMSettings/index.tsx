@@ -316,12 +316,12 @@ export default function LLMSettings() {
         <div className="flex items-center gap-2">
           <span
             className={clsx(`inline-block h-2 w-2 rounded-full`, {
-              'bg-green-500': llmStatus?.ok,
-              'bg-red-500': !llmStatus?.ok,
+              'bg-primary': llmStatus?.ok,
+              'bg-destructive': !llmStatus?.ok,
               'bg-yellow-500': isFetchingLlmStatus,
             })}
           />
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">
+          <span className="text-sm text-muted-foreground">
             {llmStatus?.ok ? 'Connected' : llmStatus?.error || 'Not connected'}
             <Button variant="link" onClick={testLLMConnection} disabled={isFetchingLlmStatus}>
               {isFetchingLlmStatus ? 'Checking...' : 'Refresh'}
@@ -329,14 +329,14 @@ export default function LLMSettings() {
           </span>
         </div>
       </div>
-      <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mb-4 text-sm text-muted-foreground">
         Choose how translations are powered. Ollama runs locally (no API key needed). Anthropic uses
         cloud AI for higher quality. Apfel is an OpenAI-compatible API you can self-host.
       </p>
 
       {/* Provider selector */}
       <div className="mb-4">
-        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="mb-2 block text-sm font-medium text-foreground">
           Provider
         </label>
         <select
@@ -354,7 +354,7 @@ export default function LLMSettings() {
       {/* Ollama settings */}
       {llmProvider === 'ollama' && (
         <div className="mb-4">
-          <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          <label className="mb-2 block text-sm font-medium text-foreground">
             Model
           </label>
           <select
@@ -368,7 +368,7 @@ export default function LLMSettings() {
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             The model will be downloaded automatically on first use.
           </p>
         </div>
@@ -380,7 +380,7 @@ export default function LLMSettings() {
           {/* Auth mode toggle — only when both credentials are configured */}
           {hasApiKey && hasOauthToken && (
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label className="mb-2 block text-sm font-medium text-foreground">
                 Authentication Method
               </label>
               <div className="flex gap-2">
@@ -407,7 +407,7 @@ export default function LLMSettings() {
                   OAuth Token
                 </button>
               </div>
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Both credentials are configured. Choose which to use — connection will be tested
                 automatically.
               </p>
@@ -416,10 +416,10 @@ export default function LLMSettings() {
 
           {/* API Key */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-2 block text-sm font-medium text-foreground">
               API Key
             </label>
-            <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+            <p className="mb-2 text-xs text-muted-foreground">
               Get your API key from{' '}
               <a
                 href="https://console.anthropic.com/"
@@ -432,8 +432,8 @@ export default function LLMSettings() {
             </p>
             {hasApiKey && !editingApiKey ? (
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                  <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--primary-soft)] px-3 py-2 text-sm font-medium text-primary ">
+                  <span className="inline-block h-2 w-2 rounded-full bg-primary" />
                   Configured
                 </span>
                 <button
@@ -481,25 +481,25 @@ export default function LLMSettings() {
           </div>
 
           <div className="relative flex items-center py-2">
-            <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
-            <span className="mx-3 flex-shrink text-xs text-zinc-400 dark:text-zinc-500">or</span>
-            <div className="flex-grow border-t border-zinc-200 dark:border-zinc-700" />
+            <div className="flex-grow border-t border-border" />
+            <span className="mx-3 flex-shrink text-xs text-muted-foreground">or</span>
+            <div className="flex-grow border-t border-border" />
           </div>
 
           {/* OAuth Token */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              OAuth Token <span className="font-normal text-zinc-400">(Pro/Team plan)</span>
+            <label className="mb-2 block text-sm font-medium text-foreground">
+              OAuth Token <span className="font-normal text-muted-foreground">(Pro/Team plan)</span>
             </label>
-            <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+            <p className="mb-2 text-xs text-muted-foreground">
               Uses your Claude Pro or Team subscription credits. Run{' '}
               <code className="rounded bg-muted px-1">claude setup-token</code>{' '}
               to obtain a token. Note: slower initial startup than API keys.
             </p>
             {hasOauthToken && !editingOauthToken ? (
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                  <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--primary-soft)] px-3 py-2 text-sm font-medium text-primary ">
+                  <span className="inline-block h-2 w-2 rounded-full bg-primary" />
                   Configured
                 </span>
                 <button
@@ -552,7 +552,7 @@ export default function LLMSettings() {
       {llmProvider === 'lmstudio' && (
         <div className="mb-4 space-y-4" data-testid="lmstudio-settings">
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-2 block text-sm font-medium text-foreground">
               Endpoint
             </label>
             <input
@@ -563,7 +563,7 @@ export default function LLMSettings() {
               data-testid="lmstudio-endpoint"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
             />
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               The URL of your LM Studio server (default port 1234). The app talks to it server-side,
               so localhost works even when lector is hosted elsewhere — set this to a reachable
               address.
@@ -571,13 +571,13 @@ export default function LLMSettings() {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-2 block text-sm font-medium text-foreground">
               API Key (optional)
             </label>
             {hasLmstudioApiKey && !editingLmstudioApiKey ? (
               <div className="flex items-center gap-2">
                 <span
-                  className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                  className="inline-flex items-center rounded-md bg-[var(--primary-soft)] px-2 py-1 text-xs font-medium text-primary "
                   data-testid="lmstudio-api-key-status"
                 >
                   Configured
@@ -632,14 +632,14 @@ export default function LLMSettings() {
                 )}
               </div>
             )}
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Sent as a Bearer token from the server (never exposed to the browser after save). Only
               needed for reverse-proxied or LM Studio Cloud setups.
             </p>
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-2 block text-sm font-medium text-foreground">
               Model
             </label>
             <div className="flex gap-2">
@@ -680,7 +680,7 @@ export default function LLMSettings() {
             </div>
             {lmstudioFetchError && (
               <p
-                className="mt-1 text-xs text-red-600 dark:text-red-400"
+                className="mt-1 text-xs text-destructive"
                 data-testid="lmstudio-fetch-error"
               >
                 {lmstudioFetchError}
@@ -689,7 +689,7 @@ export default function LLMSettings() {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-2 block text-sm font-medium text-foreground">
               Load model
             </label>
             <div className="flex items-center gap-3">
@@ -707,11 +707,11 @@ export default function LLMSettings() {
                 data-status={lmstudioLoadStatus}
                 className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                   lmstudioLoadStatus === 'loaded'
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                    ? 'bg-[var(--primary-soft)] text-primary '
                     : lmstudioLoadStatus === 'loading'
                       ? 'bg-[var(--primary-soft)] text-primary'
                       : lmstudioLoadStatus === 'errored'
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                        ? 'bg-[color-mix(in_srgb,var(--destructive)_15%,var(--card))] text-destructive '
                         : 'bg-secondary text-secondary-foreground'
                 }`}
               >
@@ -726,13 +726,13 @@ export default function LLMSettings() {
             </div>
             {lmstudioLoadError && (
               <p
-                className="mt-1 text-xs text-red-600 dark:text-red-400"
+                className="mt-1 text-xs text-destructive"
                 data-testid="lmstudio-load-error"
               >
                 {lmstudioLoadError}
               </p>
             )}
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Loads the selected model on the LM Studio server. Make sure LM Studio&apos;s
               &ldquo;auto-load&rdquo; is enabled if you want JIT loading on chat too.
             </p>
@@ -744,7 +744,7 @@ export default function LLMSettings() {
       {llmProvider === 'apfel' && (
         <div className="mb-4 space-y-4">
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-2 block text-sm font-medium text-foreground">
               Server URL
             </label>
             <input
@@ -754,12 +754,12 @@ export default function LLMSettings() {
               placeholder="http://localhost:11434"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
             />
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               The URL of your Apfel instance (OpenAI-compatible API)
             </p>
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-2 block text-sm font-medium text-foreground">
               Model
             </label>
             <input
@@ -769,7 +769,7 @@ export default function LLMSettings() {
               placeholder="default"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
             />
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               The model name configured on your Apfel server
             </p>
           </div>

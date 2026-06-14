@@ -188,7 +188,7 @@ export default function ChatWidget() {
       {/* Floating trigger button */}
       <Button
         onClick={toggleOpen}
-        className="fixed right-4 bottom-20 z-50 flex h-12 w-12 rounded-full bg-indigo-600 text-white shadow-lg transition-all hover:bg-indigo-700 hover:shadow-xl sm:right-6 sm:bottom-6"
+        className="fixed right-4 bottom-20 z-50 flex h-12 w-12 rounded-full shadow-lg transition-all hover:shadow-xl sm:right-6 sm:bottom-6"
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
         data-testid="chat-toggle"
       >
@@ -198,23 +198,23 @@ export default function ChatWidget() {
       {/* Chat panel */}
       {isOpen && (
         <div
-          className="fixed right-4 bottom-36 z-50 flex h-[80vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl sm:right-6 sm:bottom-20 sm:w-96 dark:border-gray-700 dark:bg-gray-800"
+          className="fixed right-4 bottom-36 z-50 flex h-[80vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl sm:right-6 sm:bottom-20 sm:w-96"
           data-testid="chat-panel"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/80">
+          <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-3">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              <h3 className="text-sm font-semibold text-foreground">
                 {activeLang.name} Tutor
               </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 Ask anything about {activeLang.name}
               </p>
             </div>
             <Button
               variant="ghost"
               onClick={clearChat}
-              className="text-xs text-gray-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
+              className="text-xs text-muted-foreground transition-colors hover:text-destructive"
               title="Clear chat"
               data-testid="chat-clear"
             >
@@ -230,14 +230,14 @@ export default function ChatWidget() {
             data-testid="chat-messages"
           >
             {loadingHistory && (
-              <div className="py-2 text-center text-xs text-gray-400">
+              <div className="py-2 text-center text-xs text-muted-foreground">
                 Loading older messages...
               </div>
             )}
 
             {messages.length === 0 && !loading && (
               <div className="flex h-full flex-col items-center justify-center text-center">
-                <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mb-4 text-sm text-muted-foreground">
                   Ask a question about {activeLang.name}
                 </p>
                 <div className="w-full space-y-2">
@@ -246,7 +246,7 @@ export default function ChatWidget() {
                       variant="ghost"
                       key={prompt}
                       onClick={() => sendMessage(prompt)}
-                      className="block h-auto w-full cursor-pointer rounded-lg bg-gray-100 px-3 py-2 text-left text-xs whitespace-normal text-gray-600 transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400"
+                      className="block h-auto w-full cursor-pointer rounded-lg bg-muted px-3 py-2 text-left text-xs whitespace-normal text-muted-foreground transition-colors hover:bg-[var(--primary-soft)] hover:text-primary"
                       data-testid="chat-example-prompt"
                     >
                       {prompt}
@@ -264,8 +264,8 @@ export default function ChatWidget() {
                 <div
                   className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                     msg.role === 'user'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-gray-100'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground'
                   }`}
                 >
                   <div className="break-words whitespace-pre-wrap">{msg.content}</div>
@@ -280,7 +280,7 @@ export default function ChatWidget() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-400 dark:bg-gray-700">
+                <div className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
                   <span className="inline-flex gap-1">
                     <span className="animate-bounce" style={{ animationDelay: '0ms' }}>
                       .
@@ -300,7 +300,7 @@ export default function ChatWidget() {
           </div>
 
           {/* Input */}
-          <div className="border-t border-gray-200 px-3 py-2 dark:border-gray-700">
+          <div className="border-t border-border px-3 py-2">
             <div className="flex items-end gap-2">
               <textarea
                 ref={inputRef}
@@ -309,14 +309,14 @@ export default function ChatWidget() {
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about Afrikaans..."
                 rows={1}
-                className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-transparent focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
                 disabled={loading}
                 data-testid="chat-input"
               />
               <Button
                 onClick={() => sendMessage()}
                 disabled={loading || !input.trim()}
-                className="cursor-pointer bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                className="cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="chat-send"
               >
                 <SendHorizonal className="-rotate-90" />

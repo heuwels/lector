@@ -12,7 +12,7 @@ export default function ThemeSettings() {
     <section className="panel p-6">
       <h2 className="mb-4 text-lg font-semibold text-foreground">Appearance</h2>
       <div>
-        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="mb-2 block text-sm font-medium text-foreground">
           Theme
         </label>
         <div className="flex gap-2">

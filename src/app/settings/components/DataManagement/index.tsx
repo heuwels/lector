@@ -54,7 +54,7 @@ export default function DataManagement() {
   };
 
   return (
-    <section className="rounded-lg border border-red-200 bg-white p-6 dark:border-red-900/50 dark:bg-zinc-900">
+    <section className="rounded-lg border border-destructive/30 bg-card p-6 ">
       <h2 className="mb-4 text-lg font-semibold text-foreground">
         Data Management
       </h2>

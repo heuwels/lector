@@ -691,8 +691,8 @@ export default function PracticePage() {
               );
               if (totalDue === 0) return null;
               return (
-                <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-800/50 dark:bg-amber-950/20">
-                  <h2 className="mb-3 text-base font-semibold text-amber-800 dark:text-amber-300">
+                <div className="mb-8 rounded-2xl border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-5">
+                  <h2 className="mb-3 text-base font-semibold text-[var(--gold-strong)]">
                     Review Due ({totalDue})
                   </h2>
                   <div className="space-y-2">
@@ -708,12 +708,12 @@ export default function PracticePage() {
                             setRoundSize(Math.min(due, 20) as RoundSize);
                             startRoundWith(coll, 'review', Math.min(due, 20));
                           }}
-                          className="flex w-full items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 transition-all hover:border-amber-400 active:scale-[0.98] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-amber-600"
+                          className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition-all hover:border-[var(--gold-strong)] active:scale-[0.98]"
                         >
-                          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                          <span className="font-medium text-foreground">
                             {COLLECTION_LABELS[coll]}
                           </span>
-                          <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                          <span className="text-sm font-semibold text-[var(--gold-strong)]">
                             {due} due
                           </span>
                         </button>
@@ -725,8 +725,8 @@ export default function PracticePage() {
             })()}
 
             {/* Learn New section */}
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-              <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <h2 className="mb-4 text-base font-semibold text-foreground">
                 Learn New
               </h2>
 
@@ -757,7 +757,7 @@ export default function PracticePage() {
               {/* Round size + Mode in a row */}
               <div className="mb-4 flex gap-4">
                 <div className="flex-1">
-                  <label className="mb-2 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  <label className="mb-2 block text-xs font-medium text-muted-foreground">
                     Sentences
                   </label>
                   <div className="flex gap-1.5">
@@ -777,7 +777,7 @@ export default function PracticePage() {
                   </div>
                 </div>
                 <div className="">
-                  <label className="mb-2 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  <label className="mb-2 block text-xs font-medium text-muted-foreground">
                     Mode
                   </label>
                   <div className="flex gap-1.5">
@@ -824,7 +824,7 @@ export default function PracticePage() {
               >
                 &larr; Back
               </button>
-              <span className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--gold-strong)]">
                 <Star className="h-4 w-4" fill="currentColor" />
                 {points.toLocaleString()}
               </span>
@@ -832,7 +832,7 @@ export default function PracticePage() {
 
             {/* Round progress bar */}
             <div>
-              <div className="flex items-center justify-between text-sm text-zinc-500 dark:text-zinc-400">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>{COLLECTION_LABELS[selectedCollection]}</span>
                 <span className="font-medium">
                   {roundProgress}/{roundSize}
@@ -850,12 +850,12 @@ export default function PracticePage() {
 
         {/* Main content area */}
         {state !== 'setup' && (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             {/* Loading state */}
             {state === 'loading' && (
               <div className="flex flex-col items-center justify-center py-12">
-                <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-blue-500 dark:border-zinc-700 dark:border-t-blue-400" />
-                <p className="text-zinc-500 dark:text-zinc-400">Loading sentences...</p>
+                <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
+                <p className="text-muted-foreground">Loading sentences...</p>
               </div>
             )}
 
@@ -865,10 +865,10 @@ export default function PracticePage() {
               (() => {
                 const fuzzyStatus = getFuzzyStatus(userAnswer, current.sentence.clozeWord);
                 const inputColorClass = {
-                  empty: 'border-blue-400 bg-blue-50 dark:bg-blue-950/50',
-                  match: 'border-green-500 bg-green-50 dark:bg-green-950/50',
-                  partial: 'border-green-400 bg-green-50/50 dark:bg-green-950/30',
-                  wrong: 'border-red-400 bg-red-50 dark:bg-red-950/50',
+                  empty: 'border-[var(--clay)] bg-[color-mix(in_srgb,var(--clay)_14%,var(--card))]',
+                  match: 'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))]',
+                  partial: 'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))]',
+                  wrong: 'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))]',
                 }[fuzzyStatus];
 
                 const words = current.sentence.sentence.split(/\s+/);
@@ -883,7 +883,7 @@ export default function PracticePage() {
                     {/* Sentence with inline input or blank */}
                     <div className="mb-6">
                       <div className="mb-4 flex items-center justify-between">
-                        <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                        <span className="text-sm font-medium text-muted-foreground">
                           {practiceMode === 'mc' || mcFallback
                             ? 'Choose the correct word'
                             : 'Fill in the blank'}
@@ -893,7 +893,7 @@ export default function PracticePage() {
                           onSentenceBlacklisted={handleSentenceBlacklisted}
                         />
                       </div>
-                      <p className="text-xl leading-loose font-medium text-zinc-900 dark:text-zinc-50">
+                      <p className="text-xl leading-loose font-medium text-foreground">
                         {words.map((word, i) => (
                           <span key={i}>
                             {i > 0 && ' '}
@@ -916,12 +916,12 @@ export default function PracticePage() {
                                     autoCorrect="off"
                                     spellCheck={false}
                                     placeholder="..."
-                                    className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium transition-all outline-none focus:ring-2 focus:ring-offset-1 ${inputColorClass} ${fuzzyStatus === 'match' ? 'text-green-700 focus:ring-green-400 dark:text-green-300' : ''} ${fuzzyStatus === 'partial' ? 'text-green-600 focus:ring-green-400 dark:text-green-400' : ''} ${fuzzyStatus === 'wrong' ? 'text-red-600 focus:ring-red-400 dark:text-red-400' : ''} ${fuzzyStatus === 'empty' ? 'text-zinc-900 focus:ring-blue-400 dark:text-zinc-100' : ''} `}
+                                    className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium transition-all outline-none focus:ring-2 focus:ring-offset-1 ${inputColorClass} ${fuzzyStatus === 'match' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'partial' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'wrong' ? 'text-destructive focus:ring-destructive' : ''} ${fuzzyStatus === 'empty' ? 'text-foreground focus:ring-ring' : ''} `}
                                     style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
                                   />
                                 ) : (
                                   <span
-                                    className="inline-block rounded-lg border-2 border-blue-400 bg-blue-50 px-3 py-1 text-center text-xl font-bold text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"
+                                    className="inline-block rounded-lg border-2 border-[var(--clay)] bg-[color-mix(in_srgb,var(--clay)_14%,var(--card))] px-3 py-1 text-center text-xl font-bold text-foreground"
                                     style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
                                   >
                                     _____
@@ -933,7 +933,7 @@ export default function PracticePage() {
                               <span
                                 data-testid="cloze-word"
                                 onClick={() => handleWordClick(word)}
-                                className="cursor-pointer rounded px-0.5 transition-colors hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/40 dark:hover:text-blue-300"
+                                className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent hover:text-foreground"
                               >
                                 {word}
                               </span>
@@ -942,7 +942,7 @@ export default function PracticePage() {
                         ))}
                       </p>
                       {/* English translation */}
-                      <p className="mt-3 text-base text-zinc-500 italic dark:text-zinc-400">
+                      <p className="mt-3 text-base text-muted-foreground italic">
                         {current.sentence.translation}
                       </p>
                     </div>
@@ -1023,7 +1023,7 @@ export default function PracticePage() {
                       </div>
                     )}
                     {/* Mastery indicator */}
-                    <div className="mt-6 flex items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
                       <span>Mastery:</span>
                       <div className="flex h-2 w-24 overflow-hidden rounded-full bg-muted">
                         <div
@@ -1042,7 +1042,7 @@ export default function PracticePage() {
               <div>
                 <div className="mb-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                    <span className="text-sm font-medium text-muted-foreground">
                       {feedbackData.isCorrect ? 'Correct!' : 'Incorrect'}
                     </span>
                     {ttsSupported && feedbackData.isCorrect && (
@@ -1052,7 +1052,7 @@ export default function PracticePage() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-xl leading-relaxed font-medium text-zinc-900 dark:text-zinc-50">
+                  <p className="text-xl leading-relaxed font-medium text-foreground">
                     {current.sentence.sentence.split(/\s+/).map((word, i) => (
                       <span key={i}>
                         {i > 0 && ' '}
@@ -1062,8 +1062,8 @@ export default function PracticePage() {
                             onClick={() => handleWordClick(word)}
                             className={`cursor-pointer rounded px-1 font-bold ${
                               feedbackData.isCorrect
-                                ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70'
-                                : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900/70'
+                                ? 'border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
+                                : 'border border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
                             }`}
                           >
                             {word}
@@ -1072,7 +1072,7 @@ export default function PracticePage() {
                           <span
                             data-testid="cloze-word"
                             onClick={() => handleWordClick(word)}
-                            className="cursor-pointer rounded px-0.5 transition-colors hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/40 dark:hover:text-blue-300"
+                            className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent hover:text-foreground"
                           >
                             {word}
                           </span>
@@ -1080,7 +1080,7 @@ export default function PracticePage() {
                       </span>
                     ))}
                   </p>
-                  <p className="mt-2 text-base text-zinc-500 italic dark:text-zinc-400">
+                  <p className="mt-2 text-base text-muted-foreground italic">
                     {current.sentence.translation}
                   </p>
                 </div>
@@ -1105,16 +1105,16 @@ export default function PracticePage() {
 
             {state === 'complete' && (
               <div className="py-8 text-center">
-                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400">
+                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary">
                   <CheckCircle className="h-8 w-8" />
                 </div>
-                <h2 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-50">
+                <h2 className="mb-2 text-xl font-bold text-foreground">
                   Round Complete!
                 </h2>
-                <p className="mb-1 text-zinc-500 dark:text-zinc-400">
+                <p className="mb-1 text-muted-foreground">
                   {roundCorrect}/{roundProgress} correct
                 </p>
-                <p className="mb-6 text-sm text-zinc-400 dark:text-zinc-500">
+                <p className="mb-6 text-sm text-muted-foreground">
                   {points.toLocaleString()} total points
                 </p>
                 <div className="flex justify-center gap-3">

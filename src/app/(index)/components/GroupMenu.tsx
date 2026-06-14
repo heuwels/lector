@@ -1,5 +1,6 @@
 import { MoreVertical } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 export default function GroupMenu({
   onRename,
@@ -24,21 +25,22 @@ export default function GroupMenu({
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={() => setIsOpen(!isOpen)}
-        className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         data-testid="group-menu-btn"
       >
         <MoreVertical className="h-4 w-4" />
-      </button>
+      </Button>
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-1 w-36 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+        <div className="absolute right-0 z-50 mt-1 w-36 rounded-lg border border-border bg-card py-1 shadow-lg">
           <button
             onClick={() => {
               setIsOpen(false);
               onRename();
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-accent"
             data-testid="group-rename-btn"
           >
             Rename
@@ -48,7 +50,7 @@ export default function GroupMenu({
               setIsOpen(false);
               onDelete();
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-accent"
             data-testid="group-delete-btn"
           >
             Delete

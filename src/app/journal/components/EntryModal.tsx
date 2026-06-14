@@ -16,16 +16,16 @@ export default function EntryModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl dark:bg-zinc-900"
+        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-card p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-lg font-semibold text-foreground">
             {formatDateTime(entry.createdAt)}
           </h2>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="text-muted-foreground hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -33,7 +33,7 @@ export default function EntryModal({
         {entry.status === 'submitted' ? (
           <CorrectionView entry={entry} />
         ) : (
-          <div className="rounded-lg bg-zinc-50 p-4 text-sm leading-relaxed whitespace-pre-wrap dark:bg-zinc-800">
+          <div className="rounded-lg bg-muted p-4 text-sm leading-relaxed whitespace-pre-wrap">
             {entry.body}
           </div>
         )}

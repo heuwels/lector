@@ -54,10 +54,10 @@ export default function AnkiSettings() {
         <div className="flex items-center gap-2">
           <span
             className={`inline-block h-2 w-2 rounded-full ${
-              ankiConnected ? 'bg-green-500' : 'bg-red-500'
+              ankiConnected ? 'bg-primary' : 'bg-destructive'
             }`}
           />
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">
+          <span className="text-sm text-muted-foreground">
             {ankiConnected ? 'Connected' : 'Not connected'}
           </span>
           <Button variant="link" onClick={checkAnkiConnection} disabled={ankiLoading}>
@@ -67,16 +67,16 @@ export default function AnkiSettings() {
       </div>
 
       {ankiError && (
-        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+        <div className="rounded-md bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] p-3 text-sm text-destructive ">
           {ankiError}
         </div>
       )}
 
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="block text-sm font-medium text-foreground">
           AnkiConnect URL
         </label>
-        <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+        <p className="mb-2 text-xs text-muted-foreground">
           Hint: Use Tailscale IP for remote Anki (e.g., http://100.x.x.x:8765)
         </p>
         <input
@@ -95,10 +95,10 @@ export default function AnkiSettings() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="block text-sm font-medium text-foreground">
           Vocab Deck
         </label>
-        <p className="mb-1 text-xs text-zinc-500 dark:text-zinc-500">
+        <p className="mb-1 text-xs text-muted-foreground">
           Deck for basic cards from reader vocabulary
         </p>
         {ankiConnected && ankiDecks.length > 0 ? (
@@ -124,10 +124,10 @@ export default function AnkiSettings() {
         )}
       </div>
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="block text-sm font-medium text-foreground">
           Cloze Practice Deck
         </label>
-        <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+        <p className="mb-2 text-xs text-muted-foreground">
           Deck for cloze cards from practice mode
         </p>
         {ankiConnected && ankiDecks.length > 0 ? (
@@ -160,10 +160,10 @@ export default function AnkiSettings() {
         )}
       </div>
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="block text-sm font-medium text-foreground">
           Default Card Type
         </label>
-        <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+        <p className="mb-2 text-xs text-muted-foreground">
           Basic shows front/back, Cloze creates fill-in-the-blank cards
         </p>
         <div className="grid grid-cols-2 gap-2">

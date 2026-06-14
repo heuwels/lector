@@ -13,6 +13,7 @@ import type { WordState } from '@/types';
 import { snapToWordBoundaries } from './utils';
 import { stateClasses } from './theme';
 import { MarkdownReaderProps } from './types';
+import { Button } from '@/components/ui/button';
 
 export default function MarkdownReader({
     lesson,
@@ -213,15 +214,15 @@ export default function MarkdownReader({
     }, [onWordClick, highlightPhrase]);
 
     return (
-        <div className="flex flex-col h-full bg-[#faf8f5] dark:bg-zinc-900">
+        <div className="flex flex-col h-full bg-card">
             {/* Header */}
-            <header className="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-700">
+            <header className="flex items-center justify-between px-4 py-2 border-b border-border">
                 <button
                     onClick={onClose}
                     disabled={isEditing}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg
-            text-zinc-600 dark:text-zinc-400
-            hover:bg-zinc-100 dark:hover:bg-zinc-800
+            text-muted-foreground
+            hover:bg-accent
             transition-colors
             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 >
@@ -229,40 +230,33 @@ export default function MarkdownReader({
                     <span className="hidden sm:inline">Back</span>
                 </button>
 
-                <h1 className="text-sm sm:text-lg font-medium text-zinc-900 dark:text-zinc-100 truncate flex-1 text-center mx-2">
+                <h1 className="text-sm sm:text-lg font-medium text-foreground truncate flex-1 text-center mx-2">
                     {lesson.title}
                 </h1>
 
                 {isEditing ? (
                     <div className="flex items-center gap-2">
-                        <button
+                        <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={cancelEdit}
                             disabled={isSaving}
                             data-testid="edit-text-cancel"
-                            className="px-3 py-1.5 text-sm rounded-lg
-                text-zinc-700 dark:text-zinc-300
-                hover:bg-zinc-100 dark:hover:bg-zinc-800
-                transition-colors
-                disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             Cancel
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                            size="sm"
                             onClick={saveEdit}
                             disabled={isSaving}
                             data-testid="edit-text-save"
-                            className="px-3 py-1.5 text-sm font-medium rounded-lg
-                bg-blue-600 text-white
-                hover:bg-blue-700
-                transition-colors
-                disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {isSaving ? 'Saving…' : 'Save changes'}
-                        </button>
+                        </Button>
                     </div>
                 ) : (
                     <div className="flex items-center gap-2">
-                        <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                        <div className="text-sm text-muted-foreground">
                             {scrollPercentage}%
                         </div>
                         {onSaveText && (
@@ -272,8 +266,8 @@ export default function MarkdownReader({
                                 title="Edit text"
                                 aria-label="Edit text"
                                 className="p-2 rounded-lg
-                  text-zinc-600 dark:text-zinc-400
-                  hover:bg-zinc-100 dark:hover:bg-zinc-800
+                  text-muted-foreground
+                  hover:bg-accent
                   transition-colors"
                             >
                                 <SquarePen className="w-5 h-5" />
@@ -300,31 +294,31 @@ export default function MarkdownReader({
                             autoFocus
                             spellCheck={false}
                             className="w-full min-h-[60vh] p-4 rounded-lg
-                border border-zinc-300 dark:border-zinc-600
-                bg-white dark:bg-zinc-800
-                text-zinc-800 dark:text-zinc-200
+                border border-input
+                bg-background
+                text-foreground
                 text-base leading-relaxed
                 font-mono
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring
                 disabled:opacity-60 disabled:cursor-not-allowed
                 resize-y"
                         />
                         {saveError && (
                             <p
                                 data-testid="edit-text-error"
-                                className="mt-2 text-sm text-red-500 dark:text-red-400"
+                                className="mt-2 text-sm text-destructive"
                             >
                                 {saveError}
                             </p>
                         )}
-                        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        <p className="mt-2 text-xs text-muted-foreground">
                             Markdown is supported. Vocab state is keyed by word, so edits don&apos;t reset your progress.
                         </p>
                     </div>
                 ) : (
                     <article className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-16 prose prose-zinc dark:prose-invert
-            prose-p:text-lg sm:prose-p:text-2xl prose-p:leading-[1.9] prose-p:text-zinc-700 dark:prose-p:text-zinc-300
-            prose-headings:font-sans prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100
+            prose-p:text-lg sm:prose-p:text-2xl prose-p:leading-[1.9] prose-p:text-foreground
+            prose-headings:font-sans prose-headings:text-foreground
             prose-li:text-lg sm:prose-li:text-xl prose-li:leading-relaxed"
                         style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}>
                         <ReactMarkdown
@@ -348,8 +342,8 @@ export default function MarkdownReader({
                             <button
                                 onClick={() => router.push(`/read/${prevLesson.id}`)}
                                 className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm
-                  text-zinc-600 dark:text-zinc-400
-                  hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  text-muted-foreground
+                  hover:bg-accent transition-colors"
                             >
                                 <ChevronLeft className="w-4 h-4" />
                                 <span className="truncate max-w-[12em]">{prevLesson.title}</span>
@@ -359,8 +353,8 @@ export default function MarkdownReader({
                             <button
                                 onClick={() => router.push(`/read/${nextLesson.id}`)}
                                 className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm
-                  text-zinc-600 dark:text-zinc-400
-                  hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  text-muted-foreground
+                  hover:bg-accent transition-colors"
                             >
                                 <span className="truncate max-w-[12em]">{nextLesson.title}</span>
                                 <ChevronRight className="w-4 h-4" />

@@ -140,7 +140,7 @@ export default function JournalPage() {
       {showEditor && (
         <section className="mb-10">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            <h2 className="text-sm font-medium text-muted-foreground">
               {formatDate(new Date().toISOString())}
             </h2>
             <Button
@@ -161,43 +161,42 @@ export default function JournalPage() {
               value={bodyText}
               onChange={(e) => handleBodyChange(e.target.value)}
               placeholder="Skryf vandag se joernaal inskrywing in Afrikaans..."
-              className="min-h-[160px] w-full resize-y rounded-lg border border-zinc-300 bg-white p-4 text-sm leading-relaxed text-zinc-900 placeholder-zinc-400 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+              className="min-h-[160px] w-full resize-y rounded-lg border border-input bg-background p-4 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
               disabled={isSubmitting}
               autoFocus
             />
 
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span>
                   {wordCount} word{wordCount > 1 ? 's' : ''}
                 </span>
                 {saveStatus && (
-                  <span className="text-green-600 dark:text-green-400">{saveStatus}</span>
+                  <span className="text-primary">{saveStatus}</span>
                 )}
               </div>
 
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   onClick={handleSaveDraft}
                   disabled={isSaving || isSubmitting || !bodyText.trim()}
-                  className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  variant="secondary"
                 >
                   {isSaving ? 'Saving...' : 'Save Draft'}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleSubmit}
                   disabled={isSubmitting || !bodyText.trim()}
-                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                 >
                   {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isSubmitting ? 'Correcting...' : 'Submit for Correction'}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
 
           {error && (
-            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+            <div className="mt-3 rounded-lg border border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] p-3 text-sm text-destructive">
               {error}
             </div>
           )}
@@ -205,7 +204,7 @@ export default function JournalPage() {
       )}
       {entries.length > 0 ? (
         <section>
-          <h2 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          <h2 className="mb-3 text-sm font-medium text-muted-foreground">
             {entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}
           </h2>
           <div className="space-y-2">
@@ -227,7 +226,7 @@ export default function JournalPage() {
         </section>
       ) : !showEditor ? (
         <div className="py-16 text-center">
-          <p className="mb-4 text-zinc-500 dark:text-zinc-400">No journal entries yet</p>
+          <p className="mb-4 text-muted-foreground">No journal entries yet</p>
           <Button onClick={handleNewEntry}>Write your first entry</Button>
         </div>
       ) : null}

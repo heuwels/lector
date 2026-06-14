@@ -214,7 +214,7 @@ export default function VocabList({
             placeholder="Search words, translations, or sentences..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
+            className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
           />
         </div>
 
@@ -222,7 +222,7 @@ export default function VocabList({
         <select
           value={stateFilter}
           onChange={(e) => setStateFilter(e.target.value as WordState | 'all' | 'learning')}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
         >
           {stateFilters.map((filter) => (
             <option key={filter.value} value={filter.value}>
@@ -235,7 +235,7 @@ export default function VocabList({
         <select
           value={bookFilter}
           onChange={(e) => setBookFilter(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
         >
           <option value="all">All Collections</option>
           {collections.map((c) => (
@@ -294,56 +294,56 @@ export default function VocabList({
       </div>
 
       {/* Results count */}
-      <div className="text-sm text-gray-600 dark:text-gray-400">
+      <div className="text-sm text-muted-foreground">
         Showing {filteredEntries.length} of {entries.length} entries
         {someSelected && ` (${selectedIds.size} selected)`}
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-left">
-          <thead className="bg-gray-50 dark:bg-gray-800">
+          <thead className="bg-muted">
             <tr>
               <th className="w-12 px-4 py-3">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                 />
               </th>
               <th
-                className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground hover:text-foreground"
                 onClick={() => handleSort('text')}
               >
                 Word/Phrase
                 <SortIndicator field="text" />
               </th>
-              <th className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
+              <th className="px-4 py-3 text-sm font-semibold text-foreground">
                 Translation
               </th>
               <th
-                className="cursor-pointer px-4 py-3 text-center text-sm font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                className="cursor-pointer px-4 py-3 text-center text-sm font-semibold text-foreground hover:text-foreground"
                 onClick={() => handleSort('state')}
               >
                 State
                 <SortIndicator field="state" />
               </th>
               <th
-                className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground hover:text-foreground"
                 onClick={() => handleSort('bookId')}
               >
                 Source
                 <SortIndicator field="bookId" />
               </th>
               <th
-                className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground hover:text-foreground"
                 onClick={() => handleSort('createdAt')}
               >
                 Date Added
                 <SortIndicator field="createdAt" />
               </th>
-              <th className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
+              <th className="px-4 py-3 text-sm font-semibold text-foreground">
                 Anki
               </th>
             </tr>
@@ -353,14 +353,14 @@ export default function VocabList({
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center">
                   <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                    <span className="text-gray-600 dark:text-gray-400">Loading vocabulary...</span>
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="text-muted-foreground">Loading vocabulary...</span>
                   </div>
                 </td>
               </tr>
             ) : filteredEntries.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                   {entries.length === 0
                     ? 'No vocabulary entries yet. Start reading to add words!'
                     : 'No entries match your filters.'}
@@ -392,13 +392,13 @@ export default function VocabList({
           aria-label="Export to Anki"
         >
           <div
-            className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-zinc-900"
+            className="w-full max-w-md rounded-xl bg-card p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            <h2 className="mb-1 text-lg font-semibold text-foreground">
               Export to Anki
             </h2>
-            <p className="mb-5 text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="mb-5 text-sm text-muted-foreground">
               {selectedIds.size} {selectedIds.size === 1 ? 'word' : 'words'} selected. Choose a card
               type.
             </p>
@@ -411,17 +411,17 @@ export default function VocabList({
                 onClick={() => updateCardType('basic')}
                 className={`rounded-lg border p-4 text-left transition-colors ${
                   cardType === 'basic'
-                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-900/20'
-                    : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600'
+                    ? 'border-primary bg-[var(--primary-soft)] ring-2 ring-primary'
+                    : 'border-border hover:border-foreground/30'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-zinc-900 dark:text-zinc-100">Basic</span>
+                  <span className="font-medium text-foreground">Basic</span>
                   {cardType === 'basic' && (
-                    <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" strokeWidth={3} />
+                    <Check className="h-4 w-4 text-primary" strokeWidth={3} />
                   )}
                 </div>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Front/back card. Sentence on front, translation on back.
                 </p>
               </button>
@@ -433,38 +433,37 @@ export default function VocabList({
                 onClick={() => updateCardType('cloze')}
                 className={`rounded-lg border p-4 text-left transition-colors ${
                   cardType === 'cloze'
-                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-900/20'
-                    : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600'
+                    ? 'border-primary bg-[var(--primary-soft)] ring-2 ring-primary'
+                    : 'border-border hover:border-foreground/30'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-zinc-900 dark:text-zinc-100">Cloze</span>
+                  <span className="font-medium text-foreground">Cloze</span>
                   {cardType === 'cloze' && (
-                    <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" strokeWidth={3} />
+                    <Check className="h-4 w-4 text-primary" strokeWidth={3} />
                   )}
                 </div>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Word is hidden in the sentence; recall it from context.
                 </p>
               </button>
             </div>
 
             <div className="flex justify-end gap-2">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setExportModalOpen(false)}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 data-testid="anki-export-confirm"
                 onClick={confirmExportToAnki}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
                 Export {selectedIds.size} {selectedIds.size === 1 ? 'card' : 'cards'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

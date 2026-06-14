@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button';
+
 export default function AddCollectionTile({
   value,
   onChange,
@@ -15,7 +17,7 @@ export default function AddCollectionTile({
         e.preventDefault();
         onSubmit();
       }}
-      className="flex min-h-[14rem] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-zinc-300 p-4 dark:border-zinc-700"
+      className="flex min-h-[14rem] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border p-4"
     >
       <input
         type="text"
@@ -27,23 +29,15 @@ export default function AddCollectionTile({
         placeholder="Collection title"
         autoFocus
         data-testid="new-collection-input"
-        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
       />
       <div className="flex gap-2">
-        <button
-          type="submit"
-          data-testid="new-collection-submit"
-          className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-        >
+        <Button type="submit" size="sm" data-testid="new-collection-submit">
           Create
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-        >
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -74,10 +74,10 @@ export default function ActivityHeatmap({
   }, [data]);
 
   return (
-    <div data-testid="activity-heatmap" className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6">
+    <div data-testid="activity-heatmap" className="panel p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Activity</h3>
-        <div data-testid="activity-heatmap-total" className="text-sm text-zinc-500 dark:text-slate-400">
+        <h3 className="text-lg font-semibold text-foreground">Activity</h3>
+        <div data-testid="activity-heatmap-total" className="text-sm text-muted-foreground">
           {totalActivity.toLocaleString()} lookups in the last year
         </div>
       </div>
@@ -87,7 +87,7 @@ export default function ActivityHeatmap({
         {monthLabels.map((month, i) => (
           <div
             key={i}
-            className="text-xs text-zinc-400 dark:text-slate-500"
+            className="text-xs text-muted-foreground"
             style={{
               position: 'relative',
               left: `${month.weekIndex * 14}px`,
@@ -102,7 +102,7 @@ export default function ActivityHeatmap({
       {/* Heatmap grid */}
       <div className="flex">
         {/* Day of week labels */}
-        <div className="flex flex-col mr-2 text-xs text-zinc-400 dark:text-slate-500">
+        <div className="flex flex-col mr-2 text-xs text-muted-foreground">
           {DAYS_OF_WEEK.map((day, i) => (
             <div
               key={day}
@@ -121,7 +121,7 @@ export default function ActivityHeatmap({
               {week.map((day) => (
                 <div
                   key={day.date}
-                  className="w-[12px] h-[12px] rounded-sm transition-colors hover:ring-1 hover:ring-black/20 dark:hover:ring-white/30"
+                  className="w-[12px] h-[12px] rounded-sm transition-colors hover:ring-1 hover:ring-foreground/20"
                   style={{ backgroundColor: getColor(day.count, maxCount, colorScheme) }}
                   title={`${day.date}: ${day.count} lookups`}
                 />
@@ -136,7 +136,7 @@ export default function ActivityHeatmap({
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-end mt-4 gap-2 text-xs text-zinc-400 dark:text-slate-500">
+      <div className="flex items-center justify-end mt-4 gap-2 text-xs text-muted-foreground">
         <span>Less</span>
         <div className="flex gap-[2px]">
           <div
@@ -164,14 +164,14 @@ export default function ActivityHeatmap({
       </div>
 
       {/* Stats row */}
-      <div className="flex gap-6 mt-4 pt-4 border-t border-zinc-200 dark:border-slate-800">
+      <div className="flex gap-6 mt-4 pt-4 border-t border-border">
         <div className="text-sm">
-          <span className="text-zinc-500 dark:text-slate-400">Active days: </span>
-          <span className="text-zinc-900 dark:text-white font-medium">{activeDays}</span>
+          <span className="text-muted-foreground">Active days: </span>
+          <span className="text-foreground font-medium">{activeDays}</span>
         </div>
         <div className="text-sm">
-          <span className="text-zinc-500 dark:text-slate-400">Avg per active day: </span>
-          <span className="text-zinc-900 dark:text-white font-medium">
+          <span className="text-muted-foreground">Avg per active day: </span>
+          <span className="text-foreground font-medium">
             {activeDays > 0 ? Math.round(totalActivity / activeDays).toLocaleString() : 0}
           </span>
         </div>

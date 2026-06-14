@@ -171,17 +171,17 @@ export default function KnownWordsImport() {
       <h2 className="mb-4 text-lg font-semibold text-foreground">
         Import Known Words
       </h2>
-      <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mb-4 text-sm text-muted-foreground">
         Import words you already know. Supports <strong>LingQ exports</strong> (with status levels
         and translations) or simple word lists.
       </p>
-      <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-500">
+      <p className="mb-4 text-xs text-muted-foreground">
         LingQ: Vocabulary → Settings gear → Export LingQs → Upload the CSV here
       </p>
 
       {/* CSV Upload */}
       <div className="mb-4">
-        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="mb-2 block text-sm font-medium text-foreground">
           Upload CSV File
         </label>
         <input
@@ -189,16 +189,16 @@ export default function KnownWordsImport() {
           type="file"
           accept=".csv,.txt"
           onChange={handleFileUpload}
-          className="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100 dark:text-zinc-400 dark:file:bg-blue-900/20 dark:file:text-blue-400"
+          className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-[var(--primary-soft)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-[var(--primary-soft)] dark:text-muted-foreground  "
         />
-        <p className="mt-1 text-xs text-zinc-500">
+        <p className="mt-1 text-xs text-muted-foreground">
           CSV with words in the first column, or a plain text file
         </p>
       </div>
 
       {/* Text Area Import */}
       <div className="mb-4">
-        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="mb-2 block text-sm font-medium text-foreground">
           Or Paste Words (one per line)
         </label>
         <textarea

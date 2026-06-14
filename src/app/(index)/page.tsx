@@ -262,7 +262,7 @@ export default function Home() {
                 placeholder="Group name"
                 autoFocus
                 data-testid="new-group-input"
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
               />
               <Button type="submit" data-testid="new-group-submit">
                 Add
@@ -302,7 +302,7 @@ export default function Home() {
       </PageHeader>
       {isLoading ? (
         <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-foreground" />
         </div>
       ) : (
         <section>
@@ -327,7 +327,7 @@ export default function Home() {
                   <div
                     key={group.id}
                     data-testid={`group-${group.id}`}
-                    className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+                    className="panel p-5"
                   >
                     <div className="mb-4 flex items-center gap-3">
                       <button
@@ -335,16 +335,16 @@ export default function Home() {
                         aria-expanded={!isCollapsed}
                         aria-label={isCollapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
                         data-testid={`group-toggle-${group.id}`}
-                        className="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        className="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-accent"
                       >
                         <ChevronDown
-                          className={`h-4 w-4 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                          className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
                         />
-                        <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+                        <h3 className="text-lg font-semibold text-foreground">
                           {group.name}
                         </h3>
                       </button>
-                      <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                      <span className="text-sm text-muted-foreground">
                         {items.length} {items.length === 1 ? 'item' : 'items'}
                       </span>
                       <div className="flex-1" />
@@ -386,7 +386,7 @@ export default function Home() {
                                 setNewCollectionTitle('');
                               }}
                               data-testid={`add-collection-${group.id}`}
-                              className="group flex min-h-[14rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 text-zinc-400 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-600 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
+                              className="group flex min-h-[14rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
                             >
                               <Plus className="h-8 w-8" strokeWidth={1.5} />
                               <span className="text-sm font-medium">New collection</span>
@@ -403,10 +403,10 @@ export default function Home() {
               {ungrouped.length > 0 && (
                 <div
                   data-testid="ungrouped-section"
-                  className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+                  className="panel p-5"
                 >
                   {hasGroups && (
-                    <h3 className="mb-4 text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+                    <h3 className="mb-4 text-lg font-semibold text-foreground">
                       Ungrouped
                     </h3>
                   )}

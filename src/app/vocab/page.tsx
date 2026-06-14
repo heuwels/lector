@@ -306,15 +306,15 @@ export default function VocabPage() {
       <PageHeader title="Vocabulary">
         <div className="flex items-center gap-2">
           {ankiConnected === null ? (
-            <span className="text-sm text-gray-500">Checking Anki connection...</span>
+            <span className="text-sm text-muted-foreground">Checking Anki connection...</span>
           ) : ankiConnected ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
-              <span className="h-2 w-2 rounded-full bg-green-500" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] px-3 py-1 text-sm font-medium text-primary">
+              <span className="h-2 w-2 rounded-full bg-primary" />
               Anki Connected
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800 dark:bg-red-900 dark:text-red-200">
-              <span className="h-2 w-2 rounded-full bg-red-500" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] px-3 py-1 text-sm font-medium text-destructive">
+              <span className="h-2 w-2 rounded-full bg-destructive" />
               Anki Disconnected
             </span>
           )}

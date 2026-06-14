@@ -59,10 +59,10 @@ export default function TTSSettings() {
           <div className="flex items-center gap-2">
             <span
               className={`inline-block h-2 w-2 rounded-full ${
-                googleTTSAvailable ? 'bg-green-500' : 'bg-yellow-500'
+                googleTTSAvailable ? 'bg-primary' : 'bg-yellow-500'
               }`}
             />
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">
+            <span className="text-sm text-muted-foreground">
               {googleTTSAvailable ? 'Google TTS Active' : 'Using Browser TTS'}
             </span>
           </div>
@@ -70,10 +70,10 @@ export default function TTSSettings() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="block text-sm font-medium text-foreground">
           Voice Engine
         </label>
-        <p className="mb-2 text-xs text-zinc-500">
+        <p className="mb-2 text-xs text-muted-foreground">
           Google Cloud has better pronunciation, browser is free
         </p>
         <div className="flex gap-2">
@@ -98,9 +98,9 @@ export default function TTSSettings() {
       </div>
 
       <div>
-        <label className="mb-2 flex items-center justify-between text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="mb-2 flex items-center justify-between text-sm font-medium text-foreground">
           <span>Speech Speed</span>
-          <span className="font-mono text-zinc-500">{ttsSpeed.toFixed(1)}x</span>
+          <span className="font-mono text-muted-foreground">{ttsSpeed.toFixed(1)}x</span>
         </label>
         <input
           type="range"
@@ -111,7 +111,7 @@ export default function TTSSettings() {
           onChange={handleTTSSpeedChanged}
           className="w-full accent-blue-500"
         />
-        <div className="mt-1 flex justify-between text-xs text-zinc-500">
+        <div className="mt-1 flex justify-between text-xs text-muted-foreground">
           <span>0.5x (Slow)</span>
           <span>1.0x</span>
           <span>1.5x (Fast)</span>

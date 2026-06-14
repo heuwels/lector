@@ -44,25 +44,25 @@ export default function APITokens() {
         )}
       </div>
 
-      <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mb-4 text-sm text-muted-foreground">
         Create personal access tokens for CLI or API access. Tokens are scoped to specific
         permissions.
       </p>
 
       {tokenError && (
-        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+        <div className="mb-4 rounded-md bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] p-3 text-sm text-destructive ">
           {tokenError}
         </div>
       )}
 
       {/* One-time token display */}
       {createdToken && (
-        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/20">
-          <p className="mb-2 text-sm font-medium text-amber-800 dark:text-amber-300">
+        <div className="mb-4 rounded-md border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-4 ">
+          <p className="mb-2 text-sm font-medium text-[var(--gold-strong)] ">
             Copy this token now &mdash; it won&apos;t be shown again.
           </p>
           <div className="mb-2 flex items-center gap-2">
-            <code className="flex-1 rounded border border-amber-200 bg-white px-3 py-2 font-mono text-sm break-all text-zinc-900 select-all dark:border-amber-800 dark:bg-zinc-800 dark:text-zinc-100">
+            <code className="flex-1 rounded border border-[var(--gold-lip)] bg-muted px-3 py-2 font-mono text-sm break-all text-foreground select-all   ">
               {createdToken}
             </code>
             <Button onClick={handleCopyTokenButtonPressed}>Copy</Button>
@@ -77,7 +77,7 @@ export default function APITokens() {
       {showTokenForm && (
         <div className="mb-4 rounded-md border border-border bg-muted p-4">
           <div className="mb-3">
-            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Token Name
             </label>
             <input
@@ -90,7 +90,7 @@ export default function APITokens() {
           </div>
 
           <div className="mb-3">
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-2 block text-sm font-medium text-foreground">
               Scopes
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -112,11 +112,11 @@ export default function APITokens() {
                   className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
                     newTokenScopes.includes(value)
                       ? 'border-primary bg-[var(--primary-soft)] text-primary'
-                      : 'border-input bg-background text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                      : 'border-input bg-background text-foreground   '
                   } ${
                     newTokenScopes.includes('*') && value !== '*'
                       ? 'cursor-not-allowed opacity-50'
-                      : 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700'
+                      : 'cursor-pointer hover:bg-accent'
                   }`}
                 >
                   <input
@@ -195,11 +195,11 @@ export default function APITokens() {
           {apiTokens.map((token) => (
             <div
               key={token.id}
-              className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50"
+              className="flex items-center justify-between rounded-md border border-border bg-muted px-4 py-3  "
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  <span className="text-sm font-medium text-foreground">
                     {token.name}
                   </span>
                   <div className="flex flex-wrap gap-1">
@@ -213,7 +213,7 @@ export default function APITokens() {
                     ))}
                   </div>
                 </div>
-                <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <div className="mt-1 text-xs text-muted-foreground">
                   Created {new Date(token.createdAt).toLocaleDateString()}
                   {token.lastUsedAt
                     ? ` · Last used ${new Date(token.lastUsedAt).toLocaleDateString()}`
@@ -236,7 +236,7 @@ export default function APITokens() {
         </div>
       ) : (
         !showTokenForm && (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="text-sm text-muted-foreground">
             No tokens created yet. Generate one to use the CLI or access the API remotely.
           </p>
         )

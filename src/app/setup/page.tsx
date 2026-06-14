@@ -28,12 +28,12 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <div className="mb-12 text-center">
-        <h1 className="mb-3 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+        <h1 className="mb-3 text-3xl font-bold tracking-tight text-foreground">
           Welcome to Lector
         </h1>
-        <p className="text-lg text-zinc-500 dark:text-zinc-400">
+        <p className="text-lg text-muted-foreground">
           Choose a language to start learning
         </p>
       </div>
@@ -47,21 +47,21 @@ export default function SetupPage() {
             data-testid={`setup-language-${lang.code}`}
             className={`group flex flex-col items-center gap-3 rounded-2xl border-2 px-6 py-8 transition-all ${
               pending === lang.code
-                ? 'border-zinc-400 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800'
+                ? 'border-primary bg-[var(--primary-soft)]'
                 : pending !== null
-                  ? 'cursor-not-allowed opacity-50 border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'
-                  : 'border-zinc-200 bg-white hover:border-zinc-400 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600'
+                  ? 'cursor-not-allowed border-border bg-card opacity-50'
+                  : 'border-border bg-card hover:border-primary hover:shadow-lg'
             }`}
           >
             {pending === lang.code ? (
-              <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-border border-t-primary" />
             ) : (
               <span className="text-5xl">{lang.flag}</span>
             )}
-            <span className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+            <span className="text-xl font-semibold text-foreground">
               {lang.native}
             </span>
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+            <span className="text-sm text-muted-foreground">
               {lang.name}
             </span>
           </button>

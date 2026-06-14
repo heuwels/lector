@@ -47,21 +47,21 @@ export default function HighlightedText({
             e.stopPropagation();
             setActiveIdx(isActive ? null : span.correctionIdx);
           }}
-          className="-mx-0.5 cursor-pointer rounded px-0.5 text-red-700 underline decoration-red-400 decoration-wavy underline-offset-4 transition-colors hover:bg-red-50 dark:text-red-400 dark:decoration-red-500 dark:hover:bg-red-950/30"
+          className="-mx-0.5 cursor-pointer rounded px-0.5 text-destructive underline decoration-destructive decoration-wavy underline-offset-4 transition-colors hover:bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))]"
         >
           {body.slice(span.start, span.end)}
         </button>
         {isActive && (
-          <span className="absolute top-full left-0 z-10 mt-1 w-64 rounded-lg border border-zinc-200 bg-white p-3 text-left shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+          <span className="absolute top-full left-0 z-10 mt-1 w-64 rounded-lg border border-border bg-popover p-3 text-left shadow-lg">
             <span className="mb-1 flex items-center gap-2">
               <CorrectionBadge type={c.type} />
             </span>
             <span className="mb-1 block text-sm">
-              <span className="text-red-600 line-through dark:text-red-400">{c.original}</span>
+              <span className="text-destructive line-through">{c.original}</span>
               {' → '}
-              <span className="font-medium text-green-700 dark:text-green-400">{c.corrected}</span>
+              <span className="font-medium text-primary">{c.corrected}</span>
             </span>
-            <span className="block text-xs text-zinc-500 dark:text-zinc-400">{c.explanation}</span>
+            <span className="block text-xs text-muted-foreground">{c.explanation}</span>
           </span>
         )}
       </span>,
