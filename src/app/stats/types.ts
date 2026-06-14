@@ -1,4 +1,4 @@
-import { FluencyStats } from "@/lib/data-layer";
+import { FluencyStats, ReadingStats } from "@/lib/data-layer";
 import { ClozeCollection, DailyStats, WordState } from "@/types";
 
 export interface StatsData {
@@ -10,9 +10,13 @@ export interface StatsData {
   totalClozeAttempts: number;
   totalClozeCorrect: number;
   totalPoints: number;
+  reading: ReadingStats;
   dailyStats: DailyStats[];
+  // Full-history cumulative series; the page windows it for display via the range selector.
   vocabGrowth: Array<{ date: string; known: number; learning: number; total: number }>;
   activityData: Array<{ date: string; count: number }>;
   collectionCounts: Record<ClozeCollection, { total: number; due: number; mastered: number }>;
   fluency: FluencyStats;
+  // Today's date in the user's time zone — the anchor for windowing the series.
+  endDate: string;
 }
