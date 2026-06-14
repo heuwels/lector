@@ -38,10 +38,6 @@ export default function VocabPage() {
   const [ankiConnected, setAnkiConnected] = useState<boolean | null>(null);
   const [ankiDeck, setAnkiDeck] = useState('Afrikaans');
   const [ankiClozeDeck, setAnkiClozeDeck] = useState('Afrikaans::Cloze');
-  const [notification] = useState<{
-    type: 'success' | 'error';
-    message: string;
-  } | null>(null);
 
   useEffect(() => {
     loadData();
