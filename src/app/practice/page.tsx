@@ -691,8 +691,8 @@ export default function PracticePage() {
               );
               if (totalDue === 0) return null;
               return (
-                <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-800/50 dark:bg-amber-950/20">
-                  <h2 className="mb-3 text-base font-semibold text-amber-800 dark:text-amber-300">
+                <div className="mb-8 rounded-2xl border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-5">
+                  <h2 className="mb-3 text-base font-semibold text-[var(--gold-strong)]">
                     Review Due ({totalDue})
                   </h2>
                   <div className="space-y-2">
@@ -708,12 +708,12 @@ export default function PracticePage() {
                             setRoundSize(Math.min(due, 20) as RoundSize);
                             startRoundWith(coll, 'review', Math.min(due, 20));
                           }}
-                          className="flex w-full items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 transition-all hover:border-amber-400 active:scale-[0.98] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-amber-600"
+                          className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition-all hover:border-[var(--gold-strong)] active:scale-[0.98]"
                         >
-                          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                          <span className="font-medium text-foreground">
                             {COLLECTION_LABELS[coll]}
                           </span>
-                          <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                          <span className="text-sm font-semibold text-[var(--gold-strong)]">
                             {due} due
                           </span>
                         </button>
@@ -725,25 +725,22 @@ export default function PracticePage() {
             })()}
 
             {/* Learn New section */}
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-              <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <h2 className="mb-4 text-base font-semibold text-foreground">
                 Learn New
               </h2>
 
               {/* Collection */}
               <div className="mb-4">
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {VISIBLE_COLLECTIONS.map((coll) => {
                     const count = collectionCounts?.[coll];
                     return (
-                      <button
+                      <Button
                         key={coll}
                         onClick={() => setSelectedCollection(coll)}
-                        className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all ${
-                          selectedCollection === coll
-                            ? 'bg-blue-500 text-white shadow-md'
-                            : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                        }`}
+                        variant={selectedCollection === coll ? 'default' : 'secondary'}
+                        className="flex h-14 flex-col justify-center gap-0"
                       >
                         <div>{COLLECTION_LABELS[coll]}</div>
                         {count && count.total > 0 && (
@@ -751,7 +748,7 @@ export default function PracticePage() {
                             {count.mastered}/{count.total} mastered
                           </div>
                         )}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -760,65 +757,54 @@ export default function PracticePage() {
               {/* Round size + Mode in a row */}
               <div className="mb-4 flex gap-4">
                 <div className="flex-1">
-                  <label className="mb-2 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  <label className="mb-2 block text-xs font-medium text-muted-foreground">
                     Sentences
                   </label>
                   <div className="flex gap-1.5">
                     {ROUND_SIZES.map((size) => (
-                      <button
+                      <Button
                         key={size}
+                        size="sm"
+                        variant={roundSize === size ? 'default' : 'secondary'}
                         onClick={() => {
                           setOriginalRoundSize(size);
                           setRoundSize(size);
                         }}
-                        className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                          roundSize === size
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-                        }`}
                       >
                         {size}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
-                <div className="w-40">
-                  <label className="mb-2 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                <div className="">
+                  <label className="mb-2 block text-xs font-medium text-muted-foreground">
                     Mode
                   </label>
                   <div className="flex gap-1.5">
-                    <button
+                    <Button
                       onClick={() => handleSetPracticeMode('type')}
-                      className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                        practiceMode === 'type'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-                      }`}
+                      variant={practiceMode === 'type' ? 'default' : 'secondary'}
                     >
                       Type
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={() => handleSetPracticeMode('mc')}
-                      className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                        practiceMode === 'mc'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-                      }`}
+                      variant={practiceMode === 'mc' ? 'default' : 'secondary'}
                     >
                       MC
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
 
               {/* Start button */}
-              <button
+              <Button
                 onClick={() => startRoundWith(selectedCollection, 'new', roundSize)}
                 disabled={!seeded}
-                className="w-full rounded-xl bg-blue-600 py-3.5 text-lg font-bold text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+                className="w-full"
               >
                 {seeded ? 'Start' : 'Loading...'}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -834,11 +820,11 @@ export default function PracticePage() {
                   const counts = await getCollectionCounts();
                   setCollectionCounts(counts);
                 }}
-                className="text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 &larr; Back
               </button>
-              <span className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--gold-strong)]">
                 <Star className="h-4 w-4" fill="currentColor" />
                 {points.toLocaleString()}
               </span>
@@ -846,15 +832,15 @@ export default function PracticePage() {
 
             {/* Round progress bar */}
             <div>
-              <div className="flex items-center justify-between text-sm text-zinc-500 dark:text-zinc-400">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>{COLLECTION_LABELS[selectedCollection]}</span>
                 <span className="font-medium">
                   {roundProgress}/{roundSize}
                 </span>
               </div>
-              <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+              <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-[color-mix(in_srgb,var(--primary)_55%,#fff)] to-primary transition-all duration-500"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -864,12 +850,12 @@ export default function PracticePage() {
 
         {/* Main content area */}
         {state !== 'setup' && (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             {/* Loading state */}
             {state === 'loading' && (
               <div className="flex flex-col items-center justify-center py-12">
-                <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-blue-500 dark:border-zinc-700 dark:border-t-blue-400" />
-                <p className="text-zinc-500 dark:text-zinc-400">Loading sentences...</p>
+                <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
+                <p className="text-muted-foreground">Loading sentences...</p>
               </div>
             )}
 
@@ -879,10 +865,10 @@ export default function PracticePage() {
               (() => {
                 const fuzzyStatus = getFuzzyStatus(userAnswer, current.sentence.clozeWord);
                 const inputColorClass = {
-                  empty: 'border-blue-400 bg-blue-50 dark:bg-blue-950/50',
-                  match: 'border-green-500 bg-green-50 dark:bg-green-950/50',
-                  partial: 'border-green-400 bg-green-50/50 dark:bg-green-950/30',
-                  wrong: 'border-red-400 bg-red-50 dark:bg-red-950/50',
+                  empty: 'border-[var(--clay)] bg-[color-mix(in_srgb,var(--clay)_14%,var(--card))]',
+                  match: 'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))]',
+                  partial: 'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))]',
+                  wrong: 'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))]',
                 }[fuzzyStatus];
 
                 const words = current.sentence.sentence.split(/\s+/);
@@ -897,7 +883,7 @@ export default function PracticePage() {
                     {/* Sentence with inline input or blank */}
                     <div className="mb-6">
                       <div className="mb-4 flex items-center justify-between">
-                        <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                        <span className="text-sm font-medium text-muted-foreground">
                           {practiceMode === 'mc' || mcFallback
                             ? 'Choose the correct word'
                             : 'Fill in the blank'}
@@ -907,7 +893,7 @@ export default function PracticePage() {
                           onSentenceBlacklisted={handleSentenceBlacklisted}
                         />
                       </div>
-                      <p className="text-xl leading-loose font-medium text-zinc-900 dark:text-zinc-50">
+                      <p className="text-xl leading-loose font-medium text-foreground">
                         {words.map((word, i) => (
                           <span key={i}>
                             {i > 0 && ' '}
@@ -930,12 +916,12 @@ export default function PracticePage() {
                                     autoCorrect="off"
                                     spellCheck={false}
                                     placeholder="..."
-                                    className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium transition-all outline-none focus:ring-2 focus:ring-offset-1 ${inputColorClass} ${fuzzyStatus === 'match' ? 'text-green-700 focus:ring-green-400 dark:text-green-300' : ''} ${fuzzyStatus === 'partial' ? 'text-green-600 focus:ring-green-400 dark:text-green-400' : ''} ${fuzzyStatus === 'wrong' ? 'text-red-600 focus:ring-red-400 dark:text-red-400' : ''} ${fuzzyStatus === 'empty' ? 'text-zinc-900 focus:ring-blue-400 dark:text-zinc-100' : ''} `}
+                                    className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium transition-all outline-none focus:ring-2 focus:ring-offset-1 ${inputColorClass} ${fuzzyStatus === 'match' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'partial' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'wrong' ? 'text-destructive focus:ring-destructive' : ''} ${fuzzyStatus === 'empty' ? 'text-foreground focus:ring-ring' : ''} `}
                                     style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
                                   />
                                 ) : (
                                   <span
-                                    className="inline-block rounded-lg border-2 border-blue-400 bg-blue-50 px-3 py-1 text-center text-xl font-bold text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"
+                                    className="inline-block rounded-lg border-2 border-[var(--clay)] bg-[color-mix(in_srgb,var(--clay)_14%,var(--card))] px-3 py-1 text-center text-xl font-bold text-foreground"
                                     style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
                                   >
                                     _____
@@ -947,7 +933,7 @@ export default function PracticePage() {
                               <span
                                 data-testid="cloze-word"
                                 onClick={() => handleWordClick(word)}
-                                className="cursor-pointer rounded px-0.5 transition-colors hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/40 dark:hover:text-blue-300"
+                                className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent hover:text-foreground"
                               >
                                 {word}
                               </span>
@@ -956,7 +942,7 @@ export default function PracticePage() {
                         ))}
                       </p>
                       {/* English translation */}
-                      <p className="mt-3 text-base text-zinc-500 italic dark:text-zinc-400">
+                      <p className="mt-3 text-base text-muted-foreground italic">
                         {current.sentence.translation}
                       </p>
                     </div>
@@ -966,18 +952,18 @@ export default function PracticePage() {
                       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {mcOptions.map((option, idx) => {
                           let btnClass =
-                            'border-zinc-200 bg-zinc-50 text-zinc-900 hover:bg-zinc-100 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700';
+                            'border-border bg-card text-foreground hover:bg-accent';
 
                           if (mcSelected !== null) {
                             if (idx === mcCorrectIdx) {
                               btnClass =
-                                'border-green-500 bg-green-50 text-green-800 dark:border-green-400 dark:bg-green-950/50 dark:text-green-200';
+                                'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary';
                             } else if (idx === mcSelected) {
                               btnClass =
-                                'border-red-500 bg-red-50 text-red-800 dark:border-red-400 dark:bg-red-950/50 dark:text-red-200';
+                                'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive';
                             } else {
                               btnClass =
-                                'border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500';
+                                'border-border bg-card text-muted-foreground opacity-60';
                             }
                           }
 
@@ -989,7 +975,7 @@ export default function PracticePage() {
                               disabled={mcLocked}
                               className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left text-lg font-medium transition-all active:scale-[0.98] ${btnClass}`}
                             >
-                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-sm font-bold text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
                                 {idx + 1}
                               </span>
                               {option}
@@ -1002,22 +988,22 @@ export default function PracticePage() {
                     {/* Type mode buttons */}
                     {practiceMode === 'type' && !mcFallback && (
                       <div className="flex justify-center gap-2">
-                        <button
+                        <Button
                           type="button"
+                          variant="secondary"
                           onClick={() => {
                             if (!current) return;
                             generateMcOptionsForSentence(current.sentence, queue);
                             setMcFallback(true);
                           }}
-                          className="rounded-xl bg-purple-50 px-4 py-3 text-sm font-medium text-purple-600 transition-all hover:bg-purple-100 dark:bg-purple-950/30 dark:text-purple-400 dark:hover:bg-purple-950/50"
                           title="Switch to multiple choice for this question"
                         >
                           Multiple Choice
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
+                          variant="secondary"
                           onClick={handleHint}
-                          className="rounded-xl bg-zinc-100 px-4 py-3 text-sm font-medium text-zinc-600 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
                           title="Reveal next letter"
                         >
                           Hint (
@@ -1025,27 +1011,23 @@ export default function PracticePage() {
                             ? `${hintLetters} letter${hintLetters > 1 ? 's' : ''}`
                             : '?'}
                           )
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
+                          size="lg"
                           onClick={handleSubmit}
                           disabled={!userAnswer.trim()}
-                          className={`rounded-xl px-6 py-3 text-lg font-semibold transition-all ${
-                            fuzzyStatus === 'match'
-                              ? 'bg-green-600 text-white hover:bg-green-700 active:scale-95 dark:bg-green-500 dark:hover:bg-green-600'
-                              : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 dark:bg-blue-500 dark:hover:bg-blue-600'
-                          } disabled:opacity-40`}
                         >
                           {fuzzyStatus === 'match' ? 'Submit' : 'Check'}
-                        </button>
+                        </Button>
                       </div>
                     )}
                     {/* Mastery indicator */}
-                    <div className="mt-6 flex items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
                       <span>Mastery:</span>
-                      <div className="flex h-2 w-24 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                      <div className="flex h-2 w-24 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="bg-blue-500 transition-all"
+                          className="bg-primary transition-all"
                           style={{ width: `${current.sentence.masteryLevel}%` }}
                         />
                       </div>
@@ -1060,7 +1042,7 @@ export default function PracticePage() {
               <div>
                 <div className="mb-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                    <span className="text-sm font-medium text-muted-foreground">
                       {feedbackData.isCorrect ? 'Correct!' : 'Incorrect'}
                     </span>
                     {ttsSupported && feedbackData.isCorrect && (
@@ -1070,7 +1052,7 @@ export default function PracticePage() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-xl leading-relaxed font-medium text-zinc-900 dark:text-zinc-50">
+                  <p className="text-xl leading-relaxed font-medium text-foreground">
                     {current.sentence.sentence.split(/\s+/).map((word, i) => (
                       <span key={i}>
                         {i > 0 && ' '}
@@ -1080,8 +1062,8 @@ export default function PracticePage() {
                             onClick={() => handleWordClick(word)}
                             className={`cursor-pointer rounded px-1 font-bold ${
                               feedbackData.isCorrect
-                                ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70'
-                                : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900/70'
+                                ? 'border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
+                                : 'border border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
                             }`}
                           >
                             {word}
@@ -1090,7 +1072,7 @@ export default function PracticePage() {
                           <span
                             data-testid="cloze-word"
                             onClick={() => handleWordClick(word)}
-                            className="cursor-pointer rounded px-0.5 transition-colors hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/40 dark:hover:text-blue-300"
+                            className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent hover:text-foreground"
                           >
                             {word}
                           </span>
@@ -1098,7 +1080,7 @@ export default function PracticePage() {
                       </span>
                     ))}
                   </p>
-                  <p className="mt-2 text-base text-zinc-500 italic dark:text-zinc-400">
+                  <p className="mt-2 text-base text-muted-foreground italic">
                     {current.sentence.translation}
                   </p>
                 </div>
@@ -1123,16 +1105,16 @@ export default function PracticePage() {
 
             {state === 'complete' && (
               <div className="py-8 text-center">
-                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400">
+                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary">
                   <CheckCircle className="h-8 w-8" />
                 </div>
-                <h2 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-50">
+                <h2 className="mb-2 text-xl font-bold text-foreground">
                   Round Complete!
                 </h2>
-                <p className="mb-1 text-zinc-500 dark:text-zinc-400">
+                <p className="mb-1 text-muted-foreground">
                   {roundCorrect}/{roundProgress} correct
                 </p>
-                <p className="mb-6 text-sm text-zinc-400 dark:text-zinc-500">
+                <p className="mb-6 text-sm text-muted-foreground">
                   {points.toLocaleString()} total points
                 </p>
                 <div className="flex justify-center gap-3">

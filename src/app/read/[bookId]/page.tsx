@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import MarkdownReader from '@/components/MarkdownReader';
 import TranslationDrawer from '@/components/TranslationDrawer';
+import { Button } from '@/components/ui/button';
 import {
   type Lesson,
   type LessonSummary,
@@ -555,10 +556,10 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-900">
+      <div className="flex min-h-screen items-center justify-center bg-card">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-3 border-blue-500 border-t-transparent" />
-          <p className="text-zinc-600 dark:text-zinc-400">Loading lesson...</p>
+          <div className="h-10 w-10 animate-spin rounded-full border-3 border-primary border-t-transparent" />
+          <p className="text-muted-foreground">Loading lesson...</p>
         </div>
       </div>
     );
@@ -566,22 +567,19 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
 
   if (error || !lesson) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white p-8 dark:bg-zinc-900">
-        <div className="mb-4 text-xl text-red-500 dark:text-red-400">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-card p-8">
+        <div className="mb-4 text-xl text-destructive">
           {error || 'Lesson not found'}
         </div>
-        <button
-          onClick={() => router.push('/')}
-          className="rounded-lg bg-zinc-200 px-4 py-2 text-zinc-900 transition-colors hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600"
-        >
+        <Button variant="secondary" onClick={() => router.push('/')}>
           Go to Library
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="flex h-dvh flex-col overflow-x-hidden bg-white dark:bg-zinc-900">
+    <div className="flex h-dvh flex-col overflow-x-hidden bg-card">
       <div className="relative flex-1 overflow-hidden">
         <MarkdownReader
           lesson={lesson}

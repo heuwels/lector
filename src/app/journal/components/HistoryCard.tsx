@@ -17,21 +17,21 @@ export default function HistoryCard({
   return (
     <div
       onClick={() => onSelect(entry)}
-      className="cursor-pointer rounded-lg border border-zinc-200 p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/50"
+      className="cursor-pointer rounded-lg border border-border p-4 transition-colors hover:bg-accent"
     >
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        <span className="text-sm font-medium text-foreground">
           {formatDateTime(entry.createdAt)}
         </span>
         <div className="flex items-center gap-2">
           {entry.status === 'submitted' ? (
-            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300">
+            <span className="rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] px-2 py-0.5 text-xs font-medium text-primary">
               {correctionCount > 0
                 ? `${correctionCount} correction${correctionCount !== 1 ? 's' : ''}`
                 : 'Perfect'}
             </span>
           ) : (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+            <span className="rounded-full bg-[var(--gold-soft)] px-2 py-0.5 text-xs font-medium text-[var(--gold-strong)]">
               Draft
             </span>
           )}
@@ -40,15 +40,15 @@ export default function HistoryCard({
               e.stopPropagation();
               onDelete(entry.id);
             }}
-            className="text-zinc-400 transition-colors hover:text-red-500"
+            className="text-muted-foreground transition-colors hover:text-destructive"
             title="Delete entry"
           >
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
-      <p className="line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">{preview}</p>
-      <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+      <p className="line-clamp-2 text-sm text-muted-foreground">{preview}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
         {entry.wordCount} word{entry.wordCount > 1 ? 's' : ''}
       </p>
     </div>

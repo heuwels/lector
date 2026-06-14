@@ -28,7 +28,7 @@ test.describe("Stats Page", () => {
     const topCards = page.locator('[data-testid="stats-top-cards"]');
     await expect(topCards).toBeVisible({ timeout: 10000 });
 
-    const labels = topCards.locator("p.text-zinc-500, p.dark\\:text-zinc-400");
+    const labels = topCards.locator("p.text-muted-foreground");
     // Top row should contain Words Known, Learning (L1-L4), and Current Streak
     await expect(topCards.getByText("Words Known")).toBeVisible();
     await expect(topCards.getByText("Learning (L1-L4)")).toBeVisible();
@@ -69,10 +69,10 @@ test.describe("Stats Page", () => {
 
     const topCards = page.locator('[data-testid="stats-top-cards"]');
     const knownCardValue = topCards
-      .locator("div.rounded-xl", { hasText: "Words Known" })
+      .locator("div.panel", { hasText: "Words Known" })
       .locator("p.text-4xl");
     const learningCardValue = topCards
-      .locator("div.rounded-xl", { hasText: "Learning (L1-L4)" })
+      .locator("div.panel", { hasText: "Learning (L1-L4)" })
       .locator("p.text-4xl");
 
     // Both displays must agree, and reflect at least the seeded words

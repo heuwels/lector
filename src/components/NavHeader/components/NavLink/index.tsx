@@ -14,12 +14,12 @@ export default function NavLink({
   const Icon = iconMap[link.href];
   const linkClasses = isMobile
     ? `flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
-        isActive ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-500 dark:text-zinc-400'
+        isActive ? 'text-primary' : 'text-muted-foreground'
       }`
     : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
         isActive
-          ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
-          : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-50'
+          ? 'bg-[var(--primary-soft)] font-bold text-primary'
+          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
       }`;
 
   return (

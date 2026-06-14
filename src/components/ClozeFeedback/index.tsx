@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Check, ChevronRight, Info, Loader2, Plus, X } from 'lucide-react';
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 interface ClozeFeedbackProps {
   isCorrect: boolean;
@@ -77,8 +78,8 @@ export default function ClozeFeedback({
     <div
       className={`rounded-xl border-2 p-6 transition-all ${
         isCorrect
-          ? 'border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 dark:border-green-800 dark:from-green-950/40 dark:to-emerald-950/40'
-          : 'border-red-200 bg-gradient-to-br from-red-50 to-rose-50 dark:border-red-800 dark:from-red-950/40 dark:to-rose-950/40'
+          ? 'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))]'
+          : 'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))]'
       }`}
     >
       {/* Result header */}
@@ -86,8 +87,8 @@ export default function ClozeFeedback({
         <div
           className={`flex h-10 w-10 items-center justify-center rounded-full ${
             isCorrect
-              ? 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400'
-              : 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400'
+              ? 'bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
+              : 'bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
           }`}
         >
           {isCorrect ? <Check className="h-6 w-6" /> : <X className="h-6 w-6" />}
@@ -95,13 +96,13 @@ export default function ClozeFeedback({
         <div>
           <h3
             className={`text-xl font-bold ${
-              isCorrect ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+              isCorrect ? 'text-primary' : 'text-destructive'
             }`}
           >
             {isCorrect ? 'Correct!' : 'Incorrect'}
           </h3>
           {isCorrect && points > 0 && (
-            <p className="text-sm font-medium text-green-600 dark:text-green-500">
+            <p className="text-sm font-medium text-[var(--gold-strong)]">
               +{points} points
             </p>
           )}
@@ -112,19 +113,19 @@ export default function ClozeFeedback({
       <div className="mb-4 space-y-2">
         {!isCorrect && (
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium text-zinc-500 dark:text-zinc-400">Your answer:</span>
-            <span className="rounded bg-red-100 px-2 py-0.5 font-medium text-red-700 line-through dark:bg-red-900/50 dark:text-red-300">
+            <span className="font-medium text-muted-foreground">Your answer:</span>
+            <span className="rounded bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] px-2 py-0.5 font-medium text-destructive line-through">
               {userAnswer}
             </span>
           </div>
         )}
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-medium text-zinc-500 dark:text-zinc-400">Correct answer:</span>
+          <span className="font-medium text-muted-foreground">Correct answer:</span>
           <span
             className={`rounded px-2 py-0.5 font-bold ${
               isCorrect
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300'
+                ? 'bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
+                : 'bg-[var(--gold-soft)] text-[var(--gold-strong)]'
             }`}
           >
             {correctWord}
@@ -133,19 +134,19 @@ export default function ClozeFeedback({
       </div>
 
       {/* Translation */}
-      <div className="mb-4 rounded-lg bg-white/60 p-3 dark:bg-zinc-900/60">
-        <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Translation</p>
-        <p className="text-zinc-900 dark:text-zinc-50">{translation}</p>
+      <div className="mb-4 rounded-lg bg-muted p-3">
+        <p className="text-sm font-medium text-muted-foreground">Translation</p>
+        <p className="text-foreground">{translation}</p>
       </div>
 
       {/* Mastery progress */}
       <div className="mb-4">
         <div className="mb-2 flex items-center justify-between text-sm">
-          <span className="font-medium text-zinc-500 dark:text-zinc-400">Mastery Level</span>
+          <span className="font-medium text-muted-foreground">Mastery Level</span>
           <span className="flex items-center gap-2">
             <span
               className={`font-semibold ${
-                isCorrect ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                isCorrect ? 'text-primary' : 'text-destructive'
               }`}
             >
               {masteryLabels[newMastery]}
@@ -153,7 +154,7 @@ export default function ClozeFeedback({
             {masteryChange !== 0 && (
               <span
                 className={`text-xs font-bold ${
-                  masteryChange > 0 ? 'text-green-500' : 'text-red-500'
+                  masteryChange > 0 ? 'text-primary' : 'text-destructive'
                 }`}
               >
                 {masteryChange > 0 ? '+' : ''}
@@ -162,12 +163,10 @@ export default function ClozeFeedback({
             )}
           </span>
         </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
             className={`h-full transition-all duration-500 ${
-              isCorrect
-                ? 'bg-gradient-to-r from-green-400 to-emerald-500'
-                : 'bg-gradient-to-r from-red-400 to-rose-500'
+              isCorrect ? 'bg-primary' : 'bg-destructive'
             }`}
             style={{ width: `${newMastery}%` }}
           />
@@ -176,11 +175,11 @@ export default function ClozeFeedback({
 
       {/* Explain section */}
       {explanation && (
-        <div className="mb-4 rounded-lg bg-white/60 p-4 dark:bg-zinc-900/60">
-          <p className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+        <div className="mb-4 rounded-lg bg-muted p-4">
+          <p className="mb-2 text-sm font-medium text-muted-foreground">
             Sentence Breakdown
           </p>
-          <div className="text-sm leading-relaxed whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">
+          <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
             {explanation}
           </div>
         </div>
@@ -195,12 +194,12 @@ export default function ClozeFeedback({
             disabled={isAddingToAnki || ankiAdded || !!ankiError}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
               ankiAdded
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'
+                ? 'bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
                 : ankiError
-                  ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
+                  ? 'bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
                   : isAddingToAnki
-                    ? 'cursor-wait bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500'
-                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300 dark:hover:bg-purple-900/70'
+                    ? 'cursor-wait bg-muted text-muted-foreground'
+                    : 'bg-[var(--clay-soft)] text-[var(--clay)] hover:bg-[color-mix(in_srgb,var(--clay)_18%,transparent)]'
             }`}
             title={ankiError || undefined}
           >
@@ -234,12 +233,12 @@ export default function ClozeFeedback({
           disabled={isExplaining || !!explanation}
           className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
             explanation
-              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'
+              ? 'bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
               : explainError
-                ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
+                ? 'bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
                 : isExplaining
-                  ? 'cursor-wait bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500'
-                  : 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70'
+                  ? 'cursor-wait bg-muted text-muted-foreground'
+                  : 'bg-[var(--gold-soft)] text-[var(--gold-strong)] hover:bg-[color-mix(in_srgb,var(--gold)_22%,transparent)]'
           }`}
         >
           {explanation ? (
@@ -262,16 +261,12 @@ export default function ClozeFeedback({
           )}
         </button>
         {ankiError && (
-          <div className="w-full text-xs text-red-600 dark:text-red-400">{ankiError}</div>
+          <div className="w-full text-xs text-destructive">{ankiError}</div>
         )}
-        <button
-          type="button"
-          onClick={onNext}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-700 active:scale-95 dark:bg-blue-500 dark:hover:bg-blue-600"
-        >
+        <Button type="button" onClick={onNext} className="flex-1">
           Next Sentence
           <ChevronRight className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );

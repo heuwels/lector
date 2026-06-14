@@ -1,15 +1,19 @@
+// Sage scale (issue #147) — retinted from green toward --primary (#54ab92 dark),
+// faint to strong. Empty cell tracks the warm dark border.
 export const darkColorScheme = {
-  empty: '#1e293b',    // slate-800
-  level1: '#166534',   // green-800
-  level2: '#22c55e',   // green-500
-  level3: '#4ade80',   // green-400
-  level4: '#86efac',   // green-300
+  empty: '#352f24',    // --border (dark)
+  level1: '#2c5a4d',   // deep muted sage
+  level2: '#3a8270',
+  level3: '#54ab92',   // --primary (dark)
+  level4: '#7fc9b3',   // --primary-text (dark)
 };
 
+// Sage scale (issue #147) — retinted from green toward --primary (#2f8a76 light),
+// faint to strong. Empty cell tracks the warm sand border.
 export const lightColorScheme = {
-  empty: '#e2e8f0',    // slate-200
-  level1: '#bbf7d0',   // green-200
-  level2: '#4ade80',   // green-400
-  level3: '#22c55e',   // green-500
-  level4: '#16a34a',   // green-600
+  empty: '#e9e1d0',    // --border (light)
+  level1: '#bfe0d6',   // faint sage
+  level2: '#6fb6a3',
+  level3: '#2f8a76',   // --primary (light)
+  level4: '#226a5a',   // --primary-lip (deepest)
 };

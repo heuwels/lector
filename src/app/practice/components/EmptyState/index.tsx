@@ -9,13 +9,13 @@ export default function EmptyState({
 }: IEmptyStateProps) {
   return (
     <div className="py-8 text-center">
-      <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400">
+      <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--gold-soft)] text-[var(--gold-strong)]">
         <Clock className="h-8 w-8" />
       </div>
-      <h2 className="mb-2 text-xl font-bold text-zinc-900 dark:text-zinc-50">
+      <h2 className="mb-2 text-xl font-bold text-foreground">
         {roundType === 'review' ? 'Nothing to Review' : 'No New Sentences'}
       </h2>
-      <p className="mx-auto mb-6 max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="mx-auto mb-6 max-w-xs text-sm text-muted-foreground">
         {roundType === 'review'
           ? 'No sentences are due for review right now. Try learning new ones or check back later.'
           : "You've seen all the sentences in this collection. Try a different collection or review existing ones."}

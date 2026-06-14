@@ -9,12 +9,12 @@ export default function CorrectionView({ entry }: { entry: JournalEntry }) {
     <div className="space-y-6">
       {/* Original with inline highlights */}
       <div>
-        <h3 className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">Your text</h3>
-        <div className="rounded-lg bg-zinc-50 p-4 text-sm leading-relaxed whitespace-pre-wrap dark:bg-zinc-900">
+        <h3 className="mb-2 text-sm font-medium text-muted-foreground">Your text</h3>
+        <div className="rounded-lg bg-muted p-4 text-sm leading-relaxed whitespace-pre-wrap">
           <HighlightedText body={entry.body} corrections={corrections} />
         </div>
         {corrections.length > 0 && (
-          <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             Click highlighted words to see corrections
           </p>
         )}
@@ -23,8 +23,8 @@ export default function CorrectionView({ entry }: { entry: JournalEntry }) {
       {/* Corrected version */}
       {entry.correctedBody && entry.correctedBody !== entry.body && (
         <div>
-          <h3 className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">Corrected</h3>
-          <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm leading-relaxed whitespace-pre-wrap dark:border-green-900 dark:bg-green-950/30">
+          <h3 className="mb-2 text-sm font-medium text-muted-foreground">Corrected</h3>
+          <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] p-4 text-sm leading-relaxed whitespace-pre-wrap">
             {entry.correctedBody}
           </div>
         </div>
@@ -33,7 +33,7 @@ export default function CorrectionView({ entry }: { entry: JournalEntry }) {
       {/* Summary */}
       {corrections.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="text-xs text-muted-foreground">
             {corrections.length} correction{corrections.length !== 1 ? 's' : ''}:
           </span>
           {corrections.map((c, i) => (
@@ -41,8 +41,8 @@ export default function CorrectionView({ entry }: { entry: JournalEntry }) {
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center dark:border-green-900 dark:bg-green-950/30">
-          <p className="font-medium text-green-800 dark:text-green-300">
+        <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] p-4 text-center">
+          <p className="font-medium text-primary">
             Perfek! No corrections needed.
           </p>
         </div>

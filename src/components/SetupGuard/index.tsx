@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 import { getSetting } from '@/lib/data-layer';
 
 export default function SetupGuard({ children }: { children: React.ReactNode }) {
@@ -52,25 +53,24 @@ export default function SetupGuard({ children }: { children: React.ReactNode }) 
 
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-50 dark:bg-zinc-950">
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Could not connect to the server.</p>
-        <button
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
+        <p className="text-sm text-muted-foreground">Could not connect to the server.</p>
+        <Button
           onClick={() => {
             setError(false);
             setChecked(false);
           }}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
 
   if (!checked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
       </div>
     );
   }

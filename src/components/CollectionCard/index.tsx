@@ -14,10 +14,10 @@ export default function CollectionCard({ collection }: CollectionCardProps) {
   return (
     <Link
       href={`/collection/${collection.id}`}
-      className="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white transition-all hover:border-zinc-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
+      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-border hover:shadow-lg"
     >
       {/* Cover Image */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900">
+      <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
         {collection.coverUrl ? (
           <img
             src={collection.coverUrl}
@@ -27,10 +27,10 @@ export default function CollectionCard({ collection }: CollectionCardProps) {
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
             <BookOpen
-              className="mb-2 h-12 w-12 text-zinc-400 dark:text-zinc-600"
+              className="mb-2 h-12 w-12 text-muted-foreground"
               strokeWidth={1.5}
             />
-            <span className="text-sm font-medium text-zinc-500 dark:text-zinc-500">
+            <span className="text-sm font-medium text-muted-foreground">
               {collection.title.substring(0, 30)}
             </span>
           </div>
@@ -54,21 +54,21 @@ export default function CollectionCard({ collection }: CollectionCardProps) {
 
       {/* Collection Info */}
       <div className="flex flex-1 flex-col p-4">
-        <h3 className="line-clamp-2 text-base font-semibold text-zinc-900 dark:text-zinc-50">
+        <h3 className="line-clamp-2 text-base font-semibold text-foreground">
           {collection.title}
         </h3>
         {collection.author && (
-          <p className="mt-1 truncate text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 truncate text-sm text-muted-foreground">
             {collection.author}
           </p>
         )}
         <div className="mt-auto flex items-center justify-between pt-3">
-          <span className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3.5 w-3.5" />
             {collection.lastReadAt ? formatLastRead(collection.lastReadAt) : 'Not started'}
           </span>
           {collection.lessonCount > 1 && (
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            <span className="text-xs text-muted-foreground">
               {collection.lessonCount} lessons
             </span>
           )}

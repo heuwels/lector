@@ -176,10 +176,10 @@ export default function StatsPage() {
 
   if (!stats) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <p className="mb-4 text-red-500 dark:text-red-400">Failed to load statistics</p>
-          <Link href="/" className="text-blue-600 hover:underline dark:text-blue-400">
+          <p className="mb-4 text-destructive">Failed to load statistics</p>
+          <Link href="/" className="text-primary hover:underline">
             Return home
           </Link>
         </div>
@@ -190,7 +190,7 @@ export default function StatsPage() {
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
       <PageHeader title="Statistics">
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-muted-foreground">
           {new Date().toLocaleDateString('en-US', {
             weekday: 'long',
             year: 'numeric',

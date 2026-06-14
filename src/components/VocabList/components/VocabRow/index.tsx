@@ -19,7 +19,7 @@ export default function VocabRow({
 
     return (
         <tr
-            className="cursor-pointer border-b border-gray-200 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            className="cursor-pointer border-b border-border transition-colors hover:bg-accent"
             onClick={() => onClick(entry)}
         >
             {/* Checkbox */}
@@ -32,18 +32,18 @@ export default function VocabRow({
                         onSelect(entry.id, e.target.checked);
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                 />
             </td>
 
             {/* Word/Phrase */}
             <td className="px-4 py-3">
                 <div className="flex flex-col">
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                    <span className="font-medium text-foreground">
                         {entry.text}
                     </span>
                     {entry.type === "phrase" && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="text-xs text-muted-foreground">
                             phrase
                         </span>
                     )}
@@ -52,7 +52,7 @@ export default function VocabRow({
 
             {/* Translation */}
             <td className="max-w-xs px-4 py-3">
-                <span className="line-clamp-2 text-gray-700 dark:text-gray-300">
+                <span className="line-clamp-2 text-muted-foreground">
                     {entry.translation}
                 </span>
             </td>
@@ -65,11 +65,11 @@ export default function VocabRow({
             </td>
 
             <td className="max-w-[150px] px-4 py-3">
-                <span className="line-clamp-1 text-sm text-gray-600 dark:text-gray-400">
+                <span className="line-clamp-1 text-sm text-muted-foreground">
                     {bookTitle || "-"}
                 </span>
             </td>
-            <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+            <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
                 {formattedDate}
             </td>
             <td className="px-4 py-3">

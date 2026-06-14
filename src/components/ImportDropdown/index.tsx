@@ -2,6 +2,7 @@
 
 import { ChevronDown, Plus } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 import { IMPORT_OPTIONS } from './constants';
 import type { ImportDropdownProps, ImportSource } from './types';
 
@@ -62,14 +63,10 @@ export default function ImportDropdown({
 
   return (
     <div ref={dropdownRef} className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={disabled || isImporting}
-        className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-      >
+      <Button onClick={() => setIsOpen(!isOpen)} disabled={disabled || isImporting}>
         {isImporting ? (
           <>
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-zinc-900/30 dark:border-t-zinc-900" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
             Importing...
           </>
         ) : (
@@ -79,15 +76,15 @@ export default function ImportDropdown({
             <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </>
         )}
-      </button>
+      </Button>
 
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-48 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+        <div className="absolute right-0 z-50 mt-2 w-48 rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-lg">
           {IMPORT_OPTIONS.map(({ source, label, icon: Icon }) => (
             <button
               key={source}
               onClick={() => handleSelect(source)}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-popover-foreground transition-colors hover:bg-accent"
             >
               <Icon size="20" />
               {label}

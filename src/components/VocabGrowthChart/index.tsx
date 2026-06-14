@@ -35,9 +35,9 @@ export default function VocabGrowthChart({
   const latest = data.length > 0 ? data[data.length - 1] : null;
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="panel p-6">
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Vocabulary Growth</h3>
+        <h3 className="text-lg font-semibold text-foreground">Vocabulary Growth</h3>
         {controls}
       </div>
 
@@ -120,10 +120,10 @@ export default function VocabGrowthChart({
       </ResponsiveContainer>
 
       {latest && (
-        <div className="mt-4 grid grid-cols-3 gap-4 border-t border-zinc-200 pt-4 dark:border-slate-800">
-          <SummaryStat value={latest.known} label="Known Words" colorClassName="text-green-500" />
-          <SummaryStat value={latest.learning} label="Learning" colorClassName="text-yellow-500" />
-          <SummaryStat value={latest.total} label="Total" colorClassName="text-blue-500" />
+        <div className="mt-4 grid grid-cols-3 gap-4 border-t border-border pt-4">
+          <SummaryStat value={latest.known} label="Known Words" colorClassName="text-primary" />
+          <SummaryStat value={latest.learning} label="Learning" colorClassName="text-[var(--gold-strong)]" />
+          <SummaryStat value={latest.total} label="Total" colorClassName="text-clay" />
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { Button } from '@/components/ui/button';
 import PreviewStep from './components/PreviewStep';
 import UrlInputStep from './components/UrlInputStep';
 import type { ModalState, WebImportModalProps } from './types';
@@ -119,20 +120,21 @@ export default function WebImportModal({ isOpen, onClose, onSave }: WebImportMod
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div
         ref={modalRef}
-        className={`flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl transition-all duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900 ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+        className={`flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 ease-out ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="text-lg font-semibold text-foreground">
             Import from Web
           </h2>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             aria-label="Close"
           >
             <X size="20" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -164,28 +166,27 @@ export default function WebImportModal({ isOpen, onClose, onSave }: WebImportMod
 
         {/* Footer */}
         {(state.phase === 'preview' || state.phase === 'saving') && (
-          <div className="flex items-center justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-            <button
+          <div className="flex items-center justify-end gap-3 border-t border-border bg-muted px-6 py-4">
+            <Button
+              variant="ghost"
               onClick={() => setState({ phase: 'input' })}
               disabled={state.phase === 'saving'}
-              className="rounded-lg px-4 py-2 font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >
               Back
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={state.phase === 'saving' || !editedTitle.trim()}
-              className="rounded-lg bg-zinc-900 px-5 py-2 font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               {state.phase === 'saving' ? (
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-zinc-900/30 dark:border-t-zinc-900" />
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
                   Saving...
                 </div>
               ) : (
                 'Save to Library'
               )}
-            </button>
+            </Button>
           </div>
         )}
       </div>

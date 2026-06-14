@@ -22,7 +22,7 @@ export interface AnkiReviewPoint {
 }
 
 // blue-500 — matches the app's primary accent used elsewhere on the stats page.
-const ANKI_COLOR = '#3b82f6';
+const ANKI_COLOR = '#2f8a76';
 
 // Distinct sequential dates across ~3 months (31 + 28 + 31 = 90) so the blurred
 // preview chart spans the full width like the real one.
@@ -83,8 +83,8 @@ function ReviewsAreaChart({ data, height = 240 }: { data: AnkiReviewPoint[]; hei
           contentStyle={{
             borderRadius: 8,
             border: `1px solid ${theme.grid}`,
-            background: isDark ? '#18181b' : '#ffffff',
-            color: isDark ? '#fafafa' : '#18181b',
+            background: isDark ? '#211d16' : '#fffdf7',
+            color: isDark ? '#ece5d6' : '#2c2a23',
             fontSize: 12,
           }}
           formatter={(value: number | undefined) =>
@@ -109,7 +109,7 @@ function Stat({ value, label, className }: { value: number; label: string; class
   return (
     <div className="text-center">
       <div className={`text-2xl font-bold ${className}`}>{value.toLocaleString()}</div>
-      <div className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{label}</div>
+      <div className="mt-1 text-sm text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -138,22 +138,22 @@ export default function AnkiReviewsChart({
   return (
     <div
       data-testid="anki-reviews-card"
-      className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
+      className="panel p-6"
     >
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Anki Reviews</h3>
+        <h3 className="text-lg font-semibold text-foreground">Anki Reviews</h3>
         {hasData && (
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">Last 90 days</span>
+          <span className="text-sm text-muted-foreground">Last 90 days</span>
         )}
       </div>
 
       {hasData ? (
         <div data-testid="anki-reviews-chart">
           <ReviewsAreaChart data={data} />
-          <div className="mt-4 grid grid-cols-3 gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-            <Stat value={total} label="Reviews" className="text-blue-500" />
-            <Stat value={reviewDays} label="Review days" className="text-emerald-500" />
-            <Stat value={perDay} label="Avg / review day" className="text-purple-500" />
+          <div className="mt-4 grid grid-cols-3 gap-4 border-t border-border pt-4">
+            <Stat value={total} label="Reviews" className="text-primary" />
+            <Stat value={reviewDays} label="Review days" className="text-[var(--gold-strong)]" />
+            <Stat value={perDay} label="Avg / review day" className="text-clay" />
           </div>
         </div>
       ) : (
@@ -164,14 +164,14 @@ export default function AnkiReviewsChart({
           </div>
           {/* Connect-your-Anki overlay */}
           <div className="absolute inset-0 flex items-center justify-center px-4">
-            <div className="max-w-xs rounded-2xl border border-zinc-200/70 bg-white/80 px-6 py-5 text-center shadow-sm backdrop-blur-sm dark:border-zinc-700/60 dark:bg-zinc-900/80">
-              <div className="mb-2 flex justify-center text-blue-500">
+            <div className="max-w-xs rounded-2xl border border-border/70 bg-card/80 px-6 py-5 text-center shadow-sm backdrop-blur-sm">
+              <div className="mb-2 flex justify-center text-primary">
                 <Sparkles className="h-6 w-6" />
               </div>
-              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              <p className="text-sm font-medium text-foreground">
                 Connect your Anki to see your review history
               </p>
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Reviews sync automatically and count toward your streak.
               </p>
               <Link href="/settings" className={`${buttonVariants({ size: 'sm' })} mt-3`}>

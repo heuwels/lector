@@ -42,7 +42,7 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
   const knownBadge = knownWordsCount ? (
     <span
       title={`Words known: ${knownWordsCount}`}
-      className="rounded-full border border-amber-500 bg-amber-100 px-1 py-px text-amber-700 sm:px-2 sm:py-1"
+      className="rounded-full border border-[var(--gold-lip)] bg-[var(--gold-soft)] px-1 py-px text-[var(--gold-strong)] sm:px-2 sm:py-1"
     >
       {knownWordsCount > 1000 ? `${(knownWordsCount / 1000).toFixed(1)}K` : knownWordsCount}
     </span>
@@ -67,7 +67,7 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
         <DropdownMenuTrigger
           data-testid="language-selector"
           aria-label={`Language: ${activeLang.native}`}
-          className="flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted  "
         >
           <span>{activeLang.flag}</span>
           <span>{activeLang.code.toUpperCase()}</span>
@@ -87,7 +87,7 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
         <DropdownMenuTrigger
           data-testid="language-selector"
           aria-label={`Language: ${activeLang.native}`}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/50"
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent  "
         >
           <span className="text-lg">{activeLang.flag}</span>
           <span className="flex-1 text-left">{activeLang.native}</span>

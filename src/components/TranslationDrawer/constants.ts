@@ -1,13 +1,13 @@
 import { WordState } from "@/types";
 
 export const wordStateColors: Record<WordState, { bg: string; text: string; dot: string; ring: string }> = {
-  'new':     { bg: 'bg-blue-100 dark:bg-blue-900/40',     text: 'text-blue-700 dark:text-blue-300',     dot: 'bg-blue-500',   ring: 'ring-blue-500' },
-  'level1':  { bg: 'bg-red-100 dark:bg-red-900/40',       text: 'text-red-700 dark:text-red-300',       dot: 'bg-red-500',    ring: 'ring-red-500' },
-  'level2':  { bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500', ring: 'ring-orange-500' },
-  'level3':  { bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500', ring: 'ring-yellow-500' },
-  'level4':  { bg: 'bg-lime-100 dark:bg-lime-900/40',     text: 'text-lime-700 dark:text-lime-300',     dot: 'bg-lime-500',   ring: 'ring-lime-500' },
-  'known':   { bg: 'bg-green-100 dark:bg-green-900/40',   text: 'text-green-700 dark:text-green-300',   dot: 'bg-green-500',  ring: 'ring-green-500' },
-  'ignored': { bg: 'bg-gray-100 dark:bg-gray-800',        text: 'text-gray-500 dark:text-gray-400',     dot: 'bg-gray-400',   ring: 'ring-gray-400' },
+  'new':     { bg: 'bg-[var(--w-new-bg)]', text: 'text-[var(--w-new-fg)]', dot: 'bg-[var(--w-new-bd)]', ring: 'ring-[var(--w-new-bd)]' },
+  'level1':  { bg: 'bg-[var(--w-l1-bg)]',  text: 'text-[var(--w-l1-fg)]',  dot: 'bg-[var(--w-l1-bd)]',  ring: 'ring-[var(--w-l1-bd)]' },
+  'level2':  { bg: 'bg-[var(--w-l2-bg)]',  text: 'text-[var(--w-l2-fg)]',  dot: 'bg-[var(--w-l2-bd)]',  ring: 'ring-[var(--w-l2-bd)]' },
+  'level3':  { bg: 'bg-[var(--w-l3-bg)]',  text: 'text-[var(--w-l3-fg)]',  dot: 'bg-[var(--w-l3-bd)]',  ring: 'ring-[var(--w-l3-bd)]' },
+  'level4':  { bg: 'bg-[var(--w-l4-bg)]',  text: 'text-[var(--w-l4-fg)]',  dot: 'bg-[var(--w-l4-bd)]',  ring: 'ring-[var(--w-l4-bd)]' },
+  'known':   { bg: 'bg-[var(--primary-soft)]', text: 'text-[var(--primary-text)]', dot: 'bg-primary', ring: 'ring-primary' },
+  'ignored': { bg: 'bg-muted',             text: 'text-muted-foreground', dot: 'bg-muted-foreground', ring: 'ring-muted-foreground' },
 };
 
 export const wordStateLabels: Record<WordState, string> = {

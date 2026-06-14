@@ -207,7 +207,7 @@ test.describe("Chat Widget", () => {
 
     // Panel should be visible and functional in dark mode
     const panel = page.getByTestId("chat-panel");
-    await expect(panel).toHaveClass(/dark:bg-gray-800/);
+    await expect(panel).toHaveClass(/bg-card/);
   });
 
   test("should be available on practice page too", async ({ page }) => {

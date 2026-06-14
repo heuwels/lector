@@ -3,6 +3,7 @@
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { Button } from '@/components/ui/button';
 import type { LessonFormModalProps } from './types';
 
 export default function LessonFormModal({
@@ -80,14 +81,14 @@ export default function LessonFormModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div
         ref={modalRef}
-        className={`flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl transition-all duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900 ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+        className={`flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 ease-out ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{heading}</h2>
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="text-lg font-semibold text-foreground">{heading}</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -99,7 +100,7 @@ export default function LessonFormModal({
           <div>
             <label
               htmlFor="lesson-title"
-              className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              className="mb-2 block text-sm font-medium text-foreground"
             >
               Title
             </label>
@@ -111,7 +112,7 @@ export default function LessonFormModal({
               onChange={(e) => setTitle(e.target.value)}
               disabled={isSaving}
               placeholder="Lesson title"
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-900 placeholder-zinc-400 focus:ring-2 focus:ring-zinc-900 focus:outline-none disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:ring-zinc-100"
+              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none disabled:opacity-50"
             />
           </div>
 
@@ -119,12 +120,12 @@ export default function LessonFormModal({
             <div className="mb-2 flex items-center justify-between">
               <label
                 htmlFor="lesson-content"
-                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                className="block text-sm font-medium text-foreground"
               >
                 Text
               </label>
               {wordCount > 0 && (
-                <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                <span className="text-xs text-muted-foreground">
                   {wordCount.toLocaleString()} words
                 </span>
               )}
@@ -136,34 +137,29 @@ export default function LessonFormModal({
               disabled={isSaving}
               placeholder="Lesson text. Markdown is supported."
               rows={12}
-              className="w-full resize-none rounded-lg border border-zinc-300 bg-white px-4 py-3 text-sm leading-relaxed text-zinc-900 placeholder-zinc-400 focus:ring-2 focus:ring-zinc-900 focus:outline-none disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:ring-zinc-100"
+              className="w-full resize-none rounded-lg border border-input bg-background px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none disabled:opacity-50"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-          <button
-            onClick={onClose}
-            disabled={isSaving}
-            className="rounded-lg px-4 py-2 font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
-          >
+        <div className="flex items-center justify-end gap-3 border-t border-border bg-muted px-6 py-4">
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSave}
             disabled={isSaving || !title.trim() || !textContent.trim()}
-            className="rounded-lg bg-zinc-900 px-5 py-2 font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             {isSaving ? (
               <div className="flex items-center gap-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-zinc-900/30 dark:border-t-zinc-900" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
                 Saving...
               </div>
             ) : (
               submitLabel
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>,
