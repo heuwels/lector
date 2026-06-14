@@ -52,8 +52,8 @@ export default function TTSSettings() {
   }, [activeLang, ttsSpeed]);
 
   return (
-    <section className="panel p-6">
-      <div className="mb-4 flex items-center justify-between">
+    <section className="panel space-y-4 p-6">
+      <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">Text-to-Speech</h2>
         {googleTTSAvailable !== null && (
           <div className="flex items-center gap-2">
@@ -69,46 +69,32 @@ export default function TTSSettings() {
         )}
       </div>
 
-      {/* TTS Mode Toggle */}
-      <div className="mb-4">
-        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Voice Engine
         </label>
-        <div className="flex gap-2">
-          <button
-            disabled={!googleTTSAvailable}
-            onClick={() => handleTTSModeChanged('google')}
-            className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-              currentTTSMode === 'google'
-                ? 'border-primary bg-[var(--primary-soft)] text-primary'
-                : 'border-border bg-card text-foreground hover:bg-accent'
-            }`}
-          >
-            Google Cloud
-          </button>
-          <button
-            onClick={() => handleTTSModeChanged('browser')}
-            className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-              currentTTSMode === 'browser'
-                ? 'border-primary bg-[var(--primary-soft)] text-primary'
-                : 'border-border bg-card text-foreground hover:bg-accent'
-            }`}
-          >
-            Browser Built-in
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-zinc-500">
+        <p className="mb-2 text-xs text-zinc-500">
           Google Cloud has better pronunciation, browser is free
         </p>
+        <div className="flex gap-2">
+          <Button
+            disabled={!googleTTSAvailable}
+            onClick={() => handleTTSModeChanged('google')}
+            variant={currentTTSMode === 'google' ? 'default' : 'secondary'}
+          >
+            Google Cloud
+          </Button>
+          <Button
+            onClick={() => handleTTSModeChanged('browser')}
+            variant={currentTTSMode === 'browser' ? 'default' : 'secondary'}
+          >
+            Browser Built-in
+          </Button>
+        </div>
       </div>
 
-      <div className="mb-4">
-        <Button
-          onClick={testSpeaking}
-          className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
-        >
-          Test Voice
-        </Button>
+      <div>
+        <Button onClick={testSpeaking}>Test Voice</Button>
       </div>
 
       <div>

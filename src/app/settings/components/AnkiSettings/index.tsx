@@ -48,8 +48,8 @@ export default function AnkiSettings() {
   }, [checkAnkiConnection]);
 
   return (
-    <section className="panel p-6">
-      <div className="mb-4 flex items-center justify-between">
+    <section className="panel space-y-4 p-6">
+      <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">Anki Integration</h2>
         <div className="flex items-center gap-2">
           <span
@@ -67,15 +67,18 @@ export default function AnkiSettings() {
       </div>
 
       {ankiError && (
-        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
           {ankiError}
         </div>
       )}
 
-      <div className="mb-4">
-        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           AnkiConnect URL
         </label>
+        <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+          Hint: Use Tailscale IP for remote Anki (e.g., http://100.x.x.x:8765)
+        </p>
         <input
           type="text"
           value={ankiConnectUrl}
@@ -87,22 +90,22 @@ export default function AnkiSettings() {
             refreshAnkiUrl();
           }}
           placeholder="http://localhost:8765"
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
         />
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-          Hint: Use Tailscale IP for remote Anki (e.g., http://100.x.x.x:8765)
-        </p>
       </div>
 
-      <div className="mb-4">
-        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Vocab Deck
         </label>
+        <p className="mb-1 text-xs text-zinc-500 dark:text-zinc-500">
+          Deck for basic cards from reader vocabulary
+        </p>
         {ankiConnected && ankiDecks.length > 0 ? (
           <select
             value={ankiDeckName}
             onChange={(e) => localStorage.setItem(SETTINGS_KEYS.ANKI_DECK_NAME, e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
           >
             {ankiDecks.map((deck) => (
               <option key={deck} value={deck}>
@@ -116,25 +119,24 @@ export default function AnkiSettings() {
             value={ankiDeckName}
             onChange={(e) => localStorage.setItem(SETTINGS_KEYS.ANKI_DECK_NAME, e.target.value)}
             placeholder="Deck name"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
           />
         )}
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-          Deck for basic cards from reader vocabulary
-        </p>
       </div>
-
       <div>
-        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Cloze Practice Deck
         </label>
+        <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
+          Deck for cloze cards from practice mode
+        </p>
         {ankiConnected && ankiDecks.length > 0 ? (
           <select
             value={ankiClozeDeckName}
             onChange={(e) =>
               localStorage.setItem(SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME, e.target.value)
             }
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
           >
             {ankiDecks.map((deck) => (
               <option key={deck} value={deck}>
@@ -146,47 +148,44 @@ export default function AnkiSettings() {
           <input
             type="text"
             value={ankiClozeDeckName}
-            onChange={(e) =>
-              localStorage.setItem(SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME, e.target.value)
-            }
+            onChange={(e) => {
+              const newVal = e.target.value;
+
+              localStorage.setItem(SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME, newVal);
+              setAnkiClozeDeckName(newVal);
+            }}
             placeholder="Cloze deck name"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
           />
         )}
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-          Deck for cloze cards from practice mode
-        </p>
       </div>
-
       <div>
-        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Default Card Type
         </label>
-        <div className="flex gap-2">
-          <button
-            onClick={() => localStorage.setItem(SETTINGS_KEYS.DEFAULT_CARD_TYPE, 'basic')}
-            className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-              defaultCardType === 'basic'
-                ? 'border-primary bg-[var(--primary-soft)] text-primary'
-                : 'border-border bg-card text-foreground hover:bg-accent'
-            }`}
-          >
-            Basic
-          </button>
-          <button
-            onClick={() => localStorage.setItem(SETTINGS_KEYS.DEFAULT_CARD_TYPE, 'cloze')}
-            className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
-              defaultCardType === 'cloze'
-                ? 'border-primary bg-[var(--primary-soft)] text-primary'
-                : 'border-border bg-card text-foreground hover:bg-accent'
-            }`}
-          >
-            Cloze
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+        <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-500">
           Basic shows front/back, Cloze creates fill-in-the-blank cards
         </p>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            onClick={(e) => {
+              localStorage.setItem(SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME, 'basic');
+              setDefaultCardType('basic');
+            }}
+            variant={defaultCardType === 'basic' ? 'default' : 'secondary'}
+          >
+            Basic
+          </Button>
+          <Button
+            onClick={(e) => {
+              localStorage.setItem(SETTINGS_KEYS.ANKI_CLOZE_DECK_NAME, 'cloze');
+              setDefaultCardType('cloze');
+            }}
+            variant={defaultCardType === 'cloze' ? 'default' : 'secondary'}
+          >
+            Cloze
+          </Button>
+        </div>
       </div>
     </section>
   );
