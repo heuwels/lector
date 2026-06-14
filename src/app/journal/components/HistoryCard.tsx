@@ -48,7 +48,9 @@ export default function HistoryCard({
         </div>
       </div>
       <p className="line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">{preview}</p>
-      <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{entry.wordCount} words</p>
+      <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+        {entry.wordCount} word{entry.wordCount > 1 ? 's' : ''}
+      </p>
     </div>
   );
 }

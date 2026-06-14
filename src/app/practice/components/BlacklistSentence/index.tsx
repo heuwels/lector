@@ -10,26 +10,24 @@ export default function BlacklistSentence({
   onSentenceBlacklisted,
 }: {
   current: CurrentSentence | null;
-  onSentenceBlacklisted: () => {};
+  onSentenceBlacklisted: () => void;
 }) {
   const [pendingBlacklist, setPendingBlacklist] = useState<string | null>(null);
 
-  const handleUndoBlacklist = useCallback(
-    async (_: React.MouseEvent) => {
-      try {
-        if (pendingBlacklist) {
-          await unblacklistClozeSentence(pendingBlacklist);
-        }
-      } catch (e) {
-        toast.error('Failed to undo blacklist', {
-          duration: 2000,
-        });
-      } finally {
-        setPendingBlacklist(null);
+  const handleUndoBlacklist = useCallback(async () => {
+    try {
+      if (pendingBlacklist) {
+        await unblacklistClozeSentence(pendingBlacklist);
       }
-    },
-    [pendingBlacklist],
-  );
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to undo blacklist', {
+        duration: 2000,
+      });
+    } finally {
+      setPendingBlacklist(null);
+    }
+  }, [pendingBlacklist]);
 
   const clearPendingBlacklist = () => {
     setPendingBlacklist(null);

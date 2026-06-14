@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check, X } from 'lucide-react';
-import NavHeader from '@/components/NavHeader';
 import VocabList from '@/components/VocabList';
 import {
   type VocabEntry,

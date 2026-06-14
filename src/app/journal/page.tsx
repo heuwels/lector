@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Loader2, Plus } from 'lucide-react';
-import NavHeader from '@/components/NavHeader';
 import {
   type JournalEntry,
-  type Correction,
   getJournalEntries,
   createJournalEntry,
   updateJournalDraft,
@@ -172,7 +170,9 @@ export default function JournalPage() {
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
-                <span>{wordCount} words</span>
+                <span>
+                  {wordCount} word{wordCount > 1 ? 's' : ''}
+                </span>
                 {saveStatus && (
                   <span className="text-green-600 dark:text-green-400">{saveStatus}</span>
                 )}

@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Ban, CheckCircle, Clock, Star, Volume2 } from 'lucide-react';
-import { toast } from 'sonner';
-import NavHeader from '@/components/NavHeader';
+import { CheckCircle, Star, Volume2 } from 'lucide-react';
 import ClozeFeedback from '@/components/ClozeFeedback';
 import TranslationDrawer from '@/components/TranslationDrawer';
 import {
@@ -59,7 +57,6 @@ export default function PracticePage() {
   const [roundCorrect, setRoundCorrect] = useState(0);
   const [points, setPoints] = useState(0);
   const [ttsSupported, setTtsSupported] = useState(false);
-  const [ankiConnected, setAnkiConnected] = useState(false);
   const [seeded, setSeeded] = useState(false);
 
   // Practice mode
@@ -127,8 +124,6 @@ export default function PracticePage() {
   useEffect(() => {
     const init = async () => {
       setTtsSupported(isTTSAvailable());
-      const connected = await isAnkiConnected();
-      setAnkiConnected(connected);
 
       const stats = await getTodayStats();
       setPoints(stats.points);

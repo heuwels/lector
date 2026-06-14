@@ -6,7 +6,6 @@ import AddCollectionTile from './components/AddCollectionTile';
 import EmptyState from './components/EmptyState';
 import GroupMenu from './components/GroupMenu';
 import SortableCollectionCard from './components/SortableCollectionCard';
-import NavHeader from '@/components/NavHeader';
 import CollectionCard from '@/components/CollectionCard';
 import ImportDropdown from '@/components/ImportDropdown';
 import WebImportModal from '@/components/WebImportModal';
@@ -118,7 +117,7 @@ export default function Home() {
     try {
       if (ext === 'epub') {
         // EPUB — parse server-side into collection of lessons
-        const result = await importEpub(file);
+        await importEpub(file);
         // Reload collections to get the new one
         const updated = await getAllCollections();
         setCollections(updated);

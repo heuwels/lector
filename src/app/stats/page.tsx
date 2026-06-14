@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Book, CheckCircle, Flame } from 'lucide-react';
 import Link from 'next/link';
-import NavHeader from '@/components/NavHeader';
 import {
   getStatsForDateRange,
   getAllClozeSentences,

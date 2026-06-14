@@ -31,6 +31,17 @@ export default function ChatWidget() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/chat?limit=50&lang=${activeLang.code}`);
+      const data = await res.json();
+      setMessages(data);
+      setHasMore(data.length === 50);
+    } catch (err) {
+      console.error('Failed to load chat history:', err);
+    }
+  }, [activeLang]);
+
   // Load messages when opened
   useEffect(() => {
     if (isOpen && !initialLoadDone.current) {
@@ -40,7 +51,7 @@ export default function ChatWidget() {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [isOpen]);
+  }, [isOpen, fetchMessages]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -48,17 +59,6 @@ export default function ChatWidget() {
       scrollToBottom();
     }
   }, [messages.length, isOpen, scrollToBottom]);
-
-  async function fetchMessages() {
-    try {
-      const res = await fetch(`/api/chat?limit=50&lang=${activeLang.code}`);
-      const data = await res.json();
-      setMessages(data);
-      setHasMore(data.length === 50);
-    } catch (err) {
-      console.error('Failed to load chat history:', err);
-    }
-  }
 
   async function loadMore() {
     if (loadingHistory || !hasMore || messages.length === 0) return;

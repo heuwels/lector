@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { parseEpub } from './epub-parser';
-import { htmlToMarkdown, countWords } from '../html-to-markdown';
+import { countWords } from '../html-to-markdown';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const OLD_DB_PATH = path.join(DATA_DIR, 'afrikaans.db');
@@ -22,7 +22,11 @@ function getDb(): DatabaseType {
 
   // Migrate DB filename: afrikaans.db -> lector.db
   if (!fs.existsSync(DB_PATH)) {
-    try { fs.renameSync(OLD_DB_PATH, DB_PATH); } catch { /* old file doesn't exist or already moved */ }
+    try {
+      fs.renameSync(OLD_DB_PATH, DB_PATH);
+    } catch {
+      /* old file doesn't exist or already moved */
+    }
   }
 
   _db = new Database(DB_PATH);
@@ -203,35 +207,43 @@ function getDb(): DatabaseType {
   // Migrations for existing databases
 
   // Drop unique constraint on journal_entries.entryDate (allow multiple entries per day)
-  const journalIndexes = _db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='journal_entries' AND name='idx_journal_entryDate'").get() as { name: string } | undefined;
+  const journalIndexes = _db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='journal_entries' AND name='idx_journal_entryDate'",
+    )
+    .get() as { name: string } | undefined;
   if (journalIndexes) {
-    const indexSql = _db.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_journal_entryDate'").get() as { sql: string } | undefined;
+    const indexSql = _db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_journal_entryDate'")
+      .get() as { sql: string } | undefined;
     if (indexSql?.sql?.includes('UNIQUE')) {
       _db.exec('DROP INDEX idx_journal_entryDate');
       _db.exec('CREATE INDEX idx_journal_entryDate ON journal_entries(entryDate)');
     }
   }
 
-  const cols = _db.prepare("PRAGMA table_info(dailyStats)").all() as { name: string }[];
-  if (!cols.some(c => c.name === 'sessionStartedAt')) {
+  const cols = _db.prepare('PRAGMA table_info(dailyStats)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'sessionStartedAt')) {
     _db.exec('ALTER TABLE dailyStats ADD COLUMN sessionStartedAt TEXT');
   }
 
-  const clozeCols = _db.prepare("PRAGMA table_info(clozeSentences)").all() as { name: string }[];
-  if (!clozeCols.some(c => c.name === 'blacklisted')) {
+  const clozeCols = _db.prepare('PRAGMA table_info(clozeSentences)').all() as { name: string }[];
+  if (!clozeCols.some((c) => c.name === 'blacklisted')) {
     _db.exec('ALTER TABLE clozeSentences ADD COLUMN blacklisted INTEGER DEFAULT 0');
   }
 
-  const chatCols = _db.prepare("PRAGMA table_info(chat_messages)").all() as { name: string }[];
-  if (!chatCols.some(c => c.name === 'responseId')) {
+  const chatCols = _db.prepare('PRAGMA table_info(chat_messages)').all() as { name: string }[];
+  if (!chatCols.some((c) => c.name === 'responseId')) {
     _db.exec('ALTER TABLE chat_messages ADD COLUMN responseId TEXT');
   }
 
-  const collectionCols = _db.prepare("PRAGMA table_info(collections)").all() as { name: string }[];
-  if (!collectionCols.some(c => c.name === 'groupId')) {
-    _db.exec('ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL');
+  const collectionCols = _db.prepare('PRAGMA table_info(collections)').all() as { name: string }[];
+  if (!collectionCols.some((c) => c.name === 'groupId')) {
+    _db.exec(
+      'ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL',
+    );
   }
-  if (!collectionCols.some(c => c.name === 'sortOrder')) {
+  if (!collectionCols.some((c) => c.name === 'sortOrder')) {
     _db.exec('ALTER TABLE collections ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0');
   }
 
@@ -253,9 +265,9 @@ function getDb(): DatabaseType {
  */
 function migrateVocabForeignKey(database: DatabaseType) {
   // Check if vocab table has a FK referencing books
-  const createSql = database.prepare(
-    "SELECT sql FROM sqlite_master WHERE type='table' AND name='vocab'"
-  ).get() as { sql: string } | undefined;
+  const createSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='vocab'")
+    .get() as { sql: string } | undefined;
 
   if (!createSql || !createSql.sql.includes('REFERENCES books')) return;
 
@@ -291,9 +303,9 @@ function migrateVocabForeignKey(database: DatabaseType) {
  * Idempotent — only runs if books table exists.
  */
 function migrateBooks(database: DatabaseType) {
-  const tables = database.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='books'"
-  ).all();
+  const tables = database
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='books'")
+    .all();
   if (tables.length === 0) return;
 
   const books = database.prepare('SELECT * FROM books').all() as BookRow[];
@@ -302,8 +314,6 @@ function migrateBooks(database: DatabaseType) {
     database.exec('DROP TABLE IF EXISTS books');
     return;
   }
-
-  const now = new Date().toISOString();
 
   const insertCollection = database.prepare(`
     INSERT OR IGNORE INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
@@ -330,7 +340,7 @@ function migrateBooks(database: DatabaseType) {
             parsed.author || book.author,
             book.coverUrl,
             book.createdAt,
-            book.lastReadAt
+            book.lastReadAt,
           );
 
           for (let i = 0; i < parsed.chapters.length; i++) {
@@ -345,7 +355,7 @@ function migrateBooks(database: DatabaseType) {
               0,
               chapter.wordCount,
               book.createdAt,
-              book.lastReadAt
+              book.lastReadAt,
             );
           }
 
@@ -354,27 +364,54 @@ function migrateBooks(database: DatabaseType) {
         } catch (err) {
           // EPUB parsing failed — create single-lesson collection with whatever text we have
           console.error(`Failed to parse EPUB ${book.title}:`, err);
-          insertCollection.run(collectionId, book.title, book.author, book.coverUrl, book.createdAt, book.lastReadAt);
+          insertCollection.run(
+            collectionId,
+            book.title,
+            book.author,
+            book.coverUrl,
+            book.createdAt,
+            book.lastReadAt,
+          );
           insertLesson.run(
-            randomUUID(), collectionId, book.title, 0,
+            randomUUID(),
+            collectionId,
+            book.title,
+            0,
             book.textContent || '(EPUB could not be parsed)',
-            book.progress_scrollPosition, book.progress_percentComplete, 0,
-            book.createdAt, book.lastReadAt
+            book.progress_scrollPosition,
+            book.progress_percentComplete,
+            0,
+            book.createdAt,
+            book.lastReadAt,
           );
         }
       } else {
         // Markdown or PDF — single-lesson collection
-        const textContent = book.textContent || (book.filePath && fs.existsSync(book.filePath)
-          ? fs.readFileSync(book.filePath, 'utf-8')
-          : '');
+        const textContent =
+          book.textContent ||
+          (book.filePath && fs.existsSync(book.filePath)
+            ? fs.readFileSync(book.filePath, 'utf-8')
+            : '');
 
-        insertCollection.run(collectionId, book.title, book.author, book.coverUrl, book.createdAt, book.lastReadAt);
+        insertCollection.run(
+          collectionId,
+          book.title,
+          book.author,
+          book.coverUrl,
+          book.createdAt,
+          book.lastReadAt,
+        );
         insertLesson.run(
-          randomUUID(), collectionId, book.title, 0,
+          randomUUID(),
+          collectionId,
+          book.title,
+          0,
           textContent,
-          book.progress_scrollPosition, book.progress_percentComplete,
+          book.progress_scrollPosition,
+          book.progress_percentComplete,
           countWords(textContent),
-          book.createdAt, book.lastReadAt
+          book.createdAt,
+          book.lastReadAt,
         );
 
         // Clean up old file if it exists
@@ -396,19 +433,26 @@ function migrateBooks(database: DatabaseType) {
  * Also recreate knownWords with compound PK (word, language).
  */
 function migrateAddLanguageColumn(database: DatabaseType) {
-  const tablesToMigrate = ['collections', 'lessons', 'vocab', 'clozeSentences', 'journal_entries', 'chat_messages'];
+  const tablesToMigrate = [
+    'collections',
+    'lessons',
+    'vocab',
+    'clozeSentences',
+    'journal_entries',
+    'chat_messages',
+  ];
 
   for (const table of tablesToMigrate) {
     const cols = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-    if (!cols.some(c => c.name === 'language')) {
+    if (!cols.some((c) => c.name === 'language')) {
       database.exec(`ALTER TABLE ${table} ADD COLUMN language TEXT NOT NULL DEFAULT 'af'`);
     }
   }
 
   // Recreate knownWords with compound PK (word, language)
-  const knownWordsSql = database.prepare(
-    "SELECT sql FROM sqlite_master WHERE type='table' AND name='knownWords'"
-  ).get() as { sql: string } | undefined;
+  const knownWordsSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='knownWords'")
+    .get() as { sql: string } | undefined;
 
   if (knownWordsSql && !knownWordsSql.sql.includes('language')) {
     database.transaction(() => {
@@ -427,9 +471,9 @@ function migrateAddLanguageColumn(database: DatabaseType) {
   }
 
   // Recreate dailyStats with compound PK (date, language)
-  const dailyStatsSql = database.prepare(
-    "SELECT sql FROM sqlite_master WHERE type='table' AND name='dailyStats'"
-  ).get() as { sql: string } | undefined;
+  const dailyStatsSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='dailyStats'")
+    .get() as { sql: string } | undefined;
 
   if (dailyStatsSql && !dailyStatsSql.sql.includes('language')) {
     database.transaction(() => {

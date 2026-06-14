@@ -4,7 +4,6 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Plus } from 'lucide-react';
-import NavHeader from '@/components/NavHeader';
 import LessonFormModal from '@/components/LessonFormModal';
 import {
   DndContext,

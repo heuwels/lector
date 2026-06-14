@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import NavHeader from '@/components/NavHeader';
 import { getDeckNames, isAnkiConnected, refreshAnkiUrl } from '@/lib/anki';
 import { getTTSMode, setTTSMode, isGoogleTTSConfigured, speak, type TTSMode } from '@/lib/tts';
 import {

@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { parseEpub } from './lib/epub-parser';
-import { htmlToMarkdown, countWords } from './lib/html-to-markdown';
+import { countWords } from './lib/html-to-markdown';
 import { LanguageCode } from './lib/languages';
 
 const DATA_DIR = process.env.DATA_DIR || '../data';
@@ -21,7 +21,11 @@ function getDb(): Database {
 
   // Migrate DB filename: afrikaans.db -> lector.db
   if (!fs.existsSync(DB_PATH)) {
-    try { fs.renameSync(OLD_DB_PATH, DB_PATH); } catch { /* old file doesn't exist or already moved */ }
+    try {
+      fs.renameSync(OLD_DB_PATH, DB_PATH);
+    } catch {
+      /* old file doesn't exist or already moved */
+    }
   }
 
   _db = new Database(DB_PATH);
@@ -154,23 +158,23 @@ function getDb(): Database {
   `);
 
   // Migrations for existing databases
-  const cols = _db.prepare("PRAGMA table_info(dailyStats)").all() as { name: string }[];
-  if (!cols.some(c => c.name === 'sessionStartedAt')) {
+  const cols = _db.prepare('PRAGMA table_info(dailyStats)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'sessionStartedAt')) {
     _db.exec('ALTER TABLE dailyStats ADD COLUMN sessionStartedAt TEXT');
   }
 
-  const clozeCols = _db.prepare("PRAGMA table_info(clozeSentences)").all() as { name: string }[];
-  if (!clozeCols.some(c => c.name === 'blacklisted')) {
+  const clozeCols = _db.prepare('PRAGMA table_info(clozeSentences)').all() as { name: string }[];
+  if (!clozeCols.some((c) => c.name === 'blacklisted')) {
     _db.exec('ALTER TABLE clozeSentences ADD COLUMN blacklisted INTEGER DEFAULT 0');
   }
 
-  const chatCols = _db.prepare("PRAGMA table_info(chat_messages)").all() as { name: string }[];
-  if (!chatCols.some(c => c.name === 'responseId')) {
+  const chatCols = _db.prepare('PRAGMA table_info(chat_messages)').all() as { name: string }[];
+  if (!chatCols.some((c) => c.name === 'responseId')) {
     _db.exec('ALTER TABLE chat_messages ADD COLUMN responseId TEXT');
   }
 
-  if (!chatCols.some(c => c.name === 'language')) {
-    _db.exec('ALTER TABLE chat_messages ADD COLUMN language TEXT NOT NULL DEFAULT \'af\'');
+  if (!chatCols.some((c) => c.name === 'language')) {
+    _db.exec("ALTER TABLE chat_messages ADD COLUMN language TEXT NOT NULL DEFAULT 'af'");
   }
 
   migrateVocabForeignKey(_db);
@@ -188,15 +192,15 @@ function migrateAddLanguageColumn(database: Database) {
     // Empty = table doesn't exist in this server's schema (journal_entries is
     // created by the Next side only) — nothing to migrate, and ALTER would throw.
     if (cols.length === 0) continue;
-    if (!cols.some(c => c.name === 'language')) {
+    if (!cols.some((c) => c.name === 'language')) {
       database.exec(`ALTER TABLE ${table} ADD COLUMN language TEXT NOT NULL DEFAULT 'af'`);
     }
   }
 
   // Recreate knownWords with compound PK (word, language)
-  const knownWordsSql = database.prepare(
-    "SELECT sql FROM sqlite_master WHERE type='table' AND name='knownWords'"
-  ).get() as { sql: string } | undefined;
+  const knownWordsSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='knownWords'")
+    .get() as { sql: string } | undefined;
 
   if (knownWordsSql && !knownWordsSql.sql.includes('language')) {
     database.transaction(() => {
@@ -215,9 +219,9 @@ function migrateAddLanguageColumn(database: Database) {
   }
 
   // Recreate dailyStats with compound PK (date, language)
-  const dailyStatsSql = database.prepare(
-    "SELECT sql FROM sqlite_master WHERE type='table' AND name='dailyStats'"
-  ).get() as { sql: string } | undefined;
+  const dailyStatsSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='dailyStats'")
+    .get() as { sql: string } | undefined;
 
   if (dailyStatsSql && !dailyStatsSql.sql.includes('language')) {
     database.transaction(() => {
@@ -245,9 +249,9 @@ function migrateAddLanguageColumn(database: Database) {
 }
 
 function migrateVocabForeignKey(database: Database) {
-  const createSql = database.prepare(
-    "SELECT sql FROM sqlite_master WHERE type='table' AND name='vocab'"
-  ).get() as { sql: string } | undefined;
+  const createSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='vocab'")
+    .get() as { sql: string } | undefined;
 
   if (!createSql || !createSql.sql.includes('REFERENCES books')) return;
 
@@ -294,9 +298,9 @@ interface BookRow {
 }
 
 function migrateBooks(database: Database) {
-  const tables = database.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='books'"
-  ).all();
+  const tables = database
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='books'")
+    .all();
   if (tables.length === 0) return;
 
   const books = database.prepare('SELECT * FROM books').all() as BookRow[];
@@ -304,8 +308,6 @@ function migrateBooks(database: Database) {
     database.exec('DROP TABLE IF EXISTS books');
     return;
   }
-
-  const now = new Date().toISOString();
 
   const insertCollection = database.prepare(`
     INSERT OR IGNORE INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
@@ -326,40 +328,80 @@ function migrateBooks(database: Database) {
           const parsed = parseEpub(buffer);
 
           insertCollection.run(
-            collectionId, parsed.title || book.title, parsed.author || book.author,
-            book.coverUrl, book.createdAt, book.lastReadAt
+            collectionId,
+            parsed.title || book.title,
+            parsed.author || book.author,
+            book.coverUrl,
+            book.createdAt,
+            book.lastReadAt,
           );
 
           for (let i = 0; i < parsed.chapters.length; i++) {
             const chapter = parsed.chapters[i];
             insertLesson.run(
-              randomUUID(), collectionId, chapter.title, i,
-              chapter.markdown, 0, 0, chapter.wordCount,
-              book.createdAt, book.lastReadAt
+              randomUUID(),
+              collectionId,
+              chapter.title,
+              i,
+              chapter.markdown,
+              0,
+              0,
+              chapter.wordCount,
+              book.createdAt,
+              book.lastReadAt,
             );
           }
 
           fs.unlinkSync(book.filePath);
         } catch (err) {
           console.error(`Failed to parse EPUB ${book.title}:`, err);
-          insertCollection.run(collectionId, book.title, book.author, book.coverUrl, book.createdAt, book.lastReadAt);
+          insertCollection.run(
+            collectionId,
+            book.title,
+            book.author,
+            book.coverUrl,
+            book.createdAt,
+            book.lastReadAt,
+          );
           insertLesson.run(
-            randomUUID(), collectionId, book.title, 0,
+            randomUUID(),
+            collectionId,
+            book.title,
+            0,
             book.textContent || '(EPUB could not be parsed)',
-            book.progress_scrollPosition, book.progress_percentComplete, 0,
-            book.createdAt, book.lastReadAt
+            book.progress_scrollPosition,
+            book.progress_percentComplete,
+            0,
+            book.createdAt,
+            book.lastReadAt,
           );
         }
       } else {
-        const textContent = book.textContent || (book.filePath && fs.existsSync(book.filePath)
-          ? fs.readFileSync(book.filePath, 'utf-8')
-          : '');
+        const textContent =
+          book.textContent ||
+          (book.filePath && fs.existsSync(book.filePath)
+            ? fs.readFileSync(book.filePath, 'utf-8')
+            : '');
 
-        insertCollection.run(collectionId, book.title, book.author, book.coverUrl, book.createdAt, book.lastReadAt);
+        insertCollection.run(
+          collectionId,
+          book.title,
+          book.author,
+          book.coverUrl,
+          book.createdAt,
+          book.lastReadAt,
+        );
         insertLesson.run(
-          randomUUID(), collectionId, book.title, 0, textContent,
-          book.progress_scrollPosition, book.progress_percentComplete,
-          countWords(textContent), book.createdAt, book.lastReadAt
+          randomUUID(),
+          collectionId,
+          book.title,
+          0,
+          textContent,
+          book.progress_scrollPosition,
+          book.progress_percentComplete,
+          countWords(textContent),
+          book.createdAt,
+          book.lastReadAt,
         );
 
         if (book.filePath && fs.existsSync(book.filePath)) {
