@@ -1,23 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Book, CheckCircle, Flame } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Book, BookOpen, CheckCircle, Flame } from 'lucide-react';
 import Link from 'next/link';
 import {
-  getStatsForDateRange,
+  getAllDailyStats,
   getAllClozeSentences,
   getCollectionCounts,
   getFluencyStats,
+  getReadingStats,
   getStreak,
   getSetting,
 } from '@/lib/data-layer';
-import { addDaysToDateString, dateStringInTimeZone, isValidTimeZone } from '@/lib/dates';
+import { dateStringInTimeZone, isValidTimeZone } from '@/lib/dates';
+import { compositeActivityCount, sliceSeriesByDays } from '@/lib/stats-derive';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
 import PageHeader from '@/components/PageHeader';
 import VocabGrowthChart from '@/components/VocabGrowthChart';
 import {
   ClozeStats,
   FluencyBadge,
+  RangeSelector,
   SentenceMastery,
   StatCard,
   StatsSkeleton,
@@ -28,32 +31,36 @@ import { StatsData } from './types';
 export default function StatsPage() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
+  // Time window for the vocabulary-growth chart. Defaults to one year.
+  const [range, setRange] = useState<number | null>(365);
 
   useEffect(() => {
     async function loadStats() {
       try {
-        const [collectionCounts, fluency, streakData, tzSetting] = await Promise.all([
+        const [collectionCounts, fluency, reading, streakData, tzSetting] = await Promise.all([
           getCollectionCounts(),
           getFluencyStats(),
+          getReadingStats(),
           getStreak(),
           getSetting<string>('timezone'),
         ]);
 
-        // Get all daily stats for the past year. "Today" is a calendar date
-        // in the configured time zone (falling back to this device's zone),
-        // not UTC — otherwise the window misses today's row before 10:00
-        // AEST (issue #108).
+        // "Today" is a calendar date in the configured time zone (falling back
+        // to this device's zone), not UTC — otherwise the window misses today's
+        // row before 10:00 AEST (issue #108).
         const timeZone =
           tzSetting && isValidTimeZone(tzSetting)
             ? tzSetting
             : Intl.DateTimeFormat().resolvedOptions().timeZone;
         const endDate = dateStringInTimeZone(new Date(), timeZone);
-        const startDateStr = addDaysToDateString(endDate, -365);
 
-        const dailyStats = await getStatsForDateRange(startDateStr, endDate);
+        // Fetch all history so the "All" range and the cumulative growth series
+        // have everything; panels that are scoped to "the last year" slice it.
+        const dailyStats = await getAllDailyStats();
+        const last365 = sliceSeriesByDays(dailyStats, 365, endDate);
 
-        const totalClozeAttempts = dailyStats.reduce((sum, d) => sum + d.clozePracticed, 0);
-        const totalPoints = dailyStats.reduce((sum, d) => sum + d.points, 0);
+        const totalClozeAttempts = last365.reduce((sum, d) => sum + d.clozePracticed, 0);
+        const totalPoints = last365.reduce((sum, d) => sum + d.points, 0);
 
         // Get cloze correct count from db
         const clozeSentences = await getAllClozeSentences();
@@ -63,13 +70,15 @@ export default function StatsPage() {
         const currentStreak = streakData.streak;
         const longestStreak = streakData.longest;
 
-        // Build activity heatmap data (dictionary lookups per day)
-        const activityData = dailyStats.map((d) => ({
+        // Activity heatmap: composite study activity (lookups + cloze reviews +
+        // reading minutes) so the heatmap agrees with the streak, not dictionary
+        // lookups alone. Limited to the last year the heatmap renders.
+        const activityData = last365.map((d) => ({
           date: d.date,
-          count: d.dictionaryLookups,
+          count: compositeActivityCount(d),
         }));
 
-        // Build vocab growth data (cumulative over time)
+        // Build vocab growth data (cumulative over all history)
         const sortedDailyStats = [...dailyStats].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
         );
@@ -110,11 +119,13 @@ export default function StatsPage() {
           totalClozeAttempts,
           totalClozeCorrect,
           totalPoints,
+          reading,
           dailyStats,
           vocabGrowth,
           activityData,
           collectionCounts,
           fluency,
+          endDate,
         });
       } catch (error) {
         console.error('Failed to load stats:', error);
@@ -125,6 +136,13 @@ export default function StatsPage() {
 
     loadStats();
   }, []);
+
+  // Window the cumulative growth series for display. Cumulative values are kept
+  // intact — only the x-window narrows.
+  const displayedVocabGrowth = useMemo(
+    () => (stats ? sliceSeriesByDays(stats.vocabGrowth, range, stats.endDate) : []),
+    [stats, range],
+  );
 
   if (loading) {
     return <StatsSkeleton />;
@@ -158,7 +176,10 @@ export default function StatsPage() {
       <FluencyBadge fluency={stats.fluency} />
 
       {/* Top stat cards */}
-      <div data-testid="stats-top-cards" className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div
+        data-testid="stats-top-cards"
+        className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4"
+      >
         <StatCard
           label="Words Known"
           value={stats.totalKnown}
@@ -173,6 +194,13 @@ export default function StatsPage() {
           icon={<Book size="24" />}
         />
         <StatCard
+          label="Words Read"
+          value={stats.reading.wordsRead}
+          sublabel="Estimated from reading position"
+          color="blue"
+          icon={<BookOpen size="24" />}
+        />
+        <StatCard
           label="Current Streak"
           value={`${stats.currentStreak} days`}
           sublabel={`Longest: ${stats.longestStreak} days`}
@@ -183,12 +211,15 @@ export default function StatsPage() {
 
       {/* Vocabulary Growth Chart */}
       <div className="mb-8">
-        <VocabGrowthChart data={stats.vocabGrowth} />
+        <VocabGrowthChart
+          data={displayedVocabGrowth}
+          controls={<RangeSelector value={range} onChange={setRange} />}
+        />
       </div>
 
       {/* Activity Heatmap */}
       <div className="mb-8">
-        <ActivityHeatmap data={stats.activityData} />
+        <ActivityHeatmap data={stats.activityData} unit="actions" />
       </div>
 
       {/* Detailed breakdowns */}

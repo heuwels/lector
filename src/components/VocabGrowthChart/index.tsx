@@ -22,6 +22,7 @@ export default function VocabGrowthChart({
   data,
   showLegend = true,
   height = 300,
+  controls,
 }: VocabGrowthChartProps) {
   const isDark = useIsDark();
   const theme = isDark ? darkChartTheme : lightChartTheme;
@@ -35,9 +36,10 @@ export default function VocabGrowthChart({
 
   return (
     <div className="panel p-6">
-      <h3 className="mb-4 text-lg font-semibold text-foreground">
-        Vocabulary Growth
-      </h3>
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <h3 className="text-lg font-semibold text-foreground">Vocabulary Growth</h3>
+        {controls}
+      </div>
 
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={formattedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>

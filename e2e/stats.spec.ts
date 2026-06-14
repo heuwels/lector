@@ -89,21 +89,62 @@ test.describe("Stats Page", () => {
   test("should render skeleton placeholders before stats load, then swap to real content", async ({
     page,
   }) => {
-    // Slow the fluency request so the skeleton has time to appear.
-    await page.route("**/api/stats/fluency", async (route) => {
-      await new Promise((r) => setTimeout(r, 800));
+    // Hold the fluency response open until the skeleton has been asserted, so
+    // the check is deterministic instead of racing a fixed delay.
+    let releaseFluency: () => void = () => {};
+    const fluencyGate = new Promise<void>((resolve) => {
+      releaseFluency = resolve;
+    });
+    // Match the query string too: the request is /api/stats/fluency?language=af,
+    // so a bare "**/api/stats/fluency" glob never intercepts it.
+    await page.route("**/api/stats/fluency*", async (route) => {
+      await fluencyGate;
       await route.continue();
     });
 
-    await page.goto("/stats");
+    await page.goto("/stats", { waitUntil: "commit" });
 
-    // Skeleton should be visible during load
+    // Skeleton is shown while stats are still loading.
     const skeleton = page.locator('[data-testid="stats-skeleton"]');
-    await expect(skeleton).toBeVisible({ timeout: 5000 });
+    await expect(skeleton).toBeVisible({ timeout: 10000 });
 
-    // Eventually the real content takes over and the skeleton goes away
+    // Release the data; the real content takes over and the skeleton goes away.
+    releaseFluency();
     await page.waitForLoadState("networkidle");
     await expect(skeleton).toHaveCount(0, { timeout: 10000 });
     await expect(page.locator('[data-testid="stats-top-cards"]')).toBeVisible();
+  });
+
+  test("shows an estimated Words Read card in the top row", async ({ page }) => {
+    await page.goto("/stats");
+    await page.waitForLoadState("networkidle");
+
+    const topCards = page.locator('[data-testid="stats-top-cards"]');
+    await expect(topCards).toBeVisible({ timeout: 10000 });
+
+    await expect(topCards.getByText("Words Read", { exact: true })).toBeVisible();
+    // The caveat must be visible so the estimate isn't read as a precise count.
+    await expect(topCards.getByText("Estimated from reading position")).toBeVisible();
+  });
+
+  test("vocab growth range selector defaults to 1y and toggles", async ({
+    page,
+  }) => {
+    await page.goto("/stats");
+    await page.waitForLoadState("networkidle");
+
+    const selector = page.locator('[data-testid="stats-range-selector"]');
+    await expect(selector).toBeVisible({ timeout: 10000 });
+
+    const oneYear = selector.getByRole("button", { name: "1y" });
+    const all = selector.getByRole("button", { name: "All" });
+
+    await expect(oneYear).toHaveAttribute("aria-pressed", "true");
+    await expect(all).toHaveAttribute("aria-pressed", "false");
+
+    await all.click();
+
+    await expect(all).toHaveAttribute("aria-pressed", "true");
+    await expect(oneYear).toHaveAttribute("aria-pressed", "false");
   });
 });

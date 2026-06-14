@@ -9,6 +9,7 @@ import { formatDate, getColor } from './utils';
 
 export default function ActivityHeatmap({
   data,
+  unit = 'lookups',
   colorScheme: colorSchemeProp,
 }: ActivityHeatmapProps) {
   const isDark = useIsDark();
@@ -78,7 +79,7 @@ export default function ActivityHeatmap({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-foreground">Activity</h3>
         <div data-testid="activity-heatmap-total" className="text-sm text-muted-foreground">
-          {totalActivity.toLocaleString()} lookups in the last year
+          {totalActivity.toLocaleString()} {unit} in the last year
         </div>
       </div>
 
@@ -123,7 +124,7 @@ export default function ActivityHeatmap({
                   key={day.date}
                   className="w-[12px] h-[12px] rounded-sm transition-colors hover:ring-1 hover:ring-foreground/20"
                   style={{ backgroundColor: getColor(day.count, maxCount, colorScheme) }}
-                  title={`${day.date}: ${day.count} lookups`}
+                  title={`${day.date}: ${day.count} ${unit}`}
                 />
               ))}
               {/* Fill empty days for incomplete weeks */}
