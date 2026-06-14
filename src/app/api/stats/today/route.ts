@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest) {
   const field = body.field as string;
   const amount = body.amount ?? 1;
 
-  const allowedFields = ['wordsRead', 'newWordsSaved', 'wordsMarkedKnown', 'minutesRead', 'clozePracticed', 'points', 'dictionaryLookups'];
+  const allowedFields = ['wordsRead', 'newWordsSaved', 'wordsMarkedKnown', 'minutesRead', 'clozePracticed', 'points', 'dictionaryLookups', 'ankiReviews'];
   if (!allowedFields.includes(field)) {
     return NextResponse.json({ error: 'Invalid field' }, { status: 400 });
   }

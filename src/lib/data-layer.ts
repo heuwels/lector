@@ -714,6 +714,19 @@ export async function getRecentStats(days: number = 7): Promise<DailyStats[]> {
   return res.json();
 }
 
+// Best-effort sync of Anki's per-day review counts into dailyStats.ankiReviews,
+// so the activity heatmap + streak reflect Anki study. Returns connected:false
+// (a no-op) when AnkiConnect is unreachable. Safe to call on every stats load —
+// a closed Anki refuses the connection instantly.
+export async function syncAnkiReviews(): Promise<{
+  connected: boolean;
+  synced: number;
+  reviewsToday?: number;
+}> {
+  const res = await fetch('/api/anki/sync-reviews', { method: 'POST' });
+  return res.json();
+}
+
 // ============================================================================
 // Helper Functions - Settings
 // ============================================================================

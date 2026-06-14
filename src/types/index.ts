@@ -108,6 +108,9 @@ export interface DailyStats {
   clozePracticed: number;
   points: number;
   dictionaryLookups: number;
+  // Anki reviews done on this day, synced from AnkiConnect
+  // (getNumCardsReviewedByDay). Counts toward the activity heatmap + streak.
+  ankiReviews: number;
 }
 
 export interface Settings {
