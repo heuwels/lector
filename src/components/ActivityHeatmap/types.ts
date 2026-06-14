@@ -6,6 +6,8 @@ export interface ActivityDay {
 
 export interface ActivityHeatmapProps {
   data: ActivityDay[];
+  /** Noun for the counted unit, e.g. "actions" or "lookups". Defaults to "lookups". */
+  unit?: string;
   colorScheme?: {
     empty: string;
     level1: string;

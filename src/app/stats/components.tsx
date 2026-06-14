@@ -1,5 +1,48 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { ClozeCollection, FluencyStats, WordState } from '@/lib/data-layer';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+
+// Time-range options for the stats page. `days: null` means "all time".
+export const RANGE_OPTIONS: { label: string; days: number | null }[] = [
+  { label: '30d', days: 30 },
+  { label: '90d', days: 90 },
+  { label: '1y', days: 365 },
+  { label: 'All', days: null },
+];
+
+// Segmented time-range control. Built from the ui/Button primitive rather than
+// hand-rolled buttons, per the design-system guidance.
+export function RangeSelector({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (days: number | null) => void;
+}) {
+  return (
+    <div
+      data-testid="stats-range-selector"
+      className="inline-flex gap-0.5 rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800/60"
+    >
+      {RANGE_OPTIONS.map((opt) => {
+        const active = value === opt.days;
+        return (
+          <Button
+            key={opt.label}
+            size="xs"
+            variant={active ? 'secondary' : 'ghost'}
+            aria-pressed={active}
+            className={cn(!active && 'text-zinc-500 dark:text-zinc-400')}
+            onClick={() => onChange(opt.days)}
+          >
+            {opt.label}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
 
 // Stat card component
 export function StatCard({

@@ -35,6 +35,8 @@ export type {
   Settings,
 } from '@/types';
 
+export type { ReadingStats } from './stats-derive';
+
 import type {
   WordState,
   Collection,
@@ -580,6 +582,11 @@ export async function getFluencyStats(): Promise<FluencyStats> {
   return res.json();
 }
 
+export async function getReadingStats(): Promise<import('./stats-derive').ReadingStats> {
+  const res = await fetch('/api/stats/reading');
+  return res.json();
+}
+
 // Migration function - no-op for server storage
 export async function migrateClozeSentences(): Promise<number> {
   return 0;
@@ -692,6 +699,13 @@ export async function getStatsForDateRange(
   endDate: string,
 ): Promise<DailyStats[]> {
   const res = await fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`);
+  return res.json();
+}
+
+// All daily-stats rows, oldest first — used by the stats page so the "All" range
+// and full-history cumulative series have everything to work with.
+export async function getAllDailyStats(): Promise<DailyStats[]> {
+  const res = await fetch(`/api/stats${langParam()}`);
   return res.json();
 }
 
