@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { WordState } from "@/types";
 
 export default function StateIndicator({ state }: { state: WordState }) {
@@ -39,22 +40,9 @@ export default function StateIndicator({ state }: { state: WordState }) {
             );
         case "known":
             return (
-                <svg
-                    className="h-4 w-4 text-green-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={3}
-                    role="img"
-                    aria-label="Known"
-                >
+                <Check className="h-4 w-4 text-green-600" strokeWidth={3} aria-label="Known">
                     <title>Known - Fully learned</title>
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                    />
-                </svg>
+                </Check>
             );
         case "ignored":
             return (

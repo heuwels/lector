@@ -1,5 +1,4 @@
 import { test, expect, Page, Route } from '@playwright/test';
-import path from 'path';
 
 /**
  * E2E for issue #100 — accepted AI translations get cached into the on-device
@@ -114,13 +113,18 @@ test.describe('AI translation cache', () => {
 
     // Drawer closes on Known. Give the cache write a beat to land before
     // the next lookup. Polling on the API directly is faster than waitForTimeout.
-    await expect.poll(async () => {
-      const r = await page.request.get(
-        `/api/dictionary/lookup?word=${encodeURIComponent(NONSENSE)}`
-      );
-      const data = await r.json();
-      return data.entry?.source ?? null;
-    }, { timeout: 5000 }).toBe('cache');
+    await expect
+      .poll(
+        async () => {
+          const r = await page.request.get(
+            `/api/dictionary/lookup?word=${encodeURIComponent(NONSENSE)}`,
+          );
+          const data = await r.json();
+          return data.entry?.source ?? null;
+        },
+        { timeout: 5000 },
+      )
+      .toBe('cache');
 
     // 2nd click — must come from the cache, must NOT call AI again.
     await word.click();

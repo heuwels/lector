@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, ChevronDown, ChevronUp, Loader2, RefreshCw, Upload } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import type { WordState } from "@/lib/data-layer";
 import VocabRow from "./components/VocabRow";
@@ -162,13 +163,9 @@ export default function VocabList({
         return (
             <span className="ml-1">
                 {sortDirection === "asc" ? (
-                    <svg className="inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                    </svg>
+                    <ChevronUp className="inline h-4 w-4" />
                 ) : (
-                    <svg className="inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <ChevronDown className="inline h-4 w-4" />
                 )}
             </span>
         );
@@ -271,29 +268,12 @@ export default function VocabList({
                 >
                     {isExporting ? (
                         <>
-                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                                <circle
-                                    className="opacity-25"
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                    fill="none"
-                                />
-                                <path
-                                    className="opacity-75"
-                                    fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                />
-                            </svg>
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             Exporting...
                         </>
                     ) : (
                         <>
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                            </svg>
+                            <Upload className="h-4 w-4" />
                             Export to Anki ({selectedIds.size})
                         </>
                     )}
@@ -306,29 +286,12 @@ export default function VocabList({
                 >
                     {isMarkingKnown ? (
                         <>
-                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                                <circle
-                                    className="opacity-25"
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                    fill="none"
-                                />
-                                <path
-                                    className="opacity-75"
-                                    fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                />
-                            </svg>
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             Updating...
                         </>
                     ) : (
                         <>
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
+                            <Check className="h-4 w-4" />
                             Mark as Known ({selectedIds.size})
                         </>
                     )}
@@ -343,29 +306,12 @@ export default function VocabList({
                 >
                     {isSyncing ? (
                         <>
-                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                                <circle
-                                    className="opacity-25"
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                    fill="none"
-                                />
-                                <path
-                                    className="opacity-75"
-                                    fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                />
-                            </svg>
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             Syncing...
                         </>
                     ) : (
                         <>
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
+                            <RefreshCw className="h-4 w-4" />
                             Sync with Anki
                         </>
                     )}
@@ -432,25 +378,7 @@ export default function VocabList({
                             <tr>
                                 <td colSpan={7} className="px-4 py-12 text-center">
                                     <div className="flex flex-col items-center gap-3">
-                                        <svg
-                                            className="h-8 w-8 animate-spin text-blue-600"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <circle
-                                                className="opacity-25"
-                                                cx="12"
-                                                cy="12"
-                                                r="10"
-                                                stroke="currentColor"
-                                                strokeWidth="4"
-                                                fill="none"
-                                            />
-                                            <path
-                                                className="opacity-75"
-                                                fill="currentColor"
-                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                            />
-                                        </svg>
+                                        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
                                         <span className="text-gray-600 dark:text-gray-400">
                                             Loading vocabulary...
                                         </span>
@@ -518,9 +446,7 @@ export default function VocabList({
                                 <div className="flex items-center justify-between">
                                     <span className="font-medium text-zinc-900 dark:text-zinc-100">Basic</span>
                                     {cardType === 'basic' && (
-                                        <svg className="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
+                                        <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" strokeWidth={3} />
                                     )}
                                 </div>
                                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -541,9 +467,7 @@ export default function VocabList({
                                 <div className="flex items-center justify-between">
                                     <span className="font-medium text-zinc-900 dark:text-zinc-100">Cloze</span>
                                     {cardType === 'cloze' && (
-                                        <svg className="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
+                                        <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" strokeWidth={3} />
                                     )}
                                 </div>
                                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">

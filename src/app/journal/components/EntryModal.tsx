@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { JournalEntry } from '@/lib/data-layer';
 import { formatDateTime } from '../utils';
 import CorrectionView from './CorrectionView';
@@ -26,14 +27,7 @@ export default function EntryModal({
             onClick={onClose}
             className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <X className="h-5 w-5" />
           </button>
         </div>
         {entry.status === 'submitted' ? (

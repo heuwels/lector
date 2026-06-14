@@ -1,62 +1,36 @@
 'use client';
 
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import LanguageSelector from '@/components/LanguageSelector';
-import { iconMap, navLinks } from './constants';
+import { navLinks } from './constants';
+import NavLink from './components/NavLink';
+import AppName from './components/AppName';
 
 export default function NavHeader() {
-  const pathname = usePathname();
-
   return (
     <>
       {/* Mobile top bar — language selector, visible only on mobile */}
-      <div className="fixed top-0 right-0 left-0 z-50 flex h-[var(--mobile-topbar-h)] items-center justify-end border-b border-zinc-200 bg-white/80 px-3 backdrop-blur-sm sm:hidden dark:border-zinc-800 dark:bg-zinc-950/80">
+      <div className="flex h-[var(--mobile-topbar-h)] items-center justify-between border-b border-zinc-200 bg-white/80 px-3 py-2 backdrop-blur-sm sm:hidden dark:border-zinc-800 dark:bg-zinc-950/80">
+        <AppName />
         <LanguageSelector compact />
       </div>
 
       {/* Desktop left sidebar — hidden on mobile */}
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-56 border-r border-zinc-200 bg-white sm:flex sm:flex-col dark:border-zinc-800 dark:bg-zinc-950">
-        {/* App name */}
+      <aside className="sticky top-0 z-50 hidden h-screen w-56 border-r border-zinc-200 bg-white sm:flex sm:flex-col dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex h-16 items-center px-5">
-          <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.svg" alt="Lector" width={28} height={28} className="rounded" />
-            <span className="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Lector
-            </span>
-          </Link>
+          <AppName />
         </div>
 
-        {/* Language selector */}
         <div className="border-b border-zinc-200 pb-2 dark:border-zinc-800">
           <LanguageSelector />
         </div>
 
-        {/* Navigation links */}
         <nav className="flex-1 space-y-1 px-3 py-2">
           {navLinks.map((link) => {
-            const isActive = pathname === link.href;
-            const Icon = iconMap[link.href];
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
-                    : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-50'
-                }`}
-              >
-                <Icon />
-                {link.label}
-              </Link>
-            );
+            return <NavLink key={link.href} link={link} isMobile={false} />;
           })}
         </nav>
 
-        {/* Bottom: theme toggle */}
         <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <ThemeToggle />
         </div>
@@ -66,20 +40,7 @@ export default function NavHeader() {
       <nav className="fixed right-0 bottom-0 left-0 z-50 border-t border-zinc-200 bg-white sm:hidden dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex items-stretch">
           {navLinks.map((link) => {
-            const isActive = pathname === link.href;
-            const Icon = iconMap[link.href];
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
-                  isActive ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-500 dark:text-zinc-400'
-                }`}
-              >
-                <Icon />
-                {link.label}
-              </Link>
-            );
+            return <NavLink key={link.href} link={link} isMobile />;
           })}
         </div>
       </nav>

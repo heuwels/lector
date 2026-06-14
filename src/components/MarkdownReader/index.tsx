@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowLeft, ChevronLeft, ChevronRight, SquarePen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import {
     getKnownWordsMap,
@@ -234,9 +235,7 @@ export default function MarkdownReader({
             transition-colors
             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
+                    <ArrowLeft className="w-5 h-5" />
                     <span className="hidden sm:inline">Back</span>
                 </button>
 
@@ -287,9 +286,7 @@ export default function MarkdownReader({
                   hover:bg-zinc-100 dark:hover:bg-zinc-800
                   transition-colors"
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
+                                <SquarePen className="w-5 h-5" />
                             </button>
                         )}
                     </div>
@@ -364,9 +361,7 @@ export default function MarkdownReader({
                   text-zinc-600 dark:text-zinc-400
                   hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                </svg>
+                                <ChevronLeft className="w-4 h-4" />
                                 <span className="truncate max-w-[12em]">{prevLesson.title}</span>
                             </button>
                         ) : <div />}
@@ -378,9 +373,7 @@ export default function MarkdownReader({
                   hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                             >
                                 <span className="truncate max-w-[12em]">{nextLesson.title}</span>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
+                                <ChevronRight className="w-4 h-4" />
                             </button>
                         ) : <div />}
                     </div>

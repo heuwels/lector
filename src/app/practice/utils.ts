@@ -12,7 +12,10 @@ export function createBlankedSentence(sentence: string, wordIndex: number): stri
 
 // Helper export function to normalize text for comparison
 export function normalize(s: string): string {
-  return s.toLowerCase().replace(/[.,!?;:'")\]]/g, '').trim();
+  return s
+    .toLowerCase()
+    .replace(/[.,!?;:'")\]]/g, '')
+    .trim();
 }
 
 // Helper export function to check answer (case-insensitive, ignores punctuation)
@@ -47,7 +50,11 @@ export function calculateNextReview(mastery: ClozeMasteryLevel): Date {
 }
 
 // Calculate points for correct answer
-export function calculatePoints(mastery: ClozeMasteryLevel): number {
+export function calculatePoints(
+  mastery: ClozeMasteryLevel,
+  hintLetters: number,
+  wordLength: number,
+): number {
   const pointsMap: Record<ClozeMasteryLevel, number> = {
     0: 10,
     25: 15,
@@ -55,14 +62,14 @@ export function calculatePoints(mastery: ClozeMasteryLevel): number {
     75: 25,
     100: 30,
   };
-  return pointsMap[mastery];
+  const base = pointsMap[mastery];
+  const revealed = wordLength > 0 ? hintLetters / wordLength : 0;
+
+  return Math.max(0, Math.round(base * (1 - revealed)));
 }
 
 // Generate distractors from the queue/pool of cloze words
-export function generateDistractors(
-  correctWord: string,
-  pool: ClozeSentence[],
-): string[] {
+export function generateDistractors(correctWord: string, pool: ClozeSentence[]): string[] {
   const correctNorm = normalize(correctWord);
   const correctLen = correctNorm.length;
 

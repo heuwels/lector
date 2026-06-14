@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { loadConfig } from './config';
 import { ApiClient } from './client';
-import { output, type Format } from './format';
+import { type Format } from './format';
 
 import * as auth from './commands/auth';
 import * as collections from './commands/collections';
@@ -14,15 +14,33 @@ import * as data from './commands/data';
 import * as tokens from './commands/tokens';
 
 const COMMANDS: Record<string, { handle: typeof auth.handle; description: string }> = {
-  auth:        { handle: auth.handle,        description: 'Configure API access (login, logout, status, verify)' },
-  collections: { handle: collections.handle, description: 'Manage collections (list, get, create, update, delete, lessons, add-lesson)' },
-  lessons:     { handle: lessons.handle,     description: 'Manage lessons (get, update, delete, progress)' },
-  vocab:       { handle: vocab.handle,       description: 'Manage vocabulary (list, get, create, update, delete)' },
-  cloze:       { handle: cloze.handle,       description: 'Manage cloze sentences (list, due, counts, get, review, delete)' },
-  stats:       { handle: stats.handle,       description: 'View and update stats (today, range, streak, increment)' },
-  settings:    { handle: settings.handle,    description: 'Manage settings (list, get, set, delete)' },
-  data:        { handle: data.handle,        description: 'Export and import data (export, import)' },
-  tokens:      { handle: tokens.handle,      description: 'Manage API tokens (list, create, revoke)' },
+  auth: {
+    handle: auth.handle,
+    description: 'Configure API access (login, logout, status, verify)',
+  },
+  collections: {
+    handle: collections.handle,
+    description: 'Manage collections (list, get, create, update, delete, lessons, add-lesson)',
+  },
+  lessons: {
+    handle: lessons.handle,
+    description: 'Manage lessons (get, update, delete, progress)',
+  },
+  vocab: {
+    handle: vocab.handle,
+    description: 'Manage vocabulary (list, get, create, update, delete)',
+  },
+  cloze: {
+    handle: cloze.handle,
+    description: 'Manage cloze sentences (list, due, counts, get, review, delete)',
+  },
+  stats: {
+    handle: stats.handle,
+    description: 'View and update stats (today, range, streak, increment)',
+  },
+  settings: { handle: settings.handle, description: 'Manage settings (list, get, set, delete)' },
+  data: { handle: data.handle, description: 'Export and import data (export, import)' },
+  tokens: { handle: tokens.handle, description: 'Manage API tokens (list, create, revoke)' },
 };
 
 function parseArgs(args: string[]): {

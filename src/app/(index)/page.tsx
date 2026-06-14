@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { ChevronDown, Folder, Plus } from 'lucide-react';
 import AddCollectionTile from './components/AddCollectionTile';
 import EmptyState from './components/EmptyState';
 import GroupMenu from './components/GroupMenu';
 import SortableCollectionCard from './components/SortableCollectionCard';
-import NavHeader from '@/components/NavHeader';
 import CollectionCard from '@/components/CollectionCard';
 import ImportDropdown from '@/components/ImportDropdown';
 import WebImportModal from '@/components/WebImportModal';
@@ -38,6 +38,8 @@ import {
   type Collection,
   type CollectionGroup,
 } from '@/lib/data-layer';
+import { Button } from '@/components/ui/button';
+import PageHeader from '@/components/PageHeader';
 
 export default function Home() {
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -117,7 +119,7 @@ export default function Home() {
     try {
       if (ext === 'epub') {
         // EPUB — parse server-side into collection of lessons
-        const result = await importEpub(file);
+        await importEpub(file);
         // Reload collections to get the new one
         const updated = await getAllCollections();
         setCollections(updated);
@@ -144,14 +146,26 @@ export default function Home() {
     }
   }
 
-  async function handlePasteImportSave(article: { title: string; author: string; content: string }) {
-    await createStandaloneLesson({ title: article.title, author: article.author, textContent: article.content });
+  async function handlePasteImportSave(article: {
+    title: string;
+    author: string;
+    content: string;
+  }) {
+    await createStandaloneLesson({
+      title: article.title,
+      author: article.author,
+      textContent: article.content,
+    });
     const updated = await getAllCollections();
     setCollections(updated);
   }
 
   async function handleWebImportSave(article: { title: string; author: string; content: string }) {
-    await createStandaloneLesson({ title: article.title, author: article.author, textContent: article.content });
+    await createStandaloneLesson({
+      title: article.title,
+      author: article.author,
+      textContent: article.content,
+    });
     const updated = await getAllCollections();
     setCollections(updated);
   }
@@ -174,7 +188,8 @@ export default function Home() {
   }
 
   async function handleDeleteGroup(id: string, name: string) {
-    if (!confirm(`Delete group "${name}"? Collections in this group will become ungrouped.`)) return;
+    if (!confirm(`Delete group "${name}"? Collections in this group will become ungrouped.`))
+      return;
     await deleteGroup(id);
     const [updatedGroups, updatedCollections] = await Promise.all([
       getAllGroups(),
@@ -229,76 +244,68 @@ export default function Home() {
   const hasGroups = groups.length > 0;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pt-[var(--mobile-topbar-h)] sm:pt-0 sm:ml-56">
-      <NavHeader />
-
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        {isLoading ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
-          </div>
-        ) : (<section>
-          <div className="mb-6 flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Your Library</h2>
-            <div className="flex-1" />
-
-            {isCreatingGroup ? (
-              <form
-                onSubmit={(e) => { e.preventDefault(); handleCreateGroup(); }}
-                className="flex items-center gap-2"
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <PageHeader title="Your Library">
+        <div className="flex items-center space-x-2">
+          {isCreatingGroup ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCreateGroup();
+              }}
+              className="flex items-center gap-2"
+            >
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Group name"
+                autoFocus
+                data-testid="new-group-input"
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+              <Button type="submit" data-testid="new-group-submit">
+                Add
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  setIsCreatingGroup(false);
+                  setNewGroupName('');
+                }}
               >
-                <input
-                  type="text"
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  placeholder="Group name"
-                  autoFocus
-                  data-testid="new-group-input"
-                  className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                />
-                <button
-                  type="submit"
-                  data-testid="new-group-submit"
-                  className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                >
-                  Add
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setIsCreatingGroup(false); setNewGroupName(''); }}
-                  className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-                >
-                  Cancel
-                </button>
-              </form>
-            ) : (
-              <button
-                onClick={() => setIsCreatingGroup(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                data-testid="new-group-btn"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-                New Group
-              </button>
-            )}
+                Cancel
+              </Button>
+            </form>
+          ) : (
+            <Button onClick={() => setIsCreatingGroup(true)} data-testid="new-group-btn">
+              <Folder size="16" />
+              New Group
+            </Button>
+          )}
 
-            <ImportDropdown
-              onFileImport={handleImportClick}
-              onUrlImport={() => setIsWebImportOpen(true)}
-              onPasteImport={() => setIsPasteImportOpen(true)}
-              isImporting={isImporting}
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".epub,.md,.markdown"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
-
+          <ImportDropdown
+            onFileImport={handleImportClick}
+            onUrlImport={() => setIsWebImportOpen(true)}
+            onPasteImport={() => setIsPasteImportOpen(true)}
+            isImporting={isImporting}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".epub,.md,.markdown"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </div>
+      </PageHeader>
+      {isLoading ? (
+        <div className="flex h-64 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+        </div>
+      ) : (
+        <section>
           <WebImportModal
             isOpen={isWebImportOpen}
             onClose={() => setIsWebImportOpen(false)}
@@ -317,7 +324,11 @@ export default function Home() {
                 const items = groupedCollections.get(group.id) || [];
                 const isCollapsed = collapsedGroups.has(group.id);
                 return (
-                  <div key={group.id} data-testid={`group-${group.id}`}>
+                  <div
+                    key={group.id}
+                    data-testid={`group-${group.id}`}
+                    className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+                  >
                     <div className="mb-4 flex items-center gap-3">
                       <button
                         onClick={() => toggleGroup(group.id)}
@@ -326,14 +337,9 @@ export default function Home() {
                         data-testid={`group-toggle-${group.id}`}
                         className="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
                       >
-                        <svg
+                        <ChevronDown
                           className={`h-4 w-4 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+                        />
                         <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
                           {group.name}
                         </h3>
@@ -354,7 +360,10 @@ export default function Home() {
                         onDragEnd={(e) => handleCollectionDragEnd(group.id, e)}
                       >
                         <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                          <SortableContext items={items.map((c) => c.id)} strategy={rectSortingStrategy}>
+                          <SortableContext
+                            items={items.map((c) => c.id)}
+                            strategy={rectSortingStrategy}
+                          >
                             {items.map((collection) => (
                               <SortableCollectionCard key={collection.id} collection={collection} />
                             ))}
@@ -379,9 +388,7 @@ export default function Home() {
                               data-testid={`add-collection-${group.id}`}
                               className="group flex min-h-[14rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 text-zinc-400 transition-all hover:border-zinc-400 hover:bg-white hover:text-zinc-600 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
                             >
-                              <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                              </svg>
+                              <Plus className="h-8 w-8" strokeWidth={1.5} />
                               <span className="text-sm font-medium">New collection</span>
                             </button>
                           )}
@@ -394,7 +401,10 @@ export default function Home() {
 
               {/* Ungrouped */}
               {ungrouped.length > 0 && (
-                <div data-testid="ungrouped-section">
+                <div
+                  data-testid="ungrouped-section"
+                  className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+                >
                   {hasGroups && (
                     <h3 className="mb-4 text-lg font-semibold text-zinc-800 dark:text-zinc-200">
                       Ungrouped
@@ -411,9 +421,8 @@ export default function Home() {
           ) : (
             <EmptyState onImport={handleImportClick} />
           )}
-        </section>)}
-
-      </main>
-    </div>
+        </section>
+      )}
+    </main>
   );
 }

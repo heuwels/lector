@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, DailyStatsRow, VocabRow } from '@/lib/server/database';
+import { db, DailyStatsRow } from '@/lib/server/database';
 import { getTodayDate } from '@/lib/server/dates';
 import { addDaysToDateString } from '@/lib/dates';
 

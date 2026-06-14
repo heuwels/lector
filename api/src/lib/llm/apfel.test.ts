@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, test, expect, afterEach, mock } from 'bun:test';
 import { ApfelProvider } from './apfel';
 
 describe('ApfelProvider', () => {
@@ -35,9 +35,12 @@ describe('ApfelProvider', () => {
         expect(body.max_tokens).toBe(100);
         expect(body.response_format).toEqual({ type: 'json_object' });
 
-        return new Response(JSON.stringify({
-          choices: [{ message: { content: '{"translation": "Hallo"}' } }],
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '{"translation": "Hallo"}' } }],
+          }),
+          { status: 200 },
+        );
       }) as typeof fetch;
 
       const provider = new ApfelProvider();
@@ -73,7 +76,7 @@ describe('ApfelProvider', () => {
         provider.complete({
           messages: [{ role: 'user', content: 'Hello' }],
           maxTokens: 100,
-        })
+        }),
       ).rejects.toThrow('Apfel error: Internal Server Error');
     });
   });
