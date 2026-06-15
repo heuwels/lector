@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CheckCircle, Star, Volume2 } from 'lucide-react';
-import ClozeFeedback from '@/components/ClozeFeedback';
+import { CheckCircle, Star } from 'lucide-react';
 import TranslationDrawer from '@/components/TranslationDrawer';
 import {
   ClozeSentence,
@@ -18,9 +17,8 @@ import {
   seedSentenceBank,
   updateWordState,
 } from '@/lib/data-layer';
-import { speak, isTTSAvailable } from '@/lib/tts';
+import { speak } from '@/lib/tts';
 import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
-import { addClozeCard } from '@/lib/anki';
 import { translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 import { splitTrailingPunctuation } from '@/lib/words';
@@ -34,18 +32,20 @@ import {
   normalize,
   shuffle,
 } from './utils';
-import type { CurrentSentence, PracticeMode, PracticeState, RoundSize, RoundType } from './types';
-import {
-  ANKI_CLOZE_DECK_SETTING_KEY,
-  COLLECTION_LABELS,
-  DEFAULT_ANKI_CLOZE_DECK,
-  ROUND_SIZES,
-  VISIBLE_COLLECTIONS,
-} from './constants';
+import type {
+  CurrentSentence,
+  IFeedbackData,
+  PracticeMode,
+  PracticeState,
+  RoundSize,
+  RoundType,
+} from './types';
+import { COLLECTION_LABELS, ROUND_SIZES, VISIBLE_COLLECTIONS } from './constants';
 import BlacklistSentence from './components/BlacklistSentence';
 import { Button } from '@/components/ui/button';
 import EmptyState from './components/EmptyState';
 import PageHeader from '@/components/PageHeader';
+import Feedback from './components/Feedback';
 
 export default function PracticePage() {
   // State
@@ -58,7 +58,6 @@ export default function PracticePage() {
   const [roundProgress, setRoundProgress] = useState(0);
   const [roundCorrect, setRoundCorrect] = useState(0);
   const [points, setPoints] = useState(0);
-  const [ttsSupported, setTtsSupported] = useState(false);
   const [seeded, setSeeded] = useState(false);
 
   // Practice mode
@@ -80,18 +79,7 @@ export default function PracticePage() {
   > | null>(null);
 
   // Feedback state
-  const [feedbackData, setFeedbackData] = useState<{
-    isCorrect: boolean;
-    correctWord: string;
-    userAnswer: string;
-    translation: string;
-    points: number;
-    newMastery: ClozeMasteryLevel;
-    previousMastery: ClozeMasteryLevel;
-  } | null>(null);
-  const [isAddingToAnki, setIsAddingToAnki] = useState(false);
-  const [ankiAdded, setAnkiAdded] = useState(false);
-  const [ankiError, setAnkiError] = useState<string | null>(null);
+  const [feedbackData, setFeedbackData] = useState<IFeedbackData | null>(null);
   const [hintLetters, setHintLetters] = useState(0);
   const [retryQueue, setRetryQueue] = useState<ClozeSentence[]>([]);
   const [isRetryPhase, setIsRetryPhase] = useState(false);
@@ -125,8 +113,6 @@ export default function PracticePage() {
   // Load collection counts and seed on mount
   useEffect(() => {
     const init = async () => {
-      setTtsSupported(isTTSAvailable());
-
       const stats = await getTodayStats();
       setPoints(stats.points);
 
@@ -282,8 +268,6 @@ export default function PracticePage() {
       setCurrent({ sentence: nextSentence, blankedSentence });
       setUserAnswer('');
       setFeedbackData(null);
-      setAnkiAdded(false);
-      setAnkiError(null);
       setHintLetters(0);
       setMcFallback(false);
       setWordTooltip(null);
@@ -368,7 +352,7 @@ export default function PracticePage() {
 
     // Reveal one more letter beyond the correct prefix
     const revealCount = Math.min(Math.max(correctPrefix + 1, hintLetters + 1), correctWord.length);
-    setHintLetters(revealCount);
+    setHintLetters(hintLetters + 1);
     setUserAnswer(correctWord.slice(0, revealCount));
     inputRef.current?.focus();
   }, [current, hintLetters, userAnswer]);
@@ -612,41 +596,6 @@ export default function PracticePage() {
     }
   }, [state, handleNext, practiceMode, mcLocked, mcOptions, handleMcSelect, current]);
 
-  // Handle add to Anki
-  const handleAddToAnki = async () => {
-    if (!current || !feedbackData || !feedbackData.isCorrect || isAddingToAnki || ankiAdded) {
-      return;
-    }
-
-    setIsAddingToAnki(true);
-    setAnkiError(null);
-    try {
-      const deckName = localStorage.getItem(ANKI_CLOZE_DECK_SETTING_KEY) || DEFAULT_ANKI_CLOZE_DECK;
-
-      const cleanWord = splitTrailingPunctuation(current.sentence.clozeWord)[0];
-      await addClozeCard(
-        deckName,
-        current.sentence.sentence,
-        cleanWord,
-        current.sentence.translation,
-        cleanWord,
-      );
-      setAnkiAdded(true);
-    } catch (error) {
-      console.error('Failed to add to Anki:', error);
-      const message = error instanceof Error ? error.message : 'Failed to add to Anki';
-      setAnkiError(message);
-    } finally {
-      setIsAddingToAnki(false);
-    }
-  };
-
-  // Handle TTS
-  const handleSpeak = () => {
-    if (!current) return;
-    speak(current.sentence.sentence);
-  };
-
   const handleBackPressed = async () => {
     setState('setup');
     const counts = await getCollectionCounts();
@@ -726,9 +675,7 @@ export default function PracticePage() {
 
             {/* Learn New section */}
             <div className="rounded-2xl border border-border bg-card p-5">
-              <h2 className="mb-4 text-base font-semibold text-foreground">
-                Learn New
-              </h2>
+              <h2 className="mb-4 text-base font-semibold text-foreground">Learn New</h2>
 
               {/* Collection */}
               <div className="mb-4">
@@ -868,7 +815,8 @@ export default function PracticePage() {
                   empty: 'border-[var(--clay)] bg-[color-mix(in_srgb,var(--clay)_14%,var(--card))]',
                   match: 'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))]',
                   partial: 'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))]',
-                  wrong: 'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))]',
+                  wrong:
+                    'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))]',
                 }[fuzzyStatus];
 
                 const words = current.sentence.sentence.split(/\s+/);
@@ -951,8 +899,7 @@ export default function PracticePage() {
                     {(practiceMode === 'mc' || mcFallback) && (
                       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {mcOptions.map((option, idx) => {
-                          let btnClass =
-                            'border-border bg-card text-foreground hover:bg-accent';
+                          let btnClass = 'border-border bg-card text-foreground hover:bg-accent';
 
                           if (mcSelected !== null) {
                             if (idx === mcCorrectIdx) {
@@ -962,8 +909,7 @@ export default function PracticePage() {
                               btnClass =
                                 'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive';
                             } else {
-                              btnClass =
-                                'border-border bg-card text-muted-foreground opacity-60';
+                              btnClass = 'border-border bg-card text-muted-foreground opacity-60';
                             }
                           }
 
@@ -1039,68 +985,12 @@ export default function PracticePage() {
 
             {/* Feedback state */}
             {state === 'feedback' && current && feedbackData && (
-              <div>
-                <div className="mb-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {feedbackData.isCorrect ? 'Correct!' : 'Incorrect'}
-                    </span>
-                    {ttsSupported && feedbackData.isCorrect && (
-                      <Button type="button" onClick={handleSpeak} variant="ghost">
-                        <Volume2 className="h-4 w-4" />
-                        Listen Again
-                      </Button>
-                    )}
-                  </div>
-                  <p className="text-xl leading-relaxed font-medium text-foreground">
-                    {current.sentence.sentence.split(/\s+/).map((word, i) => (
-                      <span key={i}>
-                        {i > 0 && ' '}
-                        {i === current.sentence.clozeIndex ? (
-                          <span
-                            data-testid="cloze-word"
-                            onClick={() => handleWordClick(word)}
-                            className={`cursor-pointer rounded px-1 font-bold ${
-                              feedbackData.isCorrect
-                                ? 'border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
-                                : 'border border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
-                            }`}
-                          >
-                            {word}
-                          </span>
-                        ) : (
-                          <span
-                            data-testid="cloze-word"
-                            onClick={() => handleWordClick(word)}
-                            className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent hover:text-foreground"
-                          >
-                            {word}
-                          </span>
-                        )}
-                      </span>
-                    ))}
-                  </p>
-                  <p className="mt-2 text-base text-muted-foreground italic">
-                    {current.sentence.translation}
-                  </p>
-                </div>
-
-                <ClozeFeedback
-                  isCorrect={feedbackData.isCorrect}
-                  correctWord={feedbackData.correctWord}
-                  userAnswer={feedbackData.userAnswer}
-                  translation={feedbackData.translation}
-                  sentence={current.sentence.sentence}
-                  points={feedbackData.points}
-                  newMastery={feedbackData.newMastery}
-                  previousMastery={feedbackData.previousMastery}
-                  onNext={handleNext}
-                  onAddToAnki={handleAddToAnki}
-                  isAddingToAnki={isAddingToAnki}
-                  ankiAdded={ankiAdded}
-                  ankiError={ankiError}
-                />
-              </div>
+              <Feedback
+                feedbackData={feedbackData}
+                current={current}
+                onNext={handleNext}
+                onWordClicked={handleWordClick}
+              />
             )}
 
             {state === 'complete' && (
@@ -1108,9 +998,7 @@ export default function PracticePage() {
                 <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary">
                   <CheckCircle className="h-8 w-8" />
                 </div>
-                <h2 className="mb-2 text-xl font-bold text-foreground">
-                  Round Complete!
-                </h2>
+                <h2 className="mb-2 text-xl font-bold text-foreground">Round Complete!</h2>
                 <p className="mb-1 text-muted-foreground">
                   {roundCorrect}/{roundProgress} correct
                 </p>

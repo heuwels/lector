@@ -22429,9 +22429,9 @@
   },
   {
     "id": 13368829,
-    "text": "Om goed vir geen goeie rede te breuk is 'n kinderagtige ding om te doen.",
+    "text": "Om goed vir geen goeie rede te breek is 'n kinderagtige ding om te doen.",
     "translation": "Breaking things for no good reason is a childish thing to do.",
-    "clozeWord": "breuk",
+    "clozeWord": "breek",
     "clozeIndex": 7,
     "wordRank": 1639,
     "collection": "top2000"
