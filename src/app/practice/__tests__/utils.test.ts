@@ -108,53 +108,63 @@ describe('calculateNextReview', () => {
 });
 
 describe('calculatePoints', () => {
-  it('awards more points at higher mastery (no hints used)', () => {
-    expect(calculatePoints(0, 0, 4)).toBe(10);
-    expect(calculatePoints(25, 0, 4)).toBe(15);
-    expect(calculatePoints(50, 0, 4)).toBe(20);
-    expect(calculatePoints(75, 0, 4)).toBe(25);
-    expect(calculatePoints(100, 0, 4)).toBe(30);
+  it('scales with the mastery reached: base × (mastery ÷ 25)', () => {
+    // Typed answers use base 8.
+    expect(calculatePoints(0, 0, 4, 'type')).toBe(0);
+    expect(calculatePoints(25, 0, 4, 'type')).toBe(8);
+    expect(calculatePoints(50, 0, 4, 'type')).toBe(16);
+    expect(calculatePoints(75, 0, 4, 'type')).toBe(24);
+    expect(calculatePoints(100, 0, 4, 'type')).toBe(32);
   });
 
-  it('deducts points for each letter revealed via hints', () => {
-    // 4-letter word at mastery 100 (base 30): each hint reveals 25% of the word.
-    expect(calculatePoints(100, 0, 4)).toBe(30);
-    expect(calculatePoints(100, 1, 4)).toBe(23); // 30 * 3/4 = 22.5 -> 23
-    expect(calculatePoints(100, 2, 4)).toBe(15); // 30 * 2/4
-    expect(calculatePoints(100, 3, 4)).toBe(8); // 30 * 1/4 = 7.5 -> 8
-    expect(calculatePoints(100, 4, 4)).toBe(0); // whole word revealed
+  it('awards half as much for multiple choice (base 4 vs 8)', () => {
+    expect(calculatePoints(25, 0, 4, 'mc')).toBe(4);
+    expect(calculatePoints(50, 0, 4, 'mc')).toBe(8);
+    expect(calculatePoints(75, 0, 4, 'mc')).toBe(12);
+    expect(calculatePoints(100, 0, 4, 'mc')).toBe(16);
+  });
+
+  it('deducts points for each letter revealed via hints (typed answers)', () => {
+    // 4-letter word at mastery 100 (base 8 × 4 = 32): each hint reveals 25%.
+    expect(calculatePoints(100, 0, 4, 'type')).toBe(32);
+    expect(calculatePoints(100, 1, 4, 'type')).toBe(24); // 32 * 3/4
+    expect(calculatePoints(100, 2, 4, 'type')).toBe(16); // 32 * 2/4
+    expect(calculatePoints(100, 3, 4, 'type')).toBe(8); // 32 * 1/4
+    expect(calculatePoints(100, 4, 4, 'type')).toBe(0); // whole word revealed
   });
 
   it('scales the discount to the fraction revealed, not the absolute hint count', () => {
-    // One hint is worth less on a long word than on a short one.
-    expect(calculatePoints(100, 1, 2)).toBe(15); // revealed 1/2 -> 30 * 0.5
-    expect(calculatePoints(100, 1, 4)).toBe(23); // revealed 1/4 -> 30 * 0.75 = 22.5 -> 23
-    expect(calculatePoints(100, 1, 8)).toBe(26); // revealed 1/8 -> 30 * 0.875 = 26.25 -> 26
+    // One hint is worth less on a long word than on a short one (mastery 100 → 32).
+    expect(calculatePoints(100, 1, 2, 'type')).toBe(16); // revealed 1/2 -> 32 * 0.5
+    expect(calculatePoints(100, 1, 4, 'type')).toBe(24); // revealed 1/4 -> 32 * 0.75
+    expect(calculatePoints(100, 1, 8, 'type')).toBe(28); // revealed 1/8 -> 32 * 0.875
   });
 
   it('awards zero once the entire word has been revealed', () => {
-    expect(calculatePoints(0, 3, 3)).toBe(0);
-    expect(calculatePoints(50, 5, 5)).toBe(0);
-    expect(calculatePoints(100, 7, 7)).toBe(0);
+    expect(calculatePoints(25, 3, 3, 'type')).toBe(0);
+    expect(calculatePoints(50, 5, 5, 'type')).toBe(0);
+    expect(calculatePoints(100, 7, 7, 'type')).toBe(0);
   });
 
   it('never returns negative points when more letters are revealed than the word has', () => {
-    expect(calculatePoints(100, 10, 4)).toBe(0);
-    expect(calculatePoints(0, 8, 4)).toBe(0);
+    expect(calculatePoints(100, 10, 4, 'type')).toBe(0);
+    expect(calculatePoints(25, 8, 4, 'type')).toBe(0);
   });
 
-  it('always returns whole-number points, including when clamped', () => {
-    for (const mastery of [0, 25, 50, 75, 100] as const) {
-      for (let hints = 0; hints <= 5; hints++) {
-        const points = calculatePoints(mastery, hints, 4);
-        expect(Number.isInteger(points)).toBe(true);
-        expect(points).toBeGreaterThanOrEqual(0);
+  it('always returns whole-number, non-negative points across both modes', () => {
+    for (const mode of ['type', 'mc'] as const) {
+      for (const mastery of [0, 25, 50, 75, 100] as const) {
+        for (let hints = 0; hints <= 5; hints++) {
+          const points = calculatePoints(mastery, hints, 4, mode);
+          expect(Number.isInteger(points)).toBe(true);
+          expect(points).toBeGreaterThanOrEqual(0);
+        }
       }
     }
   });
 
   it('applies no discount for a zero-length word (guards divide-by-zero)', () => {
-    expect(calculatePoints(100, 1, 0)).toBe(30);
+    expect(calculatePoints(100, 1, 0, 'type')).toBe(32);
   });
 });
 

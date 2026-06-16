@@ -5,4 +5,5 @@ export const SETTINGS_KEYS = {
   DEFAULT_CARD_TYPE: 'lector-card-type',
   TTS_SPEED: 'lector-tts-speed',
   THEME: 'lector-theme',
+  HIDE_TRANSLATION: 'lector-hide-translation',
 } as const;

@@ -43,6 +43,8 @@ import type {
 import { COLLECTION_LABELS, ROUND_SIZES, VISIBLE_COLLECTIONS } from './constants';
 import BlacklistSentence from './components/BlacklistSentence';
 import { Button } from '@/components/ui/button';
+import { Kbd, KbdGroup } from '@/components/ui/kbd';
+import { SETTINGS_KEYS } from '@/app/settings/constants';
 import EmptyState from './components/EmptyState';
 import PageHeader from '@/components/PageHeader';
 import Feedback from './components/Feedback';
@@ -59,6 +61,10 @@ export default function PracticePage() {
   const [roundCorrect, setRoundCorrect] = useState(0);
   const [points, setPoints] = useState(0);
   const [seeded, setSeeded] = useState(false);
+
+  // Translation visibility. Initialised from the "Hide translation by default"
+  // setting on mount; Alt+T toggles it live during a round.
+  const [showTranslation, setShowTranslation] = useState(true);
 
   // Practice mode
   const [practiceMode, setPracticeMode] = useState<PracticeMode>('type');
@@ -121,6 +127,9 @@ export default function PracticePage() {
       if (savedMode === 'mc' || savedMode === 'type') {
         setPracticeMode(savedMode);
       }
+
+      // Respect the "hide translation by default" setting (Alt+T toggles live)
+      setShowTranslation(localStorage.getItem(SETTINGS_KEYS.HIDE_TRANSLATION) !== 'true');
 
       await migrateClozeSentences();
       await seedSentenceBank();
@@ -197,8 +206,6 @@ export default function PracticePage() {
     },
     [current],
   );
-
-  console.log(current);
 
   // Ask the LLM to retranslate the active word using the full (un-blanked)
   // sentence as context. Replaces the on-device gloss with a richer in-context
@@ -357,91 +364,94 @@ export default function PracticePage() {
     inputRef.current?.focus();
   }, [current, hintLetters, userAnswer]);
 
-  // Core submission logic (shared between type and MC modes)
-  const processAnswer = async (submittedAnswer: string) => {
-    if (!current || submittingRef.current) return;
+  // Record a completed answer: update the SRS card, points, and round stats,
+  // then show feedback. Shared by typed answers and multiple choice — the only
+  // differences are how correctness is decided (the caller's job, before the
+  // pause/sound) and the points base (8 for typing, 4 for MC), passed via `mode`.
+  const recordAnswer = useCallback(
+    async (isCorrect: boolean, submittedAnswer: string, mode: PracticeMode) => {
+      if (!current) return;
+
+      const previousMastery = current.sentence.masteryLevel;
+      const newMastery: ClozeMasteryLevel = isCorrect
+        ? (Math.min(previousMastery + 25, 100) as ClozeMasteryLevel)
+        : 0;
+
+      // No points in the retry phase — the answer was revealed when the card
+      // was first missed this round. Points scale with the mastery just reached.
+      const earnedPoints =
+        isCorrect && !isRetryPhase
+          ? calculatePoints(
+              newMastery,
+              hintLetters,
+              normalize(current.sentence.clozeWord).length,
+              mode,
+            )
+          : 0;
+      const nextReview = calculateNextReview(newMastery);
+
+      // Update database
+      await updateClozeAfterReview(current.sentence.id, isCorrect, newMastery, nextReview);
+      if (newMastery === 100) {
+        // Strip trailing punctuation so the reader's known-word lookup (clean,
+        // lowercased tokens) matches and fluency stats don't double-count.
+        await updateWordState(splitTrailingPunctuation(current.sentence.clozeWord)[0], 'known');
+      }
+      await incrementDailyStat('clozePracticed');
+      if (earnedPoints > 0) {
+        await incrementDailyStat('points', earnedPoints);
+      }
+
+      // Update local state — only count first-pass answers toward round progress,
+      // so retried sentences don't push the counter past roundSize (issue #57).
+      if (!isRetryPhase) {
+        setRoundProgress((prev) => prev + 1);
+        if (isCorrect) setRoundCorrect((prev) => prev + 1);
+      }
+      if (earnedPoints > 0) {
+        setPoints((prev) => prev + earnedPoints);
+      }
+
+      setFeedbackData({
+        isCorrect,
+        correctWord: splitTrailingPunctuation(current.sentence.clozeWord)[0],
+        userAnswer: submittedAnswer,
+        translation: current.sentence.translation,
+        points: earnedPoints,
+        newMastery,
+        previousMastery,
+      });
+
+      setState('feedback');
+
+      if (isCorrect) {
+        speak(current.sentence.sentence);
+      } else {
+        // Add to retry queue so incorrect answers are re-tested. The card was
+        // just demoted to mastery 0 in the DB — the queued copy must carry that,
+        // or the retry would promote it straight back from its old level.
+        setRetryQueue((prev) => [
+          ...prev,
+          { ...current.sentence, masteryLevel: 0 as ClozeMasteryLevel },
+        ]);
+      }
+    },
+    [current, hintLetters, isRetryPhase],
+  );
+
+  // Handle answer submission (type mode)
+  const handleSubmit = async () => {
+    if (!current || !userAnswer.trim() || submittingRef.current) return;
     submittingRef.current = true;
 
-    const isCorrect = checkAnswer(submittedAnswer, current.sentence.clozeWord);
-    const previousMastery = current.sentence.masteryLevel;
-
-    // Sound effects
+    const answer = userAnswer.trim();
+    const isCorrect = checkAnswer(answer, current.sentence.clozeWord);
     if (isCorrect) {
       playCorrectSound();
     } else {
       playIncorrectSound();
     }
-
-    let newMastery: ClozeMasteryLevel;
-    if (isCorrect) {
-      newMastery = Math.min(previousMastery + 25, 100) as ClozeMasteryLevel;
-    } else {
-      newMastery = 0;
-    }
-
-    // No points in the retry phase — the answer was revealed when the card
-    // was first missed this round.
-    const earnedPoints =
-      isCorrect && !isRetryPhase
-        ? calculatePoints(
-            previousMastery,
-            hintLetters,
-            normalize(current.sentence.clozeWord).length,
-          )
-        : 0;
-    const nextReview = calculateNextReview(newMastery);
-
-    // Update database
-    await updateClozeAfterReview(current.sentence.id, isCorrect, newMastery, nextReview);
-    if (newMastery === 100) {
-      // Strip trailing punctuation so the reader's known-word lookup (clean,
-      // lowercased tokens) matches and fluency stats don't double-count.
-      await updateWordState(splitTrailingPunctuation(current.sentence.clozeWord)[0], 'known');
-    }
-    await incrementDailyStat('clozePracticed');
-    if (earnedPoints > 0) {
-      await incrementDailyStat('points', earnedPoints);
-    }
-
-    // Update local state — only count first-pass answers toward round progress,
-    // so retried sentences don't push the counter past roundSize (issue #57).
-    if (!isRetryPhase) {
-      setRoundProgress((prev) => prev + 1);
-      if (isCorrect) setRoundCorrect((prev) => prev + 1);
-    }
-    if (earnedPoints > 0) {
-      setPoints((prev) => prev + earnedPoints);
-    }
-
-    setFeedbackData({
-      isCorrect,
-      correctWord: splitTrailingPunctuation(current.sentence.clozeWord)[0],
-      userAnswer: submittedAnswer,
-      translation: current.sentence.translation,
-      points: earnedPoints,
-      newMastery,
-      previousMastery,
-    });
-
-    setState('feedback');
-
-    if (isCorrect) {
-      speak(current.sentence.sentence);
-    } else {
-      // Add to retry queue so incorrect answers are re-tested. The card was
-      // just demoted to mastery 0 in the DB — the queued copy must carry that,
-      // or the retry would promote it straight back from its old level.
-      setRetryQueue((prev) => [
-        ...prev,
-        { ...current.sentence, masteryLevel: 0 as ClozeMasteryLevel },
-      ]);
-    }
-  };
-
-  // Handle answer submission (type mode)
-  const handleSubmit = async () => {
-    if (!current || !userAnswer.trim()) return;
-    await processAnswer(userAnswer.trim());
+    await recordAnswer(isCorrect, answer, 'type');
   };
 
   // Handle MC option selection
@@ -461,76 +471,17 @@ export default function PracticePage() {
         playIncorrectSound();
       }
 
-      // Delay then submit (without duplicate sound)
+      // Brief pause so the chosen option's right/wrong highlight stays visible
+      // before the feedback panel replaces it — longer on a miss so the user can
+      // see which option was correct. This delay (not extra work) is why MC feels
+      // slower than typing, where feedback appears the instant you submit.
       const delay = isCorrect ? 600 : 1200;
-      mcTimerRef.current = setTimeout(async () => {
+      mcTimerRef.current = setTimeout(() => {
         mcTimerRef.current = null;
-        if (!current) return;
-
-        const previousMastery = current.sentence.masteryLevel;
-        let newMastery: ClozeMasteryLevel;
-        if (isCorrect) {
-          newMastery = Math.min(previousMastery + 25, 100) as ClozeMasteryLevel;
-        } else {
-          newMastery = 0;
-        }
-
-        // No points in the retry phase — the answer was revealed when the card
-        // was first missed this round.
-        const earnedPoints =
-          isCorrect && !isRetryPhase
-            ? calculatePoints(
-                previousMastery,
-                hintLetters,
-                normalize(current.sentence.clozeWord).length,
-              )
-            : 0;
-        const nextReview = calculateNextReview(newMastery);
-
-        await updateClozeAfterReview(current.sentence.id, isCorrect, newMastery, nextReview);
-        if (newMastery === 100) {
-          // Strip trailing punctuation so the reader's known-word lookup (clean,
-          // lowercased tokens) matches and fluency stats don't double-count.
-          await updateWordState(splitTrailingPunctuation(current.sentence.clozeWord)[0], 'known');
-        }
-        await incrementDailyStat('clozePracticed');
-        if (earnedPoints > 0) {
-          await incrementDailyStat('points', earnedPoints);
-        }
-
-        if (!isRetryPhase) {
-          setRoundProgress((prev) => prev + 1);
-          if (isCorrect) setRoundCorrect((prev) => prev + 1);
-        }
-        if (earnedPoints > 0) {
-          setPoints((prev) => prev + earnedPoints);
-        }
-
-        setFeedbackData({
-          isCorrect,
-          correctWord: splitTrailingPunctuation(current.sentence.clozeWord)[0],
-          userAnswer: selectedWord,
-          translation: current.sentence.translation,
-          points: earnedPoints,
-          newMastery,
-          previousMastery,
-        });
-
-        setState('feedback');
-
-        if (isCorrect) {
-          speak(current.sentence.sentence);
-        } else {
-          // Re-test wrong answers at the end of the round, demoted to mastery 0
-          // (same as type mode).
-          setRetryQueue((prev) => [
-            ...prev,
-            { ...current.sentence, masteryLevel: 0 as ClozeMasteryLevel },
-          ]);
-        }
+        recordAnswer(isCorrect, selectedWord, 'mc');
       }, delay);
     },
-    [mcLocked, hintLetters, current, mcOptions, mcCorrectIdx, isRetryPhase],
+    [mcLocked, current, mcCorrectIdx, mcOptions, recordAnswer],
   );
 
   // Handle next sentence
@@ -595,6 +546,21 @@ export default function PracticePage() {
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
   }, [state, handleNext, practiceMode, mcLocked, mcOptions, handleMcSelect, current]);
+
+  // Alt+T toggles translation visibility (while practicing and on feedback)
+  useEffect(() => {
+    if (state !== 'practicing' && state !== 'feedback') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Match on e.code so it's keyboard-layout independent — on macOS Alt+T
+      // (Option+T) would otherwise arrive as e.key === '†'.
+      if (e.altKey && e.code === 'KeyT') {
+        e.preventDefault();
+        setShowTranslation((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state]);
 
   const handleBackPressed = async () => {
     setState('setup');
@@ -826,6 +792,17 @@ export default function PracticePage() {
                   words[current.sentence.clozeIndex] ?? '',
                 );
 
+                // Re-used in both the type and MC shortcut-hint rows below.
+                const translationHint = (
+                  <span className="inline-flex items-center gap-1.5">
+                    <KbdGroup>
+                      <Kbd>Alt</Kbd>
+                      <Kbd>T</Kbd>
+                    </KbdGroup>
+                    Translation
+                  </span>
+                );
+
                 return (
                   <div>
                     {/* Sentence with inline input or blank */}
@@ -889,10 +866,25 @@ export default function PracticePage() {
                           </span>
                         ))}
                       </p>
-                      {/* English translation */}
-                      <p className="mt-3 text-base text-muted-foreground italic">
-                        {current.sentence.translation}
-                      </p>
+                      {/* English translation — hidden when the user chooses to
+                          practise without it (toggle with Alt+T). */}
+                      {showTranslation ? (
+                        <p className="mt-3 text-base text-muted-foreground italic">
+                          {current.sentence.translation}
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowTranslation(true)}
+                          className="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground italic transition-colors hover:text-foreground"
+                        >
+                          Show translation
+                          <KbdGroup>
+                            <Kbd>Alt</Kbd>
+                            <Kbd>T</Kbd>
+                          </KbdGroup>
+                        </button>
+                      )}
                     </div>
 
                     {/* Multiple choice options */}
@@ -928,6 +920,26 @@ export default function PracticePage() {
                             </button>
                           );
                         })}
+                      </div>
+                    )}
+
+                    {/* Multiple-choice shortcut hints (real MC mode only — the
+                        number keys aren't wired up for the per-question fallback) */}
+                    {practiceMode === 'mc' && (
+                      <div className="mb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <KbdGroup>
+                            <Kbd>1</Kbd>
+                            <span aria-hidden>–</span>
+                            <Kbd>4</Kbd>
+                          </KbdGroup>
+                          Choose
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Kbd>Space</Kbd>
+                          Listen
+                        </span>
+                        {translationHint}
                       </div>
                     )}
 
@@ -968,6 +980,18 @@ export default function PracticePage() {
                         </Button>
                       </div>
                     )}
+
+                    {/* Type mode shortcut hints */}
+                    {practiceMode === 'type' && !mcFallback && (
+                      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Kbd>Enter</Kbd>
+                          {fuzzyStatus === 'match' ? 'Submit' : 'Check'}
+                        </span>
+                        {translationHint}
+                      </div>
+                    )}
+
                     {/* Mastery indicator */}
                     <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
                       <span>Mastery:</span>
