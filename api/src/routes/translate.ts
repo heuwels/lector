@@ -68,6 +68,7 @@ Be specific and concrete in idiomaticMeaning and usageNotes — avoid vague phra
       const text = await provider.complete({
         messages: [{ role: 'user', content: prompt }],
         maxTokens: 800,
+        task: 'phrase-translation',
       });
 
       return c.json(JSON.parse(text));
@@ -107,6 +108,7 @@ Backwards-compat fields the server adds (do NOT include these yourself — serve
       const text = await provider.complete({
         messages: [{ role: 'user', content: prompt }],
         maxTokens: 800,
+        task: 'word-translation',
       });
 
       const entry = JSON.parse(text);

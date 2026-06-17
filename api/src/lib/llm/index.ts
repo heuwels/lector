@@ -30,6 +30,9 @@ export function getProvider(): LLMProvider {
       const storedOauthToken = getSetting('claudeOauthToken') || undefined;
       const authMode = getSetting('anthropicAuthMode') as string | null;
       const model = process.env.ANTHROPIC_MODEL || undefined;
+      const wordModel = process.env.ANTHROPIC_WORD_MODEL || undefined;
+      const phraseModel = process.env.ANTHROPIC_PHRASE_MODEL || undefined;
+      const chatModel = process.env.ANTHROPIC_CHAT_MODEL || undefined;
 
       // Respect explicit auth mode; fall back to whichever credential is set
       let apiKey: string | undefined;
@@ -44,9 +47,9 @@ export function getProvider(): LLMProvider {
       }
 
       const effectiveMode = apiKey ? 'key' : oauthToken ? 'oauth' : 'env';
-      cacheKey = `anthropic:${effectiveMode}:${model || 'default'}`;
+      cacheKey = `anthropic:${effectiveMode}:${model || 'default'}:${wordModel || 'd'}:${phraseModel || 'd'}:${chatModel || 'd'}`;
       if (cachedProvider && cachedProviderKey === cacheKey) return cachedProvider;
-      cachedProvider = new AnthropicProvider({ apiKey, oauthToken, model });
+      cachedProvider = new AnthropicProvider({ apiKey, oauthToken, model, wordModel, phraseModel, chatModel });
       break;
     }
     case 'apfel': {
@@ -90,6 +93,9 @@ export function getAllProviders(): Record<string, LLMProvider> {
   const apiKey = getSetting('anthropicApiKey') || undefined;
   const oauthToken = getSetting('claudeOauthToken') || undefined;
   const anthropicModel = process.env.ANTHROPIC_MODEL || undefined;
+  const anthropicWordModel = process.env.ANTHROPIC_WORD_MODEL || undefined;
+  const anthropicPhraseModel = process.env.ANTHROPIC_PHRASE_MODEL || undefined;
+  const anthropicChatModel = process.env.ANTHROPIC_CHAT_MODEL || undefined;
 
   const apfelModel = getSetting('apfelModel') || process.env.APFEL_MODEL || undefined;
   const apfelUrl = getSetting('apfelUrl') || process.env.APFEL_URL || undefined;
@@ -101,7 +107,14 @@ export function getAllProviders(): Record<string, LLMProvider> {
   const lmstudioApiKey = getSetting('lmstudioApiKey') || process.env.LMSTUDIO_API_KEY || undefined;
 
   return {
-    claude: new AnthropicProvider({ apiKey, oauthToken, model: anthropicModel }),
+    claude: new AnthropicProvider({
+      apiKey,
+      oauthToken,
+      model: anthropicModel,
+      wordModel: anthropicWordModel,
+      phraseModel: anthropicPhraseModel,
+      chatModel: anthropicChatModel,
+    }),
     apfel: new ApfelProvider(apfelUrl, apfelModel),
     ollama: new OllamaProvider(undefined, ollamaModel),
     lmstudio: new LMStudioProvider({ baseUrl: lmstudioUrl, model: lmstudioModel, apiKey: lmstudioApiKey }),
