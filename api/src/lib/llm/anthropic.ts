@@ -1,16 +1,32 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { LLMProvider, CompletionOptions } from './types';
+import type { LLMProvider, CompletionOptions, LLMTask } from './types';
 
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+// General-purpose default. Use a plain alias (no date suffix) so it doesn't get
+// retired out from under us the way a pinned snapshot does — that's exactly what
+// happened to the old `claude-sonnet-4-20250514`, which started 404-ing.
+const DEFAULT_MODEL = 'claude-sonnet-4-6';
+
+export interface AnthropicProviderOptions {
+  apiKey?: string;
+  oauthToken?: string;
+  /** General default model, used for any task without a more specific override. */
+  model?: string;
+  /** Single-word translation — high volume, cheap (e.g. claude-haiku-4-5). */
+  wordModel?: string;
+  /** Phrase / in-context translation — wants more nuance (e.g. sonnet/opus). */
+  phraseModel?: string;
+  /** LLM tutor chat. */
+  chatModel?: string;
+}
 
 export class AnthropicProvider implements LLMProvider {
   name = 'anthropic';
   private client: Anthropic | null = null;
-  private model: string;
+  private models: { default: string; word: string; phrase: string; chat: string };
   private useAgentSdk: boolean;
 
-  constructor(options?: { apiKey?: string; oauthToken?: string; model?: string }) {
+  constructor(options?: AnthropicProviderOptions) {
     const oauthToken =
       options?.oauthToken ||
       process.env.CLAUDE_CODE_OAUTH_TOKEN ||
@@ -32,19 +48,45 @@ export class AnthropicProvider implements LLMProvider {
       this.useAgentSdk = false;
       this.client = new Anthropic();
     }
-    this.model = options?.model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
+
+    // Per-task models fall back to the general default when their env var /
+    // option is unset, so the app works out of the box and you opt into a
+    // cheaper/smarter tier per task. TODO(backlog): surface these in the
+    // Settings UI and support per-task models for all providers, not just Anthropic.
+    const base = options?.model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
+    this.models = {
+      default: base,
+      word: options?.wordModel || process.env.ANTHROPIC_WORD_MODEL || base,
+      phrase: options?.phraseModel || process.env.ANTHROPIC_PHRASE_MODEL || base,
+      chat: options?.chatModel || process.env.ANTHROPIC_CHAT_MODEL || base,
+    };
+  }
+
+  /** Resolve which model to use for a given task (see CompletionOptions.task). */
+  modelForTask(task?: LLMTask): string {
+    switch (task) {
+      case 'word-translation':
+        return this.models.word;
+      case 'phrase-translation':
+        return this.models.phrase;
+      case 'chat':
+        return this.models.chat;
+      default:
+        return this.models.default;
+    }
   }
 
   async complete(options: CompletionOptions): Promise<string> {
+    const model = this.modelForTask(options.task);
     if (this.useAgentSdk) {
-      return this.completeViaAgentSdk(options);
+      return this.completeViaAgentSdk(options, model);
     }
-    return this.completeViaApi(options);
+    return this.completeViaApi(options, model);
   }
 
-  private async completeViaApi(options: CompletionOptions): Promise<string> {
+  private async completeViaApi(options: CompletionOptions, model: string): Promise<string> {
     const message = await this.client!.messages.create({
-      model: this.model,
+      model,
       max_tokens: options.maxTokens,
       messages: options.messages.map((m) => ({
         role: m.role as 'user' | 'assistant',
@@ -60,7 +102,7 @@ export class AnthropicProvider implements LLMProvider {
     return content.text;
   }
 
-  private async completeViaAgentSdk(options: CompletionOptions): Promise<string> {
+  private async completeViaAgentSdk(options: CompletionOptions, model: string): Promise<string> {
     // Build a single prompt from the messages
     const prompt = options.messages
       .map((m) => m.content)
@@ -71,7 +113,7 @@ export class AnthropicProvider implements LLMProvider {
     for await (const message of query({
       prompt,
       options: {
-        model: this.model,
+        model,
         maxTurns: 1,
         systemPrompt: options.messages.find(m => m.role === 'system')?.content || undefined,
         allowedTools: [],

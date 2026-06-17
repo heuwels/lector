@@ -128,6 +128,7 @@ app.post('/', async (c) => {
       responseText = await provider.complete({
         messages: chatHistory,
         maxTokens: 1024,
+        task: 'chat',
       });
     }
 
@@ -189,7 +190,7 @@ async function runStatelessFallback(
     return { role: m.role as 'user' | 'assistant', content: m.content };
   });
 
-  return provider.complete({ messages: chatHistory, maxTokens: 1024 });
+  return provider.complete({ messages: chatHistory, maxTokens: 1024, task: 'chat' });
 }
 
 export default app;
