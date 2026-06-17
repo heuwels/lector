@@ -10,7 +10,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.114",
     "@anthropic-ai/sdk": "^0.78.0",
-    "@sentry/node": "^9",
+    "@sentry/node": "^10",
     "adm-zip": "^0.5.17",
     "hono": "^4.12.23",
     "uuid": "^14.0.0",
