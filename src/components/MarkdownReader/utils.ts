@@ -8,7 +8,7 @@ export function snapToWordBoundaries(selection: Selection): string {
     if (startContainer.nodeType === Node.TEXT_NODE) {
         const text = startContainer.textContent || '';
         let start = range.startOffset;
-        while (start > 0 && /[\wêëéèôöûüîïáà''ʼ`\-]/.test(text[start - 1])) {
+        while (start > 0 && /[\wêëéèôöûüîïáà'‘’ʼ`\-]/.test(text[start - 1])) {
             start--;
         }
         range.setStart(startContainer, start);
@@ -18,7 +18,7 @@ export function snapToWordBoundaries(selection: Selection): string {
     if (endContainer.nodeType === Node.TEXT_NODE) {
         const text = endContainer.textContent || '';
         let end = range.endOffset;
-        while (end < text.length && /[\wêëéèôöûüîïáà''ʼ`\-]/.test(text[end])) {
+        while (end < text.length && /[\wêëéèôöûüîïáà'‘’ʼ`\-]/.test(text[end])) {
             end++;
         }
         range.setEnd(endContainer, end);
@@ -30,7 +30,7 @@ export function snapToWordBoundaries(selection: Selection): string {
 // Matches a vocab "word": the Afrikaans 'n article, or a (possibly hyphenated)
 // run of letters including accented chars. Shared by the reader's tokenizer so
 // word indices line up between collection and rendering.
-export const WORD_PATTERN = /['''ʼ`]n\b|[\wêëéèôöûüîïáà]+(?:-[\wêëéèôöûüîïáà]+)*/gi;
+export const WORD_PATTERN = /['‘’ʼ`]n\b|[\wêëéèôöûüîïáà]+(?:-[\wêëéèôöûüîïáà]+)*/gi;
 
 export interface TextPart {
     text: string;

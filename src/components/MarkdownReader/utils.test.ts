@@ -21,14 +21,13 @@ describe('splitWords', () => {
         expect(words('more is donker en moeilik')).toEqual(['more', 'is', 'donker', 'en', 'moeilik']);
     });
 
-    it('treats the Afrikaans n-article as one word (for the apostrophes the pattern supports)', () => {
-        // The shared pattern matches straight (U+0027) and modifier (U+02BC)
-        // apostrophes, not the curly U+2019 the importer often emits — that gap
-        // is a separate, intentionally-untouched follow-up.
-        const straight = String.fromCharCode(0x27);
-        const modifier = String.fromCharCode(0x02bc);
-        expect(words(`${straight}n hond`)).toEqual([`${straight}n`, 'hond']);
-        expect(words(`${modifier}n kat`)).toEqual([`${modifier}n`, 'kat']);
+    it('treats the Afrikaans n-article as one word across apostrophe variants', () => {
+        // straight ', curly (U+2018 / U+2019 — what the EPUB/HTML importer emits),
+        // and modifier (U+02BC) all count as the n-article's apostrophe.
+        for (const code of [0x27, 0x2018, 0x2019, 0x02bc]) {
+            const apos = String.fromCharCode(code);
+            expect(words(`${apos}n hond`)).toEqual([`${apos}n`, 'hond']);
+        }
     });
 });
 
