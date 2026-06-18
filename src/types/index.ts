@@ -78,6 +78,11 @@ export interface VocabEntry {
 export interface KnownWord {
   word: string;  // lowercase, normalized - primary key
   state: WordState;
+  // Topic-domain key for the fluency radar (e.g. 'food'), 'general', or
+  // undefined when not yet classified by the background word-classifier.
+  // Validated against the taxonomy in src/lib/domains.ts at the classifier
+  // boundary, so kept as a loose string here.
+  domain?: string;
 }
 
 export interface ClozeSentence {

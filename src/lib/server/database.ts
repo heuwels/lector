@@ -267,6 +267,15 @@ function getDb(): DatabaseType {
 
   migrateLlmProviderSettings(_db);
 
+  // knownWords.domain — topic-domain tag for the fluency radar, set lazily by
+  // the background word-classifier (null = not yet classified). Added after
+  // migrateAddLanguageColumn (which rebuilds knownWords for the compound PK) so
+  // the column survives that rebuild.
+  const knownWordsCols = _db.prepare('PRAGMA table_info(knownWords)').all() as { name: string }[];
+  if (!knownWordsCols.some((c) => c.name === 'domain')) {
+    _db.exec('ALTER TABLE knownWords ADD COLUMN domain TEXT');
+  }
+
   return _db;
 }
 
