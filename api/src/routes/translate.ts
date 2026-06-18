@@ -69,6 +69,7 @@ Be specific and concrete in idiomaticMeaning and usageNotes — avoid vague phra
         messages: [{ role: 'user', content: prompt }],
         maxTokens: 800,
         task: 'phrase-translation',
+        responseFormat: 'json',
       });
 
       return c.json(JSON.parse(text));
@@ -109,6 +110,7 @@ Backwards-compat fields the server adds (do NOT include these yourself — serve
         messages: [{ role: 'user', content: prompt }],
         maxTokens: 800,
         task: 'word-translation',
+        responseFormat: 'json',
       });
 
       const entry = JSON.parse(text);

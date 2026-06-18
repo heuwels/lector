@@ -10,7 +10,7 @@ app.get('/', async (c) => {
 
   return c.json({
     provider: provider.name,
-    model: process.env.OLLAMA_MODEL || process.env.ANTHROPIC_MODEL || 'default',
+    model: provider.model || 'default',
     ...health,
   });
 });

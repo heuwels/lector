@@ -16,10 +16,19 @@ export interface CompletionOptions {
   maxTokens: number;
   /** Optional task hint for per-task model selection (Anthropic only for now). */
   task?: LLMTask;
+  /**
+   * Whether the caller needs a structured JSON object back. Routes that
+   * `JSON.parse()` the result (translate, journal-correct) pass 'json' so the
+   * provider requests OpenAI JSON mode; prose callers (explain, chat) leave it
+   * 'text'. Defaults to 'text' — providers only constrain the format on demand.
+   */
+  responseFormat?: 'json' | 'text';
 }
 
 export interface LLMProvider {
   name: string;
+  /** The configured model identifier, surfaced for status reporting. */
+  model?: string;
   complete(options: CompletionOptions): Promise<string>;
   /** Check if the provider is reachable and configured */
   healthCheck(): Promise<{ ok: boolean; error?: string }>;

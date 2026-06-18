@@ -62,6 +62,11 @@ export class AnthropicProvider implements LLMProvider {
     };
   }
 
+  /** The general-default model, surfaced for status reporting. */
+  get model(): string {
+    return this.models.default;
+  }
+
   /** Resolve which model to use for a given task (see CompletionOptions.task). */
   modelForTask(task?: LLMTask): string {
     switch (task) {

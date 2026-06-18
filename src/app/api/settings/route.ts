@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, SettingRow } from '@/lib/server/database';
 
-const SENSITIVE_KEYS = new Set(['anthropicApiKey', 'claudeOauthToken', 'lmstudioApiKey']);
+const SENSITIVE_KEYS = new Set(['anthropicApiKey', 'claudeOauthToken', 'lmstudioApiKey', 'openaiApiKey']);
 
 // GET /api/settings - Get all settings
 export async function GET() {

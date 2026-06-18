@@ -16,7 +16,7 @@ import journalCorrect from './routes/journal-correct';
 import llmStatus from './routes/llm-status';
 import tokens from './routes/tokens';
 import chat from './routes/chat';
-import llmLmstudio from './routes/llm-lmstudio';
+import llmOpenai from './routes/llm-openai';
 import { authMiddleware } from './lib/auth';
 
 const app = new Hono();
@@ -38,7 +38,7 @@ app.route('/api/journal-correct', journalCorrect);
 app.route('/api/llm-status', llmStatus);
 app.route('/api/tokens', tokens);
 app.route('/api/chat', chat);
-app.route('/api/llm/lmstudio', llmLmstudio);
+app.route('/api/llm/openai', llmOpenai);
 
 // Capture unhandled errors to Sentry/GlitchTip
 app.onError((err, c) => {

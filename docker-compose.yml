@@ -24,8 +24,9 @@ services:
     environment:
       - NODE_ENV=production
       - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
-      - OLLAMA_URL=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      # OpenAI-compatible backend — points at the bundled ollama service by default.
+      - OPENAI_COMPAT_URL=${OPENAI_COMPAT_URL:-http://ollama:11434}
+      - OPENAI_COMPAT_MODEL=${OPENAI_COMPAT_MODEL:-llama3.1:8b}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - CLAUDE_OAUTH_TOKEN=${CLAUDE_OAUTH_TOKEN:-}
     volumes:
