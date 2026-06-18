@@ -1,16 +1,27 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import {
+    useEffect,
+    useRef,
+    useState,
+    useCallback,
+    Fragment,
+    cloneElement,
+    isValidElement,
+    type ReactNode,
+    type ReactElement,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ChevronLeft, ChevronRight, SquarePen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 import {
     getKnownWordsMap,
     updateLessonProgress,
     getSetting,
 } from '@/lib/data-layer';
 import type { WordState } from '@/types';
-import { snapToWordBoundaries } from './utils';
+import { snapToWordBoundaries, splitWords, collectWords, computePhraseHighlightSet } from './utils';
 import { stateClasses } from './theme';
 import { MarkdownReaderProps } from './types';
 import { Button } from '@/components/ui/button';
@@ -108,58 +119,25 @@ export default function MarkdownReader({
         return text.trim();
     };
 
-    // Wrap words in clickable spans
-    const renderText = (text: string) => {
-        const wordPattern = /['''ʼ`]n\b|[\wêëéèôöûüîïáà]+(?:-[\wêëéèôöûüîïáà]+)*/gi;
-        const parts: { text: string; isWord: boolean }[] = [];
-        let lastIndex = 0;
-        let match;
-
-        while ((match = wordPattern.exec(text)) !== null) {
-            if (match.index > lastIndex) {
-                parts.push({ text: text.slice(lastIndex, match.index), isWord: false });
-            }
-            parts.push({ text: match[0], isWord: true });
-            lastIndex = match.index + match[0].length;
-        }
-        if (lastIndex < text.length) {
-            parts.push({ text: text.slice(lastIndex), isWord: false });
-        }
-
-        // Find which word indices in this text block are part of the highlighted phrase
-        const phraseHighlightSet = new Set<number>();
-        if (highlightedPhrase.length > 0) {
-            const wordParts = parts.filter((p) => p.isWord);
-            for (let i = 0; i <= wordParts.length - highlightedPhrase.length; i++) {
-                let matches = true;
-                for (let j = 0; j < highlightedPhrase.length; j++) {
-                    if (wordParts[i + j].text.toLowerCase() !== highlightedPhrase[j]) {
-                        matches = false;
-                        break;
-                    }
-                }
-                if (matches) {
-                    for (let j = 0; j < highlightedPhrase.length; j++) {
-                        phraseHighlightSet.add(i + j);
-                    }
-                    break;
-                }
-            }
-        }
-
-        const colors = stateClasses;
-        let wordIndex = 0;
-
-        return parts.map((part, i) => {
-            if (part.isWord) {
-                const currentWordIndex = wordIndex++;
+    // Recursively wrap word leaves in clickable, state-colored spans while
+    // preserving inline formatting (<strong>/<em>/<a>/…). `ctx.i` is a running
+    // word index across the whole block so phrase highlighting stays continuous
+    // even across bold/italic boundaries.
+    const renderChildren = (
+        children: ReactNode,
+        ctx: { i: number; phraseSet: Set<number> },
+        keyPrefix = 'r',
+    ): ReactNode => {
+        if (typeof children === 'string') {
+            return splitWords(children).map((part, k) => {
+                if (!part.isWord) return <span key={`${keyPrefix}-${k}`}>{part.text}</span>;
+                const currentWordIndex = ctx.i++;
                 const state = getWordState(part.text);
-                const colorClass = state ? colors[state] : colors.new;
-                const isPhraseHighlighted = phraseHighlightSet.has(currentWordIndex);
-
+                const colorClass = state ? stateClasses[state] : stateClasses.new;
+                const isPhraseHighlighted = ctx.phraseSet.has(currentWordIndex);
                 return (
                     <span
-                        key={i}
+                        key={`${keyPrefix}-${k}`}
                         onClick={(e) => {
                             clearPhraseHighlight();
                             const sentence = findSentence(e.currentTarget);
@@ -172,9 +150,26 @@ export default function MarkdownReader({
                         {part.text}
                     </span>
                 );
-            }
-            return <span key={i}>{part.text}</span>;
-        });
+            });
+        }
+        if (Array.isArray(children)) {
+            return children.map((child, k) => (
+                <Fragment key={`${keyPrefix}-${k}`}>{renderChildren(child, ctx, `${keyPrefix}-${k}`)}</Fragment>
+            ));
+        }
+        if (isValidElement(children)) {
+            const el = children as ReactElement<{ children?: ReactNode }>;
+            return cloneElement(el, {}, renderChildren(el.props.children, ctx, keyPrefix));
+        }
+        return children;
+    };
+
+    // Render a markdown block's children with per-word highlighting. The phrase
+    // set is computed over the block's full word list first so indices line up
+    // with the spans renderChildren emits (incl. words inside bold/italic).
+    const renderBlock = (children: ReactNode): ReactNode => {
+        const phraseSet = computePhraseHighlightSet(collectWords(children), highlightedPhrase);
+        return renderChildren(children, { i: 0, phraseSet });
     };
 
     const content = lesson.textContent;
@@ -316,18 +311,32 @@ export default function MarkdownReader({
                         </p>
                     </div>
                 ) : (
-                    <article className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-16 prose prose-zinc dark:prose-invert
-            prose-p:text-lg sm:prose-p:text-2xl prose-p:leading-[1.9] prose-p:text-foreground
-            prose-headings:font-sans prose-headings:text-foreground
-            prose-li:text-lg sm:prose-li:text-xl prose-li:leading-relaxed"
-                        style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}>
+                    <article
+                        className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-16 text-foreground"
+                        style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}
+                    >
+                        {/* Block elements are styled explicitly with design tokens (no
+                            @tailwindcss/typography plugin is installed, so `prose-*` was
+                            a no-op). renderBlock() keeps word-highlighting working through
+                            inline markdown in the reading body; remark-breaks renders single
+                            newlines as <br>. Headings are styled but NOT word-wrapped —
+                            click-to-translate stays in the body copy (and reader specs assume
+                            word spans live only in p/li). */}
                         <ReactMarkdown
+                            remarkPlugins={[remarkBreaks]}
                             components={{
-                                p: ({ children }) => <p>{typeof children === 'string' ? renderText(children) : children}</p>,
-                                li: ({ children }) => <li>{typeof children === 'string' ? renderText(children) : children}</li>,
-                                h1: ({ children }) => <h1>{children}</h1>,
-                                h2: ({ children }) => <h2>{children}</h2>,
-                                h3: ({ children }) => <h3>{children}</h3>,
+                                h1: ({ children }) => <h1 className="mt-8 mb-4 font-sans text-3xl font-extrabold first:mt-0">{children}</h1>,
+                                h2: ({ children }) => <h2 className="mt-8 mb-3 font-sans text-2xl font-bold first:mt-0">{children}</h2>,
+                                h3: ({ children }) => <h3 className="mt-6 mb-2 font-sans text-xl font-bold first:mt-0">{children}</h3>,
+                                p: ({ children }) => <p className="my-5 text-lg leading-[1.9] sm:text-xl">{renderBlock(children)}</p>,
+                                ul: ({ children }) => <ul className="my-5 list-disc space-y-2 pl-6 text-lg sm:text-xl">{children}</ul>,
+                                ol: ({ children }) => <ol className="my-5 list-decimal space-y-2 pl-6 text-lg sm:text-xl">{children}</ol>,
+                                li: ({ children }) => <li className="leading-relaxed">{renderBlock(children)}</li>,
+                                blockquote: ({ children }) => <blockquote className="my-6 border-l-4 border-border pl-4 italic text-foreground/75">{children}</blockquote>,
+                                strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                                em: ({ children }) => <em className="italic">{children}</em>,
+                                a: ({ href, children }) => <a href={href ?? undefined} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">{children}</a>,
+                                hr: () => <hr className="my-8 border-border" />,
                             }}
                         >
                             {content}
