@@ -1,12 +1,10 @@
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { db } from '../db';
-import { LMStudioProvider } from '../lib/llm/lmstudio';
 
 // Mock the provider factory so POST never reaches a real LLM. Each test swaps
-// `currentProvider` to exercise the generic (stateless) and LM Studio (stateful)
-// code paths, and inspects `captured` to assert what the route actually sent.
+// `currentProvider` and inspects `captured` to assert what the route sent.
 let currentProvider: unknown = null;
-const captured: { messages?: { role: string; content: string }[]; previousResponseId?: unknown } = {};
+const captured: { messages?: { role: string; content: string }[] } = {};
 
 mock.module('../lib/llm', () => ({
   getProvider: () => currentProvider,
@@ -48,7 +46,6 @@ function reset() {
   db.prepare('DELETE FROM chat_messages').run();
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
   captured.messages = undefined;
-  captured.previousResponseId = undefined;
 }
 
 describe('chat route — per-language scoping', () => {
@@ -185,45 +182,4 @@ describe('chat route — per-language scoping', () => {
     expect(res.status).toBe(400);
   });
 
-  // ---- POST (LM Studio stateful path: previousResponseId must be language-scoped) ----
-  test('LM Studio path threads a previousResponseId from the same language', async () => {
-    seed({ id: 'af_asst', role: 'assistant', language: 'af', responseId: 'af-response-id', minutesAgo: 1 });
-
-    const lm = new LMStudioProvider({ baseUrl: 'http://x:1234' });
-    (lm as unknown as { chatStateful: unknown }).chatStateful = async (opts: { previousResponseId?: unknown }) => {
-      captured.previousResponseId = opts.previousResponseId;
-      return { content: 'LM ANSWER', responseId: 'new-id' };
-    };
-    currentProvider = lm;
-
-    const res = await app.request('/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'hallo', language: 'af' }),
-    });
-    const body = (await res.json()) as { assistantMessage: { content: string } };
-    expect(body.assistantMessage.content).toBe('LM ANSWER');
-    expect(captured.previousResponseId).toBe('af-response-id');
-  });
-
-  test('LM Studio path does NOT thread a different language\'s responseId', async () => {
-    seed({ id: 'af_asst', role: 'assistant', language: 'af', responseId: 'af-response-id', minutesAgo: 1 });
-
-    const lm = new LMStudioProvider({ baseUrl: 'http://x:1234' });
-    (lm as unknown as { chatStateful: unknown }).chatStateful = async (opts: { previousResponseId?: unknown }) => {
-      captured.previousResponseId = opts.previousResponseId;
-      return { content: 'LM ANSWER', responseId: 'new-id' };
-    };
-    currentProvider = lm;
-
-    const res = await app.request('/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'hallo', language: 'de' }),
-    });
-    const body = (await res.json()) as { assistantMessage: { content: string } };
-    expect(body.assistantMessage.content).toBe('LM ANSWER');
-    // No prior de assistant message → first turn → no responseId threaded.
-    expect(captured.previousResponseId).toBeUndefined();
-  });
 });

@@ -1,9 +1,8 @@
 import { Hono } from 'hono';
 import { db, ChatMessageRow } from '../db';
 import { getProvider } from '../lib/llm';
-import { LMStudioProvider, LMStudioInvalidResponseIdError } from '../lib/llm/lmstudio';
 import { resolveLanguage } from '../lib/active-language';
-import { getLanguageConfig, LanguageCode } from '../lib/languages';
+import { getLanguageConfig } from '../lib/languages';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
@@ -72,72 +71,41 @@ app.post('/', async (c) => {
     };
 
     const provider = getProvider();
-    let responseText: string;
-    let newResponseId: string | null = null;
 
-    if (provider instanceof LMStudioProvider) {
-      // Stateful path: LM Studio holds the conversation; we just thread the latest response_id.
-      const latestAssistant = db
-        .prepare(
-          "SELECT * FROM chat_messages WHERE role = 'assistant' AND responseId IS NOT NULL AND language = ? ORDER BY createdAt DESC LIMIT 1"
-        )
-        .get(lang) as ChatMessageRow | undefined;
-      const previousResponseId = latestAssistant?.responseId || undefined;
+    // Send the full recent (same-language) history every turn. We previously had
+    // a stateful path for LM Studio that threaded a server-side response_id; that
+    // was dropped when the local providers were unified behind one
+    // OpenAI-compatible backend, so every provider now uses this single path.
+    const recentMessages = db
+      .prepare('SELECT * FROM chat_messages WHERE language = ? ORDER BY createdAt DESC LIMIT ?')
+      .all(lang, MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
 
-      try {
-        // Send system_prompt only on the first turn. LM Studio retains it on
-        // the thread, and re-sending on every continuation muddies context
-        // (we observed the model occasionally hallucinating when it was repeated).
-        const result = await provider.chatStateful({
-          input: userMsg.content,
-          systemPrompt: previousResponseId ? undefined : SYSTEM_PROMPT,
-          previousResponseId,
-        });
-        responseText = result.content;
-        newResponseId = result.responseId || null;
-      } catch (err) {
-        if (err instanceof LMStudioInvalidResponseIdError) {
-          // Fall back: replay the whole conversation through stateless complete().
-          // Happens when the LM Studio server restarted or the response_id expired.
-          const fallback = await runStatelessFallback(provider, lang, userMsg, SYSTEM_PROMPT);
-          responseText = fallback;
-        } else {
-          throw err;
-        }
+    const history = [...recentMessages.reverse(), userMsg];
+
+    // Prepend the system prompt to the first user message so it works
+    // across all providers (Anthropic API doesn't accept role: 'system')
+    const chatHistory = history.map((m, i) => {
+      if (i === 0 && m.role === 'user') {
+        return {
+          role: 'user' as const,
+          content: `${SYSTEM_PROMPT}\n\nStudent's question: ${m.content}`,
+        };
       }
-    } else {
-      // Existing path for all other providers: send the full message history.
-      const recentMessages = db
-        .prepare('SELECT * FROM chat_messages WHERE language = ? ORDER BY createdAt DESC LIMIT ?')
-        .all(lang, MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
+      return { role: m.role as 'user' | 'assistant', content: m.content };
+    });
 
-      const history = [...recentMessages.reverse(), userMsg];
-
-      // Prepend the system prompt to the first user message so it works
-      // across all providers (Anthropic API doesn't accept role: 'system')
-      const chatHistory = history.map((m, i) => {
-        if (i === 0 && m.role === 'user') {
-          return {
-            role: 'user' as const,
-            content: `${SYSTEM_PROMPT}\n\nStudent's question: ${m.content}`,
-          };
-        }
-        return { role: m.role as 'user' | 'assistant', content: m.content };
-      });
-
-      responseText = await provider.complete({
-        messages: chatHistory,
-        maxTokens: 1024,
-        task: 'chat',
-      });
-    }
+    const responseText = await provider.complete({
+      messages: chatHistory,
+      maxTokens: 1024,
+      task: 'chat',
+    });
 
     const assistantMsg: ChatMessageRow = {
       id: randomUUID(),
       role: 'assistant',
       content: responseText,
       provider: provider.name,
-      responseId: newResponseId,
+      responseId: null,
       createdAt: new Date().toISOString(),
       language: lang
     };
@@ -168,29 +136,5 @@ app.delete('/', (c) => {
   db.prepare('DELETE FROM chat_messages WHERE language = ?').run(lang);
   return c.json({ ok: true });
 });
-
-async function runStatelessFallback(
-  provider: LMStudioProvider,
-  lang: LanguageCode,
-  userMsg: ChatMessageRow,
-  systemPrompt: string,
-): Promise<string> {
-  const recentMessages = db
-    .prepare('SELECT * FROM chat_messages WHERE language = ? ORDER BY createdAt DESC LIMIT ?')
-    .all(lang, MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
-
-  const history = [...recentMessages.reverse(), userMsg];
-  const chatHistory = history.map((m, i) => {
-    if (i === 0 && m.role === 'user') {
-      return {
-        role: 'user' as const,
-        content: `${systemPrompt}\n\nStudent's question: ${m.content}`,
-      };
-    }
-    return { role: m.role as 'user' | 'assistant', content: m.content };
-  });
-
-  return provider.complete({ messages: chatHistory, maxTokens: 1024, task: 'chat' });
-}
 
 export default app;

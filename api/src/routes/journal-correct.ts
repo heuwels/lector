@@ -40,6 +40,7 @@ Keep explanations concise (1-2 sentences) and educational.`,
         },
       ],
       maxTokens: 2048,
+      responseFormat: 'json',
     });
 
     const result = JSON.parse(text);

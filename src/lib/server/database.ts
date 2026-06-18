@@ -265,7 +265,61 @@ function getDb(): DatabaseType {
     _db.exec('ALTER TABLE dailyStats ADD COLUMN ankiReviews INTEGER DEFAULT 0');
   }
 
+  migrateLlmProviderSettings(_db);
+
   return _db;
+}
+
+/**
+ * Collapse the legacy per-provider LLM settings (ollama / apfel / lmstudio) onto
+ * the unified OpenAI-compatible keys (openaiUrl / openaiModel / openaiApiKey).
+ * Idempotent: it flips `llmProvider` to 'openai' once done, so it never re-runs.
+ * Anthropic and unset/default installs are left untouched, and the old keys are
+ * intentionally left in place (harmless, and keeps the change reversible).
+ * Mirrored from api/src/db.ts — both servers share the SQLite file; keep in sync.
+ */
+function migrateLlmProviderSettings(database: DatabaseType) {
+  const getSetting = (key: string): unknown => {
+    const row = database.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+    if (!row) return null;
+    try {
+      return JSON.parse(row.value);
+    } catch {
+      return row.value;
+    }
+  };
+  const setSetting = (key: string, value: unknown) => {
+    database.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, JSON.stringify(value));
+  };
+
+  const provider = getSetting('llmProvider');
+  if (provider !== 'ollama' && provider !== 'apfel' && provider !== 'lmstudio') return;
+
+  database.transaction(() => {
+    if (provider === 'ollama') {
+      // Ollama had no URL setting (it used the OLLAMA_URL env var or a hardcoded
+      // default), so leave openaiUrl unset and let the OLLAMA_URL env fallback
+      // resolve it — writing a default here would break docker's
+      // http://ollama:11434. Preserve the old default model.
+      setSetting('openaiModel', getSetting('ollamaModel') || 'llama3.1:8b');
+      setSetting('openaiPreset', 'ollama');
+    } else if (provider === 'apfel') {
+      const url = getSetting('apfelUrl');
+      const model = getSetting('apfelModel');
+      if (url) setSetting('openaiUrl', url);
+      if (model) setSetting('openaiModel', model);
+      setSetting('openaiPreset', 'custom');
+    } else if (provider === 'lmstudio') {
+      const url = getSetting('lmstudioUrl');
+      const model = getSetting('lmstudioModel');
+      const apiKey = getSetting('lmstudioApiKey');
+      if (url) setSetting('openaiUrl', url);
+      if (model) setSetting('openaiModel', model);
+      if (apiKey) setSetting('openaiApiKey', apiKey);
+      setSetting('openaiPreset', 'lmstudio');
+    }
+    setSetting('llmProvider', 'openai');
+  })();
 }
 
 /**

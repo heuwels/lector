@@ -2,26 +2,32 @@ import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
 import { deleteSetting, getSetting, setSetting } from '@/lib/data-layer';
 import { Button } from '@/components/ui/button';
-import { OLLAMA_MODELS } from './constants';
-import { LLMProvider, LLMStatus, LMStudioLoadStatus } from './types';
+import { LLMProvider, LLMStatus, OpenAIPreset } from './types';
 import { toast } from 'sonner';
 
+// Presets are pure UI convenience — they autofill the endpoint and nothing else.
+// The backend only ever sees one OpenAI-compatible provider (endpoint + key + model).
+const PRESET_ENDPOINTS: Record<Exclude<OpenAIPreset, 'custom'>, string> = {
+  ollama: 'http://localhost:11434',
+  lmstudio: 'http://localhost:1234',
+};
+
 export default function LLMSettings() {
-  const [llmProvider, setLlmProvider] = useState<LLMProvider>('ollama');
-  const [ollamaModel, setOllamaModel] = useState('llama3.1:8b');
-  const [apfelUrl, setApfelUrl] = useState('http://localhost:11434');
-  const [apfelModel, setApfelModel] = useState('default');
-  const [lmstudioUrl, setLmstudioUrl] = useState('http://localhost:1234');
-  const [hasLmstudioApiKey, setHasLmstudioApiKey] = useState(false);
-  const [newLmstudioApiKey, setNewLmstudioApiKey] = useState('');
-  const [editingLmstudioApiKey, setEditingLmstudioApiKey] = useState(false);
-  const [lmstudioModel, setLmstudioModel] = useState('');
-  const [lmstudioModels, setLmstudioModels] = useState<string[]>([]);
-  const [lmstudioFetchingModels, setLmstudioFetchingModels] = useState(false);
-  const [lmstudioFetchError, setLmstudioFetchError] = useState<string | null>(null);
-  const [lmstudioLoadStatus, setLmstudioLoadStatus] = useState<LMStudioLoadStatus>('idle');
-  const [lmstudioLoadError, setLmstudioLoadError] = useState<string | null>(null);
-  const lmstudioAutoFetchedForUrl = useRef<string | null>(null);
+  const [llmProvider, setLlmProvider] = useState<LLMProvider>('openai');
+
+  // OpenAI-compatible (Ollama / LM Studio / Apfel / vLLM / …) — one shared config
+  const [openaiPreset, setOpenaiPreset] = useState<OpenAIPreset>('custom');
+  const [openaiUrl, setOpenaiUrl] = useState('');
+  const [openaiModel, setOpenaiModel] = useState('');
+  const [openaiModels, setOpenaiModels] = useState<string[]>([]);
+  const [openaiFetchingModels, setOpenaiFetchingModels] = useState(false);
+  const [openaiFetchError, setOpenaiFetchError] = useState<string | null>(null);
+  const [hasOpenaiApiKey, setHasOpenaiApiKey] = useState(false);
+  const [newOpenaiApiKey, setNewOpenaiApiKey] = useState('');
+  const [editingOpenaiApiKey, setEditingOpenaiApiKey] = useState(false);
+  const openaiAutoFetchedForUrl = useRef<string | null>(null);
+
+  // Anthropic (cloud) — unchanged
   const [hasApiKey, setHasApiKey] = useState(false);
   const [hasOauthToken, setHasOauthToken] = useState(false);
   const [newApiKey, setNewApiKey] = useState('');
@@ -29,32 +35,28 @@ export default function LLMSettings() {
   const [editingApiKey, setEditingApiKey] = useState(false);
   const [editingOauthToken, setEditingOauthToken] = useState(false);
   const [anthropicAuthMode, setAnthropicAuthMode] = useState<'api_key' | 'oauth'>('api_key');
+
   const [isFetchingLlmStatus, setIsFetchingLlmStatus] = useState(false);
   const [llmStatus, setLlmStatus] = useState<LLMStatus | null>(null);
 
   useEffect(() => {
-    // Load LLM provider settings from server
+    // Load LLM provider settings from server. Any legacy local provider
+    // (ollama / apfel / lmstudio) is normalized to the unified 'openai' panel —
+    // the server-side migration carries their old config across.
     getSetting<string>('llmProvider').then((p) => {
-      if (p === 'ollama' || p === 'anthropic' || p === 'apfel' || p === 'lmstudio')
-        setLlmProvider(p);
+      setLlmProvider(p === 'anthropic' ? 'anthropic' : 'openai');
     });
-    getSetting<string>('ollamaModel').then((m) => {
-      if (m) setOllamaModel(m);
+    getSetting<string>('openaiPreset').then((p) => {
+      if (p === 'custom' || p === 'ollama' || p === 'lmstudio') setOpenaiPreset(p);
     });
-    getSetting<string>('apfelUrl').then((u) => {
-      if (u) setApfelUrl(u);
+    getSetting<string>('openaiUrl').then((u) => {
+      if (u) setOpenaiUrl(u);
     });
-    getSetting<string>('apfelModel').then((m) => {
-      if (m) setApfelModel(m);
+    getSetting<string>('openaiModel').then((m) => {
+      if (m) setOpenaiModel(m);
     });
-    getSetting<string>('lmstudioUrl').then((u) => {
-      if (u) setLmstudioUrl(u);
-    });
-    getSetting<boolean>('lmstudioApiKey').then((v) => {
-      setHasLmstudioApiKey(v === true);
-    });
-    getSetting<string>('lmstudioModel').then((m) => {
-      if (m) setLmstudioModel(m);
+    getSetting<boolean>('openaiApiKey').then((v) => {
+      setHasOpenaiApiKey(v === true);
     });
     getSetting<boolean>('anthropicApiKey').then((v) => {
       setHasApiKey(v === true);
@@ -69,20 +71,20 @@ export default function LLMSettings() {
     primeLlmStatus();
   }, []);
 
-  // Auto-fetch LM Studio models when the user lands on Settings with LM Studio
-  // configured but the in-memory list is empty (e.g. on a page refresh — we
-  // don't persist the fetched list, only the selected model id). Tracks the
+  // Auto-fetch models when the user lands on Settings with an OpenAI-compatible
+  // endpoint configured but the in-memory list is empty (e.g. on a page refresh —
+  // we don't persist the fetched list, only the selected model id). Tracks the
   // last URL we fetched for to avoid refetching after a fetch returns empty.
   useEffect(() => {
-    if (llmProvider !== 'lmstudio') return;
-    if (!lmstudioUrl) return;
-    if (lmstudioFetchingModels) return;
-    if (lmstudioModels.length > 0) return;
-    if (lmstudioAutoFetchedForUrl.current === lmstudioUrl) return;
-    lmstudioAutoFetchedForUrl.current = lmstudioUrl;
-    fetchLmstudioModels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchLmstudioModels is stable for our purposes; including it would cause re-runs on every render
-  }, [llmProvider, lmstudioUrl, lmstudioFetchingModels, lmstudioModels.length]);
+    if (llmProvider !== 'openai') return;
+    if (!openaiUrl) return;
+    if (openaiFetchingModels) return;
+    if (openaiModels.length > 0) return;
+    if (openaiAutoFetchedForUrl.current === openaiUrl) return;
+    openaiAutoFetchedForUrl.current = openaiUrl;
+    fetchOpenaiModels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchOpenaiModels is stable for our purposes; including it would cause re-runs on every render
+  }, [llmProvider, openaiUrl, openaiFetchingModels, openaiModels.length]);
 
   const primeLlmStatus = async () => {
     setIsFetchingLlmStatus(true);
@@ -110,129 +112,96 @@ export default function LLMSettings() {
     await primeLlmStatus();
   };
 
-  const saveOllamaModel = async (model: string) => {
-    setOllamaModel(model);
-    await setSetting('ollamaModel', model);
+  // Whenever endpoint or apiKey changes, the previously-selected model may not
+  // exist on the new endpoint and any prior fetch is stale. Clear them so the
+  // user re-fetches and re-selects.
+  const resetOpenaiModelSelection = async () => {
+    setOpenaiModel('');
+    setOpenaiModels([]);
+    setOpenaiFetchError(null);
+    openaiAutoFetchedForUrl.current = null;
+    await setSetting('openaiModel', '');
+  };
+
+  const persistOpenaiUrl = async (url: string) => {
+    setOpenaiUrl(url);
+    await setSetting('openaiUrl', url);
+    await resetOpenaiModelSelection();
     await fetch('/api/llm-status/reset', { method: 'POST' });
     await primeLlmStatus();
   };
 
-  const saveApfelUrl = async (url: string) => {
-    setApfelUrl(url);
-    await setSetting('apfelUrl', url);
-    await fetch('/api/llm-status/reset', { method: 'POST' });
-    await primeLlmStatus();
-  };
-
-  const saveApfelModel = async (model: string) => {
-    setApfelModel(model);
-    await setSetting('apfelModel', model);
-    await fetch('/api/llm-status/reset', { method: 'POST' });
-    await primeLlmStatus();
-  };
-
-  // Whenever endpoint or apiKey changes, the previously-selected model may not exist
-  // on the new endpoint and any prior load status is stale. Clear them so the user
-  // re-fetches and re-loads. We don't auto-fetch models — the user owns that action.
-  const resetLmstudioModelSelection = async () => {
-    setLmstudioModel('');
-    setLmstudioModels([]);
-    setLmstudioFetchError(null);
-    setLmstudioLoadStatus('idle');
-    setLmstudioLoadError(null);
-    await setSetting('lmstudioModel', '');
-  };
-
-  const saveLmstudioUrl = async (url: string) => {
-    setLmstudioUrl(url);
-    await setSetting('lmstudioUrl', url);
-    await resetLmstudioModelSelection();
-    await fetch('/api/llm-status/reset', { method: 'POST' });
-    await primeLlmStatus();
-  };
-
-  const saveLmstudioApiKey = async (key: string) => {
-    if (!key.trim()) return;
-    await setSetting('lmstudioApiKey', key);
-    setHasLmstudioApiKey(true);
-    setNewLmstudioApiKey('');
-    setEditingLmstudioApiKey(false);
-    await resetLmstudioModelSelection();
-    await fetch('/api/llm-status/reset', { method: 'POST' });
-    await primeLlmStatus();
-  };
-
-  const clearLmstudioApiKey = async () => {
-    await deleteSetting('lmstudioApiKey');
-    setHasLmstudioApiKey(false);
-    setNewLmstudioApiKey('');
-    setEditingLmstudioApiKey(false);
-    await resetLmstudioModelSelection();
-    await fetch('/api/llm-status/reset', { method: 'POST' });
-    await primeLlmStatus();
-  };
-
-  const saveLmstudioModel = async (model: string) => {
-    setLmstudioModel(model);
-    await setSetting('lmstudioModel', model);
-    setLmstudioLoadStatus('idle');
-    setLmstudioLoadError(null);
-    await fetch('/api/llm-status/reset', { method: 'POST' });
-    await primeLlmStatus();
-  };
-
-  const fetchLmstudioModels = async () => {
-    setLmstudioFetchingModels(true);
-    setLmstudioFetchError(null);
-    try {
-      // The server reads the saved API key from settings — never sent from the browser.
-      const res = await fetch('/api/llm/lmstudio/models', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: lmstudioUrl }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setLmstudioFetchError(data?.error || `Status ${res.status}`);
-        setLmstudioModels([]);
-      } else {
-        const list: string[] = Array.isArray(data?.models) ? data.models : [];
-        setLmstudioModels(list);
-        if (list.length === 0) {
-          setLmstudioFetchError('No models reported by this endpoint');
-        }
-      }
-    } catch (err) {
-      setLmstudioFetchError(err instanceof Error ? err.message : 'Failed to fetch models');
-      setLmstudioModels([]);
-    } finally {
-      setLmstudioFetchingModels(false);
+  const saveOpenaiPreset = async (preset: OpenAIPreset) => {
+    setOpenaiPreset(preset);
+    await setSetting('openaiPreset', preset);
+    if (preset !== 'custom') {
+      await persistOpenaiUrl(PRESET_ENDPOINTS[preset]);
     }
   };
 
-  const loadLmstudioModel = async () => {
-    if (!lmstudioModel) return;
-    setLmstudioLoadStatus('loading');
-    setLmstudioLoadError(null);
+  const saveOpenaiUrl = async (url: string) => {
+    // Manual edits mean "custom" — the preset no longer describes the endpoint.
+    if (openaiPreset !== 'custom') {
+      setOpenaiPreset('custom');
+      await setSetting('openaiPreset', 'custom');
+    }
+    await persistOpenaiUrl(url);
+  };
+
+  const saveOpenaiModel = async (model: string) => {
+    setOpenaiModel(model);
+    await setSetting('openaiModel', model);
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await primeLlmStatus();
+  };
+
+  const saveOpenaiApiKey = async (key: string) => {
+    if (!key.trim()) return;
+    await setSetting('openaiApiKey', key);
+    setHasOpenaiApiKey(true);
+    setNewOpenaiApiKey('');
+    setEditingOpenaiApiKey(false);
+    await resetOpenaiModelSelection();
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await primeLlmStatus();
+  };
+
+  const clearOpenaiApiKey = async () => {
+    await deleteSetting('openaiApiKey');
+    setHasOpenaiApiKey(false);
+    setNewOpenaiApiKey('');
+    setEditingOpenaiApiKey(false);
+    await resetOpenaiModelSelection();
+    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await primeLlmStatus();
+  };
+
+  const fetchOpenaiModels = async () => {
+    setOpenaiFetchingModels(true);
+    setOpenaiFetchError(null);
     try {
-      const res = await fetch('/api/llm/lmstudio/load', {
+      // The server reads the saved API key from settings — never sent from the browser.
+      const res = await fetch('/api/llm/openai/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint: lmstudioUrl,
-          model: lmstudioModel,
-        }),
+        body: JSON.stringify({ endpoint: openaiUrl }),
       });
       const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setLmstudioLoadStatus('errored');
-        setLmstudioLoadError(data?.error || `Status ${res.status}`);
+      if (!res.ok) {
+        setOpenaiFetchError(data?.error || `Status ${res.status}`);
+        setOpenaiModels([]);
       } else {
-        setLmstudioLoadStatus('loaded');
+        const list: string[] = Array.isArray(data?.models) ? data.models : [];
+        setOpenaiModels(list);
+        if (list.length === 0) {
+          setOpenaiFetchError('No models reported by this endpoint — type the model name instead.');
+        }
       }
     } catch (err) {
-      setLmstudioLoadStatus('errored');
-      setLmstudioLoadError(err instanceof Error ? err.message : 'Load failed');
+      setOpenaiFetchError(err instanceof Error ? err.message : 'Failed to fetch models');
+      setOpenaiModels([]);
+    } finally {
+      setOpenaiFetchingModels(false);
     }
   };
 
@@ -279,7 +248,7 @@ export default function LLMSettings() {
       setLlmStatus((prev) =>
         prev
           ? { ...prev, ok: data.ok, error: data.error }
-          : { provider: llmProvider, model: ollamaModel, ok: data.ok, error: data.error },
+          : { provider: llmProvider, model: openaiModel, ok: data.ok, error: data.error },
       );
     } catch {
       setLlmStatus((prev) =>
@@ -298,14 +267,14 @@ export default function LLMSettings() {
       setLlmStatus((prev) =>
         prev
           ? { ...prev, ok: data.ok, error: data.error }
-          : { provider: llmProvider, model: ollamaModel, ok: data.ok, error: data.error },
+          : { provider: llmProvider, model: openaiModel, ok: data.ok, error: data.error },
       );
     } catch {
       setLlmStatus((prev) =>
         prev ? { ...prev, ok: false, error: 'Failed to reach server' } : null,
       );
     } finally {
-      setIsFetchingLlmStatus(true);
+      setIsFetchingLlmStatus(false);
     }
   };
 
@@ -330,8 +299,9 @@ export default function LLMSettings() {
         </div>
       </div>
       <p className="mb-4 text-sm text-muted-foreground">
-        Choose how translations are powered. Ollama runs locally (no API key needed). Anthropic uses
-        cloud AI for higher quality. Apfel is an OpenAI-compatible API you can self-host.
+        Choose how translations are powered. Anthropic uses cloud AI for the highest quality.
+        Local &amp; self-hosted covers any OpenAI-compatible server — Ollama, LM Studio, Apfel, vLLM,
+        and friends — with one endpoint, an optional API key, and a model name.
       </p>
 
       {/* Provider selector */}
@@ -342,37 +312,13 @@ export default function LLMSettings() {
         <select
           value={llmProvider}
           onChange={(e) => saveLLMProvider(e.target.value as LLMProvider)}
+          data-testid="llm-provider"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
         >
-          <option value="ollama">Ollama (local)</option>
           <option value="anthropic">Anthropic (cloud)</option>
-          <option value="apfel">Apfel (self-hosted)</option>
-          <option value="lmstudio">LM Studio (local)</option>
+          <option value="openai">Local / self-hosted (OpenAI-compatible)</option>
         </select>
       </div>
-
-      {/* Ollama settings */}
-      {llmProvider === 'ollama' && (
-        <div className="mb-4">
-          <label className="mb-2 block text-sm font-medium text-foreground">
-            Model
-          </label>
-          <select
-            value={ollamaModel}
-            onChange={(e) => saveOllamaModel(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
-          >
-            {OLLAMA_MODELS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-muted-foreground">
-            The model will be downloaded automatically on first use.
-          </p>
-        </div>
-      )}
 
       {/* Anthropic settings */}
       {llmProvider === 'anthropic' && (
@@ -548,25 +494,43 @@ export default function LLMSettings() {
         </div>
       )}
 
-      {/* LM Studio settings */}
-      {llmProvider === 'lmstudio' && (
-        <div className="mb-4 space-y-4" data-testid="lmstudio-settings">
+      {/* OpenAI-compatible settings (Ollama / LM Studio / Apfel / vLLM / …) */}
+      {llmProvider === 'openai' && (
+        <div className="mb-4 space-y-4" data-testid="openai-settings">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-foreground">
+              Preset
+            </label>
+            <select
+              value={openaiPreset}
+              onChange={(e) => saveOpenaiPreset(e.target.value as OpenAIPreset)}
+              data-testid="openai-preset"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
+            >
+              <option value="custom">Custom / other OpenAI-compatible server</option>
+              <option value="ollama">Ollama (localhost:11434)</option>
+              <option value="lmstudio">LM Studio (localhost:1234)</option>
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              A shortcut that fills in the endpoint below. You can edit it afterwards.
+            </p>
+          </div>
+
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">
               Endpoint
             </label>
             <input
               type="text"
-              value={lmstudioUrl}
-              onChange={(e) => saveLmstudioUrl(e.target.value)}
-              placeholder="http://localhost:1234"
-              data-testid="lmstudio-endpoint"
+              value={openaiUrl}
+              onChange={(e) => saveOpenaiUrl(e.target.value)}
+              placeholder="http://localhost:11434"
+              data-testid="openai-endpoint"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              The URL of your LM Studio server (default port 1234). The app talks to it server-side,
-              so localhost works even when lector is hosted elsewhere — set this to a reachable
-              address.
+              Base URL of your server — the app appends <code className="rounded bg-muted px-1">/v1</code>.
+              It&apos;s called server-side, so localhost works even when lector is hosted elsewhere.
             </p>
           </div>
 
@@ -574,27 +538,27 @@ export default function LLMSettings() {
             <label className="mb-2 block text-sm font-medium text-foreground">
               API Key (optional)
             </label>
-            {hasLmstudioApiKey && !editingLmstudioApiKey ? (
+            {hasOpenaiApiKey && !editingOpenaiApiKey ? (
               <div className="flex items-center gap-2">
                 <span
                   className="inline-flex items-center rounded-md bg-[var(--primary-soft)] px-2 py-1 text-xs font-medium text-primary "
-                  data-testid="lmstudio-api-key-status"
+                  data-testid="openai-api-key-status"
                 >
                   Configured
                 </span>
                 <button
                   type="button"
-                  onClick={() => setEditingLmstudioApiKey(true)}
+                  onClick={() => setEditingOpenaiApiKey(true)}
                   className="rounded-md border border-input bg-background px-3 py-1 text-xs font-medium text-foreground hover:bg-accent"
-                  data-testid="lmstudio-api-key-replace"
+                  data-testid="openai-api-key-replace"
                 >
                   Replace
                 </button>
                 <button
                   type="button"
-                  onClick={clearLmstudioApiKey}
+                  onClick={clearOpenaiApiKey}
                   className="rounded-md border border-destructive/40 bg-background px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
-                  data-testid="lmstudio-api-key-clear"
+                  data-testid="openai-api-key-clear"
                 >
                   Clear
                 </button>
@@ -603,27 +567,27 @@ export default function LLMSettings() {
               <div className="flex gap-2">
                 <input
                   type="password"
-                  value={newLmstudioApiKey}
-                  onChange={(e) => setNewLmstudioApiKey(e.target.value)}
-                  placeholder="leave empty unless your LM Studio is behind auth"
-                  data-testid="lmstudio-api-key"
+                  value={newOpenaiApiKey}
+                  onChange={(e) => setNewOpenaiApiKey(e.target.value)}
+                  placeholder="leave empty for local servers without auth"
+                  data-testid="openai-api-key"
                   className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
                 />
                 <button
                   type="button"
-                  onClick={() => saveLmstudioApiKey(newLmstudioApiKey)}
-                  disabled={!newLmstudioApiKey.trim()}
+                  onClick={() => saveOpenaiApiKey(newOpenaiApiKey)}
+                  disabled={!newOpenaiApiKey.trim()}
                   className="rounded-md bg-primary px-3 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                  data-testid="lmstudio-api-key-save"
+                  data-testid="openai-api-key-save"
                 >
                   Save
                 </button>
-                {editingLmstudioApiKey && (
+                {editingOpenaiApiKey && (
                   <button
                     type="button"
                     onClick={() => {
-                      setEditingLmstudioApiKey(false);
-                      setNewLmstudioApiKey('');
+                      setEditingOpenaiApiKey(false);
+                      setNewOpenaiApiKey('');
                     }}
                     className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
                   >
@@ -634,7 +598,7 @@ export default function LLMSettings() {
             )}
             <p className="mt-1 text-xs text-muted-foreground">
               Sent as a Bearer token from the server (never exposed to the browser after save). Only
-              needed for reverse-proxied or LM Studio Cloud setups.
+              needed for reverse-proxied, cloud, or otherwise authenticated endpoints.
             </p>
           </div>
 
@@ -643,134 +607,42 @@ export default function LLMSettings() {
               Model
             </label>
             <div className="flex gap-2">
-              <select
-                value={lmstudioModel}
-                onChange={(e) => saveLmstudioModel(e.target.value)}
-                data-testid="lmstudio-model"
-                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none disabled:opacity-50 "
-              >
-                {/* Always include an empty placeholder so a freshly-fetched
-                          dropdown doesn't visually show a "selected" model that
-                          state doesn't actually know about (would leave Load disabled). */}
-                <option value="" disabled>
-                  {lmstudioModels.length === 0
-                    ? lmstudioFetchingModels
-                      ? 'Fetching models…'
-                      : '— click “Fetch models” to populate —'
-                    : 'Select a model…'}
-                </option>
-                {lmstudioModel && !lmstudioModels.includes(lmstudioModel) && (
-                  <option value={lmstudioModel}>{lmstudioModel} (saved)</option>
-                )}
-                {lmstudioModels.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
+              <input
+                type="text"
+                list="openai-model-options"
+                value={openaiModel}
+                onChange={(e) => saveOpenaiModel(e.target.value)}
+                placeholder={openaiFetchingModels ? 'Fetching models…' : 'Type a model name, or fetch the list'}
+                data-testid="openai-model"
+                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
+              />
+              <datalist id="openai-model-options">
+                {openaiModels.map((m) => (
+                  <option key={m} value={m} />
                 ))}
-              </select>
+              </datalist>
               <button
                 type="button"
-                onClick={fetchLmstudioModels}
-                disabled={lmstudioFetchingModels || !lmstudioUrl}
-                data-testid="lmstudio-fetch-models"
+                onClick={fetchOpenaiModels}
+                disabled={openaiFetchingModels || !openaiUrl}
+                data-testid="openai-fetch-models"
                 className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50"
               >
-                {lmstudioFetchingModels ? 'Fetching...' : 'Fetch models'}
+                {openaiFetchingModels ? 'Fetching...' : 'Fetch models'}
               </button>
             </div>
-            {lmstudioFetchError && (
+            {openaiFetchError && (
               <p
                 className="mt-1 text-xs text-destructive"
-                data-testid="lmstudio-fetch-error"
+                data-testid="openai-fetch-error"
               >
-                {lmstudioFetchError}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-foreground">
-              Load model
-            </label>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={loadLmstudioModel}
-                disabled={!lmstudioModel || lmstudioLoadStatus === 'loading'}
-                data-testid="lmstudio-load"
-                className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50"
-              >
-                {lmstudioLoadStatus === 'loading' ? 'Loading...' : 'Load'}
-              </button>
-              <span
-                data-testid="lmstudio-load-status"
-                data-status={lmstudioLoadStatus}
-                className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                  lmstudioLoadStatus === 'loaded'
-                    ? 'bg-[var(--primary-soft)] text-primary '
-                    : lmstudioLoadStatus === 'loading'
-                      ? 'bg-[var(--primary-soft)] text-primary'
-                      : lmstudioLoadStatus === 'errored'
-                        ? 'bg-[color-mix(in_srgb,var(--destructive)_15%,var(--card))] text-destructive '
-                        : 'bg-secondary text-secondary-foreground'
-                }`}
-              >
-                {lmstudioLoadStatus === 'idle'
-                  ? 'Idle'
-                  : lmstudioLoadStatus === 'loading'
-                    ? 'Loading…'
-                    : lmstudioLoadStatus === 'loaded'
-                      ? 'Loaded'
-                      : 'Errored'}
-              </span>
-            </div>
-            {lmstudioLoadError && (
-              <p
-                className="mt-1 text-xs text-destructive"
-                data-testid="lmstudio-load-error"
-              >
-                {lmstudioLoadError}
+                {openaiFetchError}
               </p>
             )}
             <p className="mt-1 text-xs text-muted-foreground">
-              Loads the selected model on the LM Studio server. Make sure LM Studio&apos;s
-              &ldquo;auto-load&rdquo; is enabled if you want JIT loading on chat too.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Apfel settings */}
-      {llmProvider === 'apfel' && (
-        <div className="mb-4 space-y-4">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-foreground">
-              Server URL
-            </label>
-            <input
-              type="text"
-              value={apfelUrl}
-              onChange={(e) => saveApfelUrl(e.target.value)}
-              placeholder="http://localhost:11434"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              The URL of your Apfel instance (OpenAI-compatible API)
-            </p>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-foreground">
-              Model
-            </label>
-            <input
-              type="text"
-              value={apfelModel}
-              onChange={(e) => saveApfelModel(e.target.value)}
-              placeholder="default"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              The model name configured on your Apfel server
+              Pick from the fetched list (servers like LM Studio &amp; Ollama report it via{' '}
+              <code className="rounded bg-muted px-1">/v1/models</code>) or just type any model name
+              your server accepts.
             </p>
           </div>
         </div>
