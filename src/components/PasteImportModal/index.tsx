@@ -4,9 +4,11 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
+import { useActiveLanguage } from '@/utils/hooks';
 import type { PasteImportModalProps } from './types';
 
 export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImportModalProps) {
+  const activeLang = useActiveLanguage();
   const modalRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState('');
@@ -147,7 +149,7 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
               value={content}
               onChange={(e) => setContent(e.target.value)}
               disabled={isSaving}
-              placeholder="Paste your Afrikaans text here..."
+              placeholder={`Paste your ${activeLang.native} text here...`}
               rows={12}
               className="w-full resize-none rounded-lg border border-input bg-background px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none disabled:opacity-50"
             />

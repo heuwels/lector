@@ -1,15 +1,24 @@
 // Text-to-Speech wrapper
 // Uses Google Cloud TTS when available, falls back to browser TTS
 import { getActiveLanguage } from './data-layer';
+import { LANGUAGES, DEFAULT_LANGUAGE, type LanguageCode } from './languages';
 
 // Default speech rate (1.0 is normal speed)
 const DEFAULT_RATE = 0.9;
 
-// Afrikaans language code
-const AFRIKAANS_LANG = 'af-ZA';
+// Resolve the active language's TTS config. Browser-TTS voice selection is
+// driven entirely off this, so switching the target language picks an
+// appropriate voice instead of always assuming Afrikaans.
+function activeLangConfig() {
+  return LANGUAGES[getActiveLanguage() as LanguageCode] ?? LANGUAGES[DEFAULT_LANGUAGE];
+}
 
-// Fallback languages if Afrikaans is not available
-const FALLBACK_LANGS = ['af', 'nl-NL', 'nl']; // Dutch is somewhat similar
+// Accepted langs for the active language, most-specific first — e.g.
+// af → ['af-ZA', 'af', 'nl-NL', 'nl']; de → ['de-DE', 'de'].
+function candidateLangs(): string[] {
+  const config = activeLangConfig();
+  return [config.ttsCode, config.code, ...config.fallbackTts];
+}
 
 // Preferred voice name patterns (higher quality voices)
 const PREFERRED_VOICE_PATTERNS = [/google/i, /premium/i, /enhanced/i, /natural/i, /neural/i];
@@ -81,19 +90,20 @@ function scoreVoice(voice: SpeechSynthesisVoice): number {
     }
   }
 
-  // Prefer exact language match
-  if (voice.lang === AFRIKAANS_LANG) score += 3;
-  if (voice.lang.startsWith('af')) score += 2;
+  // Prefer exact language match for the active language
+  const primaryLang = activeLangConfig().ttsCode;
+  if (voice.lang === primaryLang) score += 3;
+  if (voice.lang.startsWith(primaryLang.split('-')[0])) score += 2;
 
   return score;
 }
 
 /**
- * Get the best available voice for Afrikaans (browser TTS)
- * Caches the result for consistent voice selection
+ * Get the best available voice for the active language (browser TTS).
+ * Caches the result for consistent voice selection.
  * @returns The voice to use, or undefined if none found
  */
-function getAfrikaansVoice(): SpeechSynthesisVoice | undefined {
+function getActiveLanguageVoice(): SpeechSynthesisVoice | undefined {
   if (!isTTSAvailable()) {
     return undefined;
   }
@@ -108,22 +118,25 @@ function getAfrikaansVoice(): SpeechSynthesisVoice | undefined {
     return undefined;
   }
 
-  // Check for user's saved preference
+  const allLangs = candidateLangs();
+  const matchesActiveLang = (v: SpeechSynthesisVoice) =>
+    allLangs.some((lang) => v.lang === lang || v.lang.startsWith(lang.split('-')[0]));
+
+  // Check for user's saved preference — but only reuse it if it still matches
+  // the active language. The saved name is global, so an Afrikaans voice must
+  // not be reused after the user switches the target language to German.
   const savedVoiceName = localStorage.getItem(VOICE_PREF_KEY);
   if (savedVoiceName) {
     const savedVoice = voices.find((v) => v.name === savedVoiceName);
-    if (savedVoice) {
+    if (savedVoice && matchesActiveLang(savedVoice)) {
       cachedVoice = savedVoice;
       voiceInitialized = true;
       return cachedVoice;
     }
   }
 
-  // Find all candidate voices (Afrikaans or Dutch)
-  const allLangs = [AFRIKAANS_LANG, 'af', ...FALLBACK_LANGS];
-  const candidateVoices = voices.filter((v) =>
-    allLangs.some((lang) => v.lang === lang || v.lang.startsWith(lang.split('-')[0])),
-  );
+  // Find all candidate voices for the active language (+ fallbacks)
+  const candidateVoices = voices.filter(matchesActiveLang);
 
   if (candidateVoices.length === 0) {
     voiceInitialized = true;
@@ -216,14 +229,14 @@ function speakWithBrowser(text: string, rate: number): void {
 
   const utterance = new SpeechSynthesisUtterance(text);
 
-  // Set the voice (try Afrikaans, fall back to Dutch)
-  const voice = getAfrikaansVoice();
+  // Set the voice for the active language (falls back per the registry)
+  const voice = getActiveLanguageVoice();
   if (voice) {
     utterance.voice = voice;
     utterance.lang = voice.lang;
   } else {
     // Set language even without a specific voice
-    utterance.lang = AFRIKAANS_LANG;
+    utterance.lang = activeLangConfig().ttsCode;
   }
 
   // Set speech parameters
@@ -270,8 +283,8 @@ export function stopSpeaking(): void {
 }
 
 /**
- * Get available voices for Afrikaans or Dutch (browser TTS)
- * Useful for debugging or letting users choose a voice
+ * Get available voices for the active language (+ fallbacks) for browser TTS.
+ * Useful for debugging or letting users choose a voice.
  * @returns Array of available voices
  */
 export function getAvailableVoices(): SpeechSynthesisVoice[] {
@@ -280,7 +293,7 @@ export function getAvailableVoices(): SpeechSynthesisVoice[] {
   }
 
   const voices = window.speechSynthesis.getVoices();
-  const relevantLangs = [AFRIKAANS_LANG, ...FALLBACK_LANGS];
+  const relevantLangs = candidateLangs();
 
   return voices.filter((v) =>
     relevantLangs.some((lang) => v.lang === lang || v.lang.startsWith(lang.split('-')[0])),
@@ -303,7 +316,7 @@ export function waitForVoices(): Promise<SpeechSynthesisVoice[]> {
       const voices = window.speechSynthesis.getVoices();
       // Pre-initialize the voice cache
       if (voices.length > 0 && !voiceInitialized) {
-        getAfrikaansVoice();
+        getActiveLanguageVoice();
       }
       resolve(voices);
     };

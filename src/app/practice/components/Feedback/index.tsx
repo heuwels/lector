@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import ClozeFeedback from '@/components/ClozeFeedback';
 import { splitTrailingPunctuation } from '@/lib/words';
 import { addClozeCard } from '@/lib/anki';
-import { ANKI_CLOZE_DECK_SETTING_KEY, DEFAULT_ANKI_CLOZE_DECK } from '../../constants';
+import { ANKI_CLOZE_DECK_SETTING_KEY } from '../../constants';
 import { CurrentSentence, IFeedbackData } from '../../types';
 import { isTTSAvailable, speak } from '@/lib/tts';
+import { useActiveLanguage } from '@/utils/hooks';
 
 export default function Feedback({
   feedbackData,
@@ -21,6 +22,7 @@ export default function Feedback({
   onWordClicked: (word: string) => void;
   onNext: () => void;
 }) {
+  const activeLang = useActiveLanguage();
   const [isAddingToAnki, setIsAddingToAnki] = useState(false);
   const [ankiAdded, setAnkiAdded] = useState(false);
 
@@ -37,7 +39,8 @@ export default function Feedback({
 
     setIsAddingToAnki(true);
     try {
-      const deckName = localStorage.getItem(ANKI_CLOZE_DECK_SETTING_KEY) || DEFAULT_ANKI_CLOZE_DECK;
+      const deckName =
+        localStorage.getItem(ANKI_CLOZE_DECK_SETTING_KEY) || `${activeLang.native}::Cloze`;
 
       const cleanWord = splitTrailingPunctuation(current.sentence.clozeWord)[0];
       await addClozeCard(

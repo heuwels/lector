@@ -95,7 +95,7 @@ test.describe("Journal", () => {
 
     await page.getByRole("button", { name: "New Entry" }).click();
 
-    await expect(page.getByPlaceholder(/skryf vandag/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/journal entry in/i)).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Save Draft" })
     ).toBeVisible();
@@ -110,7 +110,7 @@ test.describe("Journal", () => {
 
     await page.getByRole("button", { name: "New Entry" }).click();
 
-    const textarea = page.getByPlaceholder(/skryf vandag/i);
+    const textarea = page.getByPlaceholder(/journal entry in/i);
     await textarea.fill("Ek het vandag geoefen.");
     await page.getByRole("button", { name: "Save Draft" }).click();
 
@@ -153,7 +153,7 @@ test.describe("Journal", () => {
 
     // Clicking a draft should open the editor
     await page.getByText("Gister ek het na die stoor gaan.").first().click();
-    await expect(page.getByPlaceholder(/skryf vandag/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/journal entry in/i)).toBeVisible();
 
     await page.request.delete(`/api/journal/${id}`);
   });
@@ -192,7 +192,7 @@ test.describe("Journal", () => {
     await page.getByRole("button", { name: "New Entry" }).click();
 
     await page
-      .getByPlaceholder(/skryf vandag/i)
+      .getByPlaceholder(/journal entry in/i)
       .fill("Gister ek het na die stoor gaan. Ek het koop baie dinge.");
 
     // 2. Save as draft
@@ -212,7 +212,7 @@ test.describe("Journal", () => {
 
     // 5. Click draft to edit
     await page.getByText("Gister ek het na die stoor gaan.").first().click();
-    await expect(page.getByPlaceholder(/skryf vandag/i)).toHaveValue(
+    await expect(page.getByPlaceholder(/journal entry in/i)).toHaveValue(
       "Gister ek het na die stoor gaan. Ek het koop baie dinge."
     );
 

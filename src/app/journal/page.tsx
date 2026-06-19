@@ -15,8 +15,10 @@ import HistoryCard from './components/HistoryCard';
 import { formatDate } from './utils';
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/PageHeader';
+import { useActiveLanguage } from '@/utils/hooks';
 
 export default function JournalPage() {
+  const activeLang = useActiveLanguage();
   const [bodyText, setBodyText] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -160,7 +162,7 @@ export default function JournalPage() {
             <textarea
               value={bodyText}
               onChange={(e) => handleBodyChange(e.target.value)}
-              placeholder="Skryf vandag se joernaal inskrywing in Afrikaans..."
+              placeholder={`Write today's journal entry in ${activeLang.native}...`}
               className="min-h-[160px] w-full resize-y rounded-lg border border-input bg-background p-4 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
               disabled={isSubmitting}
               autoFocus

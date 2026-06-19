@@ -1,9 +1,14 @@
 import { Button } from '@/components/ui/button';
 import { getAllKnownWords, getAllVocab } from '@/lib/data-layer';
 import { downloadFile } from '@/utils/browser';
+import { useActiveLanguage } from '@/utils/hooks';
 import { toast } from 'sonner';
 
 export default function Export() {
+  const activeLang = useActiveLanguage();
+  // ASCII slug for filenames, e.g. "afrikaans" / "german" / "spanish".
+  const slug = activeLang.name.toLowerCase();
+
   const notifyError = (error: Error | unknown) => {
     toast.error(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   };
@@ -19,7 +24,7 @@ export default function Export() {
         ),
       ].join('\n');
 
-      downloadFile(csv, 'afrikaans-vocab.csv', 'text/csv');
+      downloadFile(csv, `${slug}-vocab.csv`, 'text/csv');
       toast.success('Vocab exported as CSV.');
     } catch (error) {
       notifyError(error);
@@ -30,7 +35,7 @@ export default function Export() {
     try {
       const vocab = await getAllVocab();
       const json = JSON.stringify(vocab, null, 2);
-      downloadFile(json, 'afrikaans-vocab.json', 'application/json');
+      downloadFile(json, `${slug}-vocab.json`, 'application/json');
       toast.success('Vocab exported as JSON.');
     } catch (error) {
       notifyError(error);
@@ -42,7 +47,7 @@ export default function Export() {
       const knownWords = await getAllKnownWords();
       const words = knownWords.filter((w) => w.state === 'known').map((w) => w.word);
       const text = words.join('\n');
-      downloadFile(text, 'afrikaans-known-words.txt', 'text/plain');
+      downloadFile(text, `${slug}-known-words.txt`, 'text/plain');
       toast.success(`Exported ${words.length} known words.`);
     } catch (error) {
       notifyError(error);

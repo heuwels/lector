@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import https from 'node:https';
+import { LANGUAGES } from '@/lib/languages';
+import { resolveLanguage } from '@/lib/server/active-language';
 
 interface TatoebaApiSentence {
   id: number;
@@ -58,9 +60,10 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const limit = searchParams.get('limit') || '20';
   const query = searchParams.get('query');
+  const lang = resolveLanguage(searchParams.get('language'));
 
   const params = new URLSearchParams({
-    from: 'afr',
+    from: LANGUAGES[lang].tatoebaCode,
     to: 'eng',
     sort: query ? 'relevance' : 'random',
     limit: Math.min(parseInt(limit), 100).toString(),

@@ -24,8 +24,10 @@ import VocabStats from './components/VocabStats';
 import VocabDetailModal from './components/VocabDetailModal';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
+import { useActiveLanguage } from '@/utils/hooks';
 
 export default function VocabPage() {
+  const activeLang = useActiveLanguage();
   const [entries, setEntries] = useState<VocabEntry[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [stats, setStats] = useState<{
@@ -35,8 +37,8 @@ export default function VocabPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<VocabEntry | null>(null);
   const [ankiConnected, setAnkiConnected] = useState<boolean | null>(null);
-  const [ankiDeck, setAnkiDeck] = useState('Afrikaans');
-  const [ankiClozeDeck, setAnkiClozeDeck] = useState('Afrikaans::Cloze');
+  const [ankiDeck, setAnkiDeck] = useState(activeLang.native);
+  const [ankiClozeDeck, setAnkiClozeDeck] = useState(`${activeLang.native}::Cloze`);
 
   useEffect(() => {
     loadData();
@@ -82,9 +84,14 @@ export default function VocabPage() {
         // Only auto-select a deck if the user hasn't saved a preference
         const savedDeck = localStorage.getItem('lector-anki-deck');
         if (!savedDeck) {
-          const afrikaansDeck = decks.find((d) => d.toLowerCase().includes('afrikaans'));
-          if (afrikaansDeck) {
-            setAnkiDeck(afrikaansDeck);
+          const langNative = activeLang.native.toLowerCase();
+          const langName = activeLang.name.toLowerCase();
+          const matchedDeck = decks.find((d) => {
+            const dl = d.toLowerCase();
+            return dl.includes(langNative) || dl.includes(langName);
+          });
+          if (matchedDeck) {
+            setAnkiDeck(matchedDeck);
           } else if (decks.length > 0 && decks[0] !== 'Default') {
             setAnkiDeck(decks[0]);
           }
