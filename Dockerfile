@@ -12,34 +12,34 @@ COPY . .
 RUN npm run build
 
 # ── Dictionary fetch stage ──────────────────────────────────────────────────
-# The Afrikaans dictionary is read-only application data. Default source is the
-# `heuwels/lector` GitHub Release artifact; both URL and expected SHA-256 are
-# overridable, so anyone running their own deployment can substitute a tuned
-# DB by passing --build-arg DICT_URL=... --build-arg DICT_SHA256=...
+# The Afrikaans dictionary is read-only application data. The pinned release is
+# defined once in dict.env (single source of truth, shared with the CI
+# workflows) and baked into the image here. Override for a custom DB by passing
+# --build-arg DICT_URL=... --build-arg DICT_SHA256=... (both default to the pin
+# in dict.env when left empty).
 #
 # Examples:
-#   # Default (heuwels/lector latest dict release)
-#   docker build .
-#
-#   # Custom DB hosted on your CDN
+#   docker build .                                   # pinned dict from dict.env
 #   docker build \
 #     --build-arg DICT_URL=https://cdn.example.com/lector/my-dict.db \
 #     --build-arg DICT_SHA256=$(sha256sum my-dict.db | awk '{print $1}') .
-#
-#   # Skip integrity check (NOT recommended for production)
-#   docker build --build-arg DICT_SHA256= .
 FROM alpine:3 AS dict
-ARG DICT_VERSION=dict-2026-06-06
-ARG DICT_URL=https://github.com/heuwels/lector/releases/download/${DICT_VERSION}/dictionary-af.db
-ARG DICT_SHA256=652df8d15e0678ead3b25ce0a021776d428256673df15b16e3e04cfe9b284a78
+ARG DICT_URL=
+ARG DICT_SHA256=
 RUN apk add --no-cache curl
-RUN mkdir -p /dict \
- && echo "Fetching dictionary from: ${DICT_URL}" \
- && curl -fL --retry 3 "${DICT_URL}" -o /dict/dictionary-af.db \
- && if [ -n "${DICT_SHA256}" ]; then \
-      echo "${DICT_SHA256}  /dict/dictionary-af.db" | sha256sum -c -; \
+COPY dict.env /tmp/dict.env
+RUN set -e; \
+    OVERRIDE_URL="${DICT_URL}"; OVERRIDE_SHA="${DICT_SHA256}"; \
+    . /tmp/dict.env; \
+    URL="${OVERRIDE_URL:-https://github.com/heuwels/lector/releases/download/${DICT_VERSION}/dictionary-af.db}"; \
+    SHA="${OVERRIDE_SHA:-${DICT_SHA256}}"; \
+    mkdir -p /dict; \
+    echo "Fetching dictionary from: ${URL}"; \
+    curl -fL --retry 3 "${URL}" -o /dict/dictionary-af.db; \
+    if [ -n "${SHA}" ]; then \
+      echo "${SHA}  /dict/dictionary-af.db" | sha256sum -c -; \
     else \
-      echo "WARNING: DICT_SHA256 is empty — skipping integrity check"; \
+      echo "WARNING: no SHA-256 to verify against — skipping integrity check"; \
     fi
 
 # ── Bun API build stage ──
