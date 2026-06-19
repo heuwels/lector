@@ -71,7 +71,7 @@ describe('OpenAICompatibleProvider', () => {
       expect(result).toBe('hello back');
     });
 
-    test('does NOT send response_format unless responseFormat is "json"', async () => {
+    test('never sends response_format in text mode', async () => {
       globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
         const body = JSON.parse(init?.body as string);
         expect(body.response_format).toBeUndefined();
@@ -82,10 +82,13 @@ describe('OpenAICompatibleProvider', () => {
       await provider.complete({ messages: [{ role: 'user', content: 'Hi' }], maxTokens: 10 });
     });
 
-    test('requests JSON mode when responseFormat is "json"', async () => {
+    // JSON is prompt-driven, not enforced via response_format: no value works
+    // across all backends (LM Studio 400s on json_object; Ollama ignores
+    // json_schema), so we never send it and read the text back with parseLooseJson.
+    test('does NOT send response_format even when responseFormat is "json"', async () => {
       globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
         const body = JSON.parse(init?.body as string);
-        expect(body.response_format).toEqual({ type: 'json_object' });
+        expect(body.response_format).toBeUndefined();
         return new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }), { status: 200 });
       }) as unknown as typeof fetch;
 

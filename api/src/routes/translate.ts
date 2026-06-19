@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getProvider } from '../lib/llm';
+import { getProvider, parseLooseJson } from '../lib/llm';
 import { getSpelreelsContext } from '../lib/spelreels';
 import { resolveLanguage } from '../lib/active-language';
 import { getLanguageConfig } from '../lib/languages';
@@ -72,7 +72,7 @@ Be specific and concrete in idiomaticMeaning and usageNotes — avoid vague phra
         responseFormat: 'json',
       });
 
-      return c.json(JSON.parse(text));
+      return c.json(parseLooseJson<Record<string, unknown>>(text));
     } else {
       const prompt = `You are a ${langName} to English translator with deep knowledge of ${langName} orthography, morphology, and etymology.
 
@@ -113,7 +113,13 @@ Backwards-compat fields the server adds (do NOT include these yourself — serve
         responseFormat: 'json',
       });
 
-      const entry = JSON.parse(text);
+      const entry = parseLooseJson(text) as {
+        word?: string;
+        senses?: Array<{ partOfSpeech: string; gloss: string }>;
+        ipa?: string;
+        etymology?: string;
+        relatedForms?: Array<{ form: string; relation: string }>;
+      };
 
       // Stitch legacy fields so existing call sites that only read translation +
       // partOfSpeech don't have to change.

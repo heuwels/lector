@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getProvider } from '../lib/llm';
+import { getProvider, parseLooseJson } from '../lib/llm';
 import { resolveLanguage } from '../lib/active-language';
 import { getLanguageConfig } from '../lib/languages';
 
@@ -43,7 +43,7 @@ Keep explanations concise (1-2 sentences) and educational.`,
       responseFormat: 'json',
     });
 
-    const result = JSON.parse(text);
+    const result = parseLooseJson<Record<string, unknown>>(text);
     return c.json(result);
   } catch (error) {
     console.error('Journal correction error:', error);

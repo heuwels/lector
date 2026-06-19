@@ -4,6 +4,7 @@ import { OpenAICompatibleProvider } from './openai-compatible';
 import { db } from '../../db';
 
 export type { LLMProvider, ChatMessage, CompletionOptions } from './types';
+export { parseLooseJson } from './parse-json';
 
 let cachedProvider: LLMProvider | null = null;
 let cachedProviderKey: string | null = null;
