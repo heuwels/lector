@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   getAllDailyStats,
   getAllClozeSentences,
+  getAllVocab,
   getCollectionCounts,
   getFluencyStats,
   getReadingStats,
@@ -14,7 +15,7 @@ import {
   syncAnkiReviews,
 } from '@/lib/data-layer';
 import { dateStringInTimeZone, isValidTimeZone } from '@/lib/dates';
-import { compositeActivityCount, sliceSeriesByDays } from '@/lib/stats-derive';
+import { compositeActivityCount, deriveVocabGrowth, sliceSeriesByDays } from '@/lib/stats-derive';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
 import AnkiReviewsChart from '@/components/AnkiReviewsChart';
 import PageHeader from '@/components/PageHeader';
@@ -63,7 +64,7 @@ export default function StatsPage() {
 
         // Fetch all history so the "All" range and the cumulative growth series
         // have everything; panels that are scoped to "the last year" slice it.
-        const dailyStats = await getAllDailyStats();
+        const [dailyStats, allVocab] = await Promise.all([getAllDailyStats(), getAllVocab()]);
         const last365 = sliceSeriesByDays(dailyStats, 365, endDate);
 
         const totalClozeAttempts = last365.reduce((sum, d) => sum + d.clozePracticed, 0);
@@ -92,37 +93,28 @@ export default function StatsPage() {
           },
         }));
 
-        // Build vocab growth data (cumulative over all history)
+        // Keep daily stats in date order for the Anki series below.
         const sortedDailyStats = [...dailyStats].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
         );
 
-        let cumulativeKnown = 0;
-        let cumulativeLearning = 0;
-        let cumulativeTotal = 0;
-
-        const vocabGrowth = sortedDailyStats.map((d) => {
-          cumulativeKnown += d.wordsMarkedKnown;
-          cumulativeLearning += d.newWordsSaved;
-          cumulativeTotal += d.newWordsSaved;
-          return {
-            date: d.date,
-            known: cumulativeKnown,
-            learning: Math.max(0, cumulativeLearning - cumulativeKnown),
-            total: cumulativeTotal,
-          };
+        // Vocabulary growth over time, reconstructed from the per-word dated
+        // vocab log (createdAt / stateUpdatedAt) rather than the dailyStats
+        // deltas. Those deltas are only written by the reader UI, so word
+        // level-ups, practice, and imports never registered — the old
+        // cumulative-from-deltas curve sat flat at ~0 and a final-point pin to
+        // the live total then dumped every learning word onto today. The
+        // endpoint is still reconciled to the live fluency counts so the chart
+        // agrees with the cards; any dateless excess becomes a starting
+        // baseline rather than a spike. See deriveVocabGrowth.
+        const vocabGrowth = deriveVocabGrowth(allVocab, timeZone, {
+          liveTotals: {
+            known: fluency.totalKnownWords,
+            learning: fluency.totalLearning,
+            new: fluency.totalNew,
+          },
+          endDate,
         });
-
-        // Pin the final values to the live word-state counts so the chart's
-        // endpoint matches the cards. All word counts on this page come from
-        // the knownWords table (via /api/stats/fluency) — one source, so the
-        // fluency badge, top cards, and breakdown always agree.
-        if (vocabGrowth.length > 0) {
-          const lastEntry = vocabGrowth[vocabGrowth.length - 1];
-          lastEntry.known = fluency.totalKnownWords;
-          lastEntry.learning = fluency.totalLearning;
-          lastEntry.total = fluency.totalKnownWords + fluency.totalLearning + fluency.totalNew;
-        }
 
         // Anki reviews/day: chart the last 90 days, but decide the
         // connected-vs-preview state from full history so a previously-synced
