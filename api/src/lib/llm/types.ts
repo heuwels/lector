@@ -17,10 +17,13 @@ export interface CompletionOptions {
   /** Optional task hint for per-task model selection (Anthropic only for now). */
   task?: LLMTask;
   /**
-   * Whether the caller needs a structured JSON object back. Routes that
-   * `JSON.parse()` the result (translate, journal-correct) pass 'json' so the
-   * provider requests OpenAI JSON mode; prose callers (explain, chat) leave it
-   * 'text'. Defaults to 'text' — providers only constrain the format on demand.
+   * Hint that the caller will JSON.parse() the result (translate and
+   * journal-correct pass 'json'; prose callers like explain/chat leave it
+   * 'text'). Providers do NOT turn this into a server-side JSON-mode flag: no
+   * response_format value works across all backends (LM Studio rejects
+   * json_object, Ollama ignores json_schema), so JSON is enforced by the prompt
+   * and read back with parseLooseJson(). Kept as a hint for possible future
+   * per-provider handling.
    */
   responseFormat?: 'json' | 'text';
 }

@@ -53,11 +53,14 @@ export class OpenAICompatibleProvider implements LLMProvider {
       messages: options.messages,
       max_tokens: options.maxTokens,
     };
-    // Only constrain the output when the caller will JSON.parse it. Verified that
-    // Ollama, LM Studio, and Apfel all honor OpenAI JSON mode on /v1.
-    if (options.responseFormat === 'json') {
-      body.response_format = { type: 'json_object' };
-    }
+    // We deliberately do NOT set response_format. No value works across every
+    // OpenAI-compatible backend: LM Studio 400s on `json_object` (it wants
+    // `json_schema` or `text`), while Ollama silently ignores `json_schema` and
+    // only does structured output via its own native `format` field. The only
+    // universally-safe path is prompt-driven JSON — callers that need it instruct
+    // "ONLY a JSON object, no markdown" and parse with parseLooseJson(). This
+    // mirrors AnthropicProvider, which also relies on the prompt. So
+    // options.responseFormat is intentionally not acted on here.
 
     const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',
