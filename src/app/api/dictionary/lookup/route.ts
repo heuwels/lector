@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/server/database';
 import { lookupWord } from '@/lib/server/dictionary-db';
+import { resolveLanguage } from '@/lib/server/active-language';
 
 /**
  * GET /api/dictionary/lookup?word=<word>
@@ -36,7 +37,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Word is required' }, { status: 400 });
     }
 
-    const entry = lookupWord(word.trim());
+    const lang = resolveLanguage(request.nextUrl.searchParams.get('language'));
+    const entry = lookupWord(word.trim(), lang);
     if (entry) recordStudyPing();
 
     return NextResponse.json({ entry: entry ?? null });

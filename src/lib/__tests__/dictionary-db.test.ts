@@ -31,7 +31,7 @@ describe('dictionary-db', () => {
 
   describe('exact match', () => {
     test('finds a top-frequency root word', () => {
-      const entry = lookupWord('die');
+      const entry = lookupWord('die', 'af');
       expect(entry).toBeDefined();
       expect(entry!.word).toBe('die');
       expect(entry!.lemmaInfo).toBeUndefined();
@@ -41,13 +41,13 @@ describe('dictionary-db', () => {
     });
 
     test('case-insensitive', () => {
-      const entry = lookupWord('Die');
+      const entry = lookupWord('Die', 'af');
       expect(entry).toBeDefined();
       expect(entry!.word).toBe('die');
     });
 
     test('curated frequency rank survives kaikki merge', () => {
-      const entry = lookupWord('en');
+      const entry = lookupWord('en', 'af');
       expect(entry).toBeDefined();
       // "en" is rank 2 in dictionary-roots.json — must not be overwritten by kaikki
       expect(entry!.rank).toBe(2);
@@ -58,7 +58,7 @@ describe('dictionary-db', () => {
     test('bedink found via be- prefix on dink (lemmaInfo populated)', () => {
       // "bedink" (to consider) is not a kaikki entry on its own — it's reached
       // by stripping the be- prefix and finding "dink" (to think) as the stem.
-      const entry = lookupWord('bedink');
+      const entry = lookupWord('bedink', 'af');
       expect(entry).toBeDefined();
       expect(entry!.lemmaInfo).toBeDefined();
       expect(entry!.lemmaInfo!.stem).toBe('dink');
@@ -71,7 +71,7 @@ describe('dictionary-db', () => {
       // Worth pinning: in the legacy JSON dict "verstaan" was reached via the
       // ver- prefix on "staan". Kaikki has "verstaan" as a standalone entry,
       // so we now serve it directly — no lemmaInfo, and we get multiple senses.
-      const entry = lookupWord('verstaan');
+      const entry = lookupWord('verstaan', 'af');
       expect(entry).toBeDefined();
       expect(entry!.lemmaInfo).toBeUndefined();
       expect(entry!.senses.length).toBeGreaterThan(1);
@@ -80,7 +80,7 @@ describe('dictionary-db', () => {
 
   describe('suffix derivation', () => {
     test('katte resolves to the kat lemma', () => {
-      const entry = lookupWord('katte');
+      const entry = lookupWord('katte', 'af');
       expect(entry).toBeDefined();
       // kaikki has a dedicated "katte" page whose only gloss is "plural of kat".
       // Either way the lookup must reach an entry that points back at "kat".
@@ -92,7 +92,7 @@ describe('dictionary-db', () => {
     test('manne (plural of man) found via inflections table only', () => {
       // "manne" is in the inflections table but NOT in entries — so this test
       // pins the inflections-table lookup path (step 2).
-      const entry = lookupWord('manne');
+      const entry = lookupWord('manne', 'af');
       expect(entry).toBeDefined();
       expect(entry!.lemmaInfo).toBeDefined();
       expect(entry!.lemmaInfo!.stem).toBe('man');
@@ -104,17 +104,17 @@ describe('dictionary-db', () => {
 
   describe('miss', () => {
     test('returns undefined for nonsense', () => {
-      expect(lookupWord('xyzzyx')).toBeUndefined();
+      expect(lookupWord('xyzzyx', 'af')).toBeUndefined();
     });
 
     test('returns undefined for a word that does not appear anywhere', () => {
-      expect(lookupWord('blargleblarg')).toBeUndefined();
+      expect(lookupWord('blargleblarg', 'af')).toBeUndefined();
     });
   });
 
   describe('multi-sense words', () => {
     test('pond exposes multiple senses (currency, weight)', () => {
-      const entry = lookupWord('pond');
+      const entry = lookupWord('pond', 'af');
       expect(entry).toBeDefined();
       expect(entry!.senses.length).toBeGreaterThanOrEqual(2);
       const currency = entry!.senses.some((s) => /currency|pound/i.test(s.gloss));
@@ -124,7 +124,7 @@ describe('dictionary-db', () => {
     });
 
     test('word (to become) has more than one sense', () => {
-      const entry = lookupWord('word');
+      const entry = lookupWord('word', 'af');
       expect(entry).toBeDefined();
       expect(entry!.senses.length).toBeGreaterThanOrEqual(2);
     });
@@ -132,7 +132,7 @@ describe('dictionary-db', () => {
 
   describe('schema fields', () => {
     test('exposes partOfSpeech on each sense', () => {
-      const entry = lookupWord('staan');
+      const entry = lookupWord('staan', 'af');
       expect(entry).toBeDefined();
       for (const s of entry!.senses) {
         expect(typeof s.partOfSpeech).toBe('string');
@@ -143,10 +143,18 @@ describe('dictionary-db', () => {
 
     test('returns ipa for words that have one in kaikki', () => {
       // "word" carries /vɔrt/ in the dump — we picked the first IPA value.
-      const entry = lookupWord('word');
+      const entry = lookupWord('word', 'af');
       expect(entry).toBeDefined();
       expect(entry!.ipa).toBeDefined();
       expect(entry!.ipa).toMatch(/[\[\/]/);
+    });
+  });
+
+  describe('language selection', () => {
+    test('does not serve Afrikaans entries for a language with no dictionary', () => {
+      // Only dictionary-af.db ships here. A German lookup of an Afrikaans word
+      // must miss (→ undefined) rather than fall through to the Afrikaans data.
+      expect(lookupWord('die', 'de')).toBeUndefined();
     });
   });
 });

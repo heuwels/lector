@@ -1,5 +1,6 @@
 import type { KeyboardEvent, Ref } from 'react';
 import { Button } from '@/components/ui/button';
+import { useActiveLanguage } from '@/utils/hooks';
 
 export default function UrlInputStep({
   url,
@@ -20,6 +21,7 @@ export default function UrlInputStep({
   onRetry: () => void;
   inputRef: Ref<HTMLInputElement>;
 }) {
+  const activeLang = useActiveLanguage();
   return (
     <div className="space-y-4">
       <div>
@@ -71,8 +73,8 @@ export default function UrlInputStep({
       )}
 
       <p className="text-sm text-muted-foreground">
-        Paste a URL to an Afrikaans news article or blog post. The article content will be extracted
-        and added to your library.
+        Paste a URL to a news article or blog post in {activeLang.native}. The article content will be
+        extracted and added to your library.
       </p>
     </div>
   );

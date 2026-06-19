@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/server/database';
-import { resolveLanguage } from '@/lib/server/active-language';
 import { randomUUID } from 'crypto';
 import sentenceBank from '@/lib/sentence-bank.json';
+
+// The bundled sentence bank is Afrikaans content, so its rows are always
+// stored as 'af' — regardless of the active language. Seeding while another
+// language is active must not mislabel these sentences as that language.
+const SENTENCE_BANK_LANGUAGE = 'af';
 
 type BankEntry = {
   id: number;
@@ -52,7 +56,7 @@ export async function POST() {
       insertStmt.run(
         randomUUID(), s.text, s.clozeWord, s.clozeIndex, s.translation,
         'tatoeba', s.collection, s.wordRank, s.id,
-        0, new Date().toISOString(), 0, 0, 0, resolveLanguage()
+        0, new Date().toISOString(), 0, 0, 0, SENTENCE_BANK_LANGUAGE
       );
     }
     for (const s of toUpdate) {
@@ -68,8 +72,8 @@ export async function POST() {
 // GET /api/cloze/seed - Check if seeding is needed
 export async function GET() {
   const count = db.prepare(
-    'SELECT COUNT(*) as count FROM clozeSentences WHERE (blacklisted = 0 OR blacklisted IS NULL)'
-  ).get() as { count: number };
+    'SELECT COUNT(*) as count FROM clozeSentences WHERE language = ? AND (blacklisted = 0 OR blacklisted IS NULL)'
+  ).get(SENTENCE_BANK_LANGUAGE) as { count: number };
 
   return NextResponse.json({
     dbCount: count.count,

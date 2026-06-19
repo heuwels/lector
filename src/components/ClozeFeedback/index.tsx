@@ -7,6 +7,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { ClozeFeedbackProps } from './types';
 import { toast } from 'sonner';
 import Markdown from 'react-markdown';
+import { getActiveLanguage } from '@/lib/data-layer';
 
 export default function ClozeFeedback({
   isCorrect,
@@ -39,7 +40,7 @@ export default function ClozeFeedback({
           sentence,
           translation,
           clozeWord: correctWord,
-          language: localStorage.getItem('lector-target-language') || 'af',
+          language: getActiveLanguage(),
         }),
       });
       if (!res.ok) throw new Error();

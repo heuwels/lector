@@ -1,10 +1,12 @@
 /**
  * Client-side dictionary lookup. Calls /api/dictionary/lookup, which queries
- * the SQLite Afrikaans dictionary built by scripts/build-dictionary.ts.
+ * the SQLite dictionary for the active language (built by
+ * scripts/build-dictionary.ts).
  *
  * Returns the rich entry shape on a hit, or null on a miss — callers should
  * fall back to the AI translate API when null.
  */
+import { getActiveLanguage } from './data-layer';
 
 export interface ExpandedDictionaryEntry {
   word: string;
@@ -26,12 +28,13 @@ export interface ExpandedDictionaryEntry {
 const sessionCache = new Map<string, ExpandedDictionaryEntry | null>();
 
 export async function lookupWordRemote(word: string): Promise<ExpandedDictionaryEntry | null> {
-  const key = word.toLowerCase();
+  const language = getActiveLanguage();
+  const key = `${language}:${word.toLowerCase()}`;
   if (sessionCache.has(key)) {
     return sessionCache.get(key) ?? null;
   }
 
-  const url = `/api/dictionary/lookup?word=${encodeURIComponent(word)}`;
+  const url = `/api/dictionary/lookup?word=${encodeURIComponent(word)}&language=${language}`;
   const res = await fetch(url);
   if (!res.ok) {
     // Don't cache transport errors — let the next click retry.

@@ -2,24 +2,26 @@ import Database, { Database as DatabaseType } from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { db as userDb } from './database';
+import { getActiveLanguageCode } from './active-language';
 
 /**
- * Read-only SQLite-backed Afrikaans dictionary.
+ * Read-only SQLite-backed bilingual dictionary, selected by the active language.
  *
  * Built by `scripts/build-dictionary.ts` from the kaikki.org Wiktionary dump
  * (merged with the hand-curated ranks in `src/lib/dictionary-roots.json`).
  * This module mirrors the lookup algorithm in `src/lib/dictionary.ts` —
  * exact → inflections → prefix derivation → suffix derivation → affix-strip
  * fallback — but exposes the richer multi-sense schema available from kaikki.
+ * The affix-strip heuristics are Afrikaans-specific and only run for `af`.
  */
 
 // The dictionary is read-only application data shipped with the image.
 // Prefer DICT_DIR so it stays put when the user mounts a volume on DATA_DIR
 // for their (mutable) collections/vocab data. Fall back to DATA_DIR for local
 // dev (where the build script writes here) and finally to ./data.
-function getDbPath(): string {
+function getDbPath(language: string): string {
   const dir = process.env.DICT_DIR || process.env.DATA_DIR || './data';
-  return path.join(dir, 'dictionary-af.db');
+  return path.join(dir, `dictionary-${language}.db`);
 }
 
 // ---------------------------------------------------------------------------
@@ -44,28 +46,39 @@ export interface ExpandedDictionaryEntry {
 // Lazy connection (mirrors src/lib/server/database.ts pattern)
 // ---------------------------------------------------------------------------
 
-let _db: DatabaseType | null = null;
+// Connections are cached per language so switching the active language opens
+// the right dictionary (the Next.js server process is long-lived). A cached
+// `null` records "no dict file for this language" so we don't re-stat on every
+// lookup.
+const _dbs = new Map<string, DatabaseType | null>();
 
-function getDb(): DatabaseType | null {
-  if (_db) return _db;
-  if (!fs.existsSync(getDbPath())) {
+function getDb(language: string): DatabaseType | null {
+  const cached = _dbs.get(language);
+  if (cached !== undefined) return cached;
+
+  const dbPath = getDbPath(language);
+  if (!fs.existsSync(dbPath)) {
     // The dictionary DB is optional at runtime — callers fall back to the
     // legacy JSON dict + the AI translate API when this file isn't present.
+    _dbs.set(language, null);
     return null;
   }
-  _db = new Database(getDbPath(), { readonly: true, fileMustExist: true });
-  _db.pragma('journal_mode = WAL');
-  return _db;
+  const conn = new Database(dbPath, { readonly: true, fileMustExist: true });
+  conn.pragma('journal_mode = WAL');
+  _dbs.set(language, conn);
+  return conn;
 }
 
-// Exposed as a proxy so consumers can `import { dictDb }` and the DB opens
-// lazily on first access — same shape as `db` in src/lib/server/database.ts.
+// Exposed as a proxy so consumers can `import { dictDb }` and the active
+// language's DB opens lazily on first access — same shape as `db` in
+// src/lib/server/database.ts.
 export const dictDb = new Proxy({} as DatabaseType, {
   get(_target, prop) {
-    const real = getDb();
+    const language = getActiveLanguageCode();
+    const real = getDb(language);
     if (!real) {
       throw new Error(
-        `Dictionary database not found at ${getDbPath()}. ` +
+        `Dictionary database not found at ${getDbPath(language)}. ` +
           `Run \`npx tsx scripts/build-dictionary.ts\` to build it.`,
       );
     }
@@ -124,19 +137,21 @@ type Stmts = {
   selectInflectionLemma: ReturnType<DatabaseType['prepare']>;
 };
 
-let _stmts: Stmts | null = null;
+const _stmtsByLang = new Map<string, Stmts>();
 
-function getStmts(): Stmts | null {
-  if (_stmts) return _stmts;
-  const db = getDb();
+function getStmts(language: string): Stmts | null {
+  const cached = _stmtsByLang.get(language);
+  if (cached) return cached;
+  const db = getDb(language);
   if (!db) return null;
-  _stmts = {
+  const stmts: Stmts = {
     selectEntry: db.prepare('SELECT word, rank, ipa, etymology FROM entries WHERE word = ?'),
     selectSenses: db.prepare('SELECT pos, gloss FROM senses WHERE word = ? ORDER BY sort_order'),
     selectRelated: db.prepare('SELECT related_word, relation FROM related_forms WHERE word = ?'),
     selectInflectionLemma: db.prepare('SELECT lemma, type FROM inflections WHERE inflected_form = ? LIMIT 1'),
   };
-  return _stmts;
+  _stmtsByLang.set(language, stmts);
+  return stmts;
 }
 
 interface EntryRow {
@@ -196,10 +211,13 @@ interface CachedEntryRow {
   etymology: string | null;
 }
 
-function lookupCached(word: string): ExpandedDictionaryEntry | undefined {
+function lookupCached(word: string, language: string): ExpandedDictionaryEntry | undefined {
+  // Filter by language so a cached entry learned in one language isn't served
+  // for another. (cached_entries.word is the PK, so only one language's entry
+  // per word is retained — a stricter per-language cache needs a schema change.)
   const row = userDb
-    .prepare('SELECT word, ipa, etymology FROM cached_entries WHERE word = ?')
-    .get(word) as CachedEntryRow | undefined;
+    .prepare('SELECT word, ipa, etymology FROM cached_entries WHERE word = ? AND language = ?')
+    .get(word, language) as CachedEntryRow | undefined;
   if (!row) return undefined;
 
   const senses = userDb
@@ -291,11 +309,14 @@ export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
 // lookupWord — exact → inflections → prefix → suffix → affix-strip fallback
 // ---------------------------------------------------------------------------
 
-export function lookupWord(word: string): ExpandedDictionaryEntry | undefined {
+export function lookupWord(
+  word: string,
+  language: string = getActiveLanguageCode(),
+): ExpandedDictionaryEntry | undefined {
   const lower = word.toLowerCase();
-  const stmts = getStmts();
+  const stmts = getStmts(language);
 
-  // Curated kaikki dict — only available if data/dictionary-af.db is present.
+  // Curated kaikki dict — only available if data/dictionary-<lang>.db is present.
   if (stmts) {
     // 1. Exact match
     const exact = stmts.selectEntry.get(lower) as EntryRow | undefined;
@@ -311,33 +332,38 @@ export function lookupWord(word: string): ExpandedDictionaryEntry | undefined {
       }
     }
 
-    // 3. Known prefix → exact stem
-    for (const prefix of PREFIXES) {
-      if (!lower.startsWith(prefix)) continue;
-      const stem = lower.slice(prefix.length);
-      if (stem.length < MIN_STEM) continue;
-      const stemRow = stmts.selectEntry.get(stem) as EntryRow | undefined;
-      if (stemRow) {
-        return buildEntry(stemRow, stmts, lower, { stem, label: PREFIX_LABELS[prefix] });
-      }
-    }
-
-    // 4. Known suffix → exact stem (with consonant undoubling)
-    for (const suffix of SUFFIXES) {
-      if (!lower.endsWith(suffix)) continue;
-      const stem = lower.slice(0, -suffix.length);
-      if (stem.length < MIN_STEM) continue;
-
-      const stemRow = stmts.selectEntry.get(stem) as EntryRow | undefined;
-      if (stemRow) {
-        return buildEntry(stemRow, stmts, lower, { stem, label: SUFFIX_LABELS[suffix] });
+    // Steps 3-4 use Afrikaans-specific affix morphology (PREFIXES / SUFFIXES /
+    // consonant undoubling). Only apply them for Afrikaans — running them
+    // against another language's dictionary would mis-derive stems.
+    if (language === 'af') {
+      // 3. Known prefix → exact stem
+      for (const prefix of PREFIXES) {
+        if (!lower.startsWith(prefix)) continue;
+        const stem = lower.slice(prefix.length);
+        if (stem.length < MIN_STEM) continue;
+        const stemRow = stmts.selectEntry.get(stem) as EntryRow | undefined;
+        if (stemRow) {
+          return buildEntry(stemRow, stmts, lower, { stem, label: PREFIX_LABELS[prefix] });
+        }
       }
 
-      const undoubled = undoubleConsonant(stem);
-      if (undoubled && undoubled.length >= MIN_STEM) {
-        const uRow = stmts.selectEntry.get(undoubled) as EntryRow | undefined;
-        if (uRow) {
-          return buildEntry(uRow, stmts, lower, { stem: undoubled, label: SUFFIX_LABELS[suffix] });
+      // 4. Known suffix → exact stem (with consonant undoubling)
+      for (const suffix of SUFFIXES) {
+        if (!lower.endsWith(suffix)) continue;
+        const stem = lower.slice(0, -suffix.length);
+        if (stem.length < MIN_STEM) continue;
+
+        const stemRow = stmts.selectEntry.get(stem) as EntryRow | undefined;
+        if (stemRow) {
+          return buildEntry(stemRow, stmts, lower, { stem, label: SUFFIX_LABELS[suffix] });
+        }
+
+        const undoubled = undoubleConsonant(stem);
+        if (undoubled && undoubled.length >= MIN_STEM) {
+          const uRow = stmts.selectEntry.get(undoubled) as EntryRow | undefined;
+          if (uRow) {
+            return buildEntry(uRow, stmts, lower, { stem: undoubled, label: SUFFIX_LABELS[suffix] });
+          }
         }
       }
     }
@@ -347,7 +373,7 @@ export function lookupWord(word: string): ExpandedDictionaryEntry | undefined {
   //    Lives behind the curated dict so the kaikki entry always wins, but in
   //    front of the AI translate fallback so previously-seen words don't pay
   //    for the LLM round-trip again.
-  const cached = lookupCached(lower);
+  const cached = lookupCached(lower, language);
   if (cached) return cached;
 
   return undefined;

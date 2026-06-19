@@ -14,6 +14,10 @@ type BankEntry = {
   collection: string;
 };
 
+// The bundled sentence bank is Afrikaans content — always store its rows as
+// 'af' so seeding under another active language can't mislabel them.
+const SENTENCE_BANK_LANGUAGE = 'af';
+
 const app = new Hono();
 
 // GET /api/cloze
@@ -196,7 +200,7 @@ app.post('/seed', (c) => {
       insertStmt.run(
         randomUUID(), s.text, s.clozeWord, s.clozeIndex, s.translation,
         'tatoeba', s.collection, s.wordRank, s.id,
-        0, new Date().toISOString(), 0, 0, 0, resolveLanguage(c.req.query('language'))
+        0, new Date().toISOString(), 0, 0, 0, SENTENCE_BANK_LANGUAGE
       );
     }
     for (const s of toUpdate) {
@@ -210,8 +214,8 @@ app.post('/seed', (c) => {
 // GET /api/cloze/seed
 app.get('/seed', (c) => {
   const count = db.prepare(
-    'SELECT COUNT(*) as count FROM clozeSentences WHERE (blacklisted = 0 OR blacklisted IS NULL)'
-  ).get() as { count: number };
+    'SELECT COUNT(*) as count FROM clozeSentences WHERE language = ? AND (blacklisted = 0 OR blacklisted IS NULL)'
+  ).get(SENTENCE_BANK_LANGUAGE) as { count: number };
 
   return c.json({
     dbCount: count.count,
