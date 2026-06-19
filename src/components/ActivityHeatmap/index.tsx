@@ -67,10 +67,7 @@ function DayCell({ day, unit, color }: { day: HeatmapCell; unit: string; color: 
               {rows.map((r) => (
                 <div key={r.key} className="flex items-center justify-between gap-4">
                   <span className="flex items-center gap-1.5">
-                    <span
-                      className="size-2 rounded-full"
-                      style={{ backgroundColor: r.color }}
-                    />
+                    <span className="size-2 rounded-full" style={{ backgroundColor: r.color }} />
                     <span className="text-background/75">{r.label}</span>
                   </span>
                   <span className="font-medium tabular-nums">
@@ -119,7 +116,7 @@ export default function ActivityHeatmap({
     const weeks: HeatmapCell[][] = [];
     let currentWeek: HeatmapCell[] = [];
 
-    const monthLabels: Array<{ label: string; weekIndex: number }> = [];
+    const monthLabels: Array<{ label: string; weekIndex: number; span: number }> = [];
     let lastMonth = -1;
 
     const currentDate = new Date(startDate);
@@ -132,9 +129,10 @@ export default function ActivityHeatmap({
       const month = currentDate.getMonth();
       const dayOfWeek = currentDate.getDay();
 
-      // Track month changes for labels
-      if (month !== lastMonth && dayOfWeek === 0) {
-        monthLabels.push({ label: MONTHS[month], weekIndex });
+      // One label per month, anchored at the column that holds the 1st (the
+      // first day of the month we encounter). span is filled in after the loop.
+      if (month !== lastMonth) {
+        monthLabels.push({ label: MONTHS[month], weekIndex, span: 0 });
         lastMonth = month;
       }
 
@@ -154,6 +152,12 @@ export default function ActivityHeatmap({
       weeks.push(currentWeek);
     }
 
+    // Each label spans from its own column up to the next label's column (the
+    // last runs to the end). Spans sum to weeks.length, so they tile grid-cols-53.
+    monthLabels.forEach((m, i) => {
+      m.span = (monthLabels[i + 1]?.weekIndex ?? weeks.length) - m.weekIndex;
+    });
+
     // Calculate totals
     const totalActivity = data.reduce((sum, d) => sum + d.count, 0);
     const activeDays = data.filter((d) => d.count > 0).length;
@@ -163,45 +167,37 @@ export default function ActivityHeatmap({
 
   return (
     <TooltipProvider delay={120} closeDelay={0}>
-      <div
-        data-testid="activity-heatmap"
-        className="panel p-6"
-      >
-        <div className="flex items-center justify-between mb-4">
+      <div data-testid="activity-heatmap" className="panel p-6">
+        <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-foreground">Activity</h3>
-          <div
-            data-testid="activity-heatmap-total"
-            className="text-sm text-muted-foreground"
-          >
+          <div data-testid="activity-heatmap-total" className="text-sm text-muted-foreground">
             {totalActivity.toLocaleString()} {unit} in the last year
           </div>
         </div>
 
         {/* Month labels */}
-        <div className="flex ml-8 mb-1">
-          {monthLabels.map((month, i) => (
-            <div
-              key={i}
-              className="text-xs text-muted-foreground"
-              style={{
-                position: 'relative',
-                left: `${month.weekIndex * 14}px`,
-                marginRight: '-8px',
-              }}
-            >
-              {month.label}
-            </div>
-          ))}
+        <div className="mb-1 ml-8 grid grid-cols-53">
+          {monthLabels
+            .filter((month) => month.span > 0)
+            .map((month) => (
+              <div
+                key={`${month.label}-${month.weekIndex}`}
+                className="text-xs text-muted-foreground"
+                style={{ gridColumn: `span ${month.span}` }}
+              >
+                {month.label}
+              </div>
+            ))}
         </div>
 
         {/* Heatmap grid */}
         <div className="flex">
           {/* Day of week labels */}
-          <div className="flex flex-col mr-2 text-xs text-muted-foreground">
+          <div className="mr-2 flex flex-col text-xs text-muted-foreground">
             {DAYS_OF_WEEK.map((day, i) => (
               <div
                 key={day}
-                className="h-[12px] flex items-center"
+                className="flex h-[12px] items-center"
                 style={{ visibility: i % 2 === 1 ? 'visible' : 'hidden' }}
               >
                 {day}
@@ -210,7 +206,7 @@ export default function ActivityHeatmap({
           </div>
 
           {/* Weeks */}
-          <div className="flex gap-[2px]">
+          <div className="grid flex-1 grid-cols-53">
             {weeks.map((week, weekIdx) => (
               <div key={weekIdx} className="flex flex-col gap-[2px]">
                 {week.map((day) => (
@@ -225,34 +221,34 @@ export default function ActivityHeatmap({
                 {week.length < 7 &&
                   Array(7 - week.length)
                     .fill(null)
-                    .map((_, i) => <div key={`empty-${i}`} className="w-[12px] h-[12px]" />)}
+                    .map((_, i) => <div key={`empty-${i}`} className="h-[12px] w-[12px]" />)}
               </div>
             ))}
           </div>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-end mt-4 gap-2 text-xs text-muted-foreground">
+        <div className="mt-4 flex items-center justify-end gap-2 text-xs text-muted-foreground">
           <span>Less</span>
           <div className="flex gap-[2px]">
             <div
-              className="w-[12px] h-[12px] rounded-sm"
+              className="h-[12px] w-[12px] rounded-sm"
               style={{ backgroundColor: colorScheme.empty }}
             />
             <div
-              className="w-[12px] h-[12px] rounded-sm"
+              className="h-[12px] w-[12px] rounded-sm"
               style={{ backgroundColor: colorScheme.level1 }}
             />
             <div
-              className="w-[12px] h-[12px] rounded-sm"
+              className="h-[12px] w-[12px] rounded-sm"
               style={{ backgroundColor: colorScheme.level2 }}
             />
             <div
-              className="w-[12px] h-[12px] rounded-sm"
+              className="h-[12px] w-[12px] rounded-sm"
               style={{ backgroundColor: colorScheme.level3 }}
             />
             <div
-              className="w-[12px] h-[12px] rounded-sm"
+              className="h-[12px] w-[12px] rounded-sm"
               style={{ backgroundColor: colorScheme.level4 }}
             />
           </div>
@@ -260,14 +256,14 @@ export default function ActivityHeatmap({
         </div>
 
         {/* Stats row */}
-        <div className="flex gap-6 mt-4 pt-4 border-t border-border">
+        <div className="mt-4 flex gap-6 border-t border-border pt-4">
           <div className="text-sm">
             <span className="text-muted-foreground">Active days: </span>
-            <span className="text-foreground font-medium">{activeDays}</span>
+            <span className="font-medium text-foreground">{activeDays}</span>
           </div>
           <div className="text-sm">
             <span className="text-muted-foreground">Avg per active day: </span>
-            <span className="text-foreground font-medium">
+            <span className="font-medium text-foreground">
               {activeDays > 0 ? Math.round(totalActivity / activeDays).toLocaleString() : 0}
             </span>
           </div>
