@@ -59,8 +59,8 @@ test.describe('Explain Feature', () => {
       page.getByText('This is a test explanation of the Afrikaans sentence')
     ).toBeVisible({ timeout: 10000 });
 
-    // Button should change to "Explained" state
-    await expect(page.getByText('Explained')).toBeVisible();
+    // Button is disabled once the explanation has been fetched
+    await expect(explainBtn).toBeDisabled();
   });
 
   test.fixme('should handle explain API error gracefully', async ({ page }) => {
@@ -78,7 +78,9 @@ test.describe('Explain Feature', () => {
     const explainBtn = page.getByRole('button', { name: 'Explain' });
     await explainBtn.click();
 
-    // Should show error state on button
-    await expect(page.getByText('Error')).toBeVisible({ timeout: 5000 });
+    // Should surface an error toast
+    await expect(
+      page.getByText('Failed to fetch explanation')
+    ).toBeVisible({ timeout: 5000 });
   });
 });

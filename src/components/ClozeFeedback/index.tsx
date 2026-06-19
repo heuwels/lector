@@ -1,24 +1,12 @@
 'use client';
 
-import { AlertTriangle, Check, ChevronRight, Info, Loader2, Plus, X } from 'lucide-react';
+import { Check, ChevronRight, Info, Loader2, Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-
-interface ClozeFeedbackProps {
-  isCorrect: boolean;
-  correctWord: string;
-  userAnswer: string;
-  translation: string;
-  sentence: string;
-  points: number;
-  newMastery: number;
-  previousMastery: number;
-  onNext: () => void;
-  onAddToAnki: () => void;
-  isAddingToAnki?: boolean;
-  ankiAdded?: boolean;
-  ankiError?: string | null;
-}
+import { Kbd } from '@/components/ui/kbd';
+import { ClozeFeedbackProps } from './types';
+import { toast } from 'sonner';
+import Markdown from 'react-markdown';
 
 export default function ClozeFeedback({
   isCorrect,
@@ -33,7 +21,6 @@ export default function ClozeFeedback({
   onAddToAnki,
   isAddingToAnki = false,
   ankiAdded = false,
-  ankiError = null,
 }: ClozeFeedbackProps) {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
@@ -43,6 +30,7 @@ export default function ClozeFeedback({
     if (explanation || isExplaining) return;
     setIsExplaining(true);
     setExplainError(false);
+
     try {
       const res = await fetch('/api/explain', {
         method: 'POST',
@@ -58,7 +46,7 @@ export default function ClozeFeedback({
       const data = await res.json();
       setExplanation(data.explanation);
     } catch {
-      setExplainError(true);
+      toast.error('Failed to fetch explanation');
     } finally {
       setIsExplaining(false);
     }
@@ -94,17 +82,11 @@ export default function ClozeFeedback({
           {isCorrect ? <Check className="h-6 w-6" /> : <X className="h-6 w-6" />}
         </div>
         <div>
-          <h3
-            className={`text-xl font-bold ${
-              isCorrect ? 'text-primary' : 'text-destructive'
-            }`}
-          >
+          <h3 className={`text-xl font-bold ${isCorrect ? 'text-primary' : 'text-destructive'}`}>
             {isCorrect ? 'Correct!' : 'Incorrect'}
           </h3>
           {isCorrect && points > 0 && (
-            <p className="text-sm font-medium text-[var(--gold-strong)]">
-              +{points} points
-            </p>
+            <p className="text-sm font-medium text-[var(--gold-strong)]">+{points} points</p>
           )}
         </div>
       </div>
@@ -144,11 +126,7 @@ export default function ClozeFeedback({
         <div className="mb-2 flex items-center justify-between text-sm">
           <span className="font-medium text-muted-foreground">Mastery Level</span>
           <span className="flex items-center gap-2">
-            <span
-              className={`font-semibold ${
-                isCorrect ? 'text-primary' : 'text-destructive'
-              }`}
-            >
+            <span className={`font-semibold ${isCorrect ? 'text-primary' : 'text-destructive'}`}>
               {masteryLabels[newMastery]}
             </span>
             {masteryChange !== 0 && (
@@ -175,12 +153,9 @@ export default function ClozeFeedback({
 
       {/* Explain section */}
       {explanation && (
-        <div className="mb-4 rounded-lg bg-muted p-4">
-          <p className="mb-2 text-sm font-medium text-muted-foreground">
-            Sentence Breakdown
-          </p>
-          <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
-            {explanation}
+        <div className="mb-4 rounded-lg bg-muted p-4 text-sm leading-tight whitespace-pre-wrap text-foreground">
+          <div className="">
+            <Markdown>{explanation}</Markdown>
           </div>
         </div>
       )}
@@ -188,32 +163,14 @@ export default function ClozeFeedback({
       {/* Action buttons */}
       <div className="flex flex-wrap gap-3">
         {isCorrect && (
-          <button
+          <Button
             type="button"
             onClick={onAddToAnki}
-            disabled={isAddingToAnki || ankiAdded || !!ankiError}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-              ankiAdded
-                ? 'bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
-                : ankiError
-                  ? 'bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
-                  : isAddingToAnki
-                    ? 'cursor-wait bg-muted text-muted-foreground'
-                    : 'bg-[var(--clay-soft)] text-[var(--clay)] hover:bg-[color-mix(in_srgb,var(--clay)_18%,transparent)]'
-            }`}
-            title={ankiError || undefined}
+            disabled={isAddingToAnki || ankiAdded}
+            variant="secondary"
+            title={ankiAdded ? 'Already added to Anki' : 'Add to Anki'}
           >
-            {ankiAdded ? (
-              <>
-                <Check className="h-4 w-4" />
-                Added to Anki
-              </>
-            ) : ankiError ? (
-              <>
-                <AlertTriangle className="h-4 w-4" />
-                Anki Error
-              </>
-            ) : isAddingToAnki ? (
+            {isAddingToAnki ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Adding...
@@ -224,49 +181,38 @@ export default function ClozeFeedback({
                 Add to Anki
               </>
             )}
-          </button>
+          </Button>
         )}
-        {/* Explain button */}
-        <button
+        <Button
           type="button"
+          variant={explainError ? 'destructive' : 'clay'}
           onClick={handleExplain}
           disabled={isExplaining || !!explanation}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-            explanation
-              ? 'bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
-              : explainError
-                ? 'bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
-                : isExplaining
-                  ? 'cursor-wait bg-muted text-muted-foreground'
-                  : 'bg-[var(--gold-soft)] text-[var(--gold-strong)] hover:bg-[color-mix(in_srgb,var(--gold)_22%,transparent)]'
-          }`}
         >
-          {explanation ? (
-            <>
-              <Check className="h-4 w-4" />
-              Explained
-            </>
-          ) : isExplaining ? (
+          {isExplaining ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Explaining...
             </>
-          ) : explainError ? (
-            <>Explain failed</>
           ) : (
             <>
               <Info className="h-4 w-4" />
               Explain
             </>
           )}
-        </button>
-        {ankiError && (
-          <div className="w-full text-xs text-destructive">{ankiError}</div>
-        )}
+        </Button>
         <Button type="button" onClick={onNext} className="flex-1">
           Next Sentence
           <ChevronRight className="h-4 w-4" />
         </Button>
+      </div>
+
+      {/* Keyboard hint */}
+      <div className="mt-4 flex items-center justify-center text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <Kbd>Enter</Kbd>
+          Next sentence
+        </span>
       </div>
     </div>
   );

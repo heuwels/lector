@@ -9,6 +9,7 @@ import ThemeSettings from './components/ThemeSettings';
 import AnkiSettings from './components/AnkiSettings';
 import TTSSettings from './components/TTSSettings';
 import LLMSettings from './components/LLMSettings';
+import PracticeSettings from './components/PracticeSettings';
 import PageHeader from '@/components/PageHeader';
 
 export default function SettingsPage() {
@@ -16,6 +17,7 @@ export default function SettingsPage() {
     <main className="mx-auto max-w-3xl px-4 py-8">
       <PageHeader title="Settings" />
       <div className="space-y-8">
+        <PracticeSettings />
         <LLMSettings />
         <AnkiSettings />
         <TTSSettings />

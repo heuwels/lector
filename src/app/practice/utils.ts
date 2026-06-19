@@ -1,6 +1,6 @@
 import { splitTrailingPunctuation } from '@/lib/words';
 import { ClozeMasteryLevel, ClozeSentence } from '@/types';
-import { FuzzyStatus } from './types';
+import { FuzzyStatus, PracticeMode } from './types';
 
 // Helper export function to create blanked sentence, moving punctuation outside the blank
 export function createBlankedSentence(sentence: string, wordIndex: number): string {
@@ -49,23 +49,23 @@ export function calculateNextReview(mastery: ClozeMasteryLevel): Date {
   return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
-// Calculate points for correct answer
+// Calculate points for a correct answer, following Clozemaster's formula:
+//   base × (mastery% ÷ 25)
+// where base is 8 for typed answers and 4 for multiple choice. `mastery` is the
+// level reached *after* the answer (0/25/50/75/100), so leveling a card up pays
+// more. Typed answers keep a hint penalty: revealing letters scales the award
+// down by the fraction of the word given away (MC has no hints, so it's unaffected).
 export function calculatePoints(
   mastery: ClozeMasteryLevel,
   hintLetters: number,
   wordLength: number,
+  mode: PracticeMode,
 ): number {
-  const pointsMap: Record<ClozeMasteryLevel, number> = {
-    0: 10,
-    25: 15,
-    50: 20,
-    75: 25,
-    100: 30,
-  };
-  const base = pointsMap[mastery];
+  const base = mode === 'mc' ? 4 : 8;
+  const masteryMultiplier = mastery / 25;
   const revealed = wordLength > 0 ? hintLetters / wordLength : 0;
 
-  return Math.max(0, Math.round(base * (1 - revealed)));
+  return Math.max(0, Math.round(base * masteryMultiplier * (1 - revealed)));
 }
 
 // Generate distractors from the queue/pool of cloze words
