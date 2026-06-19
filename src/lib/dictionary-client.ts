@@ -21,9 +21,10 @@ export interface ExpandedDictionaryEntry {
 }
 
 /**
- * In-memory session cache. Map of lowercase word → entry (or null for misses).
- * Cleared on page reload — there's no persistence so memory pressure is bounded
- * by how many distinct words the user looks up in one session (typically <500).
+ * In-memory session cache. Map of `${language}:${lowercase word}` → entry (or
+ * null for misses) — keyed by language so the same word in different target
+ * languages doesn't collide. Cleared on page reload, so memory is bounded by
+ * how many distinct words the user looks up in one session (typically <500).
  */
 const sessionCache = new Map<string, ExpandedDictionaryEntry | null>();
 
@@ -46,10 +47,17 @@ export async function lookupWordRemote(word: string): Promise<ExpandedDictionary
   return entry;
 }
 
-/** Drop a single cached entry (call after editing the dict to force a re-fetch). */
+/** Drop a single cached entry (call after editing the dict to force a re-fetch).
+ *  Keys are `${language}:${word}`, so invalidate the word across every language. */
 export function invalidateLookupCache(word?: string): void {
-  if (word === undefined) sessionCache.clear();
-  else sessionCache.delete(word.toLowerCase());
+  if (word === undefined) {
+    sessionCache.clear();
+    return;
+  }
+  const suffix = `:${word.toLowerCase()}`;
+  for (const key of sessionCache.keys()) {
+    if (key.endsWith(suffix)) sessionCache.delete(key);
+  }
 }
 
 export interface CacheAcceptedTranslationInput {
