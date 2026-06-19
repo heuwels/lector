@@ -29,9 +29,9 @@ RUN npm run build
 #   # Skip integrity check (NOT recommended for production)
 #   docker build --build-arg DICT_SHA256= .
 FROM alpine:3 AS dict
-ARG DICT_VERSION=dict-2026-06-06
+ARG DICT_VERSION=dict-2026-06-19
 ARG DICT_URL=https://github.com/heuwels/lector/releases/download/${DICT_VERSION}/dictionary-af.db
-ARG DICT_SHA256=652df8d15e0678ead3b25ce0a021776d428256673df15b16e3e04cfe9b284a78
+ARG DICT_SHA256=d8620401a3696f0f547b9c8af5a507b3c83d9d0971af35db79a9e4e9491854cb
 RUN apk add --no-cache curl
 RUN mkdir -p /dict \
  && echo "Fetching dictionary from: ${DICT_URL}" \
