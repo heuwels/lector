@@ -4,12 +4,6 @@ on:
   pull_request:
     branches: [master]
 
-# Dictionary release pinned to the same version the Dockerfile uses. Bump
-# together when a new dict release is published via scripts/release-dict.sh.
-env:
-  DICT_VERSION: dict-2026-06-06
-  DICT_SHA256: 652df8d15e0678ead3b25ce0a021776d428256673df15b16e3e04cfe9b284a78
-
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -42,6 +36,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Load dictionary pin
+        run: grep -v '^#' dict.env >> "$GITHUB_ENV"
       - name: Fetch on-device dictionary
         # dictionary-db.test.ts is an integration test over the real (gitignored)
         # dictionary — without this the whole vitest run fails in beforeAll.
@@ -87,6 +83,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: npm ci
       - run: cd api && bun install
+      - name: Load dictionary pin
+        run: grep -v '^#' dict.env >> "$GITHUB_ENV"
       - name: Fetch on-device dictionary
         # The dictionary is gitignored — it ships in the Docker image. For CI
         # the dev server needs a copy at data/dictionary-af.db so e2e tests

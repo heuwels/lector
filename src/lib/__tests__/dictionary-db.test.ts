@@ -55,13 +55,17 @@ describe('dictionary-db', () => {
   });
 
   describe('prefix derivation', () => {
-    test('bedink found via be- prefix on dink (lemmaInfo populated)', () => {
-      // "bedink" (to consider) is not a kaikki entry on its own — it's reached
-      // by stripping the be- prefix and finding "dink" (to think) as the stem.
-      const entry = lookupWord('bedink', 'af');
+    test('verleer found via ver- prefix on leer (lemmaInfo populated)', () => {
+      // "verleer" (to unlearn) isn't a first-class entry — it's reached by
+      // stripping the ver- prefix and finding "leer" (to learn) as the stem.
+      // NOTE: these prefix fixtures are churn-prone — as the dictionary grows,
+      // derived words get promoted to first-class entries (see the verstaan note
+      // below; the former "bedink" fixture was promoted by the woordeboek import).
+      // If this starts failing, swap in another still-derived ver-/be-/ont- word.
+      const entry = lookupWord('verleer', 'af');
       expect(entry).toBeDefined();
       expect(entry!.lemmaInfo).toBeDefined();
-      expect(entry!.lemmaInfo!.stem).toBe('dink');
+      expect(entry!.lemmaInfo!.stem).toBe('leer');
       expect(entry!.lemmaInfo!.label).toBe('derived from');
       // Senses come from the stem
       expect(entry!.senses.length).toBeGreaterThan(0);

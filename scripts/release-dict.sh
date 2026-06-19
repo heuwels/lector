@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Build data/dictionary-af.db from kaikki.org + the curated roots, then upload
-# it as a GitHub Release asset. Prints the values to paste into the Dockerfile
-# (DICT_VERSION + DICT_SHA256) so subsequent docker builds pull this exact file.
+# it as a GitHub Release asset, then writes the pin (DICT_VERSION + DICT_SHA256)
+# to dict.env so subsequent docker builds and CI pull this exact file.
 #
 # Usage:
 #   scripts/release-dict.sh            # auto-generate tag (dict-YYYY-MM-DD)
@@ -43,7 +43,7 @@ Built from kaikki.org Afrikaans Wiktionary dump + curated roots in \`src/lib/dic
 - Size: ${SIZE_MB} MB
 - SHA-256: \`${SHA}\`
 
-Pulled into the Docker image at build time — see Dockerfile \`DICT_VERSION\` ARG.
+Pulled into the Docker image at build time — pinned in \`dict.env\`.
 EOF
 )
 
@@ -58,15 +58,24 @@ else
     --latest=false
 fi
 
+echo ">> Writing pin to dict.env"
+cat > dict.env <<EOF
+# Pinned on-device dictionary release — single source of truth.
+# Read by the Dockerfile (sourced) and the CI workflows (loaded into \$GITHUB_ENV).
+# Regenerate with scripts/release-dict.sh.
+DICT_VERSION=${TAG}
+DICT_SHA256=${SHA}
+EOF
+
 cat <<EOF
 
 ============================================================
-Release published.
+Release published and dict.env updated:
 
-To pin this build into the Docker image, update Dockerfile:
+  DICT_VERSION=${TAG}
+  DICT_SHA256=${SHA}
 
-  ARG DICT_VERSION=${TAG}
-  ARG DICT_SHA256=${SHA}
+Commit dict.env to pin this dictionary into the image + CI, then open a PR.
 
 Verify the download manually with:
 
