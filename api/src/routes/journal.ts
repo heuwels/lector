@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, JournalEntryRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { correctJournalText } from '../lib/journal-correct';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
@@ -99,6 +100,37 @@ app.delete('/:id', (c) => {
 
   db.prepare('DELETE FROM journal_entries WHERE id = ?').run(id);
   return c.json({ success: true });
+});
+
+// POST /api/journal/:id/correct — run the LLM correction on an entry and persist
+// it (correctedBody + corrections, status → submitted).
+app.post('/:id/correct', async (c) => {
+  const id = c.req.param('id');
+  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(id) as
+    | JournalEntryRow
+    | undefined;
+
+  if (!entry) return c.json({ error: 'Entry not found' }, 404);
+  if (!entry.body.trim()) return c.json({ error: 'Entry body is empty' }, 400);
+
+  try {
+    const data = (await correctJournalText(entry.body, entry.language)) as {
+      correctedBody?: string;
+      corrections?: unknown;
+    };
+
+    const now = new Date().toISOString();
+    db.prepare(
+      `UPDATE journal_entries
+       SET correctedBody = ?, corrections = ?, status = 'submitted', updatedAt = ?
+       WHERE id = ?`,
+    ).run(data.correctedBody ?? null, JSON.stringify(data.corrections ?? null), now, id);
+
+    return c.json({ correctedBody: data.correctedBody, corrections: data.corrections });
+  } catch (error) {
+    console.error('Journal correction error:', error);
+    return c.json({ error: error instanceof Error ? error.message : 'Correction failed' }, 500);
+  }
 });
 
 export default app;
