@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { getVocabStats, setSetting } from '@/lib/data-layer';
+import { getFluencyStats, setSetting } from '@/lib/data-layer';
 import { LANGUAGES } from '@/lib/languages';
 import { LanguageCode } from '@/types/language';
 import { useActiveLanguage } from '@/utils/hooks';
@@ -21,10 +21,9 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
   useEffect(() => {
     const init = async () => {
       try {
-        const vocabStats = await getVocabStats();
-        const knownCount =
-          vocabStats.byState.level3 + vocabStats.byState.level4 + vocabStats.byState.known;
-        setKnownWordsCount(knownCount);
+        const fluency = await getFluencyStats();
+
+        setKnownWordsCount(fluency.totalKnownWords);
       } catch (error) {
         console.error('Error loading data:', error);
       }
@@ -67,7 +66,7 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
         <DropdownMenuTrigger
           data-testid="language-selector"
           aria-label={`Language: ${activeLang.native}`}
-          className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted  "
+          className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
         >
           <span>{activeLang.flag}</span>
           <span>{activeLang.code.toUpperCase()}</span>
@@ -87,7 +86,7 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
         <DropdownMenuTrigger
           data-testid="language-selector"
           aria-label={`Language: ${activeLang.native}`}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent  "
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <span className="text-lg">{activeLang.flag}</span>
           <span className="flex-1 text-left">{activeLang.native}</span>
