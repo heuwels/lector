@@ -568,8 +568,12 @@ export interface FluencyStats {
   estimatedLevel: {
     code: string;
     label: string;
+    min: number;
+    max: number | null;
   };
+  nextLevel: { code: string; label: string } | null;
   progressToNextLevel: number;
+  wordsToNextLevel: number | null;
   weeklyGrowth: {
     thisWeek: number;
     lastWeek: number;
