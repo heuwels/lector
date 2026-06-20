@@ -7,6 +7,11 @@ import type { LLMProvider, CompletionOptions, LLMTask } from './types';
 // happened to the old `claude-sonnet-4-20250514`, which started 404-ing.
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 
+// Word-domain classification is a high-volume background enum-pick — default it
+// to the cheapest tier regardless of the general model, so a learner running
+// Opus/Sonnet for translation doesn't pay top-tier rates per word classified.
+const DEFAULT_CLASSIFICATION_MODEL = 'claude-haiku-4-5';
+
 export interface AnthropicProviderOptions {
   apiKey?: string;
   oauthToken?: string;
@@ -18,12 +23,14 @@ export interface AnthropicProviderOptions {
   phraseModel?: string;
   /** LLM tutor chat. */
   chatModel?: string;
+  /** Background word→domain classification — cheap, high volume (e.g. claude-haiku-4-5). */
+  classificationModel?: string;
 }
 
 export class AnthropicProvider implements LLMProvider {
   name = 'anthropic';
   private client: Anthropic | null = null;
-  private models: { default: string; word: string; phrase: string; chat: string };
+  private models: { default: string; word: string; phrase: string; chat: string; classification: string };
   private useAgentSdk: boolean;
 
   constructor(options?: AnthropicProviderOptions) {
@@ -59,6 +66,10 @@ export class AnthropicProvider implements LLMProvider {
       word: options?.wordModel || process.env.ANTHROPIC_WORD_MODEL || base,
       phrase: options?.phraseModel || process.env.ANTHROPIC_PHRASE_MODEL || base,
       chat: options?.chatModel || process.env.ANTHROPIC_CHAT_MODEL || base,
+      // Classification falls back to Haiku, NOT `base`: it's a cheap enum-pick we
+      // never want to silently run on an expensive general model.
+      classification:
+        options?.classificationModel || process.env.ANTHROPIC_CLASSIFICATION_MODEL || DEFAULT_CLASSIFICATION_MODEL,
     };
   }
 
@@ -76,6 +87,8 @@ export class AnthropicProvider implements LLMProvider {
         return this.models.phrase;
       case 'chat':
         return this.models.chat;
+      case 'word-classification':
+        return this.models.classification;
       default:
         return this.models.default;
     }

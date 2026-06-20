@@ -9,7 +9,7 @@ export interface ChatMessage {
  * providers ignore it and use their single configured model.
  * TODO(backlog): generalise per-task model selection to all providers.
  */
-export type LLMTask = 'word-translation' | 'phrase-translation' | 'chat';
+export type LLMTask = 'word-translation' | 'phrase-translation' | 'chat' | 'word-classification';
 
 export interface CompletionOptions {
   messages: ChatMessage[];
