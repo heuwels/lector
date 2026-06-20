@@ -560,6 +560,18 @@ export async function getStreak(): Promise<{
   return res.json();
 }
 
+/** One fluency-radar axis — a topic domain's strength, from the /fluency route. */
+export interface DomainAxis {
+  domain: string;
+  label: string;
+  knownCount: number;
+  masteryScore: number;
+  /** 0–100, log-normalised; what the radar polygon plots. */
+  axisValue: number;
+  /** Novice | Developing | Strong | Expert. */
+  band: string;
+}
+
 export interface FluencyStats {
   totalKnownWords: number;
   totalLearning: number;
@@ -575,6 +587,10 @@ export interface FluencyStats {
     lastWeek: number;
     delta: number;
   };
+  /** Per-domain strengths for the fluency radar (one entry per fixed taxonomy axis). */
+  byDomain: DomainAxis[];
+  /** Mastery-state words the background classifier hasn't tagged yet (drains to 0). */
+  pending: number;
 }
 
 export async function getFluencyStats(): Promise<FluencyStats> {
