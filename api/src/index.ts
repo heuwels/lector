@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 
 import collections from './routes/collections';
+import groups from './routes/groups';
 import lessons from './routes/lessons';
 import vocab from './routes/vocab';
 import cloze from './routes/cloze';
@@ -26,6 +27,7 @@ app.use('*', logger());
 app.use('/api/*', authMiddleware);
 
 app.route('/api/collections', collections);
+app.route('/api/groups', groups);
 app.route('/api/lessons', lessons);
 app.route('/api/vocab', vocab);
 app.route('/api/cloze', cloze);

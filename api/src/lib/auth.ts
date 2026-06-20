@@ -4,6 +4,7 @@ import { hashToken } from './crypto';
 
 const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   collections:     { read: 'collections:read', write: 'collections:write' },
+  groups:          { read: 'collections:read', write: 'collections:write' },
   lessons:         { read: 'collections:read', write: 'collections:write' },
   vocab:           { read: 'vocab:read',       write: 'vocab:write' },
   'known-words':   { read: 'vocab:read',       write: 'vocab:write' },

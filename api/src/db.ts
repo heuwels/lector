@@ -37,6 +37,7 @@ function getDb(): Database {
       title TEXT NOT NULL,
       author TEXT NOT NULL DEFAULT 'Unknown',
       coverUrl TEXT,
+      sortOrder INTEGER NOT NULL DEFAULT 0,
       createdAt TEXT NOT NULL,
       lastReadAt TEXT NOT NULL
     );
@@ -156,6 +157,13 @@ function getDb(): Database {
       language TEXT NOT NULL DEFAULT 'af'
     );
     CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt);
+
+    CREATE TABLE IF NOT EXISTS collection_groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      sortOrder INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL
+    );
   `);
 
   // Migrations for existing databases
@@ -176,6 +184,16 @@ function getDb(): Database {
 
   if (!chatCols.some((c) => c.name === 'language')) {
     _db.exec("ALTER TABLE chat_messages ADD COLUMN language TEXT NOT NULL DEFAULT 'af'");
+  }
+
+  // collections.groupId / sortOrder — collection groups + manual ordering.
+  // Mirrors src/lib/server/database.ts (both servers share the SQLite file).
+  const collectionCols = _db.prepare('PRAGMA table_info(collections)').all() as { name: string }[];
+  if (!collectionCols.some((col) => col.name === 'groupId')) {
+    _db.exec('ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL');
+  }
+  if (!collectionCols.some((col) => col.name === 'sortOrder')) {
+    _db.exec('ALTER TABLE collections ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0');
   }
 
   migrateVocabForeignKey(_db);
@@ -501,8 +519,17 @@ export interface CollectionRow {
   title: string;
   author: string;
   coverUrl: string | null;
+  groupId: string | null;
+  sortOrder: number;
   createdAt: string;
   lastReadAt: string;
+}
+
+export interface CollectionGroupRow {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
 }
 
 export interface LessonRow {
