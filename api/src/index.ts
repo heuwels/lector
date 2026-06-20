@@ -5,6 +5,8 @@ import { logger } from 'hono/logger';
 
 import collections from './routes/collections';
 import groups from './routes/groups';
+import knownWords from './routes/known-words';
+import studyPing from './routes/study-ping';
 import lessons from './routes/lessons';
 import vocab from './routes/vocab';
 import cloze from './routes/cloze';
@@ -28,6 +30,8 @@ app.use('/api/*', authMiddleware);
 
 app.route('/api/collections', collections);
 app.route('/api/groups', groups);
+app.route('/api/known-words', knownWords);
+app.route('/api/study-ping', studyPing);
 app.route('/api/lessons', lessons);
 app.route('/api/vocab', vocab);
 app.route('/api/cloze', cloze);
