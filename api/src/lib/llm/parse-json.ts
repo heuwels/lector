@@ -1,3 +1,5 @@
+import { jsonrepair } from 'jsonrepair';
+
 /**
  * Parse JSON returned by an LLM.
  *
@@ -10,7 +12,19 @@
  *     <think>…</think> block first, usually containing braces;
  *   - chat-tuned models wrap output in a ```json fence or a sentence of preamble.
  * This strips those before parsing, then falls back to extracting the outermost
- * {...} or [...] span.
+ * {...} or [...] span, and finally to jsonrepair() for structural noise that
+ * strict JSON.parse rejects (trailing commas, unquoted keys, single quotes, an
+ * unterminated tail from a truncated response).
+ *
+ * IMPORTANT — jsonrepair only ever *closes structure or normalises delimiters*;
+ * it never drops bytes the model actually sent. The one failure it can't repair
+ * is an unescaped double-quote inside a string value (e.g. the model writes
+ *   "etymology": "From Dutch lekker ("tasty"), ..."
+ * — common when a model quotes a gloss). That is genuinely ambiguous, so
+ * jsonrepair throws and so do we. Throwing is deliberate: these results get
+ * persisted into the on-device dictionary, and a hard error (the caller retries)
+ * is strictly safer than silently saving a string truncated at the stray quote.
+ * The prompts ask models to use single quotes inside values to avoid this.
  */
 export function parseLooseJson<T = unknown>(text: string): T {
   // 1. Drop reasoning <think>…</think> blocks first — their braces would
@@ -30,10 +44,34 @@ export function parseLooseJson<T = unknown>(text: string): T {
     const first = unfenced.search(/[[{]/);
     const last = Math.max(unfenced.lastIndexOf('}'), unfenced.lastIndexOf(']'));
     if (first !== -1 && last > first) {
+      const span = unfenced.slice(first, last + 1);
       try {
-        return JSON.parse(unfenced.slice(first, last + 1)) as T;
+        return JSON.parse(span) as T;
       } catch {
-        // fall through to the shared error below
+        // 5. Last resort: repair structural noise (trailing commas, unquoted
+        //    keys, single quotes) and re-parse. Two candidates, in order:
+        //      a) first bracket → END of the text, so a response truncated
+        //         mid-value keeps every byte the model actually sent (e.g. an
+        //         ipa/etymology that sit after the last *complete* bracket and
+        //         would otherwise be silently dropped by the span slice below);
+        //      b) the bracket-trimmed span, which strips trailing prose that (a)
+        //         chokes on (jsonrepair won't discard junk after the JSON).
+        //    We repair ONLY a real {...}/[...] span — never bare prose, which
+        //    jsonrepair would wrap into a JSON string and smuggle a refusal past
+        //    the caller — and require an object/array result for the same
+        //    reason. jsonrepair throws on irrecoverable input (e.g. unescaped
+        //    inner quotes); we let that fall through to the shared error below.
+        const tailKept = unfenced.slice(first);
+        for (const candidate of tailKept === span ? [span] : [tailKept, span]) {
+          try {
+            const repaired = JSON.parse(jsonrepair(candidate));
+            if (repaired !== null && typeof repaired === 'object') {
+              return repaired as T;
+            }
+          } catch {
+            // try the next candidate / fall through to the shared error below
+          }
+        }
       }
     }
     const preview = text.length > 120 ? `${text.slice(0, 120)}…` : text;
