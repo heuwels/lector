@@ -164,6 +164,41 @@ function getDb(): Database {
       sortOrder INTEGER NOT NULL DEFAULT 0,
       createdAt TEXT NOT NULL
     );
+
+    -- AI-translation cache. Persists structured AI translations after the user
+    -- accepts them (Save to vocab / Mark Known / set level). The dictionary
+    -- read-side falls through here when the read-only kaikki dict misses, so
+    -- coverage of the user's reading corpus approaches 100% over time. Lives in
+    -- lector.db (the mutable DB), not the read-only dictionary-af.db.
+    CREATE TABLE IF NOT EXISTS cached_entries (
+      word TEXT PRIMARY KEY,
+      language TEXT NOT NULL DEFAULT 'af',
+      ipa TEXT,
+      etymology TEXT,
+      sourceSentence TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_cached_entries_language ON cached_entries(language);
+
+    CREATE TABLE IF NOT EXISTS cached_senses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      word TEXT NOT NULL,
+      pos TEXT,
+      gloss TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (word) REFERENCES cached_entries(word) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_cached_senses_word ON cached_senses(word);
+
+    CREATE TABLE IF NOT EXISTS cached_related_forms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      word TEXT NOT NULL,
+      related_word TEXT NOT NULL,
+      relation TEXT NOT NULL,
+      FOREIGN KEY (word) REFERENCES cached_entries(word) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_cached_related_word ON cached_related_forms(word);
   `);
 
   // Migrations for existing databases

@@ -15,6 +15,7 @@ const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   explain:         { read: 'vocab:read',       write: 'vocab:read' },
   tts:             { read: 'vocab:read',       write: 'vocab:read' },
   tatoeba:         { read: 'vocab:read',       write: 'vocab:read' },
+  dictionary:      { read: 'vocab:read',       write: 'vocab:read' },
   anki:            { read: 'settings:read',    write: 'settings:write' },
   'study-ping':    { read: 'stats:read',       write: 'stats:write' },
   data:            { read: 'data:export',      write: 'data:import' },
