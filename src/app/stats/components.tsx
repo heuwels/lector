@@ -129,9 +129,7 @@ export function WordStateBreakdown({ byState }: { byState: Record<WordState, num
 
   return (
     <div className="panel p-6">
-      <h3 className="mb-4 text-lg font-semibold text-foreground">
-        Words by State
-      </h3>
+      <h3 className="mb-4 text-lg font-semibold text-foreground">Words by State</h3>
       <div className="space-y-3">
         {states.map(({ key, label, color, bgColor }) => {
           const count = byState[key] || 0;
@@ -172,9 +170,7 @@ export function ClozeStats({
 
   return (
     <div className="panel p-6">
-      <h3 className="mb-4 text-lg font-semibold text-foreground">
-        Cloze Practice
-      </h3>
+      <h3 className="mb-4 text-lg font-semibold text-foreground">Cloze Practice</h3>
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-lg bg-muted p-4 text-center">
           <div className="text-3xl font-bold text-[var(--chart-3)]">
@@ -183,9 +179,7 @@ export function ClozeStats({
           <div className="mt-1 text-sm text-muted-foreground">Sentences Practiced</div>
         </div>
         <div className="rounded-lg bg-muted p-4 text-center">
-          <div className="text-3xl font-bold text-primary">
-            {accuracy.toFixed(1)}%
-          </div>
+          <div className="text-3xl font-bold text-primary">{accuracy.toFixed(1)}%</div>
           <div className="mt-1 text-sm text-muted-foreground">Accuracy</div>
         </div>
         <div className="col-span-2 rounded-lg bg-muted p-4 text-center">
@@ -278,15 +272,19 @@ export function SentenceMastery({
 
 // Fluency badge component
 export function FluencyBadge({ fluency }: { fluency: FluencyStats }) {
-  const { estimatedLevel, progressToNextLevel, totalKnownWords, totalLearning, weeklyGrowth } =
-    fluency;
+  const {
+    estimatedLevel,
+    nextLevel,
+    progressToNextLevel,
+    wordsToNextLevel,
+    totalKnownWords,
+    totalLearning,
+    weeklyGrowth,
+  } = fluency;
   const growthDelta = weeklyGrowth.delta;
 
   return (
-    <div
-      data-testid="fluency-section"
-      className="mb-8 panel p-6"
-    >
+    <div data-testid="fluency-section" className="panel mb-8 p-6">
       <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <span
@@ -307,9 +305,7 @@ export function FluencyBadge({ fluency }: { fluency: FluencyStats }) {
             <span
               data-testid="fluency-weekly-growth"
               className={`inline-flex items-center gap-1 text-sm font-medium ${
-                growthDelta > 0
-                  ? 'text-primary'
-                  : 'text-destructive'
+                growthDelta > 0 ? 'text-primary' : 'text-destructive'
               }`}
             >
               {growthDelta > 0 ? (
@@ -331,7 +327,9 @@ export function FluencyBadge({ fluency }: { fluency: FluencyStats }) {
       {/* Progress bar toward next level */}
       <div className="mb-4">
         <div className="mb-1 flex justify-between text-sm">
-          <span className="text-muted-foreground">Progress to next level</span>
+          <span className="text-muted-foreground">
+            {nextLevel ? `Progress to ${nextLevel.code}` : 'Top level reached'}
+          </span>
           <span className="text-muted-foreground">{progressToNextLevel}%</span>
         </div>
         <div
@@ -343,15 +341,21 @@ export function FluencyBadge({ fluency }: { fluency: FluencyStats }) {
             style={{ width: `${progressToNextLevel}%` }}
           />
         </div>
+        {nextLevel && (
+          <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+            <span>{estimatedLevel.min.toLocaleString()}</span>
+            <span data-testid="fluency-words-to-next" className="font-medium text-foreground">
+              {wordsToNextLevel?.toLocaleString()} words to {nextLevel.code}
+            </span>
+            <span>{estimatedLevel.max?.toLocaleString()}</span>
+          </div>
+        )}
       </div>
 
       {/* Known / Learning counts */}
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-lg bg-muted p-3 text-center">
-          <div
-            data-testid="fluency-known-count"
-            className="text-2xl font-bold text-primary"
-          >
+          <div data-testid="fluency-known-count" className="text-2xl font-bold text-primary">
             {totalKnownWords.toLocaleString()}
           </div>
           <div className="text-sm text-muted-foreground">Known</div>
@@ -376,9 +380,7 @@ export function SkeletonBlock({ className = '' }: { className?: string }) {
 
 export function SkeletonCard({ className = '' }: { className?: string }) {
   return (
-    <div
-      className={`panel p-6 ${className}`}
-    >
+    <div className={`panel p-6 ${className}`}>
       <SkeletonBlock className="mb-3 h-4 w-24" />
       <SkeletonBlock className="mb-2 h-10 w-32" />
       <SkeletonBlock className="h-3 w-20" />
@@ -392,7 +394,7 @@ export function StatsSkeleton() {
       <SkeletonBlock className="mb-6 h-4 w-56" />
 
       {/* Fluency badge skeleton */}
-      <div className="mb-8 panel p-6">
+      <div className="panel mb-8 p-6">
         <div className="mb-4 flex items-center gap-4">
           <SkeletonBlock className="h-10 w-16" />
           <div className="flex-1">
