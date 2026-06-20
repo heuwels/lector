@@ -19,9 +19,9 @@ CI runs all of these, plus the e2e suite a second time against the production Do
 
 ## Tech Stack
 
-- Next.js 16 + React 19
+- Next.js 16 + React 19 — the front-end, plus thin `/api` proxy routes.
+- Hono on Bun is the API backend (`api/`), using Bun's native `bun:sqlite`. Every Next `/api/*` route is a thin proxy to it via `src/lib/server/api-proxy.ts`; the client persists everything through those routes (`src/lib/data-layer.ts`). The Next process holds no database. (better-sqlite3 survives only as a devDependency, for the `scripts/build-dictionary.ts` / `export-cached-entries.ts` tooling.)
 - Tailwind CSS v4 (class-based dark mode via `@custom-variant`)
-- SQLite (better-sqlite3) for server-side data; the client persists everything through the API routes (`src/lib/data-layer.ts`)
 - shadcn/ui (Base UI primitives, `base-vega` style, zinc tokens) is initialized — add primitives with `npx shadcn@latest add <component>` into `src/components/ui/` and extend them there. Adoption is gradual: prefer `ui/` components in new/touched code, don't hand-roll buttons/dialogs/menus, and don't mass-migrate existing ones
 
 ## Key Patterns
@@ -39,6 +39,6 @@ CI runs all of these, plus the e2e suite a second time against the production Do
 
 ## Dates, Streaks & Time Zone
 
-- Day rollover (daily stats, streaks, review days) uses the `timezone` setting (Settings → Time Zone), falling back to the server's zone — never raw UTC. Helpers: `src/lib/server/dates.ts` / `api/src/lib/dates.ts` (`getTodayDate()`), pure math in `src/lib/dates.ts`.
+- Day rollover (daily stats, streaks, review days) uses the `timezone` setting (Settings → Time Zone), falling back to the server's zone — never raw UTC. Server helper: `api/src/lib/dates.ts` (`getTodayDate()`); pure client-side math in `src/lib/dates.ts`.
 - One streak definition app-wide: a day is active if it has any dictionary lookups, cloze practice, or reading minutes. Computed by `computeStreaks` (`src/lib/streak.ts`, mirrored in `api/src/lib/streak.ts`), served by `/api/stats/streak` (current + longest). Pages must not compute their own streaks.
-- The pure helpers are mirrored between `src/lib/` and `api/src/lib/` (the servers share the SQLite file but not source) — keep both copies in sync when editing.
+- Pure helpers used on both sides (e.g. `dates`, `streak`, `stats-derive`) are mirrored between the client `src/lib/` copy and the Hono `api/src/lib/` copy — keep them in sync when editing. The Hono API owns the DB; the client copies are for rendering only.
