@@ -3,6 +3,7 @@ import { db, DailyStatsRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getTodayDate, addDaysToDateString } from '../lib/dates';
 import { activeDateSet, computeStreaks } from '../lib/streak';
+import { deriveReadingStats } from '../lib/stats-derive';
 
 const app = new Hono();
 
@@ -176,6 +177,18 @@ app.get('/streak', (c) => {
   const { current, longest, activeToday } = computeStreaks(activeDateSet(rows), today);
 
   return c.json({ streak: current, longest, practicedToday: activeToday });
+});
+
+// GET /api/stats/reading
+// Estimated reading volume derived from per-lesson scroll progress. Not
+// language-scoped: it reflects the whole library (mirrors the Next route this
+// replaces — lessons are aggregated regardless of language).
+app.get('/reading', (c) => {
+  const rows = db
+    .prepare('SELECT wordCount, progress_percentComplete AS percentComplete FROM lessons')
+    .all() as { wordCount: number; percentComplete: number }[];
+
+  return c.json(deriveReadingStats(rows));
 });
 
 export default app;
