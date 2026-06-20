@@ -56,12 +56,26 @@ function getDb(language: string): Database | null {
     _dbs.set(language, null);
     return null;
   }
-  // Open read-only. No `PRAGMA journal_mode = WAL` here: the file is a static,
-  // checkpointed build artifact, and setting WAL on a read-only connection is a
-  // no-op (better-sqlite3 tolerated it; bun:sqlite has no `.pragma()` helper).
-  const conn = new Database(dbPath, { readonly: true });
-  _dbs.set(language, conn);
-  return conn;
+
+  try {
+    // Open via the `immutable=1` URI rather than a plain `{ readonly: true }`.
+    // The build stamps the artifact WAL (scripts/build-dictionary.ts), and
+    // bun:sqlite cannot open a WAL database read-only without a writable
+    // -shm/-wal sidecar (which isn't shipped) — a plain read-only open throws
+    // "unable to open database file". `immutable=1` tells SQLite the file can't
+    // change, so it reads pages directly and skips WAL/-shm entirely.
+    // (better-sqlite3 tolerated the plain read-only open; bun:sqlite is stricter.)
+    const conn = new Database(`file:${path.resolve(dbPath)}?immutable=1`, { readonly: true });
+    _dbs.set(language, conn);
+    return conn;
+  } catch (err) {
+    // Any open failure degrades to the AI-translate fallback rather than
+    // throwing — a thrown error here would 500 every lookup. The dictionary is
+    // optional at runtime, so a missing/unreadable DB just means "no curated hit".
+    console.warn(`Dictionary unavailable for "${language}" at ${dbPath}:`, err);
+    _dbs.set(language, null);
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -120,14 +134,21 @@ function getStmts(language: string): Stmts | null {
   if (cached) return cached;
   const db = getDb(language);
   if (!db) return null;
-  const stmts: Stmts = {
-    selectEntry: db.prepare('SELECT word, rank, ipa, etymology FROM entries WHERE word = ?'),
-    selectSenses: db.prepare('SELECT pos, gloss FROM senses WHERE word = ? ORDER BY sort_order'),
-    selectRelated: db.prepare('SELECT related_word, relation FROM related_forms WHERE word = ?'),
-    selectInflectionLemma: db.prepare('SELECT lemma, type FROM inflections WHERE inflected_form = ? LIMIT 1'),
-  };
-  _stmtsByLang.set(language, stmts);
-  return stmts;
+  try {
+    const stmts: Stmts = {
+      selectEntry: db.prepare('SELECT word, rank, ipa, etymology FROM entries WHERE word = ?'),
+      selectSenses: db.prepare('SELECT pos, gloss FROM senses WHERE word = ? ORDER BY sort_order'),
+      selectRelated: db.prepare('SELECT related_word, relation FROM related_forms WHERE word = ?'),
+      selectInflectionLemma: db.prepare('SELECT lemma, type FROM inflections WHERE inflected_form = ? LIMIT 1'),
+    };
+    _stmtsByLang.set(language, stmts);
+    return stmts;
+  } catch (err) {
+    // A corrupt/incompatible dict (opens but the expected tables are missing)
+    // degrades to the AI fallback rather than 500ing every lookup.
+    console.warn(`Dictionary unusable for "${language}":`, err);
+    return null;
+  }
 }
 
 interface EntryRow {
