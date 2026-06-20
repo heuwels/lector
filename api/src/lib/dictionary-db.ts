@@ -58,14 +58,19 @@ function getDb(language: string): Database | null {
   }
 
   try {
-    // Open via the `immutable=1` URI rather than a plain `{ readonly: true }`.
     // The build stamps the artifact WAL (scripts/build-dictionary.ts), and
     // bun:sqlite cannot open a WAL database read-only without a writable
-    // -shm/-wal sidecar (which isn't shipped) — a plain read-only open throws
-    // "unable to open database file". `immutable=1` tells SQLite the file can't
-    // change, so it reads pages directly and skips WAL/-shm entirely.
-    // (better-sqlite3 tolerated the plain read-only open; bun:sqlite is stricter.)
-    const conn = new Database(`file:${path.resolve(dbPath)}?immutable=1`, { readonly: true });
+    // -shm/-wal sidecar (which isn't shipped) — a plain `{ readonly: true }`
+    // open throws SQLITE_CANTOPEN. The `immutable=1` URI tells SQLite the file
+    // can't change, so it reads pages directly and skips WAL/-shm entirely.
+    //
+    // Pass raw flags SQLITE_OPEN_READONLY (0x01) | SQLITE_OPEN_URI (0x40), NOT
+    // `{ readonly: true }`: the object form relied on bun auto-detecting the
+    // `file:` scheme to enable URI parsing, which doesn't hold on CI's bun (it
+    // treated the URI as a literal path → CANTOPEN). The explicit URI flag
+    // forces SQLite to parse `immutable=1`. (better-sqlite3 tolerated the plain
+    // read-only open of a WAL DB; bun:sqlite is stricter.)
+    const conn = new Database(`file:${path.resolve(dbPath)}?immutable=1`, 0x01 | 0x40);
     _dbs.set(language, conn);
     return conn;
   } catch (err) {
