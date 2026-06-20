@@ -104,7 +104,10 @@ app.get('/due', (c) => {
     query = 'SELECT * FROM clozeSentences WHERE reviewCount = 0 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
     params.push(lang);
   } else if (mode === 'review') {
-    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND reviewCount > 0 AND masteryLevel < 100 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
+    // Due for review (already seen at least once). Mastery-100 cards are
+    // included — the scheduler gives them a 14-day maintenance review, which
+    // could otherwise never be served (issue #108).
+    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND reviewCount > 0 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
     params.push(now, lang);
   } else {
     query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
@@ -141,7 +144,8 @@ app.get('/counts', (c) => {
       collection,
       COUNT(*) as total,
       SUM(CASE WHEN masteryLevel = 100 THEN 1 ELSE 0 END) as mastered,
-      SUM(CASE WHEN nextReview <= ? AND masteryLevel < 100 AND reviewCount > 0 THEN 1 ELSE 0 END) as due
+      -- Mastery-100 maintenance reviews count as due (issue #108)
+      SUM(CASE WHEN nextReview <= ? AND reviewCount > 0 THEN 1 ELSE 0 END) as due
     FROM clozeSentences
     WHERE (blacklisted = 0 OR blacklisted IS NULL) AND language = ?
     GROUP BY collection

@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { db, LessonRow } from '../db';
+import { countWords } from '../lib/html-to-markdown';
 
 const app = new Hono();
 
@@ -24,7 +25,12 @@ app.put('/:id', async (c) => {
   const values: unknown[] = [];
 
   if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
-  if (body.textContent !== undefined) { updates.push('textContent = ?'); values.push(body.textContent); }
+  if (body.textContent !== undefined) {
+    updates.push('textContent = ?');
+    values.push(body.textContent);
+    updates.push('wordCount = ?');
+    values.push(countWords(body.textContent));
+  }
   if (body.sortOrder !== undefined) { updates.push('sortOrder = ?'); values.push(body.sortOrder); }
   if (body.collectionId !== undefined) { updates.push('collectionId = ?'); values.push(body.collectionId); }
 
