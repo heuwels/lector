@@ -158,6 +158,20 @@ function getDb(): Database {
     );
     CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt);
 
+    CREATE TABLE IF NOT EXISTS journal_entries (
+      id TEXT PRIMARY KEY,
+      body TEXT NOT NULL DEFAULT '',
+      correctedBody TEXT,
+      corrections TEXT,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
+      wordCount INTEGER DEFAULT 0,
+      entryDate TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate);
+    CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status);
+
     CREATE TABLE IF NOT EXISTS collection_groups (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -219,6 +233,23 @@ function getDb(): Database {
 
   if (!chatCols.some((c) => c.name === 'language')) {
     _db.exec("ALTER TABLE chat_messages ADD COLUMN language TEXT NOT NULL DEFAULT 'af'");
+  }
+
+  // Drop the legacy UNIQUE constraint on journal_entries.entryDate (multiple
+  // entries per day are allowed). Mirrors src/lib/server/database.ts.
+  const journalIndex = _db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='journal_entries' AND name='idx_journal_entryDate'",
+    )
+    .get() as { name: string } | undefined;
+  if (journalIndex) {
+    const indexSql = _db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_journal_entryDate'")
+      .get() as { sql: string } | undefined;
+    if (indexSql?.sql?.includes('UNIQUE')) {
+      _db.exec('DROP INDEX idx_journal_entryDate');
+      _db.exec('CREATE INDEX idx_journal_entryDate ON journal_entries(entryDate)');
+    }
   }
 
   // collections.groupId / sortOrder — collection groups + manual ordering.
@@ -565,6 +596,21 @@ export interface CollectionGroupRow {
   name: string;
   sortOrder: number;
   createdAt: string;
+}
+
+export type JournalStatus = 'draft' | 'submitted';
+
+export interface JournalEntryRow {
+  id: string;
+  body: string;
+  correctedBody: string | null;
+  corrections: string | null;
+  status: JournalStatus;
+  wordCount: number;
+  language: string;
+  entryDate: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LessonRow {

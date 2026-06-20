@@ -22,6 +22,7 @@ const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   'extract-url':   { read: 'collections:write', write: 'collections:write' },
   import:          { read: 'collections:write', write: 'collections:write' },
   'journal-correct': { read: 'vocab:read',     write: 'vocab:read' },
+  journal:         { read: 'collections:read', write: 'collections:write' },
   'llm-status':    { read: 'settings:read',    write: 'settings:write' },
   'translate-compare': { read: 'vocab:read',  write: 'vocab:write' },
 };
