@@ -76,8 +76,12 @@ export async function classifyWords(
 ): Promise<ClassifyResult[]> {
   if (items.length === 0) return [];
 
-  // Output is tiny (~20 tokens/word); pad for reasoning models' <think> blocks.
-  const maxTokens = Math.min(4096, 512 + items.length * 32);
+  // The JSON itself is tiny (~20 tokens/word), but local reasoning models — the
+  // LM Studio default — emit a <think> block first that can dwarf it. Too small a
+  // budget truncates before the JSON and loses the whole batch, so keep a roomy
+  // floor; CLASSIFY_MAX_TOKENS bumps it further for an especially chatty model.
+  const envMax = parseInt(process.env.CLASSIFY_MAX_TOKENS || '', 10);
+  const maxTokens = envMax > 0 ? envMax : Math.min(8192, Math.max(2048, items.length * 64));
   const text = await provider.complete({
     messages: [{ role: 'user', content: buildPrompt(items) }],
     maxTokens,
