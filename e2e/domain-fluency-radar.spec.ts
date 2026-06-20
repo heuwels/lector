@@ -30,7 +30,14 @@ function bandFor(axis: number): string {
 function axes(signal: Record<string, number> = {}) {
   return DOMAIN_DEFS.map(([domain, label]) => {
     const axisValue = signal[domain] ?? 0;
-    return { domain, label, knownCount: axisValue, masteryScore: axisValue, axisValue, band: bandFor(axisValue) };
+    return {
+      domain,
+      label,
+      knownCount: axisValue,
+      masteryScore: axisValue,
+      axisValue,
+      band: bandFor(axisValue),
+    };
   });
 }
 
@@ -50,14 +57,21 @@ function fluencyFixture(over: { byDomain?: ReturnType<typeof axes>; pending?: nu
 
 async function stubFluency(page: import('@playwright/test').Page, fixture: object) {
   await page.route('**/api/stats/fluency**', async (route: Route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixture) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(fixture),
+    });
   });
 }
 
 test.describe('Domain Fluency Radar', () => {
   test('renders the radar with axes when words are classified', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await stubFluency(page, fluencyFixture({ byDomain: axes({ food: 62, health: 40, science_tech: 25 }) }));
+    await stubFluency(
+      page,
+      fluencyFixture({ byDomain: axes({ food: 62, health: 40, science_tech: 25 }) }),
+    );
 
     await page.goto('/stats');
     await page.waitForLoadState('networkidle');

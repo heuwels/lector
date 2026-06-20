@@ -10,7 +10,9 @@ let cachedProvider: LLMProvider | null = null;
 let cachedProviderKey: string | null = null;
 
 function getSetting(key: string): string | null {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined;
   if (!row) return null;
   try {
     return JSON.parse(row.value);
@@ -51,7 +53,15 @@ export function getProvider(): LLMProvider {
     const effectiveMode = apiKey ? 'key' : oauthToken ? 'oauth' : 'env';
     cacheKey = `anthropic:${effectiveMode}:${model || 'default'}:${wordModel || 'd'}:${phraseModel || 'd'}:${chatModel || 'd'}:${classificationModel || 'd'}`;
     if (cachedProvider && cachedProviderKey === cacheKey) return cachedProvider;
-    cachedProvider = new AnthropicProvider({ apiKey, oauthToken, model, wordModel, phraseModel, chatModel, classificationModel });
+    cachedProvider = new AnthropicProvider({
+      apiKey,
+      oauthToken,
+      model,
+      wordModel,
+      phraseModel,
+      chatModel,
+      classificationModel,
+    });
   } else {
     // Settings take precedence; env vars are the fallback. The legacy
     // OLLAMA_*/APFEL_*/LMSTUDIO_* vars are still read so existing env-configured
@@ -109,7 +119,11 @@ export function getClassificationProvider(): LLMProvider {
   const baseUrl = process.env.CLASSIFY_LLM_URL;
   const model = process.env.CLASSIFY_LLM_MODEL;
   if (baseUrl || model) {
-    return new OpenAICompatibleProvider({ baseUrl, model, apiKey: process.env.CLASSIFY_LLM_API_KEY });
+    return new OpenAICompatibleProvider({
+      baseUrl,
+      model,
+      apiKey: process.env.CLASSIFY_LLM_API_KEY,
+    });
   }
   return getProvider();
 }

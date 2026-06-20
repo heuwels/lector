@@ -20,7 +20,11 @@ function mockProvider(response: string): LLMProvider & { calls: CompletionOption
 
 const ITEMS: ClassifyItem[] = [
   { word: 'koffie', translation: 'coffee' },
-  { word: 'longontsteking', translation: 'pneumonia', sentence: 'Hy is met longontsteking hospitaal toe.' },
+  {
+    word: 'longontsteking',
+    translation: 'pneumonia',
+    sentence: 'Hy is met longontsteking hospitaal toe.',
+  },
   { word: 'die', translation: 'the' },
 ];
 

@@ -61,7 +61,9 @@ function known(word: string, state: string, domain: string | null, language = 'a
 
 let vid = 0;
 function vocab(text: string, language = 'af') {
-  sqlite.prepare('INSERT INTO vocab (id, text, language) VALUES (?, ?, ?)').run(`v${vid++}`, text, language);
+  sqlite
+    .prepare('INSERT INTO vocab (id, text, language) VALUES (?, ?, ?)')
+    .run(`v${vid++}`, text, language);
 }
 
 function makeRequest(url: string) {
@@ -136,8 +138,12 @@ describe('GET /api/stats/fluency — byDomain + pending', () => {
     // Reconciliation invariant: every KNOWN word lands in exactly one of
     // {a domain axis, general, still-pending} — none dropped, none double-counted.
     const sumDomainKnown = res.byDomain.reduce((s, d) => s + d.knownCount, 0);
-    const generalKnown = countKnown("SELECT COUNT(*) c FROM knownWords WHERE language='af' AND domain='general' AND state='known'");
-    const knownPending = countKnown("SELECT COUNT(*) c FROM knownWords WHERE language='af' AND domain IS NULL AND state='known'");
+    const generalKnown = countKnown(
+      "SELECT COUNT(*) c FROM knownWords WHERE language='af' AND domain='general' AND state='known'",
+    );
+    const knownPending = countKnown(
+      "SELECT COUNT(*) c FROM knownWords WHERE language='af' AND domain IS NULL AND state='known'",
+    );
     expect(sumDomainKnown + generalKnown + knownPending).toBe(res.totalKnownWords);
     expect(res.totalKnownWords).toBe(7);
   });

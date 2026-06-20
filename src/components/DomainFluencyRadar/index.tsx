@@ -50,7 +50,10 @@ function RadarTooltip({ active, payload }: RadarTooltipProps) {
  * each axis's 0–100 log-normalised mastery; the real CEFR letter stays global on
  * the fluency card. Empty until the background classifier tags some known words.
  */
-export default function DomainFluencyRadar({ byDomain = [], pending = 0 }: DomainFluencyRadarProps) {
+export default function DomainFluencyRadar({
+  byDomain = [],
+  pending = 0,
+}: DomainFluencyRadarProps) {
   const isDark = useIsDark();
   const theme = isDark ? RADAR_THEME.dark : RADAR_THEME.light;
 

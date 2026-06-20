@@ -18,9 +18,9 @@ export async function GET(request: NextRequest) {
   const lang = resolveLanguage(searchParams.get('language'));
 
   // Count words by state from knownWords table
-  const stateCounts = db.prepare(
-    'SELECT state, COUNT(*) as count FROM knownWords WHERE language = ? GROUP BY state'
-  ).all(lang) as { state: string; count: number }[];
+  const stateCounts = db
+    .prepare('SELECT state, COUNT(*) as count FROM knownWords WHERE language = ? GROUP BY state')
+    .all(lang) as { state: string; count: number }[];
 
   const countMap: Record<string, number> = {};
   for (const row of stateCounts) {
@@ -38,8 +38,7 @@ export async function GET(request: NextRequest) {
   };
 
   const totalKnownWords = byState.known;
-  const totalLearning =
-    byState.level1 + byState.level2 + byState.level3 + byState.level4;
+  const totalLearning = byState.level1 + byState.level2 + byState.level3 + byState.level4;
   const totalNew = byState.new;
 
   // Determine CEFR-style level
@@ -52,17 +51,15 @@ export async function GET(request: NextRequest) {
     { min: 8000, max: Infinity, code: 'C2', label: 'Proficiency' },
   ];
 
-  const currentLevel = levels.find(
-    (l) => totalKnownWords >= l.min && totalKnownWords < l.max
-  ) || levels[levels.length - 1];
+  const currentLevel =
+    levels.find((l) => totalKnownWords >= l.min && totalKnownWords < l.max) ||
+    levels[levels.length - 1];
 
   const progressToNextLevel =
     currentLevel.max === Infinity
       ? 100
       : Math.round(
-          ((totalKnownWords - currentLevel.min) /
-            (currentLevel.max - currentLevel.min)) *
-            100
+          ((totalKnownWords - currentLevel.min) / (currentLevel.max - currentLevel.min)) * 100,
         );
 
   // Weekly growth: words marked known in last 7 days vs previous 7 days
@@ -71,23 +68,35 @@ export async function GET(request: NextRequest) {
   const prevWeekStart = addDaysToDateString(today, -13);
   const prevWeekEnd = addDaysToDateString(today, -7);
 
-  const thisWeekRow = db.prepare(
-    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?'
-  ).get(weekStart, today, lang) as { total: number };
+  const thisWeekRow = db
+    .prepare(
+      'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?',
+    )
+    .get(weekStart, today, lang) as { total: number };
 
-  const prevWeekRow = db.prepare(
-    'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?'
-  ).get(prevWeekStart, prevWeekEnd, lang) as { total: number };
+  const prevWeekRow = db
+    .prepare(
+      'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?',
+    )
+    .get(prevWeekStart, prevWeekEnd, lang) as { total: number };
 
   // ── Per-domain fluency (radar) ────────────────────────────────────────────
   // Aggregated from knownWords — one row per unique word/language — so the radar
   // reconciles with the global known count above by construction. Deliberately
   // NOT from vocab, which holds many rows per word and would double-count.
-  const domainRows = db.prepare(
-    'SELECT domain, state, COUNT(*) as count FROM knownWords WHERE language = ? GROUP BY domain, state'
-  ).all(lang) as { domain: string | null; state: string; count: number }[];
+  const domainRows = db
+    .prepare(
+      'SELECT domain, state, COUNT(*) as count FROM knownWords WHERE language = ? GROUP BY domain, state',
+    )
+    .all(lang) as { domain: string | null; state: string; count: number }[];
 
-  const masteryStates: ReadonlySet<string> = new Set(['level1', 'level2', 'level3', 'level4', 'known']);
+  const masteryStates: ReadonlySet<string> = new Set([
+    'level1',
+    'level2',
+    'level3',
+    'level4',
+    'known',
+  ]);
   const countsByDomain: Record<string, DomainStateCounts> = {};
   // Mastery-state words the worker hasn't classified yet (domain IS NULL). Drains
   // to 0 as it runs; surfaced so a fresh import reads as "in progress", not wrong.

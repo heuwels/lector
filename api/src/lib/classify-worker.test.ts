@@ -51,7 +51,12 @@ let vocabId = 0;
 function addVocab(
   db: Database,
   text: string,
-  opts: { language?: string; sentence?: string; translation?: string; stateUpdatedAt?: string } = {},
+  opts: {
+    language?: string;
+    sentence?: string;
+    translation?: string;
+    stateUpdatedAt?: string;
+  } = {},
 ): void {
   db.prepare(
     'INSERT INTO vocab (id, text, language, sentence, translation, stateUpdatedAt) VALUES (?, ?, ?, ?, ?, ?)',
@@ -66,7 +71,9 @@ function addVocab(
 }
 
 /** Deterministic classifier: tags every word it's given 'food', recording calls. */
-function stubFood(captured: ClassifyItem[][] = []): (items: ClassifyItem[]) => Promise<ClassifyResult[]> {
+function stubFood(
+  captured: ClassifyItem[][] = [],
+): (items: ClassifyItem[]) => Promise<ClassifyResult[]> {
   return async (items) => {
     captured.push(items);
     return items.map((it) => ({ word: it.word, domain: 'food' as const }));
@@ -130,9 +137,15 @@ describe('classifyPendingBatch', () => {
 
     expect(n).toBe(1);
     expect(captured[0].map((i) => i.word)).toEqual(['koffie']);
-    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('koffie')).toEqual({ domain: 'food' });
-    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('nuut')).toEqual({ domain: null });
-    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('reeds')).toEqual({ domain: 'work' });
+    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('koffie')).toEqual({
+      domain: 'food',
+    });
+    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('nuut')).toEqual({
+      domain: null,
+    });
+    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('reeds')).toEqual({
+      domain: 'work',
+    });
   });
 
   test('is self-draining: a second run after a full drain is a no-op', async () => {
@@ -148,7 +161,9 @@ describe('classifyPendingBatch', () => {
     addKnown(db, 'kos', 'known', { language: 'af' });
     addKnown(db, 'kos', 'known', { language: 'nl' });
     await classifyPendingBatch(db, 30, stubFood());
-    const rows = db.prepare('SELECT language, domain FROM knownWords WHERE word = ? ORDER BY language').all('kos');
+    const rows = db
+      .prepare('SELECT language, domain FROM knownWords WHERE word = ? ORDER BY language')
+      .all('kos');
     expect(rows).toEqual([
       { language: 'af', domain: 'food' },
       { language: 'nl', domain: 'food' },
@@ -168,10 +183,14 @@ describe('classifyPendingBatch', () => {
     addKnown(db, 'koffie', 'known');
     addKnown(db, 'raaisel', 'known');
     const n = await classifyPendingBatch(db, 30, async (items) =>
-      items.filter((it) => it.word === 'koffie').map((it) => ({ word: it.word, domain: 'food' as const })),
+      items
+        .filter((it) => it.word === 'koffie')
+        .map((it) => ({ word: it.word, domain: 'food' as const })),
     );
     expect(n).toBe(1);
-    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('raaisel')).toEqual({ domain: null });
+    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('raaisel')).toEqual({
+      domain: null,
+    });
   });
 });
 

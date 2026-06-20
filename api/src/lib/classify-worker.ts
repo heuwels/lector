@@ -79,7 +79,9 @@ export async function classifyPendingBatch(
   if (results.length === 0) return 0;
 
   const domainByWord = new Map(results.map((r) => [r.word, r.domain]));
-  const update = database.prepare('UPDATE knownWords SET domain = ? WHERE word = ? AND language = ?');
+  const update = database.prepare(
+    'UPDATE knownWords SET domain = ? WHERE word = ? AND language = ?',
+  );
   let updated = 0;
   const apply = database.transaction((batch: PendingRow[]) => {
     for (const r of batch) {
@@ -114,7 +116,10 @@ export function startClassifyWorker(): boolean {
   if (loopTimer) return true; // already running
 
   const batchSize = Math.max(1, parseInt(process.env.CLASSIFY_BATCH_SIZE || '30', 10) || 30);
-  const intervalMs = Math.max(1000, parseInt(process.env.CLASSIFY_INTERVAL_MS || '15000', 10) || 15000);
+  const intervalMs = Math.max(
+    1000,
+    parseInt(process.env.CLASSIFY_INTERVAL_MS || '15000', 10) || 15000,
+  );
 
   const tick = async () => {
     if (ticking) return; // never overlap a slow LLM call
