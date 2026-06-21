@@ -1,24 +1,22 @@
-import Database, { Database as DatabaseType } from 'better-sqlite3';
+import { Database, type Statement } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
-import { db as userDb } from './database';
+import { db as userDb } from '../db';
 import { getActiveLanguageCode } from './active-language';
 
 /**
  * Read-only SQLite-backed bilingual dictionary, selected by the active language.
+ * Mirrored from src/lib/server/dictionary-db.ts (better-sqlite3 → bun:sqlite);
+ * keep the lookup algorithm and affix heuristics in sync.
  *
- * Built by `scripts/build-dictionary.ts` from the kaikki.org Wiktionary dump
- * (merged with the hand-curated ranks in `src/lib/dictionary-roots.json`).
- * This module mirrors the lookup algorithm in `src/lib/dictionary.ts` —
- * exact → inflections → prefix derivation → suffix derivation → affix-strip
- * fallback — but exposes the richer multi-sense schema available from kaikki.
- * The affix-strip heuristics are Afrikaans-specific and only run for `af`.
+ * Built by `scripts/build-dictionary.ts` from the kaikki.org Wiktionary dump.
+ * Lookup order: exact → inflections → prefix → suffix → affix-strip fallback,
+ * then the AI cache (lector.db). The affix heuristics are Afrikaans-specific.
  */
 
-// The dictionary is read-only application data shipped with the image.
-// Prefer DICT_DIR so it stays put when the user mounts a volume on DATA_DIR
-// for their (mutable) collections/vocab data. Fall back to DATA_DIR for local
-// dev (where the build script writes here) and finally to ./data.
+// The dictionary is read-only application data shipped with the image. Prefer
+// DICT_DIR so it stays put when the user mounts a volume on DATA_DIR for their
+// (mutable) data; fall back to DATA_DIR for local dev, then ./data.
 function getDbPath(language: string): string {
   const dir = process.env.DICT_DIR || process.env.DATA_DIR || './data';
   return path.join(dir, `dictionary-${language}.db`);
@@ -36,57 +34,54 @@ export interface ExpandedDictionaryEntry {
   senses: Array<{ partOfSpeech: string; gloss: string }>;
   relatedForms?: Array<{ form: string; relation: string }>;
   lemmaInfo?: { stem: string; label: string };
-  /** Where the entry came from. `dict` = built-in kaikki dict; `cache` = user-
-      learned AI translation persisted via cacheAcceptedEntry. The drawer uses
-      this to render the right source pill. */
+  /** `dict` = built-in kaikki dict; `cache` = user-learned AI translation. */
   source?: 'dict' | 'cache';
 }
 
 // ---------------------------------------------------------------------------
-// Lazy connection (mirrors src/lib/server/database.ts pattern)
+// Lazy per-language connection (the API process is long-lived)
 // ---------------------------------------------------------------------------
 
-// Connections are cached per language so switching the active language opens
-// the right dictionary (the Next.js server process is long-lived). A cached
-// `null` records "no dict file for this language" so we don't re-stat on every
-// lookup.
-const _dbs = new Map<string, DatabaseType | null>();
+// A cached `null` records "no dict file for this language" so we don't re-stat.
+const _dbs = new Map<string, Database | null>();
 
-function getDb(language: string): DatabaseType | null {
+function getDb(language: string): Database | null {
   const cached = _dbs.get(language);
   if (cached !== undefined) return cached;
 
   const dbPath = getDbPath(language);
   if (!fs.existsSync(dbPath)) {
-    // The dictionary DB is optional at runtime — callers fall back to the
-    // legacy JSON dict + the AI translate API when this file isn't present.
+    // The dictionary DB is optional at runtime — callers fall back to the AI
+    // cache + the AI translate API when this file isn't present.
     _dbs.set(language, null);
     return null;
   }
-  const conn = new Database(dbPath, { readonly: true, fileMustExist: true });
-  conn.pragma('journal_mode = WAL');
-  _dbs.set(language, conn);
-  return conn;
-}
 
-// Exposed as a proxy so consumers can `import { dictDb }` and the active
-// language's DB opens lazily on first access — same shape as `db` in
-// src/lib/server/database.ts.
-export const dictDb = new Proxy({} as DatabaseType, {
-  get(_target, prop) {
-    const language = getActiveLanguageCode();
-    const real = getDb(language);
-    if (!real) {
-      throw new Error(
-        `Dictionary database not found at ${getDbPath(language)}. ` +
-          `Run \`npx tsx scripts/build-dictionary.ts\` to build it.`,
-      );
-    }
-    const value = real[prop as keyof DatabaseType];
-    if (typeof value === 'function') return value.bind(real);
-    return value;
-  },
-});
+  try {
+    // The build stamps the artifact WAL (scripts/build-dictionary.ts), and
+    // bun:sqlite cannot open a WAL database read-only without a writable
+    // -shm/-wal sidecar (which isn't shipped) — a plain `{ readonly: true }`
+    // open throws SQLITE_CANTOPEN. The `immutable=1` URI tells SQLite the file
+    // can't change, so it reads pages directly and skips WAL/-shm entirely.
+    //
+    // Pass raw flags SQLITE_OPEN_READONLY (0x01) | SQLITE_OPEN_URI (0x40), NOT
+    // `{ readonly: true }`: the object form relied on bun auto-detecting the
+    // `file:` scheme to enable URI parsing, which doesn't hold on CI's bun (it
+    // treated the URI as a literal path → CANTOPEN). The explicit URI flag
+    // forces SQLite to parse `immutable=1`. (better-sqlite3 tolerated the plain
+    // read-only open of a WAL DB; bun:sqlite is stricter.)
+    const conn = new Database(`file:${path.resolve(dbPath)}?immutable=1`, 0x01 | 0x40);
+    _dbs.set(language, conn);
+    return conn;
+  } catch (err) {
+    // Any open failure degrades to the AI-translate fallback rather than
+    // throwing — a thrown error here would 500 every lookup. The dictionary is
+    // optional at runtime, so a missing/unreadable DB just means "no curated hit".
+    console.warn(`Dictionary unavailable for "${language}" at ${dbPath}:`, err);
+    _dbs.set(language, null);
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Affix-stripping (mirrors src/lib/dictionary.ts exactly)
@@ -131,10 +126,10 @@ function undoubleConsonant(stem: string): string | null {
 // ---------------------------------------------------------------------------
 
 type Stmts = {
-  selectEntry: ReturnType<DatabaseType['prepare']>;
-  selectSenses: ReturnType<DatabaseType['prepare']>;
-  selectRelated: ReturnType<DatabaseType['prepare']>;
-  selectInflectionLemma: ReturnType<DatabaseType['prepare']>;
+  selectEntry: Statement;
+  selectSenses: Statement;
+  selectRelated: Statement;
+  selectInflectionLemma: Statement;
 };
 
 const _stmtsByLang = new Map<string, Stmts>();
@@ -144,14 +139,21 @@ function getStmts(language: string): Stmts | null {
   if (cached) return cached;
   const db = getDb(language);
   if (!db) return null;
-  const stmts: Stmts = {
-    selectEntry: db.prepare('SELECT word, rank, ipa, etymology FROM entries WHERE word = ?'),
-    selectSenses: db.prepare('SELECT pos, gloss FROM senses WHERE word = ? ORDER BY sort_order'),
-    selectRelated: db.prepare('SELECT related_word, relation FROM related_forms WHERE word = ?'),
-    selectInflectionLemma: db.prepare('SELECT lemma, type FROM inflections WHERE inflected_form = ? LIMIT 1'),
-  };
-  _stmtsByLang.set(language, stmts);
-  return stmts;
+  try {
+    const stmts: Stmts = {
+      selectEntry: db.prepare('SELECT word, rank, ipa, etymology FROM entries WHERE word = ?'),
+      selectSenses: db.prepare('SELECT pos, gloss FROM senses WHERE word = ? ORDER BY sort_order'),
+      selectRelated: db.prepare('SELECT related_word, relation FROM related_forms WHERE word = ?'),
+      selectInflectionLemma: db.prepare('SELECT lemma, type FROM inflections WHERE inflected_form = ? LIMIT 1'),
+    };
+    _stmtsByLang.set(language, stmts);
+    return stmts;
+  } catch (err) {
+    // A corrupt/incompatible dict (opens but the expected tables are missing)
+    // degrades to the AI fallback rather than 500ing every lookup.
+    console.warn(`Dictionary unusable for "${language}":`, err);
+    return null;
+  }
 }
 
 interface EntryRow {
@@ -174,7 +176,7 @@ interface RelatedRow {
 function buildEntry(
   row: EntryRow,
   stmts: Stmts,
-  lookupWord: string,
+  lookupWordValue: string,
   lemmaInfo?: { stem: string; label: string },
 ): ExpandedDictionaryEntry {
   const senses = (stmts.selectSenses.all(row.word) as SenseRow[]).map((s) => ({
@@ -187,7 +189,7 @@ function buildEntry(
   }));
 
   const entry: ExpandedDictionaryEntry = {
-    word: lookupWord,
+    word: lookupWordValue,
     senses,
     source: 'dict',
   };
@@ -200,9 +202,8 @@ function buildEntry(
 }
 
 // ---------------------------------------------------------------------------
-// AI cache (lector.db) — entries the user "accepted" by saving / marking
-// known / setting a level. Read AFTER the curated dict misses on every
-// lookup path so coverage of the user's reading corpus grows over time.
+// AI cache (lector.db) — entries the user "accepted". Read AFTER the curated
+// dict misses on every lookup path so coverage of the user's corpus grows.
 // ---------------------------------------------------------------------------
 
 interface CachedEntryRow {
@@ -212,9 +213,6 @@ interface CachedEntryRow {
 }
 
 function lookupCached(word: string, language: string): ExpandedDictionaryEntry | undefined {
-  // Filter by language so a cached entry learned in one language isn't served
-  // for another. (cached_entries.word is the PK, so only one language's entry
-  // per word is retained — a stricter per-language cache needs a schema change.)
   const row = userDb
     .prepare('SELECT word, ipa, etymology FROM cached_entries WHERE word = ? AND language = ?')
     .get(word, language) as CachedEntryRow | undefined;
@@ -252,9 +250,8 @@ export interface CacheAcceptedInput {
   language?: string;
 }
 
-/** Persist an accepted AI translation into the on-device cache. Idempotent on word
- *  (upsert replaces senses + related forms). Returns the cached row's word so the
- *  caller can confirm. */
+/** Persist an accepted AI translation into the on-device cache. Idempotent on
+ *  word (upsert replaces senses + related forms). Returns the cached word. */
 export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
   if (!input.word || !input.senses || input.senses.length === 0) return null;
   const word = input.word.toLowerCase();
@@ -280,7 +277,7 @@ export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
     'INSERT INTO cached_related_forms (word, related_word, relation) VALUES (?, ?, ?)',
   );
 
-  const txn = userDb.transaction(() => {
+  userDb.transaction(() => {
     upsertEntry.run(
       word,
       language,
@@ -300,13 +297,12 @@ export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
       if (!r.form || !r.relation) return;
       insertRelated.run(word, r.form, r.relation);
     });
-  });
-  txn();
+  })();
   return word;
 }
 
 // ---------------------------------------------------------------------------
-// lookupWord — exact → inflections → prefix → suffix → affix-strip fallback
+// lookupWord — exact → inflections → prefix → suffix → affix-strip → AI cache
 // ---------------------------------------------------------------------------
 
 export function lookupWord(
@@ -316,14 +312,15 @@ export function lookupWord(
   const lower = word.toLowerCase();
   const stmts = getStmts(language);
 
-  // Curated kaikki dict — only available if data/dictionary-<lang>.db is present.
   if (stmts) {
     // 1. Exact match
     const exact = stmts.selectEntry.get(lower) as EntryRow | undefined;
     if (exact) return buildEntry(exact, stmts, lower);
 
-    // 2. Inflection table (e.g. "katte" → "kat", "geword" → "word")
-    const infl = stmts.selectInflectionLemma.get(lower) as { lemma: string; type: string | null } | undefined;
+    // 2. Inflection table (e.g. "katte" → "kat")
+    const infl = stmts.selectInflectionLemma.get(lower) as
+      | { lemma: string; type: string | null }
+      | undefined;
     if (infl) {
       const lemmaRow = stmts.selectEntry.get(infl.lemma) as EntryRow | undefined;
       if (lemmaRow) {
@@ -332,9 +329,7 @@ export function lookupWord(
       }
     }
 
-    // Steps 3-4 use Afrikaans-specific affix morphology (PREFIXES / SUFFIXES /
-    // consonant undoubling). Only apply them for Afrikaans — running them
-    // against another language's dictionary would mis-derive stems.
+    // Steps 3–4 use Afrikaans-specific affix morphology — only run for `af`.
     if (language === 'af') {
       // 3. Known prefix → exact stem
       for (const prefix of PREFIXES) {
@@ -370,9 +365,6 @@ export function lookupWord(
   }
 
   // 5. AI cache fallthrough — user-accepted translations persisted in lector.db.
-  //    Lives behind the curated dict so the kaikki entry always wins, but in
-  //    front of the AI translate fallback so previously-seen words don't pay
-  //    for the LLM round-trip again.
   const cached = lookupCached(lower, language);
   if (cached) return cached;
 

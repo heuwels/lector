@@ -1,64 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db, CollectionRow } from '@/lib/server/database';
+import { proxyToApi } from '@/lib/server/api-proxy';
 
-// GET /api/collections/[id]
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const collection = db.prepare(`
-    SELECT c.*, COUNT(l.id) as lessonCount,
-      COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
-    FROM collections c
-    LEFT JOIN lessons l ON l.collectionId = c.id
-    WHERE c.id = ?
-    GROUP BY c.id
-  `).get(id) as (CollectionRow & { lessonCount: number; avgProgress: number }) | undefined;
-
-  if (!collection) {
-    return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
-  }
-
-  return NextResponse.json(collection);
-}
-
-// PUT /api/collections/[id]
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const body = await request.json();
-
-  const updates: string[] = [];
-  const values: unknown[] = [];
-
-  if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
-  if (body.author !== undefined) { updates.push('author = ?'); values.push(body.author); }
-  if (body.coverUrl !== undefined) { updates.push('coverUrl = ?'); values.push(body.coverUrl); }
-  if (body.groupId !== undefined) { updates.push('groupId = ?'); values.push(body.groupId); }
-
-  // Only bump lastReadAt for content changes, not metadata-only changes like groupId
-  const isContentChange = body.title !== undefined || body.author !== undefined || body.coverUrl !== undefined;
-  if (isContentChange) {
-    updates.push('lastReadAt = ?');
-    values.push(new Date().toISOString());
-  }
-  values.push(id);
-
-  db.prepare(`UPDATE collections SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-
-  return NextResponse.json({ success: true });
-}
-
-// DELETE /api/collections/[id] - cascades to lessons
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  db.prepare('DELETE FROM lessons WHERE collectionId = ?').run(id);
-  db.prepare('DELETE FROM collections WHERE id = ?').run(id);
-  return NextResponse.json({ success: true });
-}
+// GET/PUT/DELETE /api/collections/[id] — proxied to the Hono API (api/src/routes/collections.ts).
+export const GET = proxyToApi;
+export const PUT = proxyToApi;
+export const DELETE = proxyToApi;

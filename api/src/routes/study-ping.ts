@@ -1,0 +1,77 @@
+import { Hono } from 'hono';
+import { db } from '../db';
+import { getTodayDate } from '../lib/dates';
+import { resolveLanguage } from '../lib/active-language';
+
+const app = new Hono();
+
+interface DayActivity {
+  dictionaryLookups: number;
+  minutesRead: number;
+  clozePracticed: number;
+  sessionStartedAt: string | null;
+}
+
+// dailyStats has a compound (date, language) PK. "Did you study today" is an
+// app-wide question, so aggregate every language's row for the date (matching
+// the app-wide streak): SUM the activity and take the earliest session start.
+// An aggregate over zero rows still returns one all-zero/NULL row.
+function getDayActivity(date: string): DayActivity {
+  return db
+    .prepare(
+      `SELECT
+         COALESCE(SUM(dictionaryLookups), 0) AS dictionaryLookups,
+         COALESCE(SUM(minutesRead), 0)       AS minutesRead,
+         COALESCE(SUM(clozePracticed), 0)    AS clozePracticed,
+         MIN(sessionStartedAt)               AS sessionStartedAt
+       FROM dailyStats WHERE date = ?`,
+    )
+    .get(date) as DayActivity;
+}
+
+// GET /api/study-ping
+// Returns whether any language study happened today. Intended for the Sphere
+// Guardian MCP to poll. Aggregated across languages (app-wide).
+app.get('/', (c) => {
+  const today = getTodayDate();
+  const activity = getDayActivity(today);
+
+  return c.json({
+    done: activity.dictionaryLookups > 0 || activity.minutesRead > 0 || activity.clozePracticed > 0,
+    date: today,
+    minutes: activity.minutesRead,
+    lookups: activity.dictionaryLookups,
+    clozePracticed: activity.clozePracticed,
+    sessionStartedAt: activity.sessionStartedAt,
+  });
+});
+
+// POST /api/study-ping
+// Called on the first word lookup or page turn of a session; records the session
+// start time once per day, on the active language's row (compound PK).
+app.post('/', (c) => {
+  const today = getTodayDate();
+  const lang = resolveLanguage(c.req.query('language'));
+  const now = new Date().toISOString();
+
+  db.prepare(
+    `INSERT OR IGNORE INTO dailyStats
+      (date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
+     VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`,
+  ).run(today, lang);
+
+  db.prepare(
+    'UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE date = ? AND language = ?',
+  ).run(now, today, lang);
+
+  const activity = getDayActivity(today);
+  return c.json({
+    done: true,
+    date: today,
+    minutes: activity.minutesRead,
+    lookups: activity.dictionaryLookups,
+    sessionStartedAt: activity.sessionStartedAt,
+  });
+});
+
+export default app;

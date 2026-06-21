@@ -14,8 +14,26 @@ export interface ParsedEpub {
   chapters: EpubChapter[];
 }
 
+// Bound decompression so a zip bomb (a tiny archive that inflates to gigabytes)
+// can't exhaust memory when we call getData()/readAsText() below. We check the
+// declared uncompressed sizes from the central directory before inflating.
+const MAX_ENTRIES = 5000;
+const MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024; // 100 MB
+
 export function parseEpub(buffer: Buffer): ParsedEpub {
   const zip = new AdmZip(buffer);
+
+  const entries = zip.getEntries();
+  if (entries.length > MAX_ENTRIES) {
+    throw new Error('EPUB has too many entries');
+  }
+  let declaredBytes = 0;
+  for (const entry of entries) {
+    declaredBytes += entry.header.size;
+    if (declaredBytes > MAX_UNCOMPRESSED_BYTES) {
+      throw new Error('EPUB content exceeds the size limit');
+    }
+  }
 
   const containerXml = zip.readAsText('META-INF/container.xml');
   const opfPathMatch = containerXml.match(/full-path="([^"]+)"/);

@@ -3,6 +3,7 @@ import { db, DailyStatsRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getTodayDate, addDaysToDateString } from '../lib/dates';
 import { activeDateSet, computeStreaks } from '../lib/streak';
+import { deriveReadingStats } from '../lib/stats-derive';
 import { deriveCefrProgress } from '../lib/cefr';
 
 const app = new Hono();
@@ -167,15 +168,21 @@ app.get('/fluency', (c) => {
 // Unified streak definition (issue #108): a day is active when it has any
 // study activity (lookups, practice, reading time, or Anki reviews), with day
 // rollover in the configured time zone. Keep in sync with src/app/api/stats/streak.
+//
+// Deliberately NOT language-scoped: the streak is one app-wide value (see
+// CLAUDE.md "One streak definition app-wide"). A day you studied only language X
+// must still count toward the streak you see under language Y, so we aggregate
+// every dailyStats row regardless of language. Do NOT add a `language` filter
+// here when partitioning other stats — that silently breaks multi-language
+// streaks (the deleted Next route had no filter).
 app.get('/streak', (c) => {
-  const lang = resolveLanguage(c.req.query('language'));
   const today = getTodayDate();
 
   const rows = db
     .prepare(
-      'SELECT date, dictionaryLookups, clozePracticed, minutesRead, ankiReviews FROM dailyStats WHERE language = ?',
+      'SELECT date, dictionaryLookups, clozePracticed, minutesRead, ankiReviews FROM dailyStats',
     )
-    .all(lang) as Pick<
+    .all() as Pick<
     DailyStatsRow,
     'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'
   >[];
@@ -183,6 +190,18 @@ app.get('/streak', (c) => {
   const { current, longest, activeToday } = computeStreaks(activeDateSet(rows), today);
 
   return c.json({ streak: current, longest, practicedToday: activeToday });
+});
+
+// GET /api/stats/reading
+// Estimated reading volume derived from per-lesson scroll progress. Not
+// language-scoped: it reflects the whole library (mirrors the Next route this
+// replaces — lessons are aggregated regardless of language).
+app.get('/reading', (c) => {
+  const rows = db
+    .prepare('SELECT wordCount, progress_percentComplete AS percentComplete FROM lessons')
+    .all() as { wordCount: number; percentComplete: number }[];
+
+  return c.json(deriveReadingStats(rows));
 });
 
 export default app;
