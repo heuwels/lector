@@ -10,6 +10,9 @@ async function ankiRequest(action: string, params?: Record<string, unknown>) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, version: 6, params }),
+    // Bound the call so a reachable-but-hung AnkiConnect can't stall the route
+    // until the server idle timeout (matches sync-reviews' timeout).
+    signal: AbortSignal.timeout(2500),
   });
   if (!res.ok) throw new Error(`AnkiConnect HTTP error: ${res.status}`);
   return res.json();

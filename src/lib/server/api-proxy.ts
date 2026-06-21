@@ -40,7 +40,18 @@ export async function proxyToApi(request: NextRequest): Promise<Response> {
     init.body = await request.arrayBuffer();
   }
 
-  const upstream = await fetch(target, init);
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, init);
+  } catch {
+    // The Hono API is unreachable (down, restarting, refused). Return a JSON 502
+    // so clients (data-layer.ts) that call res.json() get a parseable error
+    // instead of Next's HTML error page (which would throw an opaque SyntaxError).
+    return Response.json(
+      { error: 'The API is currently unavailable. Please try again in a moment.' },
+      { status: 502 },
+    );
+  }
 
   const responseHeaders = new Headers(upstream.headers);
   for (const h of STRIP_RESPONSE_HEADERS) responseHeaders.delete(h);

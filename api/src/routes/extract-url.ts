@@ -2,8 +2,12 @@ import { Hono } from 'hono';
 import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
 import { htmlToMarkdown, countWords } from '../lib/html-to-markdown';
+import { safeFetch, readBodyCapped, SsrfError } from '../lib/safe-fetch';
 
 const app = new Hono();
+
+// Cap the fetched page so a hostile/huge response can't exhaust memory.
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 // POST /api/extract-url — fetch a URL and extract its readable article as markdown.
 app.post('/', async (c) => {
@@ -14,19 +18,12 @@ app.post('/', async (c) => {
       return c.json({ error: 'URL is required', code: 'INVALID_URL' }, 400);
     }
 
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-        throw new Error('Invalid protocol');
-      }
-    } catch {
-      return c.json({ error: 'Please enter a valid URL', code: 'INVALID_URL' }, 400);
-    }
-
     let html: string;
     try {
-      const response = await fetch(parsedUrl.toString(), {
+      // safeFetch enforces http(s) + blocks internal/metadata addresses (SSRF)
+      // and re-validates every redirect hop. The 15s deadline bounds the whole
+      // redirect chain.
+      const response = await safeFetch(url, {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -34,6 +31,7 @@ app.post('/', async (c) => {
           'Accept-Language': 'en-US,en;q=0.5,af;q=0.3',
         },
         signal: AbortSignal.timeout(15000),
+        maxRedirects: 5,
       });
 
       if (!response.ok) {
@@ -43,22 +41,24 @@ app.post('/', async (c) => {
         );
       }
 
-      // Handle non-UTF-8 encodings.
+      const bytes = await readBodyCapped(response, MAX_RESPONSE_BYTES);
+      // Decode using the declared charset, falling back to UTF-8 for an absent
+      // or unrecognised label (TextDecoder throws on an unknown encoding).
       const contentType = response.headers.get('content-type') || '';
-      const charsetMatch = contentType.match(/charset=([^;]+)/i);
-      if (charsetMatch) {
-        const charset = charsetMatch[1].trim().toLowerCase();
-        if (charset !== 'utf-8') {
-          const buffer = await response.arrayBuffer();
-          html = new TextDecoder(charset).decode(buffer);
-        } else {
-          html = await response.text();
-        }
-      } else {
-        html = await response.text();
+      const charset = contentType.match(/charset=([^;]+)/i)?.[1].trim().toLowerCase() || 'utf-8';
+      try {
+        html = new TextDecoder(charset).decode(bytes);
+      } catch {
+        html = new TextDecoder('utf-8').decode(bytes);
       }
     } catch (error) {
+      if (error instanceof SsrfError) {
+        return c.json({ error: 'Please enter a valid, public URL.', code: 'INVALID_URL' }, 400);
+      }
       const message = error instanceof Error ? error.message : 'Unknown error';
+      if (message.includes('too large')) {
+        return c.json({ error: 'That page is too large to import.', code: 'FETCH_FAILED' }, 400);
+      }
       if (message.includes('timeout') || message.includes('aborted')) {
         return c.json(
           { error: 'Request timed out. The page took too long to load.', code: 'FETCH_FAILED' },
@@ -70,6 +70,14 @@ app.post('/', async (c) => {
         400,
       );
     }
+
+    const hostname = (() => {
+      try {
+        return new URL(url).hostname;
+      } catch {
+        return '';
+      }
+    })();
 
     const { document } = parseHTML(html);
     const reader = new Readability(document as unknown as Document);
@@ -96,10 +104,10 @@ app.post('/', async (c) => {
     }
 
     return c.json({
-      title: article.title || parsedUrl.hostname,
+      title: article.title || hostname,
       author,
       content: markdownContent,
-      siteName: article.siteName || parsedUrl.hostname,
+      siteName: article.siteName || hostname,
       excerpt: article.excerpt || null,
       wordCount: countWords(markdownContent),
     });

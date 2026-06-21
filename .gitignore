@@ -54,4 +54,5 @@ next-env.d.ts
 # Hono API (Bun)
 /api/node_modules
 /api/bun.lock
+/api/package-lock.json
 /api/.test-data/

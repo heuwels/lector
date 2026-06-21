@@ -168,15 +168,21 @@ app.get('/fluency', (c) => {
 // Unified streak definition (issue #108): a day is active when it has any
 // study activity (lookups, practice, reading time, or Anki reviews), with day
 // rollover in the configured time zone. Keep in sync with src/app/api/stats/streak.
+//
+// Deliberately NOT language-scoped: the streak is one app-wide value (see
+// CLAUDE.md "One streak definition app-wide"). A day you studied only language X
+// must still count toward the streak you see under language Y, so we aggregate
+// every dailyStats row regardless of language. Do NOT add a `language` filter
+// here when partitioning other stats — that silently breaks multi-language
+// streaks (the deleted Next route had no filter).
 app.get('/streak', (c) => {
-  const lang = resolveLanguage(c.req.query('language'));
   const today = getTodayDate();
 
   const rows = db
     .prepare(
-      'SELECT date, dictionaryLookups, clozePracticed, minutesRead, ankiReviews FROM dailyStats WHERE language = ?',
+      'SELECT date, dictionaryLookups, clozePracticed, minutesRead, ankiReviews FROM dailyStats',
     )
-    .all(lang) as Pick<
+    .all() as Pick<
     DailyStatsRow,
     'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'
   >[];
