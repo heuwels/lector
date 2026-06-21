@@ -79,17 +79,38 @@ const STATE_RANK: Record<WordState, number> = {
  * New (0)            → level1   — added but not yet reviewed
  * Learning (1) /
  *   Relearning (3)   → level2   — in learning/relearning steps
- * Young (2, < 21 d)  → level3   — reviewing regularly, not yet consolidated
- * Mature (2, ≥ 21 d) → level4   — long-term passive recall demonstrated
- *
- * `known` (active vocabulary) is deliberately not assigned by Anki sync —
- * Mature cards prove passive recall, not production. Mark words known manually
- * or let the lector SRS award it through practice.
+ * Young (2, < 21 d)  → level3   — reviewing regularly, building retention
+ * Mature (2, ≥ 21 d) → known    — stable long-term recall; treat as known
  */
 export function ankiCardToState(type: number, interval: number): WordState {
   if (type === 0) return 'level1';
   if (type === 1 || type === 3) return 'level2';
-  return interval >= 21 ? 'level4' : 'level3';
+  return interval >= 21 ? 'known' : 'level3';
+}
+
+/**
+ * Given existing vocab entries and the Anki state map, find Anki words that
+ * have no matching entry in lector yet. Returns them ready to be created.
+ *
+ * Pure function — no side effects, easily unit-testable.
+ */
+export function findNewAnkiWords(
+  existingEntries: ReadonlyArray<{ text: string }>,
+  ankiStates: ReadonlyMap<string, { type: number; interval: number; sentence: string; translation: string }>,
+): Array<{ text: string; state: WordState; sentence: string; translation: string }> {
+  const existingWords = new Set(existingEntries.map((e) => e.text.toLowerCase()));
+  const newWords: Array<{ text: string; state: WordState; sentence: string; translation: string }> = [];
+  for (const [word, data] of ankiStates) {
+    if (!existingWords.has(word)) {
+      newWords.push({
+        text: word,
+        state: ankiCardToState(data.type, data.interval),
+        sentence: data.sentence,
+        translation: data.translation,
+      });
+    }
+  }
+  return newWords;
 }
 
 /**
@@ -300,20 +321,67 @@ export async function addClozeCard(
   return noteId;
 }
 
+/** Strip HTML tags and trim whitespace. */
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Extract the sentence context from card fields (best-effort).
+ * Basic Front: "{sentence}<br><br><small>Word: <b>word</b></small>"
+ * Cloze Text:  "{sentence{{c1::word}}}<br><br><small>Translation: ...</small>"
+ */
+function extractSentence(frontField: string, textField: string): string {
+  const raw = frontField || textField;
+  if (!raw) return '';
+  const beforeBreak = raw.split(/<br\s*\/?><br\s*\/?>/i)[0] ?? '';
+  return stripHtml(beforeBreak.replace(/\{\{c\d+::([^}]+)\}\}/g, '$1'));
+}
+
+/**
+ * Extract the translation from card fields (best-effort).
+ * Basic Back:  "{translation}<br><br><b>word</b> = meaning"
+ * Cloze Text:  "...<small>Translation: {translation}</small>"
+ * Cloze Extra: "<b>word</b> = meaning"
+ */
+function extractTranslation(backField: string, textField: string, extraField: string): string {
+  // Cloze: translation embedded in Text field
+  const clozeMatch = textField.match(/Translation:\s*([^<]+)/i);
+  if (clozeMatch) return clozeMatch[1].trim();
+
+  // Basic: first segment of Back field
+  if (backField) {
+    const beforeBreak = backField.split(/<br\s*\/?><br\s*\/?>/i)[0] ?? '';
+    const text = stripHtml(beforeBreak);
+    if (text) return text;
+  }
+
+  // Extra field fallback: "<b>word</b> = meaning"
+  if (extraField) {
+    const eqMatch = extraField.match(/=\s*(.+)$/);
+    if (eqMatch) return stripHtml(eqMatch[1]);
+  }
+
+  return '';
+}
+
 /**
  * Query AnkiConnect for all lector-tagged cards and return a map of
- * word → { type, interval, deckName } for use with reconcileAnkiStates.
+ * word → { type, interval, sentence, translation, deckName }.
  * When a word has multiple cards the one that maps to the highest lector
- * state is kept (ties keep the first encountered).
+ * state is kept.
+ *
+ * The deck search uses a trailing `*` wildcard so subdecks (e.g.
+ * "Afrikaans::Cloze") are included alongside the main deck.
  */
 export async function syncWordStates(deckName?: string): Promise<
-  Map<string, { interval: number; type: number; deckName: string }>
+  Map<string, { interval: number; type: number; sentence: string; translation: string; deckName: string }>
 > {
-  // Find cards - either by tag or by deck name
+  // Include subdecks with `*` — "deck:Afrikaans*" matches "Afrikaans::Cloze".
+  // Fall back to tag search so cards exported without a matching deck still appear.
   let query = "(tag:lector OR tag:afrikaans-reader)";
   if (deckName) {
-    // Search in the specified deck OR with our tags
-    query = `("deck:${deckName}" OR tag:lector OR tag:afrikaans-reader)`;
+    query = `("deck:${deckName}*" OR tag:lector OR tag:afrikaans-reader)`;
   }
 
   console.log(`Anki sync query: ${query}`);
@@ -329,21 +397,22 @@ export async function syncWordStates(deckName?: string): Promise<
     cards: cardIds,
   });
 
-  // Build a map of word -> { type, interval, deckName }
-  const wordStates = new Map<string, { interval: number; type: number; deckName: string }>();
+  // Build a map of word -> { type, interval, sentence, translation, deckName }
+  const wordStates = new Map<string, { interval: number; type: number; sentence: string; translation: string; deckName: string }>();
 
   for (const card of cardsInfo) {
-    // Extract the target word from the card.
-    // Try multiple strategies:
+    // Extract the target word. Try in order:
     // 1. Bold text (our format): <b>word</b>
     // 2. Dedicated Word field
-    // 3. Plain Front field (simple vocab cards)
+    // 3. Plain Front field (simple vocab cards, ≤ 50 chars, no full stop)
     // 4. Cloze text: {{c1::word}} pattern
 
     let word: string | null = null;
 
     const frontField = card.fields["Front"]?.value || "";
     const textField = card.fields["Text"]?.value || "";
+    const backField = card.fields["Back"]?.value || "";
+    const extraField = card.fields["Extra"]?.value || "";
     const wordField = card.fields["Word"]?.value || "";
 
     const boldMatch = (frontField || textField).match(/<b>([^<]+)<\/b>/);
@@ -365,8 +434,7 @@ export async function syncWordStates(deckName?: string): Promise<
 
     if (word) {
       word = word.toLowerCase().trim();
-      // Keep the card that maps to the highest lector state (dedup by state rank,
-      // not raw interval, so type information is respected).
+      // Keep the card that maps to the highest lector state (dedup by state rank).
       const existing = wordStates.get(word);
       const cardRank = STATE_RANK[ankiCardToState(card.type, card.interval)];
       const existingRank = existing
@@ -376,6 +444,8 @@ export async function syncWordStates(deckName?: string): Promise<
         wordStates.set(word, {
           interval: card.interval,
           type: card.type,
+          sentence: extractSentence(frontField, textField),
+          translation: extractTranslation(backField, textField, extraField),
           deckName: card.deckName,
         });
       }

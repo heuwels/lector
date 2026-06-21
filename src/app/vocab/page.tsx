@@ -12,12 +12,14 @@ import {
   getAllCollections,
   deleteVocabEntry,
   markVocabPushedToAnki,
+  saveVocab,
 } from '@/lib/data-layer';
 import {
   addBasicCard,
   addClozeCard,
   syncWordStates,
   reconcileAnkiStates,
+  findNewAnkiWords,
   isAnkiConnected,
   getDeckNames,
 } from '@/lib/anki';
@@ -231,8 +233,10 @@ export default function VocabPage() {
     }
   }, []);
 
-  // Pull Anki card states and upgrade matching vocab entries. Only ever
-  // upgrades — never demotes — using the Anki New/Young/Mature framing:
+  // Pull Anki card states, upgrade matching vocab entries, and create new
+  // entries for Anki words that have never been saved to lector.
+  //
+  // New/Young/Mature mapping:
   //   New (type 0)              → level1
   //   Learning/Relearning (1/3) → level2
   //   Young (type 2, < 21 d)    → level3
@@ -249,18 +253,38 @@ export default function VocabPage() {
       const deckName = localStorage.getItem('lector-anki-deck') || ankiDeck;
       const ankiStates = await syncWordStates(deckName);
 
-      const matchedCount = entries.filter(
-        (e) => e.state !== 'ignored' && ankiStates.has(e.text.toLowerCase()),
-      ).length;
-
-      const updates = reconcileAnkiStates(entries, ankiStates);
-      for (const { id, newState } of updates) {
+      // Upgrade existing entries.
+      const upgrades = reconcileAnkiStates(entries, ankiStates);
+      for (const { id, newState } of upgrades) {
         await updateVocabState(id, newState);
       }
 
+      // Create vocab entries for Anki words not yet in lector.
+      const now = new Date();
+      const newWords = findNewAnkiWords(entries, ankiStates);
+      for (const { text, state, sentence, translation } of newWords) {
+        await saveVocab({
+          id: crypto.randomUUID(),
+          text,
+          type: 'word',
+          sentence,
+          translation,
+          state,
+          stateUpdatedAt: now,
+          reviewCount: 0,
+          createdAt: now,
+          pushedToAnki: true,
+        });
+      }
+
       await loadData();
+
+      const parts: string[] = [];
+      if (upgrades.length) parts.push(`${upgrades.length} upgraded`);
+      if (newWords.length) parts.push(`${newWords.length} imported from Anki`);
+      const detail = parts.length ? ` — ${parts.join(', ')}` : '';
       toast.success(
-        `Found ${ankiStates.size} cards in "${deckName}". Matched ${matchedCount}, upgraded ${updates.length}.`,
+        `Synced ${ankiStates.size} Anki cards${detail}.`,
         { duration: 5000 },
       );
     } catch (error) {
