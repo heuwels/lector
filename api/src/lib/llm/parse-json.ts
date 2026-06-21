@@ -59,7 +59,11 @@ export function parseLooseJson<T = unknown>(text: string): T {
         //    We repair ONLY a real {...}/[...] span — never bare prose, which
         //    jsonrepair would wrap into a JSON string and smuggle a refusal past
         //    the caller — and require an object/array result for the same
-        //    reason. jsonrepair throws on irrecoverable input (e.g. unescaped
+        //    reason. (A brace-shaped refusal like { reason: '…' } can still pass
+        //    this guard; that's accepted — the caller reads word/senses off the
+        //    result, so a refusal object surfaces as an empty entry, and the
+        //    dictionary cache rejects sense-less entries, so nothing junk gets
+        //    persisted.) jsonrepair throws on irrecoverable input (e.g. unescaped
         //    inner quotes); we let that fall through to the shared error below.
         const tailKept = unfenced.slice(first);
         for (const candidate of tailKept === span ? [span] : [tailKept, span]) {
