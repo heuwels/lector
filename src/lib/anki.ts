@@ -7,6 +7,7 @@
 // remote Anki install (e.g. over Tailscale) can point at http://100.x.x.x:8765.
 
 import { splitTrailingPunctuation } from './words';
+import type { WordState } from '@/types';
 
 const DEFAULT_ANKI_CONNECT_URL = 'http://localhost:8765';
 
@@ -61,8 +62,58 @@ interface CardInfo {
   cardId: number;
   fields: Record<string, { value: string; order: number }>;
   interval: number;
+  // 0 = New, 1 = Learning, 2 = Review (Young/Mature), 3 = Relearning
+  type: number;
   note: number;
   deckName: string;
+}
+
+// Rank used for upgrade-only sync (ignored shares known's rank so it is never overridden).
+const STATE_RANK: Record<WordState, number> = {
+  new: 0, level1: 1, level2: 2, level3: 3, level4: 4, known: 5, ignored: 5,
+};
+
+/**
+ * Map a raw Anki card (type + interval) to a lector vocab state.
+ *
+ * New (0)            → level1   — added but not yet reviewed
+ * Learning (1) /
+ *   Relearning (3)   → level2   — in learning/relearning steps
+ * Young (2, < 21 d)  → level3   — reviewing regularly, not yet consolidated
+ * Mature (2, ≥ 21 d) → level4   — long-term passive recall demonstrated
+ *
+ * `known` (active vocabulary) is deliberately not assigned by Anki sync —
+ * Mature cards prove passive recall, not production. Mark words known manually
+ * or let the lector SRS award it through practice.
+ */
+export function ankiCardToState(type: number, interval: number): WordState {
+  if (type === 0) return 'level1';
+  if (type === 1 || type === 3) return 'level2';
+  return interval >= 21 ? 'level4' : 'level3';
+}
+
+/**
+ * Given existing vocab entries and the Anki state map, compute which entries
+ * should be upgraded. Only returns entries that would move to a higher state;
+ * never demotes, and always skips `ignored` entries.
+ *
+ * Pure function — no side effects, easily unit-testable.
+ */
+export function reconcileAnkiStates(
+  entries: ReadonlyArray<{ id: string; text: string; state: WordState }>,
+  ankiStates: ReadonlyMap<string, { type: number; interval: number }>,
+): Array<{ id: string; newState: WordState }> {
+  const updates: Array<{ id: string; newState: WordState }> = [];
+  for (const entry of entries) {
+    if (entry.state === 'ignored') continue;
+    const ankiData = ankiStates.get(entry.text.toLowerCase());
+    if (!ankiData) continue;
+    const newState = ankiCardToState(ankiData.type, ankiData.interval);
+    if (STATE_RANK[newState] > STATE_RANK[entry.state]) {
+      updates.push({ id: entry.id, newState });
+    }
+  }
+  return updates;
 }
 
 /**
@@ -250,12 +301,13 @@ export async function addClozeCard(
 }
 
 /**
- * Get word states based on Anki intervals for syncing mastery levels
- * This queries Anki for cards with the lector tag and returns
- * their intervals, which can be used to determine mastery level
+ * Query AnkiConnect for all lector-tagged cards and return a map of
+ * word → { type, interval, deckName } for use with reconcileAnkiStates.
+ * When a word has multiple cards the one that maps to the highest lector
+ * state is kept (ties keep the first encountered).
  */
 export async function syncWordStates(deckName?: string): Promise<
-  Map<string, { interval: number; deckName: string }>
+  Map<string, { interval: number; type: number; deckName: string }>
 > {
   // Find cards - either by tag or by deck name
   let query = "(tag:lector OR tag:afrikaans-reader)";
@@ -277,16 +329,16 @@ export async function syncWordStates(deckName?: string): Promise<
     cards: cardIds,
   });
 
-  // Build a map of word -> interval
-  const wordStates = new Map<string, { interval: number; deckName: string }>();
+  // Build a map of word -> { type, interval, deckName }
+  const wordStates = new Map<string, { interval: number; type: number; deckName: string }>();
 
   for (const card of cardsInfo) {
-    // Extract the target word from the card
+    // Extract the target word from the card.
     // Try multiple strategies:
-    // 1. Look for bold text (our format): <b>word</b>
-    // 2. Look for a "Word" field
-    // 3. Use plain Front field (typical vocab cards)
-    // 4. Use plain Text field (cloze cards)
+    // 1. Bold text (our format): <b>word</b>
+    // 2. Dedicated Word field
+    // 3. Plain Front field (simple vocab cards)
+    // 4. Cloze text: {{c1::word}} pattern
 
     let word: string | null = null;
 
@@ -294,26 +346,17 @@ export async function syncWordStates(deckName?: string): Promise<
     const textField = card.fields["Text"]?.value || "";
     const wordField = card.fields["Word"]?.value || "";
 
-    // Strategy 1: Bold text in front/text field
     const boldMatch = (frontField || textField).match(/<b>([^<]+)<\/b>/);
     if (boldMatch) {
       word = boldMatch[1];
-    }
-    // Strategy 2: Dedicated Word field
-    else if (wordField) {
-      word = wordField.replace(/<[^>]*>/g, '').trim(); // Strip HTML
-    }
-    // Strategy 3: Plain front field (single word or short phrase)
-    else if (frontField) {
-      // Strip HTML and get first word if it's just a simple vocab card
+    } else if (wordField) {
+      word = wordField.replace(/<[^>]*>/g, '').trim();
+    } else if (frontField) {
       const plainText = frontField.replace(/<[^>]*>/g, '').trim();
-      // Only use if it looks like a single word/short phrase (no sentences)
       if (plainText.length < 50 && !plainText.includes('.')) {
-        word = plainText.split(/\s+/)[0]; // Get first word
+        word = plainText.split(/\s+/)[0];
       }
-    }
-    // Strategy 4: Cloze - extract from {{c1::word}} pattern
-    else if (textField) {
+    } else if (textField) {
       const clozeMatch = textField.match(/\{\{c\d+::([^}]+)\}\}/);
       if (clozeMatch) {
         word = clozeMatch[1];
@@ -322,11 +365,17 @@ export async function syncWordStates(deckName?: string): Promise<
 
     if (word) {
       word = word.toLowerCase().trim();
-      // Keep the card with the highest interval (most learned)
+      // Keep the card that maps to the highest lector state (dedup by state rank,
+      // not raw interval, so type information is respected).
       const existing = wordStates.get(word);
-      if (!existing || card.interval > existing.interval) {
+      const cardRank = STATE_RANK[ankiCardToState(card.type, card.interval)];
+      const existingRank = existing
+        ? STATE_RANK[ankiCardToState(existing.type, existing.interval)]
+        : -1;
+      if (cardRank > existingRank) {
         wordStates.set(word, {
           interval: card.interval,
+          type: card.type,
           deckName: card.deckName,
         });
       }

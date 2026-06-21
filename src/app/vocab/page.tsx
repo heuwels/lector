@@ -17,6 +17,7 @@ import {
   addBasicCard,
   addClozeCard,
   syncWordStates,
+  reconcileAnkiStates,
   isAnkiConnected,
   getDeckNames,
 } from '@/lib/anki';
@@ -230,7 +231,12 @@ export default function VocabPage() {
     }
   }, []);
 
-  // Sync with Anki to update mastery levels
+  // Pull Anki card states and upgrade matching vocab entries. Only ever
+  // upgrades — never demotes — using the Anki New/Young/Mature framing:
+  //   New (type 0)              → level1
+  //   Learning/Relearning (1/3) → level2
+  //   Young (type 2, < 21 d)    → level3
+  //   Mature (type 2, ≥ 21 d)   → known
   const handleSyncWithAnki = useCallback(async () => {
     if (!ankiConnected) {
       toast.error('Anki is not connected. Make sure Anki is running with AnkiConnect.', {
@@ -240,71 +246,26 @@ export default function VocabPage() {
     }
 
     try {
-      // Get deck name from settings
       const deckName = localStorage.getItem('lector-anki-deck') || ankiDeck;
-      const wordStates = await syncWordStates(deckName);
-      let updatedCount = 0;
-      let matchedCount = 0;
+      const ankiStates = await syncWordStates(deckName);
 
-      // Update entries based on Anki intervals. Sync only ever *upgrades* a
-      // state (issue #108): a freshly-exported card has interval 0 and must
-      // not demote a word the user already marked known.
-      const stateRank: Record<WordState, number> = {
-        new: 0,
-        level1: 1,
-        level2: 2,
-        level3: 3,
-        level4: 4,
-        known: 5,
-        ignored: 5, // never overridden by sync
-      };
+      const matchedCount = entries.filter(
+        (e) => e.state !== 'ignored' && ankiStates.has(e.text.toLowerCase()),
+      ).length;
 
-      for (const entry of entries) {
-        const ankiData = wordStates.get(entry.text.toLowerCase());
-        if (ankiData) {
-          matchedCount++;
-          if (entry.state === 'ignored') continue;
-          // New/relearning cards (interval < 1 day) carry no signal yet.
-          if (ankiData.interval < 1) continue;
-
-          // Map interval to state:
-          // 1 day: level1
-          // 2-7 days: level2
-          // 8-14 days: level3
-          // 15-30 days: level4
-          // 31+ days: known
-          let newState: WordState;
-          if (ankiData.interval >= 31) {
-            newState = 'known';
-          } else if (ankiData.interval >= 15) {
-            newState = 'level4';
-          } else if (ankiData.interval >= 8) {
-            newState = 'level3';
-          } else if (ankiData.interval >= 2) {
-            newState = 'level2';
-          } else {
-            newState = 'level1';
-          }
-
-          if (stateRank[newState] > stateRank[entry.state]) {
-            await updateVocabState(entry.id, newState);
-            updatedCount++;
-          }
-        }
+      const updates = reconcileAnkiStates(entries, ankiStates);
+      for (const { id, newState } of updates) {
+        await updateVocabState(id, newState);
       }
 
       await loadData();
       toast.success(
-        `Found ${wordStates.size} cards in "${deckName}". Matched ${matchedCount} vocab entries, updated ${updatedCount}.`,
-        {
-          duration: 5000,
-        },
+        `Found ${ankiStates.size} cards in "${deckName}". Matched ${matchedCount}, upgraded ${updates.length}.`,
+        { duration: 5000 },
       );
     } catch (error) {
       console.error('Failed to sync with Anki:', error);
-      toast.error('Failed to sync with Anki', {
-        duration: 5000,
-      });
+      toast.error('Failed to sync with Anki', { duration: 5000 });
     }
   }, [entries, ankiConnected, ankiDeck]);
 
