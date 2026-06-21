@@ -130,7 +130,7 @@ export default function MarkdownReader({
     ): ReactNode => {
         if (typeof children === 'string') {
             return splitWords(children).map((part, k) => {
-                if (!part.isWord) return <span key={`${keyPrefix}-${k}`}>{part.text}</span>;
+                if (!part.isWord) return <span key={`${keyPrefix}-${k}`} data-leaf="">{part.text}</span>;
                 const currentWordIndex = ctx.i++;
                 const state = getWordState(part.text);
                 const colorClass = state ? stateClasses[state] : stateClasses.new;
@@ -138,6 +138,7 @@ export default function MarkdownReader({
                 return (
                     <span
                         key={`${keyPrefix}-${k}`}
+                        data-leaf=""
                         onClick={(e) => {
                             clearPhraseHighlight();
                             const sentence = findSentence(e.currentTarget);
@@ -159,6 +160,14 @@ export default function MarkdownReader({
         }
         if (isValidElement(children)) {
             const el = children as ReactElement<{ children?: ReactNode }>;
+            // Already a leaf span we emitted — return as-is. A loose markdown list
+            // renders each item as <li><p>…</p></li>, and both the `li` and `p`
+            // components run renderBlock(); without this guard the inner pass would
+            // re-wrap the words the outer pass already wrapped, producing nested
+            // duplicate (double-highlighted) word spans.
+            if ((el.props as Record<string, unknown>)['data-leaf'] !== undefined) {
+                return el;
+            }
             return cloneElement(el, {}, renderChildren(el.props.children, ctx, keyPrefix));
         }
         return children;
