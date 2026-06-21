@@ -1,26 +1,32 @@
 import { Hono } from 'hono';
 import { db } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { getTodayDate } from '../lib/dates';
 import { lookupWord, cacheAcceptedEntry, type CacheAcceptedInput } from '../lib/dictionary-db';
 
 const app = new Hono();
 
 // Mirrors the recordStudyPing() side-effect from /api/translate, and also bumps
 // dictionaryLookups so daily lookup stats stay accurate when the on-device DB
-// serves a hit. Language-agnostic, matching the Next route.
-function recordStudyPing() {
-  const today = new Date().toISOString().split('T')[0];
+// serves a hit. dailyStats has a compound (date, language) PK, so the write must
+// target the looked-up language's row — otherwise the lookup is misattributed to
+// 'af' and the language-less UPDATE writes across every language's row for the
+// day. Uses getTodayDate() (timezone-aware) so the day boundary matches every
+// other stats writer (not raw UTC).
+function recordStudyPing(language: string) {
+  const today = getTodayDate();
   const now = new Date().toISOString();
   db.prepare(
     `INSERT OR IGNORE INTO dailyStats
-      (date, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-     VALUES (?, 0, 0, 0, 0, 0, 0, 0)`,
-  ).run(today);
-  db.prepare('UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE date = ?').run(
-    now,
-    today,
-  );
-  db.prepare('UPDATE dailyStats SET dictionaryLookups = dictionaryLookups + 1 WHERE date = ?').run(today);
+      (date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
+     VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`,
+  ).run(today, language);
+  db.prepare(
+    'UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE date = ? AND language = ?',
+  ).run(now, today, language);
+  db.prepare(
+    'UPDATE dailyStats SET dictionaryLookups = dictionaryLookups + 1 WHERE date = ? AND language = ?',
+  ).run(today, language);
 }
 
 // GET /api/dictionary/lookup?word=<word>
@@ -35,7 +41,7 @@ app.get('/lookup', (c) => {
 
     const lang = resolveLanguage(c.req.query('language'));
     const entry = lookupWord(word.trim(), lang);
-    if (entry) recordStudyPing();
+    if (entry) recordStudyPing(lang);
 
     return c.json({ entry: entry ?? null });
   } catch (error) {

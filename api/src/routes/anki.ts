@@ -74,15 +74,27 @@ const DEFAULT_ANKI_CONNECT_URL = 'http://localhost:8765';
 // reachable-but-stuck case.
 const ANKI_TIMEOUT_MS = 2500;
 
+function isHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 // Resolve the same way the browser client does: the ankiConnectUrl setting
 // wins (remote Anki over Tailscale etc.), then the env var, then localhost.
+// The setting is user-editable, so require an http(s) URL before fetch()ing it
+// (rejects file:// and other schemes); localhost stays valid — AnkiConnect is a
+// local service, so we don't block private addresses here.
 function getAnkiConnectUrl(): string {
   try {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('ankiConnectUrl') as
       | { value: string }
       | undefined;
     const raw = row?.value?.replace(/^"|"$/g, '').trim();
-    if (raw) return raw;
+    if (raw && isHttpUrl(raw)) return raw;
   } catch {
     // fall through to env / default
   }

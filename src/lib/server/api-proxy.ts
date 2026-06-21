@@ -13,8 +13,22 @@ import { NextRequest } from 'next/server';
  */
 const API_URL = process.env.INTERNAL_API_URL || 'http://localhost:3457';
 
-// Per-hop / length headers that must not be copied verbatim across the proxy.
-const STRIP_REQUEST_HEADERS = ['host', 'connection', 'content-length'];
+// Coarse backstop so a huge upload can't OOM the Next process buffering it below
+// (the precise per-route limit lives in the Hono import route). Comfortably above
+// the 50 MB EPUB limit to leave room for multipart overhead.
+const MAX_PROXY_BODY_BYTES = 64 * 1024 * 1024;
+
+// Per-hop / length headers that must not be copied verbatim across the proxy,
+// plus client-spoofable forwarding headers (the API trusts none of these — auth
+// is token-based — so don't pass attacker-controlled values through).
+const STRIP_REQUEST_HEADERS = [
+  'host',
+  'connection',
+  'content-length',
+  'x-forwarded-host',
+  'x-forwarded-proto',
+  'x-real-ip',
+];
 const STRIP_RESPONSE_HEADERS = [
   'content-encoding',
   'content-length',
@@ -37,6 +51,13 @@ export async function proxyToApi(request: NextRequest): Promise<Response> {
   // GET/HEAD carry no body; everything else is forwarded byte-for-byte so JSON,
   // multipart uploads (epub import) and the like survive the hop intact.
   if (request.method !== 'GET' && request.method !== 'HEAD') {
+    // Reject an over-large declared body before materialising it in memory.
+    // (A chunked request with no content-length can't be pre-checked here; the
+    // Hono route's bodyLimit is the authoritative cap.)
+    const declaredLength = Number(request.headers.get('content-length') ?? '');
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_PROXY_BODY_BYTES) {
+      return Response.json({ error: 'Request body too large.' }, { status: 413 });
+    }
     init.body = await request.arrayBuffer();
   }
 
