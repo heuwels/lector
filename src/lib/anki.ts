@@ -372,16 +372,21 @@ function extractTranslation(backField: string, textField: string, extraField: st
  * state is kept.
  *
  * The deck search uses a trailing `*` wildcard so subdecks (e.g.
- * "Afrikaans::Cloze") are included alongside the main deck.
+ * "Afrikaans::Cloze") are included. Pass `clozeDeckName` when the cloze
+ * deck is not a subdeck of the main deck — it will be OR'd in separately.
  */
-export async function syncWordStates(deckName?: string): Promise<
+export async function syncWordStates(deckName?: string, clozeDeckName?: string): Promise<
   Map<string, { interval: number; type: number; sentence: string; translation: string; deckName: string }>
 > {
-  // Include subdecks with `*` — "deck:Afrikaans*" matches "Afrikaans::Cloze".
-  // Fall back to tag search so cards exported without a matching deck still appear.
+  // Build deck clauses. The `*` wildcard covers subdecks so we only add
+  // clozeDeckName separately when it's not already a child of deckName.
   let query = "(tag:lector OR tag:afrikaans-reader)";
   if (deckName) {
-    query = `("deck:${deckName}*" OR tag:lector OR tag:afrikaans-reader)`;
+    const deckClauses = [`"deck:${deckName}*"`];
+    if (clozeDeckName && clozeDeckName !== deckName && !clozeDeckName.startsWith(deckName + '::')) {
+      deckClauses.push(`"deck:${clozeDeckName}*"`);
+    }
+    query = `(${deckClauses.join(' OR ')} OR tag:lector OR tag:afrikaans-reader)`;
   }
 
   console.log(`Anki sync query: ${query}`);
