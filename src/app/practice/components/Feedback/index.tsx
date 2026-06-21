@@ -88,17 +88,28 @@ export default function Feedback({
               <span key={i}>
                 {i > 0 && ' '}
                 {i === current.sentence.clozeIndex ? (
-                  <span
-                    data-testid="cloze-word"
-                    onClick={() => onWordClicked(word)}
-                    className={`cursor-pointer rounded px-1 font-bold ${
-                      feedbackData.isCorrect
-                        ? 'border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
-                        : 'border border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
-                    }`}
-                  >
-                    {word}
-                  </span>
+                  // Keep trailing punctuation outside the highlighted chip so a
+                  // sentence-final answer ("vriende.") doesn't show the period
+                  // inside the coloured box — matching the question screen.
+                  (() => {
+                    const [base, punct] = splitTrailingPunctuation(word);
+                    return (
+                      <>
+                        <span
+                          data-testid="cloze-word"
+                          onClick={() => onWordClicked(base)}
+                          className={`cursor-pointer rounded px-1 font-bold ${
+                            feedbackData.isCorrect
+                              ? 'border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
+                              : 'border border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
+                          }`}
+                        >
+                          {base}
+                        </span>
+                        {punct}
+                      </>
+                    );
+                  })()
                 ) : (
                   <span
                     data-testid="cloze-word"
