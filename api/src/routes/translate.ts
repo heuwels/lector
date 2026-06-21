@@ -50,11 +50,13 @@ Sentence context: "${sentence || word}"
 Respond with ONLY a JSON object in this exact format (no markdown, no code blocks):
 {
   "translation": "the most natural English translation a fluent speaker would use",
-  "literalBreakdown": "word-by-word literal gloss (e.g. \\"hand-shoe\\" for handskoen)",
-  "idiomaticMeaning": "if the phrase is an idiom, fixed expression, or compound: what it actually means and why — e.g. \\"This is an idiom which literally means X. It is used when ...\\"",
-  "usageNotes": "register, tone, formality, or contextual notes a learner should know (e.g. \\"informal\\", \\"used by older speakers\\", \\"often sarcastic\\", \\"common in Bible-influenced Afrikaans\\")",
+  "literalBreakdown": "word-by-word literal gloss (e.g. 'hand-shoe' for handskoen)",
+  "idiomaticMeaning": "if the phrase is an idiom, fixed expression, or compound: what it actually means and why — e.g. 'This is an idiom which literally means X. It is used when ...'",
+  "usageNotes": "register, tone, formality, or contextual notes a learner should know (e.g. 'informal', 'used by older speakers', 'often sarcastic', 'common in Bible-influenced Afrikaans')",
   "register": "formal | informal | literary | colloquial | archaic | neutral"
 }
+
+CRITICAL — valid JSON only: never put a double-quote character (") inside any string value. To quote a word or phrase, use single quotes ('like this') or parentheses. A raw double quote inside a value breaks the JSON and the lookup fails.
 
 Required fields: translation. All other fields are optional — only include them when they add real value:
 - Include literalBreakdown if the phrase is more than one word AND the literal gloss differs from the natural translation in an interesting way.
@@ -62,12 +64,12 @@ Required fields: translation. All other fields are optional — only include the
 - Include usageNotes when the phrase carries register / tone / cultural baggage the learner couldn't infer from the dictionary.
 - Include register if you're confident; omit if neutral or unclear.
 
-Be specific and concrete in idiomaticMeaning and usageNotes — avoid vague phrases like "commonly used" or "has a special meaning".`;
+Be specific and concrete in idiomaticMeaning and usageNotes — avoid vague phrases like 'commonly used' or 'has a special meaning'.`;
 
       const provider = getProvider();
       const text = await provider.complete({
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 800,
+        maxTokens: 1500,
         task: 'phrase-translation',
         responseFormat: 'json',
       });
@@ -89,7 +91,7 @@ Respond with ONLY a JSON object in this exact shape (no markdown, no code blocks
     /* ...one entry per distinct sense; order most-common first */
   ],
   "ipa": "/.../ or [...] — phonetic transcription if you're confident",
-  "etymology": "Brief origin note (e.g. \\"From Dutch X, from Middle Dutch Y\\")",
+  "etymology": "Brief origin note (e.g. 'From Dutch X, from Middle Dutch Y')",
   "relatedForms": [
     { "form": "the related word", "relation": "plural of | diminutive of | past tense of | derived from | etc." }
   ]
@@ -97,7 +99,8 @@ Respond with ONLY a JSON object in this exact shape (no markdown, no code blocks
 
 Rules:
 - "word" and "senses" are REQUIRED. senses must be non-empty.
-- Include separate sense entries for genuinely distinct meanings (e.g. "trek" = pull / move / journey). Don't split shades of the same meaning.
+- CRITICAL — valid JSON only: never put a double-quote character (") inside any string value. To quote a word, gloss, or cognate (common in etymology), use single quotes ('like this') or parentheses. A raw double quote inside a value breaks the JSON and the entry is discarded.
+- Include separate sense entries for genuinely distinct meanings (e.g. trek = pull / move / journey). Don't split shades of the same meaning.
 - Use the sentence to bias sense ORDER, but include all common senses a learner might reasonably encounter.
 - Each gloss is a short English phrase (1-4 words is typical, up to a clause for verbs with idiomatic completions).
 - Omit ipa / etymology / relatedForms entirely if you're not confident — don't guess.
@@ -108,7 +111,7 @@ Backwards-compat fields the server adds (do NOT include these yourself — serve
       const provider = getProvider();
       const text = await provider.complete({
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 800,
+        maxTokens: 1500,
         task: 'word-translation',
         responseFormat: 'json',
       });
