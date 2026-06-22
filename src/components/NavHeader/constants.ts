@@ -2,7 +2,7 @@ import { Clipboard, Pencil, List, Library, ChartBar, Settings } from 'lucide-rea
 
 export const navLinks = [
   { href: '/', label: 'Library' },
-  { href: '/practice', label: 'Cloze' },
+  { href: '/practice', label: 'Practice' },
   { href: '/journal', label: 'Journal' },
   { href: '/vocab', label: 'Vocab' },
   { href: '/stats', label: 'Statistics' },
