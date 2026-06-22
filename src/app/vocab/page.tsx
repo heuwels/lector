@@ -280,12 +280,13 @@ export default function VocabPage() {
 
       await loadData();
 
-      const parts: string[] = [];
-      if (upgrades.length) parts.push(`${upgrades.length} upgraded`);
-      if (newWords.length) parts.push(`${newWords.length} imported from Anki`);
-      const detail = parts.length ? ` — ${parts.join(', ')}` : '';
+      // Always surface the upgrade count (even 0) so a no-op sync still reads
+      // clearly; only mention imports when some words were actually created.
+      const parts = [`upgraded ${upgrades.length}`];
+      if (newWords.length) parts.push(`imported ${newWords.length} from Anki`);
+      const cardCount = ankiStates.size;
       toast.success(
-        `Synced ${ankiStates.size} Anki cards${detail}.`,
+        `Synced ${cardCount} Anki card${cardCount === 1 ? '' : 's'} — ${parts.join(', ')}.`,
         { duration: 5000 },
       );
     } catch (error) {

@@ -27,7 +27,7 @@ async function seedVocabEntry(
   state: string,
 ): Promise<string> {
   const id = `e2e-sync-${text}-${Date.now().toString(36)}`;
-  const res = await page.request.post('http://localhost:3456/api/vocab', {
+  const res = await page.request.post('/api/vocab', {
     data: {
       id,
       text,
@@ -47,7 +47,13 @@ async function seedVocabEntry(
 }
 
 async function deleteVocabEntry(page: Page, id: string) {
-  await page.request.delete(`http://localhost:3456/api/vocab/${id}`);
+  await page.request.delete(`/api/vocab/${id}`);
+}
+
+async function getVocabState(page: Page, id: string): Promise<string> {
+  const res = await page.request.get(`/api/vocab/${id}`);
+  expect(res.ok()).toBeTruthy();
+  return ((await res.json()) as { state: string }).state;
 }
 
 function makeCardsInfoResult(stubs: AnkiCardStub[]) {
@@ -111,7 +117,7 @@ test.describe('Vocab → Sync with Anki back-sync', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.request.delete('http://localhost:3456/api/settings/ankiConnectUrl').catch(() => {});
+    await page.request.delete('/api/settings/ankiConnectUrl').catch(() => {});
   });
 
   test.afterEach(async ({ page }) => {
@@ -128,15 +134,17 @@ test.describe('Vocab → Sync with Anki back-sync', () => {
     await mockAnkiConnect(page, [{ cardId: 111, type: 2, interval: 25, word }]);
 
     await page.goto('/vocab');
+    // Sync bails with an error toast unless the connection check has resolved.
+    await expect(page.getByText('Anki Connected')).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('row').filter({ hasText: word })).toBeVisible({ timeout: 10000 });
 
     await page.getByRole('button', { name: /Sync with Anki/ }).click();
 
     await expect(page.getByText(/upgraded 1/i)).toBeVisible({ timeout: 8000 });
 
-    await page.reload();
-    const row = page.getByRole('row').filter({ hasText: word });
-    await expect(row).toContainText(/level.?4/i, { timeout: 5000 });
+    // Mature (type 2, interval ≥ 21) → known. State is rendered as an icon, so
+    // verify the persisted state via the API rather than row text.
+    expect(await getVocabState(page, id)).toBe('known');
   });
 
   test('Young card (type 2, interval 10) upgrades matching entry to Level 3', async ({ page }) => {
@@ -147,15 +155,16 @@ test.describe('Vocab → Sync with Anki back-sync', () => {
     await mockAnkiConnect(page, [{ cardId: 222, type: 2, interval: 10, word }]);
 
     await page.goto('/vocab');
+    // Sync bails with an error toast unless the connection check has resolved.
+    await expect(page.getByText('Anki Connected')).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('row').filter({ hasText: word })).toBeVisible({ timeout: 10000 });
 
     await page.getByRole('button', { name: /Sync with Anki/ }).click();
 
     await expect(page.getByText(/upgraded 1/i)).toBeVisible({ timeout: 8000 });
 
-    await page.reload();
-    const row = page.getByRole('row').filter({ hasText: word });
-    await expect(row).toContainText(/level.?3/i, { timeout: 5000 });
+    // Young (type 2, interval < 21) → level3.
+    expect(await getVocabState(page, id)).toBe('level3');
   });
 
   test('New card (type 0) upgrades matching entry to Level 1', async ({ page }) => {
@@ -166,11 +175,16 @@ test.describe('Vocab → Sync with Anki back-sync', () => {
     await mockAnkiConnect(page, [{ cardId: 333, type: 0, interval: 0, word }]);
 
     await page.goto('/vocab');
+    // Sync bails with an error toast unless the connection check has resolved.
+    await expect(page.getByText('Anki Connected')).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('row').filter({ hasText: word })).toBeVisible({ timeout: 10000 });
 
     await page.getByRole('button', { name: /Sync with Anki/ }).click();
 
     await expect(page.getByText(/upgraded 1/i)).toBeVisible({ timeout: 8000 });
+
+    // New (type 0) → level1.
+    expect(await getVocabState(page, id)).toBe('level1');
   });
 
   test('ignored entry is never touched even with a Mature Anki card', async ({ page }) => {
@@ -181,10 +195,15 @@ test.describe('Vocab → Sync with Anki back-sync', () => {
     await mockAnkiConnect(page, [{ cardId: 444, type: 2, interval: 100, word }]);
 
     await page.goto('/vocab');
-    // Ignored entries are filtered out of the list — just trigger the sync.
+    // The ignored entry is filtered out of the list, so there's no row to await.
+    // Wait for the connection check and the initial load (stats) to settle so the
+    // sync sees the seeded entry and doesn't re-import it as a new word.
+    await expect(page.getByText('Anki Connected')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Total Words')).toBeVisible({ timeout: 10000 });
     await page.getByRole('button', { name: /Sync with Anki/ }).click();
 
-    // upgraded 0
+    // upgraded 0 — the ignored entry must be left exactly as it was.
     await expect(page.getByText(/upgraded 0/i)).toBeVisible({ timeout: 8000 });
+    expect(await getVocabState(page, id)).toBe('ignored');
   });
 });
