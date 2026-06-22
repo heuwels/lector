@@ -3,24 +3,24 @@ import { ankiCardToState, reconcileAnkiStates, findNewAnkiWords } from './anki';
 import type { WordState } from '@/types';
 
 describe('ankiCardToState', () => {
-  it('New (type 0) → level1', () => {
-    expect(ankiCardToState(0, 0)).toBe('level1');
+  it('New (type 0) → null (no learning signal yet)', () => {
+    expect(ankiCardToState(0, 0)).toBeNull();
   });
 
-  it('Learning (type 1) → level2', () => {
-    expect(ankiCardToState(1, 0)).toBe('level2');
+  it('Learning (type 1) → level1', () => {
+    expect(ankiCardToState(1, 0)).toBe('level1');
   });
 
   it('Relearning (type 3) → level2', () => {
     expect(ankiCardToState(3, 0)).toBe('level2');
   });
 
-  it('Young review (type 2, interval 1) → level3', () => {
-    expect(ankiCardToState(2, 1)).toBe('level3');
+  it('Young review (type 2, interval 1) → level4', () => {
+    expect(ankiCardToState(2, 1)).toBe('level4');
   });
 
-  it('Young review (type 2, interval 20) → level3', () => {
-    expect(ankiCardToState(2, 20)).toBe('level3');
+  it('Young review (type 2, interval 20) → level4', () => {
+    expect(ankiCardToState(2, 20)).toBe('level4');
   });
 
   it('Mature boundary (type 2, interval 21) → known', () => {
@@ -41,26 +41,32 @@ describe('reconcileAnkiStates', () => {
     expect(updates).toEqual([{ id: '1', newState: 'known' }]);
   });
 
-  it('upgrades new → level1 for a New card', () => {
+  it('ignores a New card — leaves the entry unchanged', () => {
     const entries = [{ id: '1', text: 'kat', state: 'new' as WordState }];
     const updates = reconcileAnkiStates(entries, new Map([['kat', anki(0, 0)]]));
+    expect(updates).toHaveLength(0);
+  });
+
+  it('upgrades new → level1 for a Learning card', () => {
+    const entries = [{ id: '1', text: 'vis', state: 'new' as WordState }];
+    const updates = reconcileAnkiStates(entries, new Map([['vis', anki(1, 0)]]));
     expect(updates).toEqual([{ id: '1', newState: 'level1' }]);
   });
 
-  it('upgrades new → level2 for a Learning card', () => {
-    const entries = [{ id: '1', text: 'vis', state: 'new' as WordState }];
-    const updates = reconcileAnkiStates(entries, new Map([['vis', anki(1, 0)]]));
+  it('upgrades new → level2 for a Relearning card', () => {
+    const entries = [{ id: '1', text: 'voël', state: 'new' as WordState }];
+    const updates = reconcileAnkiStates(entries, new Map([['voël', anki(3, 0)]]));
     expect(updates).toEqual([{ id: '1', newState: 'level2' }]);
   });
 
-  it('upgrades new → level3 for a Young card', () => {
+  it('upgrades new → level4 for a Young card', () => {
     const entries = [{ id: '1', text: 'boom', state: 'new' as WordState }];
     const updates = reconcileAnkiStates(entries, new Map([['boom', anki(2, 10)]]));
-    expect(updates).toEqual([{ id: '1', newState: 'level3' }]);
+    expect(updates).toEqual([{ id: '1', newState: 'level4' }]);
   });
 
   it('does not upgrade when current state already matches', () => {
-    const entries = [{ id: '1', text: 'maan', state: 'level3' as WordState }];
+    const entries = [{ id: '1', text: 'maan', state: 'level4' as WordState }];
     const updates = reconcileAnkiStates(entries, new Map([['maan', anki(2, 10)]]));
     expect(updates).toHaveLength(0);
   });
@@ -71,9 +77,9 @@ describe('reconcileAnkiStates', () => {
     expect(updates).toHaveLength(0);
   });
 
-  it('never demotes — level4 stays when Anki says Young (level3)', () => {
-    const entries = [{ id: '1', text: 'see', state: 'level4' as WordState }];
-    const updates = reconcileAnkiStates(entries, new Map([['see', anki(2, 10)]]));
+  it('never demotes — known stays when Anki says Relearning (level2)', () => {
+    const entries = [{ id: '1', text: 'see', state: 'known' as WordState }];
+    const updates = reconcileAnkiStates(entries, new Map([['see', anki(3, 0)]]));
     expect(updates).toHaveLength(0);
   });
 
@@ -131,19 +137,25 @@ describe('findNewAnkiWords', () => {
     expect(result[0].state).toBe('known');
   });
 
-  it('maps the Anki type to the correct state for new words', () => {
+  it('maps the Anki type to the correct state for new words (and skips New cards)', () => {
     const existing: { text: string }[] = [];
     const ankiStates = new Map([
-      ['nuut', ankiWord(0, 0)],    // New → level1
-      ['leer', ankiWord(1, 0)],    // Learning → level2
-      ['jong', ankiWord(2, 10)],   // Young → level3
+      ['nuut', ankiWord(0, 0)],    // New → skipped (not imported)
+      ['leer', ankiWord(1, 0)],    // Learning → level1
+      ['jong', ankiWord(2, 10)],   // Young → level4
       ['ryp', ankiWord(2, 25)],    // Mature → known
     ]);
     const result = findNewAnkiWords(existing, ankiStates);
-    expect(result.find((w) => w.text === 'nuut')?.state).toBe('level1');
-    expect(result.find((w) => w.text === 'leer')?.state).toBe('level2');
-    expect(result.find((w) => w.text === 'jong')?.state).toBe('level3');
+    expect(result.find((w) => w.text === 'nuut')).toBeUndefined();
+    expect(result.find((w) => w.text === 'leer')?.state).toBe('level1');
+    expect(result.find((w) => w.text === 'jong')?.state).toBe('level4');
     expect(result.find((w) => w.text === 'ryp')?.state).toBe('known');
+    expect(result).toHaveLength(3);
+  });
+
+  it('does not import a word whose only Anki card is New', () => {
+    const result = findNewAnkiWords([], new Map([['splinternuut', ankiWord(0, 0)]]));
+    expect(result).toHaveLength(0);
   });
 
   it('returns empty when all Anki words already exist in lector', () => {

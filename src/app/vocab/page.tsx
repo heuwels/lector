@@ -236,10 +236,11 @@ export default function VocabPage() {
   // Pull Anki card states, upgrade matching vocab entries, and create new
   // entries for Anki words that have never been saved to lector.
   //
-  // New/Young/Mature mapping:
-  //   New (type 0)              → level1
-  //   Learning/Relearning (1/3) → level2
-  //   Young (type 2, < 21 d)    → level3
+  // Anki card → lector state mapping (see ankiCardToState):
+  //   New (type 0)              → skipped (queued but not yet studied)
+  //   Learning (type 1)         → level1
+  //   Relearning (type 3)       → level2
+  //   Young (type 2, < 21 d)    → level4
   //   Mature (type 2, ≥ 21 d)   → known
   const handleSyncWithAnki = useCallback(async () => {
     if (!ankiConnected) {

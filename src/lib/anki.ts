@@ -74,18 +74,22 @@ const STATE_RANK: Record<WordState, number> = {
 };
 
 /**
- * Map a raw Anki card (type + interval) to a lector vocab state.
+ * Map a raw Anki card (type + interval) to a lector vocab state, or `null` when
+ * the card carries no learning signal yet. A New card is queued in Anki but has
+ * never been studied, so the sync ignores it entirely — it neither upgrades an
+ * existing entry nor imports a new word.
  *
- * New (0)            → level1   — added but not yet reviewed
- * Learning (1) /
- *   Relearning (3)   → level2   — in learning/relearning steps
- * Young (2, < 21 d)  → level3   — reviewing regularly, building retention
+ * New (0)            → null     — queued but not yet studied; ignored
+ * Learning (1)       → level1   — in initial learning steps
+ * Relearning (3)     → level2   — lapsed, being relearned
+ * Young (2, < 21 d)  → level4   — graduated to review, almost known
  * Mature (2, ≥ 21 d) → known    — stable long-term recall; treat as known
  */
-export function ankiCardToState(type: number, interval: number): WordState {
-  if (type === 0) return 'level1';
-  if (type === 1 || type === 3) return 'level2';
-  return interval >= 21 ? 'known' : 'level3';
+export function ankiCardToState(type: number, interval: number): WordState | null {
+  if (type === 0) return null;
+  if (type === 1) return 'level1';
+  if (type === 3) return 'level2';
+  return interval >= 21 ? 'known' : 'level4';
 }
 
 /**
@@ -101,14 +105,15 @@ export function findNewAnkiWords(
   const existingWords = new Set(existingEntries.map((e) => e.text.toLowerCase()));
   const newWords: Array<{ text: string; state: WordState; sentence: string; translation: string }> = [];
   for (const [word, data] of ankiStates) {
-    if (!existingWords.has(word)) {
-      newWords.push({
-        text: word,
-        state: ankiCardToState(data.type, data.interval),
-        sentence: data.sentence,
-        translation: data.translation,
-      });
-    }
+    if (existingWords.has(word)) continue;
+    const state = ankiCardToState(data.type, data.interval);
+    if (!state) continue; // New card → don't import an unstudied word
+    newWords.push({
+      text: word,
+      state,
+      sentence: data.sentence,
+      translation: data.translation,
+    });
   }
   return newWords;
 }
@@ -130,6 +135,7 @@ export function reconcileAnkiStates(
     const ankiData = ankiStates.get(entry.text.toLowerCase());
     if (!ankiData) continue;
     const newState = ankiCardToState(ankiData.type, ankiData.interval);
+    if (!newState) continue; // New card → no learning signal, leave entry as-is
     if (STATE_RANK[newState] > STATE_RANK[entry.state]) {
       updates.push({ id: entry.id, newState });
     }
@@ -439,20 +445,26 @@ export async function syncWordStates(deckName?: string, clozeDeckName?: string):
 
     if (word) {
       word = word.toLowerCase().trim();
-      // Keep the card that maps to the highest lector state (dedup by state rank).
-      const existing = wordStates.get(word);
-      const cardRank = STATE_RANK[ankiCardToState(card.type, card.interval)];
-      const existingRank = existing
-        ? STATE_RANK[ankiCardToState(existing.type, existing.interval)]
-        : -1;
-      if (cardRank > existingRank) {
-        wordStates.set(word, {
-          interval: card.interval,
-          type: card.type,
-          sentence: extractSentence(frontField, textField),
-          translation: extractTranslation(backField, textField, extraField),
-          deckName: card.deckName,
-        });
+      const cardState = ankiCardToState(card.type, card.interval);
+      // Skip New cards — they carry no learning signal and must not occupy a
+      // word slot, so a word whose only cards are New stays out of the sync.
+      if (cardState) {
+        // Keep the card that maps to the highest lector state (dedup by rank).
+        const existing = wordStates.get(word);
+        const cardRank = STATE_RANK[cardState];
+        const existingState = existing
+          ? ankiCardToState(existing.type, existing.interval)
+          : null;
+        const existingRank = existingState ? STATE_RANK[existingState] : -1;
+        if (cardRank > existingRank) {
+          wordStates.set(word, {
+            interval: card.interval,
+            type: card.type,
+            sentence: extractSentence(frontField, textField),
+            translation: extractTranslation(backField, textField, extraField),
+            deckName: card.deckName,
+          });
+        }
       }
     }
   }

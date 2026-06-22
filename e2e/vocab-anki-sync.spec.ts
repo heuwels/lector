@@ -147,7 +147,7 @@ test.describe('Vocab → Sync with Anki back-sync', () => {
     expect(await getVocabState(page, id)).toBe('known');
   });
 
-  test('Young card (type 2, interval 10) upgrades matching entry to Level 3', async ({ page }) => {
+  test('Young card (type 2, interval 10) upgrades matching entry to Level 4', async ({ page }) => {
     const word = `youngtoets${Date.now().toString(36)}`;
     const id = await seedVocabEntry(page, word, 'new');
     ids.push(id);
@@ -163,11 +163,11 @@ test.describe('Vocab → Sync with Anki back-sync', () => {
 
     await expect(page.getByText(/upgraded 1/i)).toBeVisible({ timeout: 8000 });
 
-    // Young (type 2, interval < 21) → level3.
-    expect(await getVocabState(page, id)).toBe('level3');
+    // Young (type 2, interval < 21) → level4.
+    expect(await getVocabState(page, id)).toBe('level4');
   });
 
-  test('New card (type 0) upgrades matching entry to Level 1', async ({ page }) => {
+  test('New card (type 0) is ignored — entry stays new', async ({ page }) => {
     const word = `newtoets${Date.now().toString(36)}`;
     const id = await seedVocabEntry(page, word, 'new');
     ids.push(id);
@@ -181,10 +181,10 @@ test.describe('Vocab → Sync with Anki back-sync', () => {
 
     await page.getByRole('button', { name: /Sync with Anki/ }).click();
 
-    await expect(page.getByText(/upgraded 1/i)).toBeVisible({ timeout: 8000 });
-
-    // New (type 0) → level1.
-    expect(await getVocabState(page, id)).toBe('level1');
+    // A New, never-studied card carries no learning signal → no upgrade, and the
+    // entry is left at "new".
+    await expect(page.getByText(/upgraded 0/i)).toBeVisible({ timeout: 8000 });
+    expect(await getVocabState(page, id)).toBe('new');
   });
 
   test('ignored entry is never touched even with a Mature Anki card', async ({ page }) => {
