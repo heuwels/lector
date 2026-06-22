@@ -372,29 +372,22 @@ function extractTranslation(backField: string, textField: string, extraField: st
 }
 
 /**
- * Query AnkiConnect for all lector-tagged cards and return a map of
+ * Query AnkiConnect for all lector-created cards (tagged `lector` or
+ * `afrikaans-reader`) and return a map of
  * word → { type, interval, sentence, translation, deckName }.
  * When a word has multiple cards the one that maps to the highest lector
  * state is kept.
  *
- * The deck search uses a trailing `*` wildcard so subdecks (e.g.
- * "Afrikaans::Cloze") are included. Pass `clozeDeckName` when the cloze
- * deck is not a subdeck of the main deck — it will be OR'd in separately.
+ * The sync is scoped to lector's own tags on purpose — every card lector
+ * exports is tagged, so this catches all of them. It deliberately does NOT
+ * scan whole decks: that sweeps in the user's hand-made cards (custom note
+ * types, English-fronted Basic cards) that lector can't reliably read a word
+ * from, producing junk imports.
  */
-export async function syncWordStates(deckName?: string, clozeDeckName?: string): Promise<
+export async function syncWordStates(): Promise<
   Map<string, { interval: number; type: number; sentence: string; translation: string; deckName: string }>
 > {
-  // Build deck clauses. The `*` wildcard covers subdecks so we only add
-  // clozeDeckName separately when it's not already a child of deckName.
-  let query = "(tag:lector OR tag:afrikaans-reader)";
-  if (deckName) {
-    const deckClauses = [`"deck:${deckName}*"`];
-    if (clozeDeckName && clozeDeckName !== deckName && !clozeDeckName.startsWith(deckName + '::')) {
-      deckClauses.push(`"deck:${clozeDeckName}*"`);
-    }
-    query = `(${deckClauses.join(' OR ')} OR tag:lector OR tag:afrikaans-reader)`;
-  }
-
+  const query = "(tag:lector OR tag:afrikaans-reader)";
   console.log(`Anki sync query: ${query}`);
   const cardIds = await ankiRequest<number[]>("findCards", { query });
   console.log(`Found ${cardIds.length} cards in Anki`);

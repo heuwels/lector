@@ -251,9 +251,9 @@ export default function VocabPage() {
     }
 
     try {
-      const deckName = localStorage.getItem('lector-anki-deck') || ankiDeck;
-      const clozeDeckName = localStorage.getItem('lector-anki-cloze-deck') || ankiClozeDeck;
-      const ankiStates = await syncWordStates(deckName, clozeDeckName);
+      // Scoped to lector-tagged cards only (see syncWordStates) — the deck
+      // configuration is used for exporting, not for back-sync.
+      const ankiStates = await syncWordStates();
 
       // Upgrade existing entries.
       const upgrades = reconcileAnkiStates(entries, ankiStates);
@@ -294,7 +294,7 @@ export default function VocabPage() {
       console.error('Failed to sync with Anki:', error);
       toast.error('Failed to sync with Anki', { duration: 5000 });
     }
-  }, [entries, ankiConnected, ankiDeck, ankiClozeDeck]);
+  }, [entries, ankiConnected]);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
