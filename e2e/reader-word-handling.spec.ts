@@ -37,7 +37,7 @@ test.describe('Reader word handling', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    // Mock translate API
+    // Mock translate API (phrase + legacy structured word path).
     await page.route('**/api/translate', async (route) => {
       const body = JSON.parse(route.request().postData() || '{}');
       await route.fulfill({
@@ -48,6 +48,12 @@ test.describe('Reader word handling', () => {
           partOfSpeech: body.type === 'phrase' ? 'phrase' : 'noun',
         }),
       });
+    });
+
+    // Word dict-misses now stream a plain-text gloss from /translate/gloss.
+    await page.route('**/api/translate/gloss', async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({ status: 200, contentType: 'text/plain', body: `[translated: ${body.word}]` });
     });
 
     // Clean up any leftover test collections

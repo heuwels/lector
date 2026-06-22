@@ -77,6 +77,63 @@ export class OpenAICompatibleProvider implements LLMProvider {
     return data.choices?.[0]?.message?.content || '';
   }
 
+  /**
+   * Stream a completion via `stream: true`. The server sends SSE frames
+   * (`data: {json}\n\n`, terminated by `data: [DONE]`); we parse each line,
+   * pull `choices[0].delta.content`, and yield it. Note fetchWithTimeout only
+   * bounds the time-to-headers — once the response resolves the abort timer is
+   * cleared, so a long stream body isn't cut off mid-generation.
+   */
+  async *stream(options: CompletionOptions): AsyncGenerator<string> {
+    const body: Record<string, unknown> = {
+      model: this.model,
+      messages: options.messages,
+      max_tokens: options.maxTokens,
+      stream: true,
+    };
+
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok || !response.body) {
+      const error = response.ok ? 'no response body' : await response.text().catch(() => `HTTP ${response.status}`);
+      throw new Error(`LLM provider error: ${error}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        // SSE frames are newline-delimited; process every complete line and
+        // keep the trailing partial in the buffer for the next chunk.
+        let nl: number;
+        while ((nl = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (!line.startsWith('data:')) continue; // skip blank lines / comments
+          const data = line.slice(5).trim();
+          if (data === '[DONE]') return;
+          try {
+            const json = JSON.parse(data);
+            const delta = json.choices?.[0]?.delta?.content;
+            if (delta) yield delta as string;
+          } catch {
+            // keep-alive ping or non-JSON line — ignore
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
   async healthCheck(): Promise<{ ok: boolean; error?: string }> {
     try {
       const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/models`, {

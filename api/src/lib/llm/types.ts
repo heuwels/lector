@@ -33,6 +33,15 @@ export interface LLMProvider {
   /** The configured model identifier, surfaced for status reporting. */
   model?: string;
   complete(options: CompletionOptions): Promise<string>;
+  /**
+   * Stream a completion as incremental text deltas — used by the latency-sensitive
+   * word-gloss path so the reader sees the translation form as it generates rather
+   * than waiting for the whole response. Yields text *fragments* (not cumulative);
+   * callers concatenate. Providers that can't truly stream (e.g. the Anthropic
+   * Agent-SDK/OAuth path) may buffer and yield once — the contract is only that the
+   * concatenation equals what complete() would have returned.
+   */
+  stream(options: CompletionOptions): AsyncIterable<string>;
   /** Check if the provider is reachable and configured */
   healthCheck(): Promise<{ ok: boolean; error?: string }>;
 }

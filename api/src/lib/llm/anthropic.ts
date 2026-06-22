@@ -89,6 +89,34 @@ export class AnthropicProvider implements LLMProvider {
     return this.completeViaApi(options, model);
   }
 
+  async *stream(options: CompletionOptions): AsyncGenerator<string> {
+    const model = this.modelForTask(options.task);
+    // The Agent SDK (OAuth path) doesn't expose a clean token stream here, so
+    // buffer the whole result and yield it once. The contract only requires the
+    // concatenation to equal complete()'s output — pin auth to an API key to get
+    // real token-by-token streaming on the latency-critical gloss path.
+    if (this.useAgentSdk) {
+      const text = await this.completeViaAgentSdk(options, model);
+      if (text) yield text;
+      return;
+    }
+
+    const stream = this.client!.messages.stream({
+      model,
+      max_tokens: options.maxTokens,
+      messages: options.messages.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+    });
+
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        yield event.delta.text;
+      }
+    }
+  }
+
   private async completeViaApi(options: CompletionOptions, model: string): Promise<string> {
     const message = await this.client!.messages.create({
       model,

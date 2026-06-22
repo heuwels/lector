@@ -46,6 +46,12 @@ test.describe('Reader markdown rendering', () => {
       });
     });
 
+    // Word dict-misses stream a plain-text gloss from /translate/gloss.
+    await page.route('**/api/translate/gloss', async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({ status: 200, contentType: 'text/plain', body: `[translated: ${body.word}]` });
+    });
+
     const res = await page.request.get('/api/collections');
     for (const c of await res.json()) {
       if (c.title === TITLE) await page.request.delete(`/api/collections/${c.id}`);
