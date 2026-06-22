@@ -716,7 +716,13 @@ export default function PracticePage() {
                 review options below. */}
             <div className="mb-6">
               <div className="grid grid-cols-2 gap-2">
+                {/* Explicit aria-labels keep each button's accessible name to
+                    just "Cloze"/"Dictation" — the descriptive subtitle stays
+                    visible but doesn't leak into role-based locators (e.g. the
+                    cloze "Type" mode button would otherwise also match the
+                    "Type what you hear" subtitle). */}
                 <Button
+                  aria-label="Cloze"
                   onClick={() => handleSetPracticeFormat('cloze')}
                   variant={practiceFormat === 'cloze' ? 'default' : 'secondary'}
                   className="flex h-14 flex-col justify-center gap-0"
@@ -725,6 +731,7 @@ export default function PracticePage() {
                   <div className="mt-0.5 text-[11px] font-normal opacity-75">Fill in the blank</div>
                 </Button>
                 <Button
+                  aria-label="Dictation"
                   onClick={() => handleSetPracticeFormat('dictation')}
                   variant={practiceFormat === 'dictation' ? 'default' : 'secondary'}
                   className="flex h-14 flex-col justify-center gap-0"
