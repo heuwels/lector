@@ -3,8 +3,10 @@
 import { getActiveLanguage } from './data-layer';
 import { LANGUAGES, DEFAULT_LANGUAGE, type LanguageCode } from './languages';
 
-// Default speech rate (1.0 is normal speed)
-const DEFAULT_RATE = 0.9;
+// Default speech rate (1.0 is normal speed). Exported so callers that offer a
+// speed control (e.g. dictation practice) can scale relative to the app's
+// normal "1x" listening rate instead of hard-coding it.
+export const DEFAULT_RATE = 0.9;
 
 // Resolve the active language's TTS config. Browser-TTS voice selection is
 // driven entirely off this, so switching the target language picks an
