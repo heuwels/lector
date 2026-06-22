@@ -33,6 +33,10 @@ export interface WordPanelState {
   } | null;
   isLoading: boolean;
   isContextLoading: boolean;
+  /** True while the fast-path gloss is still streaming in token-by-token. */
+  isStreamingGloss: boolean;
+  /** True while the opt-in rich "enrich" lookup is in flight. */
+  isEnriching: boolean;
   isDictionaryResult: boolean;
   error: string | null;
   existingEntry: VocabEntry | null;

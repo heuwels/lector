@@ -8,9 +8,10 @@ import { test, expect, Page, Route } from '@playwright/test';
  * Strategy:
  *   1. Import a book with a known nonsense token that's guaranteed to miss
  *      the on-device dict (and isn't a real Afrikaans word).
- *   2. Mock /api/translate to return a deterministic structured response;
- *      assert exactly ONE call across the test.
- *   3. Click the word, mark it Known (an accept action).
+ *   2. Mock /api/translate/gloss (the streamed fast path) with a deterministic
+ *      response; assert exactly ONE call across the test.
+ *   3. Click the word, mark it Known (an accept action) — the gloss is cached
+ *      as a single sense.
  *   4. Re-click the same word — the drawer must show the `learned` source pill
  *      and the AI mock must still report exactly one total invocation.
  */
@@ -39,39 +40,26 @@ test.describe('AI translation cache', () => {
   // dict entry, and so the cache is empty for the first click.
   const NONSENSE = `xqzzaftj${Date.now().toString(36)}`;
   let collectionId: string;
-  let translateCallCount = 0;
+  let glossCallCount = 0;
 
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    translateCallCount = 0;
+    glossCallCount = 0;
 
-    // Mock the AI translate endpoint with a structured payload that the
-    // drawer can render AND the cache can persist.
+    // The read page streams a plain-text gloss for a dict miss; that gloss is
+    // what gets cached (as a single sense) when the user accepts it.
+    await page.route('**/api/translate/gloss', async (route: Route) => {
+      glossCallCount++;
+      await route.fulfill({ status: 200, contentType: 'text/plain', body: 'invented; made-up' });
+    });
+
+    // Phrase + legacy structured word path — not exercised by the bare-gloss
+    // accept flow, but stubbed so a stray call never hits the network.
     await page.route('**/api/translate', async (route: Route) => {
-      const body = JSON.parse(route.request().postData() || '{}');
-      if (body.type === 'phrase') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ translation: '[ai phrase]', partOfSpeech: 'phrase' }),
-        });
-        return;
-      }
-      translateCallCount++;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          translation: 'invented; made-up',
-          partOfSpeech: 'noun',
-          word: body.word,
-          senses: [
-            { partOfSpeech: 'noun', gloss: 'invented' },
-            { partOfSpeech: 'noun', gloss: 'made-up' },
-          ],
-          ipa: '/test/',
-          etymology: 'From the test suite',
-        }),
+        body: JSON.stringify({ translation: '[ai phrase]', partOfSpeech: 'phrase' }),
       });
     });
 
@@ -106,7 +94,7 @@ test.describe('AI translation cache', () => {
     const drawer = page.getByTestId('translation-drawer');
     await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
     await expect(drawer.getByText('AI', { exact: true })).toBeVisible({ timeout: 5000 });
-    expect(translateCallCount).toBe(1);
+    expect(glossCallCount).toBe(1);
 
     // Accept via "Known" — this should fire-and-forget the cache write.
     await drawer.getByRole('button', { name: /Known/ }).click();
@@ -131,6 +119,6 @@ test.describe('AI translation cache', () => {
     await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
     await expect(drawer.getByText('learned', { exact: true })).toBeVisible({ timeout: 5000 });
     await expect(drawer.locator('ol li').first()).toBeVisible();
-    expect(translateCallCount).toBe(1);
+    expect(glossCallCount).toBe(1);
   });
 });

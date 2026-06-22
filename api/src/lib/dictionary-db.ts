@@ -16,9 +16,13 @@ import { getActiveLanguageCode } from './active-language';
 
 // The dictionary is read-only application data shipped with the image. Prefer
 // DICT_DIR so it stays put when the user mounts a volume on DATA_DIR for their
-// (mutable) data; fall back to DATA_DIR for local dev, then ./data.
+// (mutable) data; fall back to DATA_DIR, then '../data'. The default mirrors
+// db.ts (which also defaults to '../data') because the API runs from ./api in
+// local dev (`cd api && bun run …`) — a bare './data' resolved to the
+// nonexistent ./api/data, so every dictionary lookup silently missed and every
+// word fell through to the (slow) AI path.
 function getDbPath(language: string): string {
-  const dir = process.env.DICT_DIR || process.env.DATA_DIR || './data';
+  const dir = process.env.DICT_DIR || process.env.DATA_DIR || '../data';
   return path.join(dir, `dictionary-${language}.db`);
 }
 

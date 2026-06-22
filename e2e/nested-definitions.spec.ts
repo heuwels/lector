@@ -73,6 +73,13 @@ test.describe('Nested dictionary definitions (reader)', () => {
       });
     });
 
+    // A dict-miss word (incl. a nested lookup that misses) now streams its gloss
+    // from /translate/gloss as plain text rather than the structured endpoint.
+    await page.route('**/api/translate/gloss', async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({ status: 200, contentType: 'text/plain', body: `[translated: ${body.word}]` });
+    });
+
     // Remove leftovers from aborted runs
     const res = await page.request.get('/api/collections');
     for (const c of await res.json()) {
