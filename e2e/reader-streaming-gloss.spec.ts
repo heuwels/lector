@@ -135,3 +135,20 @@ test.describe('Reader — streamed gloss + enrich', () => {
     await expect(drawer.getByText('learned')).toHaveCount(0);
   });
 });
+
+/**
+ * Guard against the easy mistake of adding a Hono route without its Next proxy
+ * file (each /api/* path needs its own app/api/.../route.ts — there's no
+ * catch-all). The UI specs above mock these endpoints, so a missing proxy would
+ * pass there but 404 in the real app. Here we hit the REAL proxy → Hono with no
+ * word: a wired route forwards and Hono replies 400; a missing proxy 404s. No
+ * LLM call (rejected at validation), so it's safe in CI.
+ */
+test.describe('translate proxy routes are wired', () => {
+  for (const path of ['/api/translate/gloss', '/api/translate/enrich']) {
+    test(`${path} forwards to Hono (not 404)`, async ({ request }) => {
+      const res = await request.post(path, { data: { language: 'af' } });
+      expect(res.status(), `${path} should reach Hono, not be a missing Next route`).toBe(400);
+    });
+  }
+});
