@@ -30,6 +30,13 @@ export interface CollectionGroup {
   name: string;
   sortOrder: number;
   createdAt: string;
+  /**
+   * Total collections in this group across ALL languages (set by GET /api/groups).
+   * Groups are language-agnostic, so the library uses this to distinguish a
+   * brand-new empty group (show it) from one whose collections all belong to
+   * other languages (hide it in the active language).
+   */
+  collectionCount?: number;
 }
 
 export interface Lesson {
