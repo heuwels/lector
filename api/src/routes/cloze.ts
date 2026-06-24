@@ -229,9 +229,14 @@ app.get('/seed', (c) => {
 });
 
 // GET /api/cloze/:id
+// By-id routes scope to the active language (defense-in-depth): a stale
+// cross-language id 404s rather than reading/mutating another language's row.
 app.get('/:id', (c) => {
   const id = c.req.param('id');
-  const sentence = db.prepare('SELECT * FROM clozeSentences WHERE id = ?').get(id) as ClozeSentenceRow | undefined;
+  const lang = resolveLanguage(c.req.query('language'));
+  const sentence = db
+    .prepare('SELECT * FROM clozeSentences WHERE id = ? AND language = ?')
+    .get(id, lang) as ClozeSentenceRow | undefined;
 
   if (!sentence) return c.json({ error: 'Not found' }, 404);
 
@@ -245,9 +250,10 @@ app.get('/:id', (c) => {
 // PUT /api/cloze/:id
 app.put('/:id', async (c) => {
   const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'));
   const body = await c.req.json();
 
-  const existing = db.prepare('SELECT id FROM clozeSentences WHERE id = ?').get(id);
+  const existing = db.prepare('SELECT id FROM clozeSentences WHERE id = ? AND language = ?').get(id, lang);
   if (!existing) return c.json({ error: 'Not found' }, 404);
 
   const updates: string[] = [];
@@ -264,7 +270,8 @@ app.put('/:id', async (c) => {
 
   if (updates.length > 0) {
     values.push(id);
-    db.prepare(`UPDATE clozeSentences SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    values.push(lang);
+    db.prepare(`UPDATE clozeSentences SET ${updates.join(', ')} WHERE id = ? AND language = ?`).run(...values);
   }
 
   return c.json({ success: true });
@@ -273,16 +280,20 @@ app.put('/:id', async (c) => {
 // DELETE /api/cloze/:id
 app.delete('/:id', (c) => {
   const id = c.req.param('id');
-  db.prepare('DELETE FROM clozeSentences WHERE id = ?').run(id);
+  const lang = resolveLanguage(c.req.query('language'));
+  db.prepare('DELETE FROM clozeSentences WHERE id = ? AND language = ?').run(id, lang);
   return c.json({ success: true });
 });
 
 // POST /api/cloze/:id/review
 app.post('/:id/review', async (c) => {
   const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'));
   const body = await c.req.json();
 
-  const sentence = db.prepare('SELECT * FROM clozeSentences WHERE id = ?').get(id) as ClozeSentenceRow | undefined;
+  const sentence = db
+    .prepare('SELECT * FROM clozeSentences WHERE id = ? AND language = ?')
+    .get(id, lang) as ClozeSentenceRow | undefined;
   if (!sentence) return c.json({ error: 'Not found' }, 404);
 
   const correct = body.correct as boolean;
@@ -297,8 +308,8 @@ app.post('/:id/review', async (c) => {
       lastReviewed = ?,
       timesCorrect = timesCorrect + ?,
       timesIncorrect = timesIncorrect + ?
-    WHERE id = ?
-  `).run(newMasteryLevel, nextReview, new Date().toISOString(), correct ? 1 : 0, correct ? 0 : 1, id);
+    WHERE id = ? AND language = ?
+  `).run(newMasteryLevel, nextReview, new Date().toISOString(), correct ? 1 : 0, correct ? 0 : 1, id, lang);
 
   return c.json({ success: true });
 });

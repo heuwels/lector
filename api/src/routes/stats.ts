@@ -193,13 +193,16 @@ app.get('/streak', (c) => {
 });
 
 // GET /api/stats/reading
-// Estimated reading volume derived from per-lesson scroll progress. Not
-// language-scoped: it reflects the whole library (mirrors the Next route this
-// replaces — lessons are aggregated regardless of language).
+// Estimated reading volume derived from per-lesson scroll progress, scoped to the
+// active language: the stats page is a per-language dashboard (fluency, daily
+// stats and collection counts are all per-language), so reading volume reads as
+// "how much of THIS language you've read". Streak remains the one deliberately
+// app-wide metric (see /streak).
 app.get('/reading', (c) => {
+  const lang = resolveLanguage(c.req.query('language'));
   const rows = db
-    .prepare('SELECT wordCount, progress_percentComplete AS percentComplete FROM lessons')
-    .all() as { wordCount: number; percentComplete: number }[];
+    .prepare('SELECT wordCount, progress_percentComplete AS percentComplete FROM lessons WHERE language = ?')
+    .all(lang) as { wordCount: number; percentComplete: number }[];
 
   return c.json(deriveReadingStats(rows));
 });
