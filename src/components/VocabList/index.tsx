@@ -1,10 +1,18 @@
 'use client';
 
 import { Check, ChevronDown, ChevronUp, Loader2, RefreshCw, Upload } from 'lucide-react';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { WordState } from '@/lib/data-layer';
+import { getPageCount, clampPage, paginate } from '@/lib/pagination';
 import VocabRow from './components/VocabRow';
-import { stateFilters, stateOrder } from './constants';
+import PaginationControls from './components/PaginationControls';
+import {
+  stateFilters,
+  stateOrder,
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZE_OPTIONS,
+  PAGE_SIZE_STORAGE_KEY,
+} from './constants';
 import { AnkiCardType, SortDirection, SortField, VocabListProps } from './types';
 import { Button } from '../ui/button';
 
@@ -25,6 +33,16 @@ export default function VocabList({
   // Sort state
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Pagination state. The full filtered/sorted set lives in memory; we render
+  // only the current page so the DOM stays small for large vocabularies (#66).
+  // The page-size choice persists to localStorage (matches the card-type pref).
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(() => {
+    if (typeof window === 'undefined') return DEFAULT_PAGE_SIZE;
+    const saved = Number(localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+    return (PAGE_SIZE_OPTIONS as readonly number[]).includes(saved) ? saved : DEFAULT_PAGE_SIZE;
+  });
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -113,6 +131,33 @@ export default function VocabList({
     return result;
   }, [entries, stateFilter, bookFilter, searchQuery, sortField, sortDirection, bookTitleMap]);
 
+  // Pagination derivation: the visible slice of the filtered/sorted set.
+  const pageCount = getPageCount(filteredEntries.length, pageSize);
+  const paginatedEntries = useMemo(
+    () => paginate(filteredEntries, currentPage, pageSize),
+    [filteredEntries, currentPage, pageSize],
+  );
+
+  // Jump back to page 1 whenever the result set itself changes (new search or
+  // filter). Sorting deliberately keeps the page — it's the same set reordered.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [stateFilter, bookFilter, searchQuery]);
+
+  // Keep the current page valid when the page count shrinks (entries deleted,
+  // page size raised) so the user is never stranded on an empty page.
+  useEffect(() => {
+    setCurrentPage((p) => clampPage(p, pageCount));
+  }, [pageCount]);
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size));
+    }
+  }, []);
+
   // Handle selection
   const handleSelect = useCallback((id: string, selected: boolean) => {
     setSelectedIds((prev) => {
@@ -126,6 +171,9 @@ export default function VocabList({
     });
   }, []);
 
+  // Select-all spans every matching entry across all pages (not just the
+  // visible page) — the bulk Anki/known actions operate on the whole filtered
+  // set, and the action buttons show the selected count.
   const handleSelectAll = useCallback(
     (selected: boolean) => {
       if (selected) {
@@ -293,9 +341,10 @@ export default function VocabList({
         </Button>
       </div>
 
-      {/* Results count */}
+      {/* Results count — the filtered total (the page footer shows the visible
+          range). The page count itself is paginated below. */}
       <div className="text-sm text-muted-foreground">
-        Showing {filteredEntries.length} of {entries.length} entries
+        {filteredEntries.length} of {entries.length} entries
         {someSelected && ` (${selectedIds.size} selected)`}
       </div>
 
@@ -367,7 +416,7 @@ export default function VocabList({
                 </td>
               </tr>
             ) : (
-              filteredEntries.map((entry) => (
+              paginatedEntries.map((entry) => (
                 <VocabRow
                   key={entry.id}
                   entry={entry}
@@ -381,6 +430,18 @@ export default function VocabList({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination — hidden while loading and when there are no results. */}
+      {!isLoading && filteredEntries.length > 0 && (
+        <PaginationControls
+          currentPage={currentPage}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          totalItems={filteredEntries.length}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
+      )}
 
       {/* Export-to-Anki modal */}
       {exportModalOpen && (
