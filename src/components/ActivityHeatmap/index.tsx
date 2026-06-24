@@ -3,10 +3,10 @@
 import { useMemo } from 'react';
 import { useIsDark } from '@/utils/hooks';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { DAYS_OF_WEEK, MONTHS } from './constants';
+import { DAYS_OF_WEEK } from './constants';
 import { darkColorScheme, lightColorScheme } from './theme';
-import { type ActivityHeatmapProps, type ActivityParts } from './types';
-import { formatDate, getColor } from './utils';
+import { type ActivityHeatmapProps, type ActivityParts, type HeatmapCell } from './types';
+import { buildHeatmapGrid, getColor, localEndDate } from './utils';
 
 // The activities that fold into a day's composite count, in display order. Each
 // gets a colour dot in the tooltip; `suffix` distinguishes reading (minutes).
@@ -31,13 +31,6 @@ function formatFullDate(dateStr: string): string {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-interface HeatmapCell {
-  date: string;
-  count: number;
-  dayOfWeek: number;
-  parts?: ActivityParts;
 }
 
 function DayCell({ day, unit, color }: { day: HeatmapCell; unit: string; color: string }) {
@@ -93,77 +86,23 @@ function DayCell({ day, unit, color }: { day: HeatmapCell; unit: string; color: 
 export default function ActivityHeatmap({
   data,
   unit = 'lookups',
+  endDate,
   colorScheme: colorSchemeProp,
 }: ActivityHeatmapProps) {
   const isDark = useIsDark();
   const colorScheme = colorSchemeProp || (isDark ? darkColorScheme : lightColorScheme);
   const { weeks, maxCount, monthLabels, totalActivity, activeDays } = useMemo(() => {
-    // date -> the full day record, so each cell can show its breakdown.
-    const activityMap = new Map(data.map((d) => [d.date, d]));
-
-    // Calculate max count for color scaling
+    // Color scaling and the headline totals are date-agnostic — just the data.
     const maxCount = Math.max(1, ...data.map((d) => d.count));
-
-    // Generate 365 days ending today
-    const today = new Date();
-    const startDate = new Date(today);
-    startDate.setDate(startDate.getDate() - 364);
-
-    // Adjust start to be a Sunday
-    const startDayOfWeek = startDate.getDay();
-    startDate.setDate(startDate.getDate() - startDayOfWeek);
-
-    const weeks: HeatmapCell[][] = [];
-    let currentWeek: HeatmapCell[] = [];
-
-    const monthLabels: Array<{ label: string; weekIndex: number; span: number }> = [];
-    let lastMonth = -1;
-
-    const currentDate = new Date(startDate);
-    let weekIndex = 0;
-
-    while (currentDate <= today) {
-      const dateStr = formatDate(currentDate);
-      const day = activityMap.get(dateStr);
-      const count = day?.count || 0;
-      const month = currentDate.getMonth();
-      const dayOfWeek = currentDate.getDay();
-
-      // One label per month, anchored at the column that holds the 1st (the
-      // first day of the month we encounter). span is filled in after the loop.
-      if (month !== lastMonth) {
-        monthLabels.push({ label: MONTHS[month], weekIndex, span: 0 });
-        lastMonth = month;
-      }
-
-      currentWeek.push({ date: dateStr, count, dayOfWeek, parts: day?.parts });
-
-      if (currentWeek.length === 7) {
-        weeks.push(currentWeek);
-        currentWeek = [];
-        weekIndex++;
-      }
-
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    // Push remaining days
-    if (currentWeek.length > 0) {
-      weeks.push(currentWeek);
-    }
-
-    // Each label spans from its own column up to the next label's column (the
-    // last runs to the end). Spans sum to weeks.length, so they tile grid-cols-53.
-    monthLabels.forEach((m, i) => {
-      m.span = (monthLabels[i + 1]?.weekIndex ?? weeks.length) - m.weekIndex;
-    });
-
-    // Calculate totals
     const totalActivity = data.reduce((sum, d) => sum + d.count, 0);
     const activeDays = data.filter((d) => d.count > 0).length;
 
+    // The grid ends on the caller's time-zone-aware "today" (matching the data's
+    // date keys), falling back to this device's local date — never UTC (#192).
+    const { weeks, monthLabels } = buildHeatmapGrid(data, endDate ?? localEndDate());
+
     return { weeks, maxCount, monthLabels, totalActivity, activeDays };
-  }, [data]);
+  }, [data, endDate]);
 
   return (
     <TooltipProvider delay={120} closeDelay={0}>
