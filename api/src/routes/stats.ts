@@ -5,6 +5,7 @@ import { getTodayDate, addDaysToDateString } from '../lib/dates';
 import { activeDateSet, computeStreaks } from '../lib/streak';
 import { deriveReadingStats } from '../lib/stats-derive';
 import { deriveCefrProgress } from '../lib/cefr';
+import { deriveDomainFluency, type DomainStateRow } from '../lib/domains';
 
 const app = new Hono();
 
@@ -147,11 +148,23 @@ app.get('/fluency', (c) => {
     )
     .get(prevWeekStart, prevWeekEnd, lang) as { total: number };
 
+  // Per-domain fluency (radar): grouped knownWords counts → axes + a pending
+  // count. Aggregated from knownWords (one row per word/language) so it
+  // reconciles with totalKnownWords above; the maths lives in deriveDomainFluency.
+  const domainRows = db
+    .prepare(
+      'SELECT domain, state, COUNT(*) as count FROM knownWords WHERE language = ? GROUP BY domain, state',
+    )
+    .all(lang) as DomainStateRow[];
+  const { byDomain, pending } = deriveDomainFluency(domainRows);
+
   return c.json({
     totalKnownWords,
     totalLearning,
     totalNew,
     byState,
+    byDomain,
+    pending,
     estimatedLevel,
     nextLevel,
     progressToNextLevel,

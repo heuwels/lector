@@ -20,6 +20,7 @@ import ActivityHeatmap from '@/components/ActivityHeatmap';
 import AnkiReviewsChart from '@/components/AnkiReviewsChart';
 import PageHeader from '@/components/PageHeader';
 import VocabGrowthChart from '@/components/VocabGrowthChart';
+import DomainFluencyRadar from '@/components/DomainFluencyRadar';
 import {
   ClozeStats,
   FluencyBadge,
@@ -192,6 +193,8 @@ export default function StatsPage() {
         </p>
       </PageHeader>
       <FluencyBadge fluency={stats.fluency} />
+
+      <DomainFluencyRadar byDomain={stats.fluency.byDomain} pending={stats.fluency.pending} />
 
       {/* Top stat cards */}
       <div

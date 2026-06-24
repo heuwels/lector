@@ -28,6 +28,7 @@ import tokens from './routes/tokens';
 import chat from './routes/chat';
 import llmOpenai from './routes/llm-openai';
 import { authMiddleware } from './lib/auth';
+import { startClassifyWorker } from './lib/classify-worker';
 
 const app = new Hono();
 
@@ -73,6 +74,11 @@ app.get('/health', (c) => c.json({ ok: true }));
 const port = parseInt(process.env.PORT || '3457');
 
 console.log(`Lector API running on http://localhost:${port}`);
+
+// Background word→domain classifier for the fluency radar. No-op unless
+// CLASSIFY_WORKER=1, so it only runs where it's explicitly enabled (this Hono
+// process) and never under test/e2e.
+startClassifyWorker();
 
 const config = {
   port,

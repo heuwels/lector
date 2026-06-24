@@ -10,7 +10,9 @@ let cachedProvider: LLMProvider | null = null;
 let cachedProviderKey: string | null = null;
 
 function getSetting(key: string): string | null {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined;
   if (!row) return null;
   try {
     return JSON.parse(row.value);
@@ -34,6 +36,7 @@ export function getProvider(): LLMProvider {
     const wordModel = process.env.ANTHROPIC_WORD_MODEL || undefined;
     const phraseModel = process.env.ANTHROPIC_PHRASE_MODEL || undefined;
     const chatModel = process.env.ANTHROPIC_CHAT_MODEL || undefined;
+    const classificationModel = process.env.ANTHROPIC_CLASSIFICATION_MODEL || undefined;
 
     // Respect explicit auth mode; fall back to whichever credential is set
     let apiKey: string | undefined;
@@ -48,9 +51,17 @@ export function getProvider(): LLMProvider {
     }
 
     const effectiveMode = apiKey ? 'key' : oauthToken ? 'oauth' : 'env';
-    cacheKey = `anthropic:${effectiveMode}:${model || 'default'}:${wordModel || 'd'}:${phraseModel || 'd'}:${chatModel || 'd'}`;
+    cacheKey = `anthropic:${effectiveMode}:${model || 'default'}:${wordModel || 'd'}:${phraseModel || 'd'}:${chatModel || 'd'}:${classificationModel || 'd'}`;
     if (cachedProvider && cachedProviderKey === cacheKey) return cachedProvider;
-    cachedProvider = new AnthropicProvider({ apiKey, oauthToken, model, wordModel, phraseModel, chatModel });
+    cachedProvider = new AnthropicProvider({
+      apiKey,
+      oauthToken,
+      model,
+      wordModel,
+      phraseModel,
+      chatModel,
+      classificationModel,
+    });
   } else {
     // Settings take precedence; env vars are the fallback. The legacy
     // OLLAMA_*/APFEL_*/LMSTUDIO_* vars are still read so existing env-configured
@@ -88,4 +99,31 @@ export function getProvider(): LLMProvider {
 export function resetProvider(): void {
   cachedProvider = null;
   cachedProviderKey = null;
+}
+
+/**
+ * Provider for the background word→domain classifier. Classification is high
+ * volume, latency-insensitive, and only ever picks one enum value per word — an
+ * ideal job for a cheap local model.
+ *
+ * Set `CLASSIFY_LLM_URL` (and optionally `CLASSIFY_LLM_MODEL` / `CLASSIFY_LLM_API_KEY`)
+ * to point classification at a dedicated OpenAI-compatible endpoint — e.g. a
+ * local LM Studio model — so it runs free and offline and never competes with
+ * interactive translation. When unset, classification uses the app's main
+ * provider: Anthropic resolves the cheap `ANTHROPIC_CLASSIFICATION_MODEL` (Haiku)
+ * via the `word-classification` task hint, and an all-LM-Studio / Ollama install
+ * classifies on its one configured model. So existing setups are unchanged, and
+ * pointing classification at LM Studio is a config change, not a code change.
+ */
+export function getClassificationProvider(): LLMProvider {
+  const baseUrl = process.env.CLASSIFY_LLM_URL;
+  const model = process.env.CLASSIFY_LLM_MODEL;
+  if (baseUrl || model) {
+    return new OpenAICompatibleProvider({
+      baseUrl,
+      model,
+      apiKey: process.env.CLASSIFY_LLM_API_KEY,
+    });
+  }
+  return getProvider();
 }
