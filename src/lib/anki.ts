@@ -7,6 +7,7 @@
 // remote Anki install (e.g. over Tailscale) can point at http://100.x.x.x:8765.
 
 import { splitTrailingPunctuation } from './words';
+import type { WordState } from '@/types';
 
 const DEFAULT_ANKI_CONNECT_URL = 'http://localhost:8765';
 
@@ -61,8 +62,85 @@ interface CardInfo {
   cardId: number;
   fields: Record<string, { value: string; order: number }>;
   interval: number;
+  // 0 = New, 1 = Learning, 2 = Review (Young/Mature), 3 = Relearning
+  type: number;
   note: number;
   deckName: string;
+}
+
+// Rank used for upgrade-only sync (ignored shares known's rank so it is never overridden).
+const STATE_RANK: Record<WordState, number> = {
+  new: 0, level1: 1, level2: 2, level3: 3, level4: 4, known: 5, ignored: 5,
+};
+
+/**
+ * Map a raw Anki card (type + interval) to a lector vocab state, or `null` when
+ * the card carries no learning signal yet. A New card is queued in Anki but has
+ * never been studied, so the sync ignores it entirely — it neither upgrades an
+ * existing entry nor imports a new word.
+ *
+ * New (0)            → null     — queued but not yet studied; ignored
+ * Learning (1)       → level1   — in initial learning steps
+ * Relearning (3)     → level2   — lapsed, being relearned
+ * Young (2, < 21 d)  → level4   — graduated to review, almost known
+ * Mature (2, ≥ 21 d) → known    — stable long-term recall; treat as known
+ */
+export function ankiCardToState(type: number, interval: number): WordState | null {
+  if (type === 0) return null;
+  if (type === 1) return 'level1';
+  if (type === 3) return 'level2';
+  return interval >= 21 ? 'known' : 'level4';
+}
+
+/**
+ * Given existing vocab entries and the Anki state map, find Anki words that
+ * have no matching entry in lector yet. Returns them ready to be created.
+ *
+ * Pure function — no side effects, easily unit-testable.
+ */
+export function findNewAnkiWords(
+  existingEntries: ReadonlyArray<{ text: string }>,
+  ankiStates: ReadonlyMap<string, { type: number; interval: number; sentence: string; translation: string }>,
+): Array<{ text: string; state: WordState; sentence: string; translation: string }> {
+  const existingWords = new Set(existingEntries.map((e) => e.text.toLowerCase()));
+  const newWords: Array<{ text: string; state: WordState; sentence: string; translation: string }> = [];
+  for (const [word, data] of ankiStates) {
+    if (existingWords.has(word)) continue;
+    const state = ankiCardToState(data.type, data.interval);
+    if (!state) continue; // New card → don't import an unstudied word
+    newWords.push({
+      text: word,
+      state,
+      sentence: data.sentence,
+      translation: data.translation,
+    });
+  }
+  return newWords;
+}
+
+/**
+ * Given existing vocab entries and the Anki state map, compute which entries
+ * should be upgraded. Only returns entries that would move to a higher state;
+ * never demotes, and always skips `ignored` entries.
+ *
+ * Pure function — no side effects, easily unit-testable.
+ */
+export function reconcileAnkiStates(
+  entries: ReadonlyArray<{ id: string; text: string; state: WordState }>,
+  ankiStates: ReadonlyMap<string, { type: number; interval: number }>,
+): Array<{ id: string; newState: WordState }> {
+  const updates: Array<{ id: string; newState: WordState }> = [];
+  for (const entry of entries) {
+    if (entry.state === 'ignored') continue;
+    const ankiData = ankiStates.get(entry.text.toLowerCase());
+    if (!ankiData) continue;
+    const newState = ankiCardToState(ankiData.type, ankiData.interval);
+    if (!newState) continue; // New card → no learning signal, leave entry as-is
+    if (STATE_RANK[newState] > STATE_RANK[entry.state]) {
+      updates.push({ id: entry.id, newState });
+    }
+  }
+  return updates;
 }
 
 /**
@@ -180,6 +258,42 @@ export async function addBasicCard(
 }
 
 /**
+ * Add a pure word flashcard to Anki (issue #197).
+ * Front: the word only (bold, so syncWordStates can round-trip it).
+ * Back: translation + word = meaning line.
+ */
+export async function addWordCard(
+  deckName: string,
+  targetWord: string,
+  translation: string,
+  wordMeaning: string,
+): Promise<number> {
+  await ensureDeckExists(deckName);
+  const [cleanTarget] = splitTrailingPunctuation(targetWord);
+
+  const noteId = await ankiRequest<number | null>('addNote', {
+    note: {
+      deckName,
+      modelName: 'Basic',
+      fields: {
+        Front: `<b>${cleanTarget}</b>`,
+        Back: `${translation}<br><br><b>${cleanTarget}</b> = ${wordMeaning}`,
+      },
+      options: { allowDuplicate: true },
+      tags: ['lector', 'vocabulary'],
+    },
+  });
+
+  if (noteId === null) {
+    throw new Error(
+      "Failed to add note — check that 'Basic' note type exists with 'Front' and 'Back' fields",
+    );
+  }
+
+  return noteId;
+}
+
+/**
  * Build the cloze-deletion text for a sentence. Strips trailing punctuation
  * from the target first — bank words can carry it ("haar."), which would make
  * the \b…\b pattern unmatchable and produce a cloze-less note that
@@ -249,21 +363,67 @@ export async function addClozeCard(
   return noteId;
 }
 
+/** Strip HTML tags and trim whitespace. */
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 /**
- * Get word states based on Anki intervals for syncing mastery levels
- * This queries Anki for cards with the lector tag and returns
- * their intervals, which can be used to determine mastery level
+ * Extract the sentence context from card fields (best-effort).
+ * Basic Front: "{sentence}<br><br><small>Word: <b>word</b></small>"
+ * Cloze Text:  "{sentence{{c1::word}}}<br><br><small>Translation: ...</small>"
  */
-export async function syncWordStates(deckName?: string): Promise<
-  Map<string, { interval: number; deckName: string }>
-> {
-  // Find cards - either by tag or by deck name
-  let query = "(tag:lector OR tag:afrikaans-reader)";
-  if (deckName) {
-    // Search in the specified deck OR with our tags
-    query = `("deck:${deckName}" OR tag:lector OR tag:afrikaans-reader)`;
+function extractSentence(frontField: string, textField: string): string {
+  const raw = frontField || textField;
+  if (!raw) return '';
+  const beforeBreak = raw.split(/<br\s*\/?><br\s*\/?>/i)[0] ?? '';
+  return stripHtml(beforeBreak.replace(/\{\{c\d+::([^}]+)\}\}/g, '$1'));
+}
+
+/**
+ * Extract the translation from card fields (best-effort).
+ * Basic Back:  "{translation}<br><br><b>word</b> = meaning"
+ * Cloze Text:  "...<small>Translation: {translation}</small>"
+ * Cloze Extra: "<b>word</b> = meaning"
+ */
+function extractTranslation(backField: string, textField: string, extraField: string): string {
+  // Cloze: translation embedded in Text field
+  const clozeMatch = textField.match(/Translation:\s*([^<]+)/i);
+  if (clozeMatch) return clozeMatch[1].trim();
+
+  // Basic: first segment of Back field
+  if (backField) {
+    const beforeBreak = backField.split(/<br\s*\/?><br\s*\/?>/i)[0] ?? '';
+    const text = stripHtml(beforeBreak);
+    if (text) return text;
   }
 
+  // Extra field fallback: "<b>word</b> = meaning"
+  if (extraField) {
+    const eqMatch = extraField.match(/=\s*(.+)$/);
+    if (eqMatch) return stripHtml(eqMatch[1]);
+  }
+
+  return '';
+}
+
+/**
+ * Query AnkiConnect for all lector-created cards (tagged `lector` or
+ * `afrikaans-reader`) and return a map of
+ * word → { type, interval, sentence, translation, deckName }.
+ * When a word has multiple cards the one that maps to the highest lector
+ * state is kept.
+ *
+ * The sync is scoped to lector's own tags on purpose — every card lector
+ * exports is tagged, so this catches all of them. It deliberately does NOT
+ * scan whole decks: that sweeps in the user's hand-made cards (custom note
+ * types, English-fronted Basic cards) that lector can't reliably read a word
+ * from, producing junk imports.
+ */
+export async function syncWordStates(): Promise<
+  Map<string, { interval: number; type: number; sentence: string; translation: string; deckName: string }>
+> {
+  const query = "(tag:lector OR tag:afrikaans-reader)";
   console.log(`Anki sync query: ${query}`);
   const cardIds = await ankiRequest<number[]>("findCards", { query });
   console.log(`Found ${cardIds.length} cards in Anki`);
@@ -277,43 +437,35 @@ export async function syncWordStates(deckName?: string): Promise<
     cards: cardIds,
   });
 
-  // Build a map of word -> interval
-  const wordStates = new Map<string, { interval: number; deckName: string }>();
+  // Build a map of word -> { type, interval, sentence, translation, deckName }
+  const wordStates = new Map<string, { interval: number; type: number; sentence: string; translation: string; deckName: string }>();
 
   for (const card of cardsInfo) {
-    // Extract the target word from the card
-    // Try multiple strategies:
-    // 1. Look for bold text (our format): <b>word</b>
-    // 2. Look for a "Word" field
-    // 3. Use plain Front field (typical vocab cards)
-    // 4. Use plain Text field (cloze cards)
+    // Extract the target word. Try in order:
+    // 1. Bold text (our format): <b>word</b>
+    // 2. Dedicated Word field
+    // 3. Plain Front field (simple vocab cards, ≤ 50 chars, no full stop)
+    // 4. Cloze text: {{c1::word}} pattern
 
     let word: string | null = null;
 
     const frontField = card.fields["Front"]?.value || "";
     const textField = card.fields["Text"]?.value || "";
+    const backField = card.fields["Back"]?.value || "";
+    const extraField = card.fields["Extra"]?.value || "";
     const wordField = card.fields["Word"]?.value || "";
 
-    // Strategy 1: Bold text in front/text field
     const boldMatch = (frontField || textField).match(/<b>([^<]+)<\/b>/);
     if (boldMatch) {
       word = boldMatch[1];
-    }
-    // Strategy 2: Dedicated Word field
-    else if (wordField) {
-      word = wordField.replace(/<[^>]*>/g, '').trim(); // Strip HTML
-    }
-    // Strategy 3: Plain front field (single word or short phrase)
-    else if (frontField) {
-      // Strip HTML and get first word if it's just a simple vocab card
+    } else if (wordField) {
+      word = wordField.replace(/<[^>]*>/g, '').trim();
+    } else if (frontField) {
       const plainText = frontField.replace(/<[^>]*>/g, '').trim();
-      // Only use if it looks like a single word/short phrase (no sentences)
       if (plainText.length < 50 && !plainText.includes('.')) {
-        word = plainText.split(/\s+/)[0]; // Get first word
+        word = plainText.split(/\s+/)[0];
       }
-    }
-    // Strategy 4: Cloze - extract from {{c1::word}} pattern
-    else if (textField) {
+    } else if (textField) {
       const clozeMatch = textField.match(/\{\{c\d+::([^}]+)\}\}/);
       if (clozeMatch) {
         word = clozeMatch[1];
@@ -322,13 +474,26 @@ export async function syncWordStates(deckName?: string): Promise<
 
     if (word) {
       word = word.toLowerCase().trim();
-      // Keep the card with the highest interval (most learned)
-      const existing = wordStates.get(word);
-      if (!existing || card.interval > existing.interval) {
-        wordStates.set(word, {
-          interval: card.interval,
-          deckName: card.deckName,
-        });
+      const cardState = ankiCardToState(card.type, card.interval);
+      // Skip New cards — they carry no learning signal and must not occupy a
+      // word slot, so a word whose only cards are New stays out of the sync.
+      if (cardState) {
+        // Keep the card that maps to the highest lector state (dedup by rank).
+        const existing = wordStates.get(word);
+        const cardRank = STATE_RANK[cardState];
+        const existingState = existing
+          ? ankiCardToState(existing.type, existing.interval)
+          : null;
+        const existingRank = existingState ? STATE_RANK[existingState] : -1;
+        if (cardRank > existingRank) {
+          wordStates.set(word, {
+            interval: card.interval,
+            type: card.type,
+            sentence: extractSentence(frontField, textField),
+            translation: extractTranslation(backField, textField, extraField),
+            deckName: card.deckName,
+          });
+        }
       }
     }
   }

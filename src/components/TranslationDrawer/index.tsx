@@ -6,7 +6,7 @@ import type { WordState } from '@/types';
 import { sentenceContainsWord } from '@/lib/words';
 import { TranslationDrawerProps } from './types';
 import { wordStateColors, wordStateLabels } from './constants';
-import { ChevronRight, RefreshCw, Volume2, X, Zap } from 'lucide-react';
+import { ChevronRight, RefreshCw, Sparkles, Volume2, X, Zap } from 'lucide-react';
 import NestedWordButton from './components/NestedWordButton';
 import Gloss from './components/Gloss';
 
@@ -25,6 +25,8 @@ export default function TranslationDrawer({
   isDictionaryResult,
   isLoading,
   isContextLoading,
+  isStreaming,
+  isEnriching,
   error,
   existingEntry,
   onClose,
@@ -33,11 +35,20 @@ export default function TranslationDrawer({
   onMarkKnown,
   onIgnore,
   onRequestContextTranslation,
+  onEnrich,
   onRetranslate,
   onLookupWord,
+  onAddToAnki,
+  onAddCloze,
 }: TranslationDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [relatedExpanded, setRelatedExpanded] = useState(false);
+  // Anki push status for single-word cards
+  const [ankiStatus, setAnkiStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  // Cloze picker state for phrase selections
+  const [clozePickerOpen, setClozePickerOpen] = useState(false);
+  const [clozeBlankWord, setClozeBlankWord] = useState<string | null>(null);
+  const [clozeStatus, setClozeStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   // Reset the "show all related forms" toggle whenever the looked-up word
   // changes — uses React's adjusting-state-during-render pattern so we avoid
   // a setState-in-effect cascade.
@@ -45,6 +56,10 @@ export default function TranslationDrawer({
   if (word !== prevWord) {
     setPrevWord(word);
     setRelatedExpanded(false);
+    setAnkiStatus('idle');
+    setClozePickerOpen(false);
+    setClozeBlankWord(null);
+    setClozeStatus('idle');
   }
 
   useEffect(() => {
@@ -250,6 +265,12 @@ export default function TranslationDrawer({
               )}
               <span className="text-foreground leading-relaxed">
                 {fallbackTranslation}
+                {isStreaming && (
+                  <span
+                    className="ml-0.5 inline-block w-1.5 h-4 -mb-0.5 bg-primary animate-pulse"
+                    aria-hidden="true"
+                  />
+                )}
               </span>
             </div>
           ) : (
@@ -275,6 +296,28 @@ export default function TranslationDrawer({
             <span className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--clay)]">
               <span className="w-3 h-3 border-2 border-[var(--clay)] border-t-transparent rounded-full animate-spin" />
               Asking AI…
+            </span>
+          )}
+
+          {/* Enrich — upgrade a fast streamed gloss to the full dictionary entry
+              (senses, IPA, etymology, related forms). Only offered for a bare AI
+              gloss (the page passes onEnrich only when there's no rich entry yet). */}
+          {onEnrich && !isPhrase && !isLoading && !isStreaming && !isContextLoading && !isEnriching && (
+            <button
+              onClick={onEnrich}
+              className="mt-3 ml-2 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md
+                bg-muted text-muted-foreground
+                hover:bg-accent hover:text-foreground transition-colors"
+              title="Add IPA, etymology, full senses & related forms"
+            >
+              <Sparkles className="w-3 h-3" />
+              Enrich
+            </button>
+          )}
+          {isEnriching && (
+            <span className="mt-3 ml-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="w-3 h-3 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+              Enriching…
             </span>
           )}
         </section>
@@ -391,8 +434,8 @@ export default function TranslationDrawer({
         )}
       </div>
 
-      {/* Footer — action buttons. Hidden if no level/known/ignore/retranslate callbacks are provided. */}
-      {(onSetLevel || onMarkKnown || onIgnore || onRetranslate) && (
+      {/* Footer — action buttons. */}
+      {(onSetLevel || onMarkKnown || onIgnore || onRetranslate || onAddToAnki || onAddCloze) && (
         <div className="flex-shrink-0 px-4 py-3 border-t border-border bg-muted/50 space-y-2">
           {(onSetLevel || onMarkKnown || onIgnore) && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -456,6 +499,124 @@ export default function TranslationDrawer({
               <RefreshCw className="w-3.5 h-3.5" />
               Re-translate with AI
             </button>
+          )}
+          {/* Anki — single word: pure word card */}
+          {!isPhrase && onAddToAnki && (hasRichEntry || fallbackTranslation) && !isLoading && (
+            <button
+              data-testid="add-to-anki-btn"
+              onClick={async () => {
+                if (ankiStatus === 'loading' || ankiStatus === 'done') return;
+                setAnkiStatus('loading');
+                try {
+                  await onAddToAnki();
+                  setAnkiStatus('done');
+                } catch {
+                  setAnkiStatus('error');
+                }
+              }}
+              disabled={ankiStatus === 'loading' || ankiStatus === 'done'}
+              className={`w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors
+                ${ankiStatus === 'done'
+                  ? 'border-primary/40 bg-primary/10 text-[var(--primary-text)] cursor-default'
+                  : ankiStatus === 'error'
+                  ? 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20'
+                  : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
+                }`}
+            >
+              {ankiStatus === 'done'
+                ? '✓ Added to Anki'
+                : ankiStatus === 'loading'
+                ? 'Adding…'
+                : ankiStatus === 'error'
+                ? 'Anki error — retry'
+                : 'Add to Anki'}
+            </button>
+          )}
+          {/* Anki — phrase: cloze card with inline word picker */}
+          {isPhrase && onAddCloze && (fallbackTranslation || aiPhraseDetails) && !isLoading && (
+            <div data-testid="add-cloze-section">
+              {!clozePickerOpen ? (
+                <button
+                  data-testid="add-cloze-btn"
+                  onClick={() => setClozePickerOpen(true)}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                >
+                  Add to Anki as Cloze
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Pick a word to blank:</p>
+                  <div className="flex flex-wrap gap-1" data-testid="cloze-word-chips">
+                    {word.split(/\s+/).filter(Boolean).map((w, i) => (
+                      <button
+                        key={i}
+                        data-testid={`cloze-chip-${i}`}
+                        onClick={() => setClozeBlankWord(clozeBlankWord === w ? null : w)}
+                        className={`px-2 py-0.5 rounded text-sm font-medium transition-colors
+                          ${clozeBlankWord === w
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-foreground hover:bg-accent'
+                          }`}
+                      >
+                        {w}
+                      </button>
+                    ))}
+                  </div>
+                  {clozeBlankWord && (
+                    <p className="text-xs font-mono text-muted-foreground" data-testid="cloze-preview">
+                      {word.split(/\s+/).filter(Boolean).map((w, i) => (
+                        <span key={i}>
+                          {i > 0 && ' '}
+                          {w === clozeBlankWord ? <span className="text-primary font-semibold">[{w}]</span> : w}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      data-testid="cloze-send-btn"
+                      onClick={async () => {
+                        if (!clozeBlankWord || clozeStatus === 'loading' || clozeStatus === 'done') return;
+                        setClozeStatus('loading');
+                        try {
+                          await onAddCloze(clozeBlankWord);
+                          setClozeStatus('done');
+                        } catch {
+                          setClozeStatus('error');
+                        }
+                      }}
+                      disabled={!clozeBlankWord || clozeStatus === 'loading' || clozeStatus === 'done'}
+                      className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors
+                        ${!clozeBlankWord || clozeStatus === 'loading'
+                          ? 'border-border text-muted-foreground opacity-50 cursor-not-allowed'
+                          : clozeStatus === 'done'
+                          ? 'border-primary/40 bg-primary/10 text-[var(--primary-text)] cursor-default'
+                          : clozeStatus === 'error'
+                          ? 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20'
+                          : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
+                        }`}
+                    >
+                      {clozeStatus === 'done'
+                        ? '✓ Sent to Anki'
+                        : clozeStatus === 'loading'
+                        ? 'Sending…'
+                        : clozeStatus === 'error'
+                        ? 'Error — retry'
+                        : 'Send to Anki'}
+                    </button>
+                    {clozeStatus !== 'done' && (
+                      <button
+                        data-testid="cloze-cancel-btn"
+                        onClick={() => { setClozePickerOpen(false); setClozeBlankWord(null); setClozeStatus('idle'); }}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -46,6 +46,10 @@ export interface TranslationDrawerProps {
 
   isLoading?: boolean;
   isContextLoading?: boolean;
+  /** True while the fast gloss is still streaming — renders a live caret. */
+  isStreaming?: boolean;
+  /** True while the rich "enrich" lookup is in flight. */
+  isEnriching?: boolean;
   error?: string | null;
 
   /** Existing vocab record (if word was previously saved). */
@@ -61,9 +65,16 @@ export interface TranslationDrawerProps {
   onIgnore?: () => void;
   /** Request a fresh contextual translation from the AI (uses surrounding sentence). */
   onRequestContextTranslation?: () => void;
+  /** Upgrade a fast streamed gloss to the full dictionary entry (senses, IPA,
+      etymology, related forms). When absent the Enrich button is hidden. */
+  onEnrich?: () => void;
   /** Force a fresh LLM lookup, ignoring cache + local dict. */
   onRetranslate?: () => void;
   /** Look up a word referenced inside the entry (form-of glosses, lemma stem,
       related forms — issue #106). When absent, references render as plain text. */
   onLookupWord?: (word: string) => void;
+  /** Push a pure word card to the default Anki deck (single-word selections only). */
+  onAddToAnki?: () => Promise<void>;
+  /** Push a cloze card — called with the word the user chose to blank (phrase selections only). */
+  onAddCloze?: (blankWord: string) => Promise<void>;
 }

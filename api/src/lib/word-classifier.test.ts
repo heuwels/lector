@@ -12,6 +12,11 @@ function mockProvider(response: string): LLMProvider & { calls: CompletionOption
       calls.push(options);
       return response;
     },
+    // The classifier only ever calls complete(); stream() exists solely to
+    // satisfy the LLMProvider interface (master added it for the gloss path).
+    stream(): AsyncIterable<string> {
+      throw new Error('mockProvider.stream() is not used by the word classifier');
+    },
     async healthCheck() {
       return { ok: true };
     },

@@ -580,8 +580,12 @@ export interface FluencyStats {
   estimatedLevel: {
     code: string;
     label: string;
+    min: number;
+    max: number | null;
   };
+  nextLevel: { code: string; label: string } | null;
   progressToNextLevel: number;
+  wordsToNextLevel: number | null;
   weeklyGrowth: {
     thisWeek: number;
     lastWeek: number;
@@ -599,7 +603,7 @@ export async function getFluencyStats(): Promise<FluencyStats> {
 }
 
 export async function getReadingStats(): Promise<import('./stats-derive').ReadingStats> {
-  const res = await fetch('/api/stats/reading');
+  const res = await fetch(`/api/stats/reading${langParam()}`);
   return res.json();
 }
 
@@ -886,7 +890,7 @@ export interface ChatMessage {
 }
 
 export async function getChatMessages(limit: number = 50, before?: string): Promise<ChatMessage[]> {
-  const params = new URLSearchParams({ limit: limit.toString() });
+  const params = new URLSearchParams({ limit: limit.toString(), language: getActiveLanguage() });
   if (before) params.set('before', before);
   const res = await fetch(`/api/chat?${params}`);
   return res.json();
@@ -899,7 +903,7 @@ export async function sendChatMessage(message: string): Promise<{
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, language: getActiveLanguage() }),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -909,5 +913,5 @@ export async function sendChatMessage(message: string): Promise<{
 }
 
 export async function clearChatMessages(): Promise<void> {
-  await fetch('/api/chat', { method: 'DELETE' });
+  await fetch(`/api/chat${langParam()}`, { method: 'DELETE' });
 }

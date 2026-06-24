@@ -241,7 +241,16 @@ export default function Home() {
     }
   }
 
-  const hasGroups = groups.length > 0;
+  // Groups are language-agnostic, but `collections` here is already scoped to the
+  // active language. Show a group when it has a collection in this language, or
+  // when it has no collections at all (a brand-new/emptied group — kept visible
+  // so it can be populated). Hide groups whose collections all belong to other
+  // languages. `collectionCount` is the group's total across all languages.
+  const visibleGroups = groups.filter(
+    (g) => (groupedCollections.get(g.id)?.length ?? 0) > 0 || (g.collectionCount ?? 0) === 0,
+  );
+
+  const hasGroups = visibleGroups.length > 0;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -320,7 +329,7 @@ export default function Home() {
           {collections.length > 0 || hasGroups ? (
             <div className="space-y-10">
               {/* Grouped sections */}
-              {groups.map((group) => {
+              {visibleGroups.map((group) => {
                 const items = groupedCollections.get(group.id) || [];
                 const isCollapsed = collapsedGroups.has(group.id);
                 return (

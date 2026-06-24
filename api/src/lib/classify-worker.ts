@@ -14,12 +14,13 @@
 
 import { Database } from 'bun:sqlite';
 import { db } from '../db';
+import { MASTERY_STATES } from './domains';
 import { classifyWords, type ClassifyItem, type ClassifyResult } from './word-classifier';
 
-// Only states that COUNT toward the radar are worth classifying — skip new/ignored
-// to save calls. If such a word later reaches a mastery state it's still
-// domain IS NULL, so the next sweep picks it up then.
-const MASTERY_STATES = ['level1', 'level2', 'level3', 'level4', 'known'] as const;
+// Only states that COUNT toward the radar are worth classifying (MASTERY_STATES,
+// shared with the radar aggregation) — skip new/ignored to save calls. If such a
+// word later reaches a mastery state it's still domain IS NULL, so the next sweep
+// picks it up then.
 
 export interface PendingRow {
   word: string;

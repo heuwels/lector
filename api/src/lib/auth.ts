@@ -4,6 +4,7 @@ import { hashToken } from './crypto';
 
 const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   collections:     { read: 'collections:read', write: 'collections:write' },
+  groups:          { read: 'collections:read', write: 'collections:write' },
   lessons:         { read: 'collections:read', write: 'collections:write' },
   vocab:           { read: 'vocab:read',       write: 'vocab:write' },
   'known-words':   { read: 'vocab:read',       write: 'vocab:write' },
@@ -14,12 +15,14 @@ const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   explain:         { read: 'vocab:read',       write: 'vocab:read' },
   tts:             { read: 'vocab:read',       write: 'vocab:read' },
   tatoeba:         { read: 'vocab:read',       write: 'vocab:read' },
+  dictionary:      { read: 'vocab:read',       write: 'vocab:read' },
   anki:            { read: 'settings:read',    write: 'settings:write' },
   'study-ping':    { read: 'stats:read',       write: 'stats:write' },
   data:            { read: 'data:export',      write: 'data:import' },
   'extract-url':   { read: 'collections:write', write: 'collections:write' },
   import:          { read: 'collections:write', write: 'collections:write' },
   'journal-correct': { read: 'vocab:read',     write: 'vocab:read' },
+  journal:         { read: 'collections:read', write: 'collections:write' },
   'llm-status':    { read: 'settings:read',    write: 'settings:write' },
   'translate-compare': { read: 'vocab:read',  write: 'vocab:write' },
 };

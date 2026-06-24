@@ -24,23 +24,33 @@ import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary
 import { splitTrailingPunctuation } from '@/lib/words';
 import {
   createBlankedSentence,
+  calculateDictationPoints,
   calculateNextReview,
   calculatePoints,
   checkAnswer,
+  diffDictation,
   generateDistractors,
   getFuzzyStatus,
   normalize,
+  scoreDictation,
   shuffle,
 } from './utils';
 import type {
   CurrentSentence,
+  DictationResult,
   IFeedbackData,
+  PracticeFormat,
   PracticeMode,
   PracticeState,
   RoundSize,
   RoundType,
 } from './types';
-import { COLLECTION_LABELS, ROUND_SIZES, VISIBLE_COLLECTIONS } from './constants';
+import {
+  COLLECTION_LABELS,
+  PRACTICE_FORMAT_SETTING_KEY,
+  ROUND_SIZES,
+  VISIBLE_COLLECTIONS,
+} from './constants';
 import BlacklistSentence from './components/BlacklistSentence';
 import { Button } from '@/components/ui/button';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
@@ -48,6 +58,8 @@ import { SETTINGS_KEYS } from '@/app/settings/constants';
 import EmptyState from './components/EmptyState';
 import PageHeader from '@/components/PageHeader';
 import Feedback from './components/Feedback';
+import DictationCard from './components/Dictation/DictationCard';
+import DictationFeedback from './components/Dictation/DictationFeedback';
 
 export default function PracticePage() {
   // State
@@ -66,9 +78,13 @@ export default function PracticePage() {
   // setting on mount; Alt+T toggles it live during a round.
   const [showTranslation, setShowTranslation] = useState(true);
 
-  // Practice mode
+  // Practice format (cloze vs dictation) and, within cloze, the answer mode
+  const [practiceFormat, setPracticeFormat] = useState<PracticeFormat>('cloze');
   const [practiceMode, setPracticeMode] = useState<PracticeMode>('type');
   const [roundType, setRoundType] = useState<RoundType>('new');
+
+  // Dictation result (the graded diff), shown on the feedback screen
+  const [dictationResult, setDictationResult] = useState<DictationResult | null>(null);
 
   // Multiple choice state
   const [mcOptions, setMcOptions] = useState<string[]>([]);
@@ -128,6 +144,12 @@ export default function PracticePage() {
         setPracticeMode(savedMode);
       }
 
+      // Load saved practice format (cloze vs dictation)
+      const savedFormat = localStorage.getItem(PRACTICE_FORMAT_SETTING_KEY);
+      if (savedFormat === 'cloze' || savedFormat === 'dictation') {
+        setPracticeFormat(savedFormat);
+      }
+
       // Respect the "hide translation by default" setting (Alt+T toggles live)
       setShowTranslation(localStorage.getItem(SETTINGS_KEYS.HIDE_TRANSLATION) !== 'true');
 
@@ -145,6 +167,12 @@ export default function PracticePage() {
   const handleSetPracticeMode = useCallback((mode: PracticeMode) => {
     setPracticeMode(mode);
     localStorage.setItem('cloze-practice-mode', mode);
+  }, []);
+
+  // Save practice format (cloze vs dictation) to localStorage when it changes
+  const handleSetPracticeFormat = useCallback((format: PracticeFormat) => {
+    setPracticeFormat(format);
+    localStorage.setItem(PRACTICE_FORMAT_SETTING_KEY, format);
   }, []);
 
   // Handle word click for inline definitions
@@ -275,23 +303,29 @@ export default function PracticePage() {
       setCurrent({ sentence: nextSentence, blankedSentence });
       setUserAnswer('');
       setFeedbackData(null);
+      setDictationResult(null);
       setHintLetters(0);
       setMcFallback(false);
       setWordTooltip(null);
       submittingRef.current = false;
       setState('practicing');
 
-      // Generate MC options if in MC mode
-      if (practiceMode === 'mc') {
-        generateMcOptionsForSentence(nextSentence, sentenceQueue);
-      }
+      // Cloze-only setup. Dictation renders its own card, which manages audio
+      // autoplay and input focus itself, so skip MC generation and the input
+      // focus here when dictating.
+      if (practiceFormat === 'cloze') {
+        // Generate MC options if in MC mode
+        if (practiceMode === 'mc') {
+          generateMcOptionsForSentence(nextSentence, sentenceQueue);
+        }
 
-      // Focus input after state update (only in type mode)
-      if (practiceMode === 'type') {
-        setTimeout(() => inputRef.current?.focus(), 50);
+        // Focus input after state update (only in type mode)
+        if (practiceMode === 'type') {
+          setTimeout(() => inputRef.current?.focus(), 50);
+        }
       }
     },
-    [practiceMode, generateMcOptionsForSentence, clearMcTimer],
+    [practiceFormat, practiceMode, generateMcOptionsForSentence, clearMcTimer],
   );
 
   // Start a round with explicit params (used by review buttons)
@@ -364,30 +398,13 @@ export default function PracticePage() {
     inputRef.current?.focus();
   }, [current, hintLetters, userAnswer]);
 
-  // Record a completed answer: update the SRS card, points, and round stats,
-  // then show feedback. Shared by typed answers and multiple choice — the only
-  // differences are how correctness is decided (the caller's job, before the
-  // pause/sound) and the points base (8 for typing, 4 for MC), passed via `mode`.
-  const recordAnswer = useCallback(
-    async (isCorrect: boolean, submittedAnswer: string, mode: PracticeMode) => {
+  // Persist a graded answer to the shared SRS card and update round/points
+  // state. Format-agnostic: cloze and dictation both decide correctness and
+  // points their own way, then hand the result here. The card, mastery levels
+  // and retry queue are identical across formats (same clozeSentences row).
+  const commitReview = useCallback(
+    async (isCorrect: boolean, earnedPoints: number, newMastery: ClozeMasteryLevel) => {
       if (!current) return;
-
-      const previousMastery = current.sentence.masteryLevel;
-      const newMastery: ClozeMasteryLevel = isCorrect
-        ? (Math.min(previousMastery + 25, 100) as ClozeMasteryLevel)
-        : 0;
-
-      // No points in the retry phase — the answer was revealed when the card
-      // was first missed this round. Points scale with the mastery just reached.
-      const earnedPoints =
-        isCorrect && !isRetryPhase
-          ? calculatePoints(
-              newMastery,
-              hintLetters,
-              normalize(current.sentence.clozeWord).length,
-              mode,
-            )
-          : 0;
       const nextReview = calculateNextReview(newMastery);
 
       // Update database
@@ -412,6 +429,46 @@ export default function PracticePage() {
         setPoints((prev) => prev + earnedPoints);
       }
 
+      if (!isCorrect) {
+        // Add to retry queue so incorrect answers are re-tested. The card was
+        // just demoted to mastery 0 in the DB — the queued copy must carry that,
+        // or the retry would promote it straight back from its old level.
+        setRetryQueue((prev) => [
+          ...prev,
+          { ...current.sentence, masteryLevel: 0 as ClozeMasteryLevel },
+        ]);
+      }
+    },
+    [current, isRetryPhase],
+  );
+
+  // Record a completed cloze answer: decide the mastery and points, then show
+  // feedback. Shared by typed answers and multiple choice — the only
+  // differences are how correctness is decided (the caller's job, before the
+  // pause/sound) and the points base (8 for typing, 4 for MC), passed via `mode`.
+  const recordAnswer = useCallback(
+    async (isCorrect: boolean, submittedAnswer: string, mode: PracticeMode) => {
+      if (!current) return;
+
+      const previousMastery = current.sentence.masteryLevel;
+      const newMastery: ClozeMasteryLevel = isCorrect
+        ? (Math.min(previousMastery + 25, 100) as ClozeMasteryLevel)
+        : 0;
+
+      // No points in the retry phase — the answer was revealed when the card
+      // was first missed this round. Points scale with the mastery just reached.
+      const earnedPoints =
+        isCorrect && !isRetryPhase
+          ? calculatePoints(
+              newMastery,
+              hintLetters,
+              normalize(current.sentence.clozeWord).length,
+              mode,
+            )
+          : 0;
+
+      await commitReview(isCorrect, earnedPoints, newMastery);
+
       setFeedbackData({
         isCorrect,
         correctWord: splitTrailingPunctuation(current.sentence.clozeWord)[0],
@@ -426,17 +483,57 @@ export default function PracticePage() {
 
       if (isCorrect) {
         speak(current.sentence.sentence);
-      } else {
-        // Add to retry queue so incorrect answers are re-tested. The card was
-        // just demoted to mastery 0 in the DB — the queued copy must carry that,
-        // or the retry would promote it straight back from its old level.
-        setRetryQueue((prev) => [
-          ...prev,
-          { ...current.sentence, masteryLevel: 0 as ClozeMasteryLevel },
-        ]);
       }
     },
-    [current, hintLetters, isRetryPhase],
+    [current, hintLetters, isRetryPhase, commitReview],
+  );
+
+  // Record a completed dictation answer: word-level diff against the spoken
+  // sentence drives the score. A pass (≥ threshold of the words) advances the
+  // SRS card; anything less resets it, matching cloze's miss behaviour. Points
+  // scale with both the mastery reached and the transcription accuracy.
+  //
+  // Surrender reveals the answer without finishing it: it's always a miss (the
+  // card resets and re-queues, like a wrong cloze answer), regardless of what
+  // was typed so far — so it can never accidentally award a pass.
+  const recordDictation = useCallback(
+    async (typed: string, surrendered = false) => {
+      if (!current) return;
+
+      const diff = diffDictation(typed, current.sentence.sentence);
+      const score = scoreDictation(diff);
+      const isPass = surrendered ? false : score.isPass;
+      const isPerfect = surrendered ? false : score.isPerfect;
+
+      if (isPass) {
+        playCorrectSound();
+      } else {
+        playIncorrectSound();
+      }
+
+      const previousMastery = current.sentence.masteryLevel;
+      const newMastery: ClozeMasteryLevel = isPass
+        ? (Math.min(previousMastery + 25, 100) as ClozeMasteryLevel)
+        : 0;
+      const earnedPoints =
+        isPass && !isRetryPhase ? calculateDictationPoints(newMastery, diff.accuracy) : 0;
+
+      await commitReview(isPass, earnedPoints, newMastery);
+
+      setDictationResult({
+        diff,
+        typedRaw: typed,
+        isPass,
+        isPerfect,
+        surrendered,
+        points: earnedPoints,
+        newMastery,
+        previousMastery,
+      });
+
+      setState('feedback');
+    },
+    [current, isRetryPhase, commitReview],
   );
 
   // Handle answer submission (type mode)
@@ -514,7 +611,12 @@ export default function PracticePage() {
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-    if (state === 'practicing' && practiceMode === 'mc' && !mcLocked) {
+    if (
+      state === 'practicing' &&
+      practiceFormat === 'cloze' &&
+      practiceMode === 'mc' &&
+      !mcLocked
+    ) {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         // Number keys 1-4 for MC selection
@@ -535,7 +637,7 @@ export default function PracticePage() {
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
     // Space to trigger TTS in type mode when input is not focused
-    if (state === 'practicing' && practiceMode === 'type') {
+    if (state === 'practicing' && practiceFormat === 'cloze' && practiceMode === 'type') {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === ' ' && document.activeElement !== inputRef.current) {
           e.preventDefault();
@@ -545,7 +647,16 @@ export default function PracticePage() {
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [state, handleNext, practiceMode, mcLocked, mcOptions, handleMcSelect, current]);
+  }, [
+    state,
+    handleNext,
+    practiceFormat,
+    practiceMode,
+    mcLocked,
+    mcOptions,
+    handleMcSelect,
+    current,
+  ]);
 
   // Alt+T toggles translation visibility (while practicing and on feedback)
   useEffect(() => {
@@ -596,48 +707,87 @@ export default function PracticePage() {
         {/* Setup screen */}
         {state === 'setup' && (
           <div className="py-6">
-            <PageHeader title="Cloze Practice"></PageHeader>
+            <PageHeader
+              title={practiceFormat === 'dictation' ? 'Dictation Practice' : 'Cloze Practice'}
+            ></PageHeader>
 
-            {/* Review Due section */}
-            {(() => {
-              const totalDue = VISIBLE_COLLECTIONS.reduce(
-                (sum, c) => sum + (collectionCounts?.[c]?.due || 0),
-                0,
-              );
-              if (totalDue === 0) return null;
-              return (
-                <div className="mb-8 rounded-2xl border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-5">
-                  <h2 className="mb-3 text-base font-semibold text-[var(--gold-strong)]">
-                    Review Due ({totalDue})
-                  </h2>
-                  <div className="space-y-2">
-                    {VISIBLE_COLLECTIONS.map((coll) => {
-                      const due = collectionCounts?.[coll]?.due || 0;
-                      if (due === 0) return null;
-                      return (
-                        <button
-                          key={coll}
-                          onClick={() => {
-                            setSelectedCollection(coll);
-                            setRoundType('review');
-                            setRoundSize(Math.min(due, 20) as RoundSize);
-                            startRoundWith(coll, 'review', Math.min(due, 20));
-                          }}
-                          className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition-all hover:border-[var(--gold-strong)] active:scale-[0.98]"
-                        >
-                          <span className="font-medium text-foreground">
-                            {COLLECTION_LABELS[coll]}
-                          </span>
-                          <span className="text-sm font-semibold text-[var(--gold-strong)]">
-                            {due} due
-                          </span>
-                        </button>
-                      );
-                    })}
+            {/* Practice format: Cloze (fill the blank) vs Dictation (hear the
+                sentence, type it back). Both share the collection / round size /
+                review options below. */}
+            <div className="mb-6">
+              <div className="grid grid-cols-2 gap-2">
+                {/* Explicit aria-labels keep each button's accessible name to
+                    just "Cloze"/"Dictation" — the descriptive subtitle stays
+                    visible but doesn't leak into role-based locators (e.g. the
+                    cloze "Type" mode button would otherwise also match the
+                    "Type what you hear" subtitle). */}
+                <Button
+                  aria-label="Cloze"
+                  onClick={() => handleSetPracticeFormat('cloze')}
+                  variant={practiceFormat === 'cloze' ? 'default' : 'secondary'}
+                  className="flex h-14 flex-col justify-center gap-0"
+                >
+                  <div>Cloze</div>
+                  <div className="mt-0.5 text-[11px] font-normal opacity-75">Fill in the blank</div>
+                </Button>
+                <Button
+                  aria-label="Dictation"
+                  onClick={() => handleSetPracticeFormat('dictation')}
+                  variant={practiceFormat === 'dictation' ? 'default' : 'secondary'}
+                  className="flex h-14 flex-col justify-center gap-0"
+                >
+                  <div>Dictation</div>
+                  <div className="mt-0.5 text-[11px] font-normal opacity-75">
+                    Type what you hear
                   </div>
-                </div>
-              );
-            })()}
+                </Button>
+              </div>
+            </div>
+
+            {/* Review Due section — cloze only. Dictation is a focused
+                listening drill, so the SRS review reminders (a cloze-practice
+                concern) are hidden there and only the Learn New flow remains
+                (issue #191). */}
+            {practiceFormat === 'cloze' &&
+              (() => {
+                const totalDue = VISIBLE_COLLECTIONS.reduce(
+                  (sum, c) => sum + (collectionCounts?.[c]?.due || 0),
+                  0,
+                );
+                if (totalDue === 0) return null;
+                return (
+                  <div className="mb-8 rounded-2xl border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-5">
+                    <h2 className="mb-3 text-base font-semibold text-[var(--gold-strong)]">
+                      Review Due ({totalDue})
+                    </h2>
+                    <div className="space-y-2">
+                      {VISIBLE_COLLECTIONS.map((coll) => {
+                        const due = collectionCounts?.[coll]?.due || 0;
+                        if (due === 0) return null;
+                        return (
+                          <button
+                            key={coll}
+                            onClick={() => {
+                              setSelectedCollection(coll);
+                              setRoundType('review');
+                              setRoundSize(Math.min(due, 20) as RoundSize);
+                              startRoundWith(coll, 'review', Math.min(due, 20));
+                            }}
+                            className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition-all hover:border-[var(--gold-strong)] active:scale-[0.98]"
+                          >
+                            <span className="font-medium text-foreground">
+                              {COLLECTION_LABELS[coll]}
+                            </span>
+                            <span className="text-sm font-semibold text-[var(--gold-strong)]">
+                              {due} due
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
             {/* Learn New section */}
             <div className="rounded-2xl border border-border bg-card p-5">
@@ -689,25 +839,29 @@ export default function PracticePage() {
                     ))}
                   </div>
                 </div>
-                <div className="">
-                  <label className="mb-2 block text-xs font-medium text-muted-foreground">
-                    Mode
-                  </label>
-                  <div className="flex gap-1.5">
-                    <Button
-                      onClick={() => handleSetPracticeMode('type')}
-                      variant={practiceMode === 'type' ? 'default' : 'secondary'}
-                    >
-                      Type
-                    </Button>
-                    <Button
-                      onClick={() => handleSetPracticeMode('mc')}
-                      variant={practiceMode === 'mc' ? 'default' : 'secondary'}
-                    >
-                      MC
-                    </Button>
+                {/* Type/MC only applies to cloze — dictation is always
+                    type-the-whole-sentence. */}
+                {practiceFormat === 'cloze' && (
+                  <div className="">
+                    <label className="mb-2 block text-xs font-medium text-muted-foreground">
+                      Mode
+                    </label>
+                    <div className="flex gap-1.5">
+                      <Button
+                        onClick={() => handleSetPracticeMode('type')}
+                        variant={practiceMode === 'type' ? 'default' : 'secondary'}
+                      >
+                        Type
+                      </Button>
+                      <Button
+                        onClick={() => handleSetPracticeMode('mc')}
+                        variant={practiceMode === 'mc' ? 'default' : 'secondary'}
+                      >
+                        MC
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Start button */}
@@ -772,9 +926,22 @@ export default function PracticePage() {
               </div>
             )}
 
-            {/* Practice state */}
+            {/* Practice state — dictation. Keyed by sentence id so the card
+                remounts per sentence (fresh input, replay budget, autoplay). */}
+            {state === 'practicing' && current && practiceFormat === 'dictation' && (
+              <DictationCard
+                key={current.sentence.id}
+                current={current}
+                onSubmit={(typed) => recordDictation(typed)}
+                onSurrender={(typed) => recordDictation(typed, true)}
+                onSentenceBlacklisted={handleSentenceBlacklisted}
+              />
+            )}
+
+            {/* Practice state — cloze */}
             {state === 'practicing' &&
               current &&
+              practiceFormat === 'cloze' &&
               (() => {
                 const fuzzyStatus = getFuzzyStatus(userAnswer, current.sentence.clozeWord);
                 const inputColorClass = {
@@ -1007,8 +1174,21 @@ export default function PracticePage() {
                 );
               })()}
 
-            {/* Feedback state */}
-            {state === 'feedback' && current && feedbackData && (
+            {/* Feedback state — dictation */}
+            {state === 'feedback' &&
+              current &&
+              practiceFormat === 'dictation' &&
+              dictationResult && (
+                <DictationFeedback
+                  result={dictationResult}
+                  translation={current.sentence.translation}
+                  onNext={handleNext}
+                  onSpeak={() => speak(current.sentence.sentence)}
+                />
+              )}
+
+            {/* Feedback state — cloze */}
+            {state === 'feedback' && current && practiceFormat === 'cloze' && feedbackData && (
               <Feedback
                 feedbackData={feedbackData}
                 current={current}

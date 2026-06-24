@@ -1,7 +1,8 @@
 // Single source of truth for the fluency-radar topic taxonomy and the
-// per-domain "strength band" maths. Mirrored verbatim in src/lib/domains.ts
-// (the Next side needs the same enum + maths for aggregation and the radar) —
-// keep the two files identical.
+// per-domain "strength band" maths. Lives api-side only: the Hono API owns the
+// DB and does all fluency aggregation (deriveDomainFluency below), so the Next
+// client just renders the computed `byDomain` array from the /stats/fluency
+// response and never needs this module.
 //
 // A learner's fluency is per-domain, not one global level. The radar plots a
 // log-normalised "mastery" score per domain (0–100) and labels it with a
@@ -14,16 +15,56 @@
  * the classifier prompt. Capped at ~10 — radars get unreadable past that.
  */
 export const DOMAINS = [
-  { key: 'daily_life', label: 'Daily life & home', scope: 'routines, family, housing, clothing, shopping, everyday money matters' },
-  { key: 'food', label: 'Food & cooking', scope: 'recipes, ingredients, cooking, restaurants, eating & drinking' },
-  { key: 'health', label: 'Health & medicine', scope: 'body, illness, doctors, hospitals, fitness, mental & physical wellbeing' },
-  { key: 'travel', label: 'Travel & places', scope: 'transport, directions, countries, cities, tourism, accommodation' },
-  { key: 'work', label: 'Work & business', scope: 'jobs, workplace, careers, economy, commerce, finance' },
-  { key: 'science_tech', label: 'Science & technology', scope: 'computing, internet, engineering, maths, scientific research' },
-  { key: 'nature', label: 'Nature & environment', scope: 'animals, plants, landscapes, weather, climate, ecology' },
-  { key: 'arts_culture', label: 'Arts & culture', scope: 'literature, music, film, art, history, religion, philosophy' },
-  { key: 'sport_leisure', label: 'Sport & leisure', scope: 'sports, games, hobbies, exercise, entertainment, holidays' },
-  { key: 'society', label: 'Society & politics', scope: 'news, government, law, media, education, social issues' },
+  {
+    key: 'daily_life',
+    label: 'Daily life & home',
+    scope: 'routines, family, housing, clothing, shopping, everyday money matters',
+  },
+  {
+    key: 'food',
+    label: 'Food & cooking',
+    scope: 'recipes, ingredients, cooking, restaurants, eating & drinking',
+  },
+  {
+    key: 'health',
+    label: 'Health & medicine',
+    scope: 'body, illness, doctors, hospitals, fitness, mental & physical wellbeing',
+  },
+  {
+    key: 'travel',
+    label: 'Travel & places',
+    scope: 'transport, directions, countries, cities, tourism, accommodation',
+  },
+  {
+    key: 'work',
+    label: 'Work & business',
+    scope: 'jobs, workplace, careers, economy, commerce, finance',
+  },
+  {
+    key: 'science_tech',
+    label: 'Science & technology',
+    scope: 'computing, internet, engineering, maths, scientific research',
+  },
+  {
+    key: 'nature',
+    label: 'Nature & environment',
+    scope: 'animals, plants, landscapes, weather, climate, ecology',
+  },
+  {
+    key: 'arts_culture',
+    label: 'Arts & culture',
+    scope: 'literature, music, film, art, history, religion, philosophy',
+  },
+  {
+    key: 'sport_leisure',
+    label: 'Sport & leisure',
+    scope: 'sports, games, hobbies, exercise, entertainment, holidays',
+  },
+  {
+    key: 'society',
+    label: 'Society & politics',
+    scope: 'news, government, law, media, education, social issues',
+  },
 ] as const;
 
 export type DomainKey = (typeof DOMAINS)[number]['key'];
@@ -73,6 +114,14 @@ export const STATE_WEIGHT = {
 export type WeightedState = keyof typeof STATE_WEIGHT;
 
 /**
+ * Word states that count toward the radar — everything with a positive
+ * STATE_WEIGHT (i.e. excluding `new` and `ignored`). Single source of truth:
+ * the classifier worker's candidate query and the radar's `pending` count both
+ * key off this list, so keep it here rather than re-listing the states inline.
+ */
+export const MASTERY_STATES = ['level1', 'level2', 'level3', 'level4', 'known'] as const;
+
+/**
  * Words needed for a domain to read as "full" (axis 100 / Expert). A rough,
  * tunable guess — the single biggest knob on how full the radar reads, and the
  * #1 thing to calibrate against real data. Default kept generous (low) so new
@@ -111,4 +160,75 @@ export function bandFor(axis: number): Band {
   if (axis < 45) return 'Developing';
   if (axis < 75) return 'Strong';
   return 'Expert';
+}
+
+// --- radar aggregation ----------------------------------------------------
+
+/** One fluency-radar axis — a topic domain's strength. */
+export interface DomainAxis {
+  domain: DomainKey;
+  label: string;
+  knownCount: number;
+  masteryScore: number;
+  /** 0–100, log-normalised; what the radar polygon plots. */
+  axisValue: number;
+  band: Band;
+}
+
+export interface DomainFluency {
+  byDomain: DomainAxis[];
+  /** Mastery-state words the classifier worker hasn't tagged yet (drains to 0). */
+  pending: number;
+}
+
+/** A `SELECT domain, state, COUNT(*) … GROUP BY domain, state` row from knownWords. */
+export interface DomainStateRow {
+  domain: string | null;
+  state: string;
+  count: number;
+}
+
+/**
+ * Fold grouped `knownWords` rows into the radar payload. Pure (no DB) so it unit
+ * tests directly: the caller runs the GROUP BY, this does the maths.
+ *
+ * Aggregated from knownWords — one row per unique word/language — so the radar
+ * reconciles with the global known count by construction (NOT from vocab, which
+ * holds many rows per word and would double-count). Invariant:
+ * Σ(domain known) + (general known) + (known still pending) === global known.
+ *
+ * `general` is a real classifier output but never a radar axis (it would
+ * dominate every domain), so it's folded into neither byDomain nor `pending`.
+ * `pending` counts only mastery-state words still awaiting classification
+ * (domain IS NULL), surfacing a fresh import as "in progress" rather than wrong.
+ */
+export function deriveDomainFluency(rows: DomainStateRow[]): DomainFluency {
+  const masterySet: ReadonlySet<string> = new Set(MASTERY_STATES);
+  const countsByDomain: Record<string, DomainStateCounts> = {};
+  let pending = 0;
+  for (const row of rows) {
+    if (row.domain === null) {
+      if (masterySet.has(row.state)) pending += row.count;
+      continue; // 'general' words have a (non-null) domain → classified, just not an axis
+    }
+    (countsByDomain[row.domain] ||= {})[row.state as WeightedState] = row.count;
+  }
+
+  // One entry per fixed axis (stable radar shape); 'general' is intentionally
+  // absent. axisValue/band come from the shared pure helpers above.
+  const byDomain: DomainAxis[] = DOMAINS.map((d) => {
+    const counts = countsByDomain[d.key] || {};
+    const mastery = masteryScore(counts);
+    const axis = axisValue(mastery);
+    return {
+      domain: d.key,
+      label: d.label,
+      knownCount: counts.known || 0,
+      masteryScore: Math.round(mastery * 100) / 100,
+      axisValue: axis,
+      band: bandFor(axis),
+    };
+  });
+
+  return { byDomain, pending };
 }

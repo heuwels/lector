@@ -240,7 +240,7 @@ export default function StatsPage() {
 
       {/* Activity Heatmap */}
       <div className="mb-8">
-        <ActivityHeatmap data={stats.activityData} unit="actions" />
+        <ActivityHeatmap data={stats.activityData} unit="actions" endDate={stats.endDate} />
       </div>
 
       {/* Anki Reviews */}

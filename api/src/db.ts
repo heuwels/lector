@@ -37,6 +37,7 @@ function getDb(): Database {
       title TEXT NOT NULL,
       author TEXT NOT NULL DEFAULT 'Unknown',
       coverUrl TEXT,
+      sortOrder INTEGER NOT NULL DEFAULT 0,
       createdAt TEXT NOT NULL,
       lastReadAt TEXT NOT NULL
     );
@@ -156,6 +157,62 @@ function getDb(): Database {
       language TEXT NOT NULL DEFAULT 'af'
     );
     CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt);
+
+    CREATE TABLE IF NOT EXISTS journal_entries (
+      id TEXT PRIMARY KEY,
+      body TEXT NOT NULL DEFAULT '',
+      correctedBody TEXT,
+      corrections TEXT,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
+      wordCount INTEGER DEFAULT 0,
+      entryDate TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate);
+    CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status);
+
+    CREATE TABLE IF NOT EXISTS collection_groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      sortOrder INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL
+    );
+
+    -- AI-translation cache. Persists structured AI translations after the user
+    -- accepts them (Save to vocab / Mark Known / set level). The dictionary
+    -- read-side falls through here when the read-only kaikki dict misses, so
+    -- coverage of the user's reading corpus approaches 100% over time. Lives in
+    -- lector.db (the mutable DB), not the read-only dictionary-af.db.
+    CREATE TABLE IF NOT EXISTS cached_entries (
+      word TEXT PRIMARY KEY,
+      language TEXT NOT NULL DEFAULT 'af',
+      ipa TEXT,
+      etymology TEXT,
+      sourceSentence TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_cached_entries_language ON cached_entries(language);
+
+    CREATE TABLE IF NOT EXISTS cached_senses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      word TEXT NOT NULL,
+      pos TEXT,
+      gloss TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (word) REFERENCES cached_entries(word) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_cached_senses_word ON cached_senses(word);
+
+    CREATE TABLE IF NOT EXISTS cached_related_forms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      word TEXT NOT NULL,
+      related_word TEXT NOT NULL,
+      relation TEXT NOT NULL,
+      FOREIGN KEY (word) REFERENCES cached_entries(word) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_cached_related_word ON cached_related_forms(word);
   `);
 
   // Migrations for existing databases
@@ -178,9 +235,37 @@ function getDb(): Database {
     _db.exec("ALTER TABLE chat_messages ADD COLUMN language TEXT NOT NULL DEFAULT 'af'");
   }
 
+  // Drop the legacy UNIQUE constraint on journal_entries.entryDate (multiple
+  // entries per day are allowed). Mirrors src/lib/server/database.ts.
+  const journalIndex = _db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='journal_entries' AND name='idx_journal_entryDate'",
+    )
+    .get() as { name: string } | undefined;
+  if (journalIndex) {
+    const indexSql = _db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_journal_entryDate'")
+      .get() as { sql: string } | undefined;
+    if (indexSql?.sql?.includes('UNIQUE')) {
+      _db.exec('DROP INDEX idx_journal_entryDate');
+      _db.exec('CREATE INDEX idx_journal_entryDate ON journal_entries(entryDate)');
+    }
+  }
+
+  // collections.groupId / sortOrder — collection groups + manual ordering.
+  // Mirrors src/lib/server/database.ts (both servers share the SQLite file).
+  const collectionCols = _db.prepare('PRAGMA table_info(collections)').all() as { name: string }[];
+  if (!collectionCols.some((col) => col.name === 'groupId')) {
+    _db.exec('ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL');
+  }
+  if (!collectionCols.some((col) => col.name === 'sortOrder')) {
+    _db.exec('ALTER TABLE collections ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0');
+  }
+
   migrateVocabForeignKey(_db);
   migrateBooks(_db);
   migrateAddLanguageColumn(_db);
+  migrateCachedEntriesCompoundKey(_db);
 
   // dailyStats.ankiReviews — Anki reviews/day synced from AnkiConnect, counted
   // toward the activity heatmap + streak. Added after the language migration
@@ -318,6 +403,71 @@ function migrateAddLanguageColumn(database: Database) {
       `);
     })();
   }
+}
+
+// Recreate cached_entries with a compound PK (word, language) so the same word
+// can be cached per language, and carry `language` onto the sense / related-form
+// children (FK on (word, language)). Mirrors the knownWords/dailyStats rebuilds:
+// guarded, transactional, idempotent. cached_entries already has a `language`
+// column (base schema), so existing children backfill their language from the
+// parent via the join below. Foreign keys are off app-wide, so the rebuild is
+// safe (and the FK declarations are documentation + future-proofing).
+function migrateCachedEntriesCompoundKey(database: Database) {
+  const cachedSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='cached_entries'")
+    .get() as { sql: string } | undefined;
+  if (!cachedSql || /PRIMARY KEY\s*\(\s*word\s*,\s*language\s*\)/i.test(cachedSql.sql)) return;
+
+  database.transaction(() => {
+    database.exec(`
+      CREATE TABLE cached_entries_new (
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        ipa TEXT,
+        etymology TEXT,
+        sourceSentence TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        PRIMARY KEY (word, language)
+      );
+      INSERT INTO cached_entries_new (word, language, ipa, etymology, sourceSentence, createdAt, updatedAt)
+        SELECT word, language, ipa, etymology, sourceSentence, createdAt, updatedAt FROM cached_entries;
+      DROP TABLE cached_entries;
+      ALTER TABLE cached_entries_new RENAME TO cached_entries;
+      CREATE INDEX IF NOT EXISTS idx_cached_entries_language ON cached_entries(language);
+
+      CREATE TABLE cached_senses_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        pos TEXT,
+        gloss TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (word, language) REFERENCES cached_entries(word, language) ON DELETE CASCADE
+      );
+      INSERT INTO cached_senses_new (id, word, language, pos, gloss, sort_order)
+        SELECT s.id, s.word, COALESCE(e.language, 'af'), s.pos, s.gloss, s.sort_order
+        FROM cached_senses s LEFT JOIN cached_entries e ON e.word = s.word;
+      DROP TABLE cached_senses;
+      ALTER TABLE cached_senses_new RENAME TO cached_senses;
+      CREATE INDEX IF NOT EXISTS idx_cached_senses_word ON cached_senses(word, language);
+
+      CREATE TABLE cached_related_forms_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        related_word TEXT NOT NULL,
+        relation TEXT NOT NULL,
+        FOREIGN KEY (word, language) REFERENCES cached_entries(word, language) ON DELETE CASCADE
+      );
+      INSERT INTO cached_related_forms_new (id, word, language, related_word, relation)
+        SELECT r.id, r.word, COALESCE(e.language, 'af'), r.related_word, r.relation
+        FROM cached_related_forms r LEFT JOIN cached_entries e ON e.word = r.word;
+      DROP TABLE cached_related_forms;
+      ALTER TABLE cached_related_forms_new RENAME TO cached_related_forms;
+      CREATE INDEX IF NOT EXISTS idx_cached_related_word ON cached_related_forms(word, language);
+    `);
+  })();
 }
 
 function migrateVocabForeignKey(database: Database) {
@@ -510,8 +660,32 @@ export interface CollectionRow {
   title: string;
   author: string;
   coverUrl: string | null;
+  groupId: string | null;
+  sortOrder: number;
   createdAt: string;
   lastReadAt: string;
+}
+
+export interface CollectionGroupRow {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export type JournalStatus = 'draft' | 'submitted';
+
+export interface JournalEntryRow {
+  id: string;
+  body: string;
+  correctedBody: string | null;
+  corrections: string | null;
+  status: JournalStatus;
+  wordCount: number;
+  language: string;
+  entryDate: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LessonRow {

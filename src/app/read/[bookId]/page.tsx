@@ -16,8 +16,10 @@ import {
   updateVocabState,
   updateLesson,
   incrementDailyStat,
+  markVocabPushedToAnki,
 } from '@/lib/data-layer';
-import { translateWord, translatePhrase } from '@/lib/claude';
+import { addWordCard, addClozeCard } from '@/lib/anki';
+import { translateWord, translatePhrase, streamWordGloss, enrichWord } from '@/lib/claude';
 import {
   lookupWordRemote,
   cacheAcceptedTranslation,
@@ -26,10 +28,12 @@ import {
 import { speak } from '@/lib/tts';
 import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
+import { useActiveLanguage } from '@/utils/hooks';
 
 export default function ReadPage({ params }: { params: Promise<{ bookId: string }> }) {
   const { bookId: lessonId } = use(params);
   const router = useRouter();
+  const activeLang = useActiveLanguage();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [siblings, setSiblings] = useState<LessonSummary[]>([]);
@@ -52,6 +56,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     phraseDetails: null,
     isLoading: false,
     isContextLoading: false,
+    isStreamingGloss: false,
+    isEnriching: false,
     isDictionaryResult: false,
     error: null,
     existingEntry: null,
@@ -109,6 +115,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       phraseDetails: null,
       isLoading: true,
       isContextLoading: false,
+      isStreamingGloss: false,
+      isEnriching: false,
       isDictionaryResult: false,
       error: null,
       existingEntry: null,
@@ -182,34 +190,37 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           isDictionaryResult: true,
         }));
       } else if (!hasTranslation) {
-        // No dict hit AND no saved vocab translation — fall back to AI.
+        // No dict hit AND no saved vocab translation — stream a fast AI gloss.
+        // The rich entry (senses/IPA/etymology) is opt-in via the Enrich button,
+        // so this first paint is just a concise meaning, arriving token-by-token.
         try {
-          const result = await translateWord(word, sentence);
+          const gloss = await streamWordGloss(word, sentence, (cumulative) => {
+            if (requestId !== translationRequestId.current) return;
+            setWordPanel((prev) => ({
+              ...prev,
+              translation: cumulative,
+              partOfSpeech: null,
+              dictEntry: null,
+              aiStructured: null,
+              isLoading: false,
+              isStreamingGloss: true,
+              isDictionaryResult: false,
+            }));
+          });
           if (requestId !== translationRequestId.current) return;
-          const structured =
-            result.senses && result.senses.length > 0
-              ? {
-                  senses: result.senses,
-                  ipa: result.ipa,
-                  etymology: result.etymology,
-                  relatedForms: result.relatedForms,
-                }
-              : null;
           setWordPanel((prev) => ({
             ...prev,
-            translation: result.translation,
-            partOfSpeech: result.partOfSpeech || null,
-            dictEntry: null,
-            aiStructured: structured,
+            translation: gloss,
             isLoading: false,
-            isDictionaryResult: false,
+            isStreamingGloss: false,
           }));
         } catch (err) {
           if (requestId !== translationRequestId.current) return;
-          console.error('Translation error:', err);
+          console.error('Gloss stream error:', err);
           setWordPanel((prev) => ({
             ...prev,
             isLoading: false,
+            isStreamingGloss: false,
             error: 'Failed to translate word. Check AI provider in settings.',
           }));
         }
@@ -282,6 +293,40 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     }
   }, [wordPanel.word, wordPanel.sentence]);
 
+  // Enrich — upgrade the fast streamed gloss to the full dictionary entry
+  // (senses / IPA / etymology / related forms). Off the critical path: the user
+  // already has a meaning on screen; this just fills in the rich detail and, on
+  // accept, gives the cache a proper multi-sense entry instead of a bare gloss.
+  const enrichTranslation = useCallback(async () => {
+    const requestId = translationRequestId.current;
+    setWordPanel((prev) => ({ ...prev, isEnriching: true }));
+    try {
+      const result = await enrichWord(wordPanel.word, wordPanel.sentence);
+      if (requestId !== translationRequestId.current) return;
+      const structured =
+        result.senses && result.senses.length > 0
+          ? {
+              senses: result.senses,
+              ipa: result.ipa,
+              etymology: result.etymology,
+              relatedForms: result.relatedForms,
+            }
+          : null;
+      setWordPanel((prev) => ({
+        ...prev,
+        translation: result.translation || prev.translation,
+        partOfSpeech: result.partOfSpeech || prev.partOfSpeech,
+        aiStructured: structured ?? prev.aiStructured,
+        isEnriching: false,
+      }));
+    } catch (err) {
+      if (requestId !== translationRequestId.current) return;
+      console.error('Enrich error:', err);
+      // Keep the gloss on screen; just stop the spinner (non-blocking failure).
+      setWordPanel((prev) => ({ ...prev, isEnriching: false }));
+    }
+  }, [wordPanel.word, wordPanel.sentence]);
+
   // Resolves the existing vocab entry, awaiting an in-flight lookup if needed.
   // Prevents duplicate-row races when the user acts before getVocabByText returns.
   const resolveExistingEntry = useCallback(async (): Promise<VocabEntry | undefined> => {
@@ -300,16 +345,31 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   const persistAcceptedTranslation = useCallback(() => {
     if (wordPanel.word.includes(' ')) return;
     if (wordPanel.dictEntry) return;
-    if (!wordPanel.aiStructured) return;
+    // Prefer the rich enriched entry; otherwise persist the streamed gloss as a
+    // single minimal sense so an accepted fast-path word still becomes a
+    // "learned" dictionary entry (Enrich beforehand upgrades it to the full one).
+    const senses =
+      wordPanel.aiStructured?.senses ??
+      (wordPanel.translation
+        ? [{ partOfSpeech: wordPanel.partOfSpeech || '', gloss: wordPanel.translation }]
+        : null);
+    if (!senses) return;
     void cacheAcceptedTranslation({
       word: wordPanel.word,
-      senses: wordPanel.aiStructured.senses,
-      ipa: wordPanel.aiStructured.ipa,
-      etymology: wordPanel.aiStructured.etymology,
-      relatedForms: wordPanel.aiStructured.relatedForms,
+      senses,
+      ipa: wordPanel.aiStructured?.ipa,
+      etymology: wordPanel.aiStructured?.etymology,
+      relatedForms: wordPanel.aiStructured?.relatedForms,
       sourceSentence: wordPanel.sentence,
     });
-  }, [wordPanel.word, wordPanel.sentence, wordPanel.dictEntry, wordPanel.aiStructured]);
+  }, [
+    wordPanel.word,
+    wordPanel.sentence,
+    wordPanel.dictEntry,
+    wordPanel.aiStructured,
+    wordPanel.translation,
+    wordPanel.partOfSpeech,
+  ]);
 
   const saveWordToVocab = useCallback(async () => {
     if (!wordPanel.translation) return;
@@ -443,6 +503,85 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       router.push('/');
     }
   }, [router, lesson]);
+
+  // Read Anki deck names from localStorage — same keys the Settings page writes.
+  const getAnkiDecks = useCallback(() => {
+    const basic = localStorage.getItem('lector-anki-deck') || activeLang.native;
+    const cloze = localStorage.getItem('lector-anki-cloze-deck') || `${activeLang.native}::Cloze`;
+    return { basic, cloze };
+  }, [activeLang.native]);
+
+  // Ensure a vocab entry exists for the current word and return it.
+  // Creates a level1 entry if none exists, so the word appears in the vocab list.
+  const ensureVocabEntry = useCallback(async (): Promise<VocabEntry> => {
+    const existing = await resolveExistingEntry();
+    if (existing) return existing;
+
+    const isPhrase = wordPanel.word.includes(' ');
+    const entry: VocabEntry = {
+      id: uuidv4(),
+      text: wordPanel.word.toLowerCase(),
+      type: isPhrase ? 'phrase' : 'word',
+      sentence: wordPanel.sentence,
+      translation: wordPanel.translation || '',
+      state: 'level1',
+      stateUpdatedAt: new Date(),
+      reviewCount: 0,
+      bookId: lessonId,
+      createdAt: new Date(),
+      pushedToAnki: false,
+    };
+    await saveVocab(entry);
+    await incrementDailyStat('newWordsSaved');
+    persistAcceptedTranslation();
+    setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
+    setReaderRefreshTrigger((prev) => prev + 1);
+    return entry;
+  }, [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation]);
+
+  const addWordToAnki = useCallback(async () => {
+    const { basic: deckName } = getAnkiDecks();
+    const wordMeaning =
+      wordPanel.dictEntry?.senses[0]?.gloss ??
+      wordPanel.aiStructured?.senses[0]?.gloss ??
+      wordPanel.translation ??
+      '';
+    const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
+
+    const entry = await ensureVocabEntry();
+    const noteId = await addWordCard(deckName, wordPanel.word, translation, wordMeaning);
+    await markVocabPushedToAnki(entry.id, noteId);
+    setWordPanel((prev) => ({
+      ...prev,
+      existingEntry: prev.existingEntry
+        ? { ...prev.existingEntry, pushedToAnki: true, ankiNoteId: noteId }
+        : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
+    }));
+  }, [wordPanel, getAnkiDecks, ensureVocabEntry]);
+
+  const addClozeToAnki = useCallback(
+    async (blankWord: string) => {
+      const { cloze: clozeDeck } = getAnkiDecks();
+      const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
+
+      const entry = await ensureVocabEntry();
+      const noteId = await addClozeCard(
+        clozeDeck,
+        wordPanel.word,
+        blankWord,
+        translation,
+        translation,
+      );
+      await markVocabPushedToAnki(entry.id, noteId);
+      setWordPanel((prev) => ({
+        ...prev,
+        existingEntry: prev.existingEntry
+          ? { ...prev.existingEntry, pushedToAnki: true, ankiNoteId: noteId }
+          : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
+      }));
+    },
+    [wordPanel, getAnkiDecks, ensureVocabEntry],
+  );
 
   const retranslateWithAi = useCallback(async () => {
     setWordPanel((prev) => ({ ...prev, isLoading: true, error: null }));
@@ -578,6 +717,31 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     );
   }
 
+  // What the drawer renders as the rich entry: a real dictionary hit if we have
+  // one, otherwise the AI's enriched structured result mapped into the same
+  // shape. Kept separate from wordPanel.dictEntry (which stays null for AI) so
+  // the save handlers still treat an AI result as cacheable, not a dict hit.
+  const displayEntry: ExpandedDictionaryEntry | null =
+    wordPanel.dictEntry ??
+    (wordPanel.aiStructured
+      ? {
+          word: wordPanel.word,
+          senses: wordPanel.aiStructured.senses,
+          ipa: wordPanel.aiStructured.ipa,
+          etymology: wordPanel.aiStructured.etymology,
+          relatedForms: wordPanel.aiStructured.relatedForms,
+        }
+      : null);
+
+  // Offer Enrich only for a bare single-word gloss that isn't already rich.
+  const canEnrich =
+    !wordPanel.word.includes(' ') &&
+    !wordPanel.dictEntry &&
+    !wordPanel.aiStructured &&
+    !!wordPanel.translation &&
+    !wordPanel.isLoading &&
+    !wordPanel.isStreamingGloss;
+
   return (
     <div className="flex h-dvh flex-col overflow-x-hidden bg-card">
       <div className="relative flex-1 overflow-hidden">
@@ -599,7 +763,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         // WordPanelState field names differ from TranslationDrawerProps; map them
         // explicitly. A spread silently dropped these (all props optional, so tsc
         // stayed green) and the drawer rendered "No definition found" for every word.
-        entry={wordPanel.dictEntry}
+        entry={displayEntry}
         aiTranslation={wordPanel.translation}
         aiPartOfSpeech={wordPanel.partOfSpeech}
         aiContextTranslation={wordPanel.aiContextTranslation}
@@ -608,6 +772,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         isDictionaryResult={wordPanel.isDictionaryResult}
         isLoading={wordPanel.isLoading}
         isContextLoading={wordPanel.isContextLoading}
+        isStreaming={wordPanel.isStreamingGloss}
+        isEnriching={wordPanel.isEnriching}
         error={wordPanel.error}
         existingEntry={wordPanel.existingEntry}
         onClose={closeWordPanel}
@@ -616,8 +782,11 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         onMarkKnown={markAsKnown}
         onIgnore={ignoreWord}
         onRequestContextTranslation={requestContextTranslation}
+        onEnrich={canEnrich ? enrichTranslation : undefined}
         onRetranslate={retranslateWithAi}
         onLookupWord={handleNestedLookup}
+        onAddToAnki={!wordPanel.word.includes(' ') ? addWordToAnki : undefined}
+        onAddCloze={wordPanel.word.includes(' ') ? addClozeToAnki : undefined}
       />
     </div>
   );

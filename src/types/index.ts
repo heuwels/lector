@@ -30,6 +30,13 @@ export interface CollectionGroup {
   name: string;
   sortOrder: number;
   createdAt: string;
+  /**
+   * Total collections in this group across ALL languages (set by GET /api/groups).
+   * Groups are language-agnostic, so the library uses this to distinguish a
+   * brand-new empty group (show it) from one whose collections all belong to
+   * other languages (hide it in the active language).
+   */
+  collectionCount?: number;
 }
 
 export interface Lesson {
@@ -80,7 +87,7 @@ export interface KnownWord {
   state: WordState;
   // Topic-domain key for the fluency radar (e.g. 'food'), 'general', or
   // undefined when not yet classified by the background word-classifier.
-  // Validated against the taxonomy in src/lib/domains.ts at the classifier
+  // Validated against the taxonomy in api/src/lib/domains.ts at the classifier
   // boundary, so kept as a loose string here.
   domain?: string;
 }

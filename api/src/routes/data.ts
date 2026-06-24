@@ -5,9 +5,12 @@ import { randomUUID } from 'crypto';
 
 const app = new Hono();
 
-// GET /api/data
+// GET /api/data — full backup. SELECT * dumps every column (incl. `language`)
+// for every language, which is correct for a whole-DB backup. collection_groups
+// is included so collections' groupId survives a restore.
 app.get('/', (c) => {
   const collections = db.prepare('SELECT * FROM collections').all();
+  const collectionGroups = db.prepare('SELECT * FROM collection_groups').all();
   const lessons = db.prepare('SELECT * FROM lessons').all();
   const vocab = db.prepare('SELECT * FROM vocab').all();
   const knownWords = db.prepare('SELECT * FROM knownWords').all();
@@ -17,25 +20,48 @@ app.get('/', (c) => {
 
   return c.json({
     exportedAt: new Date().toISOString(),
-    collections, lessons, vocab, knownWords, clozeSentences, dailyStats, settings,
+    collections, collectionGroups, lessons, vocab, knownWords, clozeSentences, dailyStats, settings,
   });
 });
 
-// POST /api/data
+// POST /api/data — restore a backup.
+//
+// Every INSERT MUST list the full column set, including `language`. The
+// partitioned tables (collections/lessons/vocab/knownWords/clozeSentences/
+// dailyStats) carry a `language`, and knownWords + dailyStats have a compound
+// (… , language) PK — so dropping the column doesn't just mislabel rows, it
+// collapses rows from different languages onto the default 'af' key (data loss).
+// Likewise list every value-bearing column (dailyStats.ankiReviews /
+// sessionStartedAt, collections.groupId / sortOrder) so INSERT OR REPLACE doesn't
+// reset them to defaults. Backups predating multi-language have no `language`
+// field; defaulting to 'af' is correct for that legacy Afrikaans-only data.
 app.post('/', async (c) => {
   const data = await c.req.json();
   const results = {
-    collections: 0, lessons: 0, vocab: 0, knownWords: 0,
+    collections: 0, collectionGroups: 0, lessons: 0, vocab: 0, knownWords: 0,
     clozeSentences: 0, dailyStats: 0, settings: 0,
   };
 
+  // Groups before collections so a restored collection's groupId resolves.
+  if (data.collectionGroups?.length) {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO collection_groups (id, name, sortOrder, createdAt)
+      VALUES (?, ?, ?, ?)
+    `);
+    for (const g of data.collectionGroups) {
+      stmt.run(g.id, g.name, g.sortOrder || 0, g.createdAt || new Date().toISOString());
+      results.collectionGroups++;
+    }
+  }
+
   if (data.collections?.length) {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO collections (id, title, author, coverUrl, sortOrder, groupId, language, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const col of data.collections) {
       stmt.run(col.id, col.title, col.author || 'Unknown', col.coverUrl || null,
+        col.sortOrder || 0, col.groupId || null, col.language || 'af',
         col.createdAt || new Date().toISOString(), col.lastReadAt || new Date().toISOString());
       results.collections++;
     }
@@ -43,27 +69,28 @@ app.post('/', async (c) => {
 
   if (data.lessons?.length) {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, createdAt, lastReadAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, language, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const l of data.lessons) {
       stmt.run(l.id, l.collectionId || null, l.title, l.sortOrder || 0,
         l.textContent || '', l.progress_scrollPosition || 0, l.progress_percentComplete || 0,
-        l.wordCount || countWords(l.textContent || ''),
+        l.wordCount || countWords(l.textContent || ''), l.language || 'af',
         l.createdAt || new Date().toISOString(), l.lastReadAt || new Date().toISOString());
       results.lessons++;
     }
   }
 
-  // Legacy: import old books as collections+lessons
+  // Legacy: import old books as collections+lessons. Pre-dates multi-language, so
+  // these are Afrikaans ('af').
   if (data.books?.length) {
     const insertCollection = db.prepare(`
-      INSERT OR REPLACE INTO collections (id, title, author, coverUrl, createdAt, lastReadAt)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, 'af', ?, ?)
     `);
     const insertLesson = db.prepare(`
-      INSERT OR REPLACE INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, createdAt, lastReadAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, language, createdAt, lastReadAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'af', ?, ?)
     `);
 
     for (const book of data.books) {
@@ -85,15 +112,15 @@ app.post('/', async (c) => {
 
   if (data.vocab?.length) {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, language, createdAt, pushedToAnki, ankiNoteId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const v of data.vocab) {
       stmt.run(
         v.id, v.text, v.type || 'word', v.sentence || '', v.translation || '',
         v.state || 'new', v.stateUpdatedAt || new Date().toISOString(),
-        v.reviewCount || 0, v.bookId || null, v.chapter || null,
+        v.reviewCount || 0, v.bookId || null, v.chapter || null, v.language || 'af',
         v.createdAt || new Date().toISOString(), v.pushedToAnki ? 1 : 0,
         v.ankiNoteId || null
       );
@@ -102,17 +129,17 @@ app.post('/', async (c) => {
   }
 
   if (data.knownWords?.length) {
-    const stmt = db.prepare('INSERT OR REPLACE INTO knownWords (word, state) VALUES (?, ?)');
+    const stmt = db.prepare('INSERT OR REPLACE INTO knownWords (word, language, state) VALUES (?, ?, ?)');
     for (const w of data.knownWords) {
-      stmt.run(w.word, w.state);
+      stmt.run(w.word, w.language || 'af', w.state);
       results.knownWords++;
     }
   }
 
   if (data.clozeSentences?.length) {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, blacklisted, language)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const cs of data.clozeSentences) {
@@ -121,7 +148,8 @@ app.post('/', async (c) => {
         cs.source || 'tatoeba', cs.collection || 'random', cs.wordRank || null,
         cs.tatoebaSentenceId || null, cs.vocabEntryId || null, cs.masteryLevel || 0,
         cs.nextReview || new Date().toISOString(), cs.reviewCount || 0,
-        cs.lastReviewed || null, cs.timesCorrect || 0, cs.timesIncorrect || 0
+        cs.lastReviewed || null, cs.timesCorrect || 0, cs.timesIncorrect || 0,
+        cs.blacklisted ?? 0, cs.language || 'af'
       );
       results.clozeSentences++;
     }
@@ -129,13 +157,14 @@ app.post('/', async (c) => {
 
   if (data.dailyStats?.length) {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO dailyStats (date, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO dailyStats (date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups, ankiReviews, sessionStartedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const s of data.dailyStats) {
-      stmt.run(s.date, s.wordsRead || 0, s.newWordsSaved || 0, s.wordsMarkedKnown || 0,
-        s.minutesRead || 0, s.clozePracticed || 0, s.points || 0, s.dictionaryLookups || 0);
+      stmt.run(s.date, s.language || 'af', s.wordsRead || 0, s.newWordsSaved || 0, s.wordsMarkedKnown || 0,
+        s.minutesRead || 0, s.clozePracticed || 0, s.points || 0, s.dictionaryLookups || 0,
+        s.ankiReviews || 0, s.sessionStartedAt || null);
       results.dailyStats++;
     }
   }

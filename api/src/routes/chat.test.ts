@@ -68,7 +68,7 @@ describe('chat route — per-language scoping', () => {
     seed({ id: 'af1', language: 'af', minutesAgo: 1 });
     seed({ id: 'es1', language: 'es', minutesAgo: 1 });
 
-    const res = await app.request('/?lang=es');
+    const res = await app.request('/?language=es');
     expect(res.status).toBe(200);
     const msgs = (await res.json()) as { id: string }[];
     expect(msgs.map((m) => m.id)).toEqual(['es1']);
@@ -89,7 +89,7 @@ describe('chat route — per-language scoping', () => {
     seed({ id: 'es_new', language: 'es', minutesAgo: 1 });
     seed({ id: 'af_old', language: 'af', minutesAgo: 2 });
 
-    const res = await app.request(`/?lang=es&before=${encodeURIComponent(ago(1.5))}`);
+    const res = await app.request(`/?language=es&before=${encodeURIComponent(ago(1.5))}`);
     const msgs = (await res.json()) as { id: string }[];
     expect(msgs.map((m) => m.id)).toEqual(['es_old']);
   });
@@ -98,7 +98,7 @@ describe('chat route — per-language scoping', () => {
     seed({ id: 'es_old', language: 'es', minutesAgo: 2 });
     seed({ id: 'es_new', language: 'es', minutesAgo: 1 });
 
-    const res = await app.request('/?lang=es');
+    const res = await app.request('/?language=es');
     const msgs = (await res.json()) as { id: string }[];
     expect(msgs.map((m) => m.id)).toEqual(['es_old', 'es_new']);
   });
@@ -108,7 +108,7 @@ describe('chat route — per-language scoping', () => {
     seed({ id: 'af1', language: 'af', minutesAgo: 1 });
     seed({ id: 'es1', language: 'es', minutesAgo: 1 });
 
-    const res = await app.request('/?lang=af', { method: 'DELETE' });
+    const res = await app.request('/?language=af', { method: 'DELETE' });
     expect(res.status).toBe(200);
     const remaining = db.prepare('SELECT id FROM chat_messages').all() as { id: string }[];
     expect(remaining.map((r) => r.id)).toEqual(['es1']);

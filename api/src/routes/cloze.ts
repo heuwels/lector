@@ -104,7 +104,10 @@ app.get('/due', (c) => {
     query = 'SELECT * FROM clozeSentences WHERE reviewCount = 0 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
     params.push(lang);
   } else if (mode === 'review') {
-    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND reviewCount > 0 AND masteryLevel < 100 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
+    // Due for review (already seen at least once). Mastery-100 cards are
+    // included — the scheduler gives them a 14-day maintenance review, which
+    // could otherwise never be served (issue #108).
+    query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND reviewCount > 0 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
     params.push(now, lang);
   } else {
     query = 'SELECT * FROM clozeSentences WHERE nextReview <= ? AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
@@ -141,7 +144,8 @@ app.get('/counts', (c) => {
       collection,
       COUNT(*) as total,
       SUM(CASE WHEN masteryLevel = 100 THEN 1 ELSE 0 END) as mastered,
-      SUM(CASE WHEN nextReview <= ? AND masteryLevel < 100 AND reviewCount > 0 THEN 1 ELSE 0 END) as due
+      -- Mastery-100 maintenance reviews count as due (issue #108)
+      SUM(CASE WHEN nextReview <= ? AND reviewCount > 0 THEN 1 ELSE 0 END) as due
     FROM clozeSentences
     WHERE (blacklisted = 0 OR blacklisted IS NULL) AND language = ?
     GROUP BY collection
@@ -225,9 +229,14 @@ app.get('/seed', (c) => {
 });
 
 // GET /api/cloze/:id
+// By-id routes scope to the active language (defense-in-depth): a stale
+// cross-language id 404s rather than reading/mutating another language's row.
 app.get('/:id', (c) => {
   const id = c.req.param('id');
-  const sentence = db.prepare('SELECT * FROM clozeSentences WHERE id = ?').get(id) as ClozeSentenceRow | undefined;
+  const lang = resolveLanguage(c.req.query('language'));
+  const sentence = db
+    .prepare('SELECT * FROM clozeSentences WHERE id = ? AND language = ?')
+    .get(id, lang) as ClozeSentenceRow | undefined;
 
   if (!sentence) return c.json({ error: 'Not found' }, 404);
 
@@ -241,9 +250,10 @@ app.get('/:id', (c) => {
 // PUT /api/cloze/:id
 app.put('/:id', async (c) => {
   const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'));
   const body = await c.req.json();
 
-  const existing = db.prepare('SELECT id FROM clozeSentences WHERE id = ?').get(id);
+  const existing = db.prepare('SELECT id FROM clozeSentences WHERE id = ? AND language = ?').get(id, lang);
   if (!existing) return c.json({ error: 'Not found' }, 404);
 
   const updates: string[] = [];
@@ -260,7 +270,8 @@ app.put('/:id', async (c) => {
 
   if (updates.length > 0) {
     values.push(id);
-    db.prepare(`UPDATE clozeSentences SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    values.push(lang);
+    db.prepare(`UPDATE clozeSentences SET ${updates.join(', ')} WHERE id = ? AND language = ?`).run(...values);
   }
 
   return c.json({ success: true });
@@ -269,16 +280,20 @@ app.put('/:id', async (c) => {
 // DELETE /api/cloze/:id
 app.delete('/:id', (c) => {
   const id = c.req.param('id');
-  db.prepare('DELETE FROM clozeSentences WHERE id = ?').run(id);
+  const lang = resolveLanguage(c.req.query('language'));
+  db.prepare('DELETE FROM clozeSentences WHERE id = ? AND language = ?').run(id, lang);
   return c.json({ success: true });
 });
 
 // POST /api/cloze/:id/review
 app.post('/:id/review', async (c) => {
   const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'));
   const body = await c.req.json();
 
-  const sentence = db.prepare('SELECT * FROM clozeSentences WHERE id = ?').get(id) as ClozeSentenceRow | undefined;
+  const sentence = db
+    .prepare('SELECT * FROM clozeSentences WHERE id = ? AND language = ?')
+    .get(id, lang) as ClozeSentenceRow | undefined;
   if (!sentence) return c.json({ error: 'Not found' }, 404);
 
   const correct = body.correct as boolean;
@@ -293,8 +308,8 @@ app.post('/:id/review', async (c) => {
       lastReviewed = ?,
       timesCorrect = timesCorrect + ?,
       timesIncorrect = timesIncorrect + ?
-    WHERE id = ?
-  `).run(newMasteryLevel, nextReview, new Date().toISOString(), correct ? 1 : 0, correct ? 0 : 1, id);
+    WHERE id = ? AND language = ?
+  `).run(newMasteryLevel, nextReview, new Date().toISOString(), correct ? 1 : 0, correct ? 0 : 1, id, lang);
 
   return c.json({ success: true });
 });

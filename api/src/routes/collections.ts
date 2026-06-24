@@ -11,14 +11,15 @@ app.get('/', (c) => {
   const lang = resolveLanguage(c.req.query('language'));
 
   const collections = db.prepare(`
-    SELECT c.*, COUNT(l.id) as lessonCount,
+    SELECT c.*, g.name as groupName, COUNT(l.id) as lessonCount,
       COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
     FROM collections c
+    LEFT JOIN collection_groups g ON g.id = c.groupId
     LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language
     WHERE c.language = ?
     GROUP BY c.id
-    ORDER BY c.lastReadAt DESC
-  `).all(lang) as (CollectionRow & { lessonCount: number; avgProgress: number })[];
+    ORDER BY c.sortOrder ASC, c.lastReadAt DESC
+  `).all(lang) as (CollectionRow & { groupName: string | null; lessonCount: number; avgProgress: number })[];
 
   return c.json(collections);
 });
@@ -31,24 +32,47 @@ app.post('/', async (c) => {
   const lang = resolveLanguage(body.language);
 
   db.prepare(`
-    INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, body.title, body.author || 'Unknown', body.coverUrl || null, lang, now, now);
+    INSERT INTO collections (id, title, author, coverUrl, groupId, language, createdAt, lastReadAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, body.title, body.author || 'Unknown', body.coverUrl || null, body.groupId || null, lang, now, now);
 
   return c.json({ id });
 });
 
+// PUT /api/collections/reorder
+// Body: { ids: string[] } — collections (typically one group's worth) in their
+// new order; sortOrder is set to the array index. Registered before /:id so
+// "reorder" isn't captured as a collection id.
+app.put('/reorder', async (c) => {
+  const body = await c.req.json();
+  const ids = body.ids;
+
+  if (!Array.isArray(ids) || ids.some((id: unknown) => typeof id !== 'string')) {
+    return c.json({ error: 'ids must be an array of strings' }, 400);
+  }
+
+  const update = db.prepare('UPDATE collections SET sortOrder = ? WHERE id = ?');
+  db.transaction((orderedIds: string[]) => {
+    orderedIds.forEach((id, index) => update.run(index, id));
+  })(ids);
+
+  return c.json({ success: true });
+});
+
 // GET /api/collections/:id
+// By-id routes scope to the active language (defense-in-depth): a stale
+// cross-language id 404s rather than reading/mutating another language's row.
 app.get('/:id', (c) => {
   const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'));
   const collection = db.prepare(`
     SELECT c.*, COUNT(l.id) as lessonCount,
       COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
     FROM collections c
-    LEFT JOIN lessons l ON l.collectionId = c.id
-    WHERE c.id = ?
+    LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language
+    WHERE c.id = ? AND c.language = ?
     GROUP BY c.id
-  `).get(id) as (CollectionRow & { lessonCount: number; avgProgress: number }) | undefined;
+  `).get(id, lang) as (CollectionRow & { lessonCount: number; avgProgress: number }) | undefined;
 
   if (!collection) {
     return c.json({ error: 'Collection not found' }, 404);
@@ -60,6 +84,7 @@ app.get('/:id', (c) => {
 // PUT /api/collections/:id
 app.put('/:id', async (c) => {
   const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'));
   const body = await c.req.json();
 
   const updates: string[] = [];
@@ -68,12 +93,22 @@ app.put('/:id', async (c) => {
   if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
   if (body.author !== undefined) { updates.push('author = ?'); values.push(body.author); }
   if (body.coverUrl !== undefined) { updates.push('coverUrl = ?'); values.push(body.coverUrl); }
+  if (body.groupId !== undefined) { updates.push('groupId = ?'); values.push(body.groupId); }
 
-  updates.push('lastReadAt = ?');
-  values.push(new Date().toISOString());
-  values.push(id);
-
-  db.prepare(`UPDATE collections SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  // Only bump lastReadAt for content changes, not metadata-only ones like groupId.
+  const isContentChange =
+    body.title !== undefined || body.author !== undefined || body.coverUrl !== undefined;
+  if (isContentChange) {
+    updates.push('lastReadAt = ?');
+    values.push(new Date().toISOString());
+  }
+  // Guard the empty-update case: a body with no recognized fields would otherwise
+  // build `SET  WHERE …` (a syntax error). Matches the cloze PUT handler.
+  if (updates.length > 0) {
+    values.push(id);
+    values.push(lang);
+    db.prepare(`UPDATE collections SET ${updates.join(', ')} WHERE id = ? AND language = ?`).run(...values);
+  }
 
   return c.json({ success: true });
 });
@@ -81,8 +116,9 @@ app.put('/:id', async (c) => {
 // DELETE /api/collections/:id
 app.delete('/:id', (c) => {
   const id = c.req.param('id');
-  db.prepare('DELETE FROM lessons WHERE collectionId = ?').run(id);
-  db.prepare('DELETE FROM collections WHERE id = ?').run(id);
+  const lang = resolveLanguage(c.req.query('language'));
+  db.prepare('DELETE FROM lessons WHERE collectionId = ? AND language = ?').run(id, lang);
+  db.prepare('DELETE FROM collections WHERE id = ? AND language = ?').run(id, lang);
   return c.json({ success: true });
 });
 
@@ -111,16 +147,44 @@ app.post('/:id/lessons', async (c) => {
     'SELECT COALESCE(MAX(sortOrder), -1) as maxOrder FROM lessons WHERE collectionId = ?'
   ).get(collectionId) as { maxOrder: number };
 
+  // A lesson inherits its parent collection's language so it matches the
+  // l.language = c.language join in the library list; fall back to the active
+  // language if the collection is somehow missing.
+  const parent = db.prepare('SELECT language FROM collections WHERE id = ?').get(collectionId) as
+    | { language: string }
+    | undefined;
+  const language = parent?.language ?? resolveLanguage(c.req.query('language'));
+
   const textContent = body.textContent || '';
 
   db.prepare(`
-    INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, createdAt, lastReadAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, collectionId, body.title, maxOrder.maxOrder + 1, textContent, countWords(textContent), now, now);
+    INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, collectionId, body.title, maxOrder.maxOrder + 1, textContent, countWords(textContent), language, now, now);
 
   db.prepare('UPDATE collections SET lastReadAt = ? WHERE id = ?').run(now, collectionId);
 
   return c.json({ id });
+});
+
+// PUT /api/collections/:id/lessons/reorder
+// Body: { ids: string[] } — the collection's lessons in their new order. Scoped
+// to the collection so a stray id can't reorder another collection's lessons.
+app.put('/:id/lessons/reorder', async (c) => {
+  const collectionId = c.req.param('id');
+  const body = await c.req.json();
+  const ids = body.ids;
+
+  if (!Array.isArray(ids) || ids.some((id: unknown) => typeof id !== 'string')) {
+    return c.json({ error: 'ids must be an array of strings' }, 400);
+  }
+
+  const update = db.prepare('UPDATE lessons SET sortOrder = ? WHERE id = ? AND collectionId = ?');
+  db.transaction((orderedIds: string[]) => {
+    orderedIds.forEach((lessonId, index) => update.run(index, lessonId, collectionId));
+  })(ids);
+
+  return c.json({ success: true });
 });
 
 export default app;
