@@ -567,7 +567,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       const entry = await ensureVocabEntry();
       const noteId = await addClozeCard(
         clozeDeck,
-        wordPanel.sentence,
+        wordPanel.word,
         blankWord,
         translation,
         translation,
