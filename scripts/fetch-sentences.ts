@@ -5,7 +5,13 @@
  *
  * Downloads Tatoeba's per-language TSV dumps (small files), joins Afrikaans
  * sentences with their English translations, determines best cloze words
- * using dictionary frequency data, and saves as src/lib/sentence-bank.json.
+ * using dictionary frequency data, and writes the Tatoeba base of the
+ * Afrikaans cloze bank (api/src/lib/sentence-bank-af.json).
+ *
+ * NOTE: the committed bank also contains frequency-mined sentences (source
+ * "mined") merged on top of this Tatoeba base. Re-running this script writes
+ * ONLY the Tatoeba portion — re-run the mined-merge step afterward to restore
+ * the full bank.
  */
 
 import https from 'node:https';
@@ -292,7 +298,7 @@ async function main() {
   console.log(`  random:  ${collections.random}`);
 
   // Write output
-  const outputPath = path.resolve(__dirname, '../src/lib/sentence-bank.json');
+  const outputPath = path.resolve(__dirname, '../api/src/lib/sentence-bank-af.json');
   fs.writeFileSync(outputPath, JSON.stringify(sentences, null, 2));
   console.log(`\nSaved to: ${outputPath}`);
   console.log(`File size: ${(fs.statSync(outputPath).size / 1024).toFixed(1)} KB`);
