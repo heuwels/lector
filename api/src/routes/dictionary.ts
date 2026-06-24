@@ -2,31 +2,20 @@ import { Hono } from 'hono';
 import { db } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getTodayDate } from '../lib/dates';
+import { recordStudySessionPing } from '../lib/study-session';
 import { lookupWord, cacheAcceptedEntry, type CacheAcceptedInput } from '../lib/dictionary-db';
 
 const app = new Hono();
 
-// Mirrors the recordStudyPing() side-effect from /api/translate, and also bumps
-// dictionaryLookups so daily lookup stats stay accurate when the on-device DB
-// serves a hit. dailyStats has a compound (date, language) PK, so the write must
-// target the looked-up language's row — otherwise the lookup is misattributed to
-// 'af' and the language-less UPDATE writes across every language's row for the
-// day. Uses getTodayDate() (timezone-aware) so the day boundary matches every
-// other stats writer (not raw UTC).
-function recordStudyPing(language: string) {
-  const today = getTodayDate();
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT OR IGNORE INTO dailyStats
-      (date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-     VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`,
-  ).run(today, language);
-  db.prepare(
-    'UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE date = ? AND language = ?',
-  ).run(now, today, language);
+// Record an on-device dictionary hit: the shared session ping (sessionStartedAt
+// on the looked-up language's row) plus a dictionaryLookups bump, so daily lookup
+// stats stay accurate when the local DB serves a hit instead of the AI path. Both
+// writes target the looked-up language's (date, language) row.
+function recordDictionaryLookup(language: string) {
+  recordStudySessionPing(language);
   db.prepare(
     'UPDATE dailyStats SET dictionaryLookups = dictionaryLookups + 1 WHERE date = ? AND language = ?',
-  ).run(today, language);
+  ).run(getTodayDate(), language);
 }
 
 // GET /api/dictionary/lookup?word=<word>
@@ -41,7 +30,7 @@ app.get('/lookup', (c) => {
 
     const lang = resolveLanguage(c.req.query('language'));
     const entry = lookupWord(word.trim(), lang);
-    if (entry) recordStudyPing(lang);
+    if (entry) recordDictionaryLookup(lang);
 
     return c.json({ entry: entry ?? null });
   } catch (error) {

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { db } from '../db';
 import { getTodayDate } from '../lib/dates';
 import { resolveLanguage } from '../lib/active-language';
+import { recordStudySessionPing } from '../lib/study-session';
 
 const app = new Hono();
 
@@ -52,17 +53,8 @@ app.get('/', (c) => {
 app.post('/', (c) => {
   const today = getTodayDate();
   const lang = resolveLanguage(c.req.query('language'));
-  const now = new Date().toISOString();
 
-  db.prepare(
-    `INSERT OR IGNORE INTO dailyStats
-      (date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-     VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`,
-  ).run(today, lang);
-
-  db.prepare(
-    'UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE date = ? AND language = ?',
-  ).run(now, today, lang);
+  recordStudySessionPing(lang);
 
   const activity = getDayActivity(today);
   return c.json({
