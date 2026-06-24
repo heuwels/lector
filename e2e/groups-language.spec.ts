@@ -72,7 +72,7 @@ test.describe("Collection Groups — language-agnostic", () => {
 
     // "Both" is visible and shows ONLY its Afrikaans collection.
     await expect(page.getByTestId(`group-${both}`)).toBeVisible();
-    await expect(page.getByTestId(`group-${both}`).getByText("Test AF Book")).toBeVisible();
+    await expect(page.getByTestId(`group-${both}`).getByRole("heading", { name: "Test AF Book" })).toBeVisible();
     await expect(page.getByText("Test DE Book")).toHaveCount(0);
 
     // A group whose collections are all German is hidden in the Afrikaans view.
@@ -86,12 +86,12 @@ test.describe("Collection Groups — language-agnostic", () => {
 
     // The SAME "Both" group, now showing only its German collection.
     await expect(page.getByTestId(`group-${both}`)).toBeVisible();
-    await expect(page.getByTestId(`group-${both}`).getByText("Test DE Book")).toBeVisible();
+    await expect(page.getByTestId(`group-${both}`).getByRole("heading", { name: "Test DE Book" })).toBeVisible();
     await expect(page.getByText("Test AF Book")).toHaveCount(0);
 
     // The German-only group is now visible, with its collection.
     await expect(page.getByTestId(`group-${deOnly}`)).toBeVisible();
-    await expect(page.getByTestId(`group-${deOnly}`).getByText("Test DE Only Book")).toBeVisible();
+    await expect(page.getByTestId(`group-${deOnly}`).getByRole("heading", { name: "Test DE Only Book" })).toBeVisible();
 
     // Empty group still visible.
     await expect(page.getByTestId(`group-${empty}`)).toBeVisible();
