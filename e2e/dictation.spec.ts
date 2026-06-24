@@ -128,10 +128,14 @@ test.describe.serial('Dictation - Round', () => {
   });
 });
 
-test.describe.serial('Dictation - Correct path (seeded)', () => {
+test.describe.serial('Dictation - Cloze review reminders hidden (#191)', () => {
   const TEST_COLLECTION = 'top2000';
-  const KNOWN = {
-    id: 'test-dictation-known-1',
+  // A review-due card (reviewCount > 0, nextReview in the past) so the cloze
+  // "Review Due" reminder actually renders. Dictation must hide that reminder:
+  // it's a focused listening drill, and the SRS review prompts are a cloze
+  // concern (issue #191).
+  const DUE = {
+    id: 'test-dictation-review-hidden-1',
     sentence: 'Die bruin hond hardloop vinnig.',
     clozeWord: 'hardloop',
     clozeIndex: 3,
@@ -145,49 +149,41 @@ test.describe.serial('Dictation - Correct path (seeded)', () => {
     timesIncorrect: 1,
   };
 
-  test('typing the heard sentence exactly scores a perfect dictation and completes the round', async ({
-    page,
-  }) => {
-    // Make the seeded sentence the only review-due one in its collection so the
-    // round is deterministic (the round draws due sentences in random order).
+  test('shows the Review Due reminder in cloze and hides it in dictation', async ({ page }) => {
+    // Make the seeded card the only review-due one in this collection so the
+    // "1000-2000 N due" entry is deterministic.
     const dueRes = await page.request.get(
       `/api/cloze/due?mode=review&collection=${TEST_COLLECTION}&limit=50`,
     );
     for (const s of await dueRes.json()) {
       await page.request.delete(`/api/cloze/${s.id}`);
     }
-    const seedRes = await page.request.post('/api/cloze', { data: [KNOWN] });
+    const seedRes = await page.request.post('/api/cloze', { data: [DUE] });
     expect(seedRes.ok()).toBeTruthy();
+
+    const reviewHeading = page.getByRole('heading', { name: /Review Due/ });
+    const reviewDueButton = page.getByRole('button', { name: /1000-2000\s+\d+ due/ });
 
     try {
       await waitForSetup(page);
+
+      // Cloze (the default format) surfaces the SRS review reminder.
+      await expect(reviewHeading).toBeVisible();
+      await expect(reviewDueButton).toBeVisible();
+
+      // Switching to dictation hides the cloze review reminders entirely…
       await selectDictation(page);
+      await expect(reviewHeading).toHaveCount(0);
+      await expect(reviewDueButton).toHaveCount(0);
+      // …while the Learn New flow stays available.
+      await expect(page.getByRole('button', { name: 'Start' })).toBeEnabled();
 
-      // Start a one-sentence review round for the seeded collection.
-      await page.getByRole('button', { name: /1000-2000\s+\d+ due/ }).click();
-
-      await expect(page.getByText('Type the sentence you hear')).toBeVisible({
-        timeout: 10000,
-      });
-      // The sentence is genuinely hidden — only the audio is presented.
-      await expect(page.getByText(KNOWN.sentence)).toHaveCount(0);
-
-      // Type exactly what is spoken.
-      await page.getByTestId('dictation-input').fill(KNOWN.sentence);
-      await page.getByRole('button', { name: 'Check' }).click();
-
-      // A flawless transcription reads as "Perfect!" at 100%.
-      await expect(page.getByRole('heading', { name: 'Perfect!' })).toBeVisible({ timeout: 5000 });
-      await expect(page.getByTestId('dictation-accuracy')).toContainText('100% correct');
-
-      // The single, passed sentence completes the round (no retry queue).
-      await page.getByRole('button', { name: 'Next Sentence' }).click();
-      await expect(page.getByText('Round Complete!')).toBeVisible({
-        timeout: 10000,
-      });
-      await expect(page.getByText(/1\/1 correct/)).toBeVisible();
+      // Switching back to cloze restores the reminder.
+      await page.getByRole('button', { name: 'Cloze', exact: true }).click();
+      await expect(reviewHeading).toBeVisible();
+      await expect(reviewDueButton).toBeVisible();
     } finally {
-      await page.request.delete(`/api/cloze/${KNOWN.id}`);
+      await page.request.delete(`/api/cloze/${DUE.id}`);
     }
   });
 });
