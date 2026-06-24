@@ -16,7 +16,9 @@ import {
   updateVocabState,
   updateLesson,
   incrementDailyStat,
+  markVocabPushedToAnki,
 } from '@/lib/data-layer';
+import { addWordCard, addClozeCard } from '@/lib/anki';
 import { translateWord, translatePhrase, streamWordGloss, enrichWord } from '@/lib/claude';
 import {
   lookupWordRemote,
@@ -26,10 +28,12 @@ import {
 import { speak } from '@/lib/tts';
 import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
+import { useActiveLanguage } from '@/utils/hooks';
 
 export default function ReadPage({ params }: { params: Promise<{ bookId: string }> }) {
   const { bookId: lessonId } = use(params);
   const router = useRouter();
+  const activeLang = useActiveLanguage();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [siblings, setSiblings] = useState<LessonSummary[]>([]);
@@ -500,6 +504,85 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     }
   }, [router, lesson]);
 
+  // Read Anki deck names from localStorage — same keys the Settings page writes.
+  const getAnkiDecks = useCallback(() => {
+    const basic = localStorage.getItem('lector-anki-deck') || activeLang.native;
+    const cloze = localStorage.getItem('lector-anki-cloze-deck') || `${activeLang.native}::Cloze`;
+    return { basic, cloze };
+  }, [activeLang.native]);
+
+  // Ensure a vocab entry exists for the current word and return it.
+  // Creates a level1 entry if none exists, so the word appears in the vocab list.
+  const ensureVocabEntry = useCallback(async (): Promise<VocabEntry> => {
+    const existing = await resolveExistingEntry();
+    if (existing) return existing;
+
+    const isPhrase = wordPanel.word.includes(' ');
+    const entry: VocabEntry = {
+      id: uuidv4(),
+      text: wordPanel.word.toLowerCase(),
+      type: isPhrase ? 'phrase' : 'word',
+      sentence: wordPanel.sentence,
+      translation: wordPanel.translation || '',
+      state: 'level1',
+      stateUpdatedAt: new Date(),
+      reviewCount: 0,
+      bookId: lessonId,
+      createdAt: new Date(),
+      pushedToAnki: false,
+    };
+    await saveVocab(entry);
+    await incrementDailyStat('newWordsSaved');
+    persistAcceptedTranslation();
+    setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
+    setReaderRefreshTrigger((prev) => prev + 1);
+    return entry;
+  }, [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation]);
+
+  const addWordToAnki = useCallback(async () => {
+    const { basic: deckName } = getAnkiDecks();
+    const wordMeaning =
+      wordPanel.dictEntry?.senses[0]?.gloss ??
+      wordPanel.aiStructured?.senses[0]?.gloss ??
+      wordPanel.translation ??
+      '';
+    const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
+
+    const entry = await ensureVocabEntry();
+    const noteId = await addWordCard(deckName, wordPanel.word, translation, wordMeaning);
+    await markVocabPushedToAnki(entry.id, noteId);
+    setWordPanel((prev) => ({
+      ...prev,
+      existingEntry: prev.existingEntry
+        ? { ...prev.existingEntry, pushedToAnki: true, ankiNoteId: noteId }
+        : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
+    }));
+  }, [wordPanel, getAnkiDecks, ensureVocabEntry]);
+
+  const addClozeToAnki = useCallback(
+    async (blankWord: string) => {
+      const { cloze: clozeDeck } = getAnkiDecks();
+      const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
+
+      const entry = await ensureVocabEntry();
+      const noteId = await addClozeCard(
+        clozeDeck,
+        wordPanel.word,
+        blankWord,
+        translation,
+        translation,
+      );
+      await markVocabPushedToAnki(entry.id, noteId);
+      setWordPanel((prev) => ({
+        ...prev,
+        existingEntry: prev.existingEntry
+          ? { ...prev.existingEntry, pushedToAnki: true, ankiNoteId: noteId }
+          : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
+      }));
+    },
+    [wordPanel, getAnkiDecks, ensureVocabEntry],
+  );
+
   const retranslateWithAi = useCallback(async () => {
     setWordPanel((prev) => ({ ...prev, isLoading: true, error: null }));
     const isPhrase = wordPanel.word.includes(' ');
@@ -702,6 +785,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         onEnrich={canEnrich ? enrichTranslation : undefined}
         onRetranslate={retranslateWithAi}
         onLookupWord={handleNestedLookup}
+        onAddToAnki={!wordPanel.word.includes(' ') ? addWordToAnki : undefined}
+        onAddCloze={wordPanel.word.includes(' ') ? addClozeToAnki : undefined}
       />
     </div>
   );

@@ -258,6 +258,42 @@ export async function addBasicCard(
 }
 
 /**
+ * Add a pure word flashcard to Anki (issue #197).
+ * Front: the word only (bold, so syncWordStates can round-trip it).
+ * Back: translation + word = meaning line.
+ */
+export async function addWordCard(
+  deckName: string,
+  targetWord: string,
+  translation: string,
+  wordMeaning: string,
+): Promise<number> {
+  await ensureDeckExists(deckName);
+  const [cleanTarget] = splitTrailingPunctuation(targetWord);
+
+  const noteId = await ankiRequest<number | null>('addNote', {
+    note: {
+      deckName,
+      modelName: 'Basic',
+      fields: {
+        Front: `<b>${cleanTarget}</b>`,
+        Back: `${translation}<br><br><b>${cleanTarget}</b> = ${wordMeaning}`,
+      },
+      options: { allowDuplicate: true },
+      tags: ['lector', 'vocabulary'],
+    },
+  });
+
+  if (noteId === null) {
+    throw new Error(
+      "Failed to add note — check that 'Basic' note type exists with 'Front' and 'Back' fields",
+    );
+  }
+
+  return noteId;
+}
+
+/**
  * Build the cloze-deletion text for a sentence. Strips trailing punctuation
  * from the target first — bank words can carry it ("haar."), which would make
  * the \b…\b pattern unmatchable and produce a cloze-less note that
