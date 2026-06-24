@@ -73,4 +73,8 @@ export interface TranslationDrawerProps {
   /** Look up a word referenced inside the entry (form-of glosses, lemma stem,
       related forms — issue #106). When absent, references render as plain text. */
   onLookupWord?: (word: string) => void;
+  /** Push a pure word card to the default Anki deck (single-word selections only). */
+  onAddToAnki?: () => Promise<void>;
+  /** Push a cloze card — called with the word the user chose to blank (phrase selections only). */
+  onAddCloze?: (blankWord: string) => Promise<void>;
 }
