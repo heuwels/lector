@@ -5,21 +5,7 @@ import { getSpelreelsContext } from '../lib/spelreels';
 import { resolveLanguage } from '../lib/active-language';
 import { getLanguageConfig } from '../lib/languages';
 import { buildGlossPrompt, buildWordEntryPrompt, buildPhrasePrompt } from '../lib/translate-prompts';
-
-import { db } from '../db';
-
-function recordStudyPing() {
-  const today = new Date().toISOString().split('T')[0];
-  const now = new Date().toISOString();
-  db.prepare(`
-    INSERT OR IGNORE INTO dailyStats
-      (date, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-    VALUES (?, 0, 0, 0, 0, 0, 0, 0)
-  `).run(today);
-  db.prepare(`
-    UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE date = ?
-  `).run(now, today);
-}
+import { recordStudySessionPing } from '../lib/study-session';
 
 // Parse a rich word-entry response and stitch the legacy translation/partOfSpeech
 // fields so existing call sites that only read those don't have to change.
@@ -70,9 +56,9 @@ app.post('/gloss', async (c) => {
     return c.json({ error: 'Word is required' }, 400);
   }
 
-  recordStudyPing();
-
   const lang = resolveLanguage(language);
+  recordStudySessionPing(lang);
+
   const langName = getLanguageConfig(lang).name;
   const prompt = buildGlossPrompt(langName, word, sentence || '');
   const provider = getProvider();
@@ -125,9 +111,9 @@ app.post('/', async (c) => {
       return c.json({ error: 'Word is required' }, 400);
     }
 
-    recordStudyPing();
-
     const lang = resolveLanguage(language);
+    recordStudySessionPing(lang);
+
     const langConfig = getLanguageConfig(lang);
     const langName = langConfig.name;
 
