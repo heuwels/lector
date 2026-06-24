@@ -115,8 +115,8 @@ test.describe('Reader → Anki pipeline', () => {
       });
     });
 
-    // Mock the gloss stream to avoid SSE complexity in tests.
-    await page.route('**/api/gloss', async (route) => {
+    // Word dict-misses stream a plain-text gloss from /translate/gloss.
+    await page.route('**/api/translate/gloss', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'text/plain',
@@ -192,7 +192,10 @@ test.describe('Reader → Anki pipeline', () => {
     await expect(addBtn).toBeVisible({ timeout: 8000 });
     await addBtn.click();
 
-    await expect(addBtn).toBeDisabled({ timeout: 5000 });
+    // Wait for the full round-trip to complete (done state, not just loading)
+    // before asserting call count — avoids the loading→done race.
+    await expect(addBtn).toHaveText('✓ Added to Anki', { timeout: 5000 });
+    await expect(addBtn).toBeDisabled();
 
     const addNoteCalls = ankiCalls.filter((c) => c.action === 'addNote');
     expect(addNoteCalls.length).toBe(1);
