@@ -744,46 +744,50 @@ export default function PracticePage() {
               </div>
             </div>
 
-            {/* Review Due section */}
-            {(() => {
-              const totalDue = VISIBLE_COLLECTIONS.reduce(
-                (sum, c) => sum + (collectionCounts?.[c]?.due || 0),
-                0,
-              );
-              if (totalDue === 0) return null;
-              return (
-                <div className="mb-8 rounded-2xl border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-5">
-                  <h2 className="mb-3 text-base font-semibold text-[var(--gold-strong)]">
-                    Review Due ({totalDue})
-                  </h2>
-                  <div className="space-y-2">
-                    {VISIBLE_COLLECTIONS.map((coll) => {
-                      const due = collectionCounts?.[coll]?.due || 0;
-                      if (due === 0) return null;
-                      return (
-                        <button
-                          key={coll}
-                          onClick={() => {
-                            setSelectedCollection(coll);
-                            setRoundType('review');
-                            setRoundSize(Math.min(due, 20) as RoundSize);
-                            startRoundWith(coll, 'review', Math.min(due, 20));
-                          }}
-                          className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition-all hover:border-[var(--gold-strong)] active:scale-[0.98]"
-                        >
-                          <span className="font-medium text-foreground">
-                            {COLLECTION_LABELS[coll]}
-                          </span>
-                          <span className="text-sm font-semibold text-[var(--gold-strong)]">
-                            {due} due
-                          </span>
-                        </button>
-                      );
-                    })}
+            {/* Review Due section — cloze only. Dictation is a focused
+                listening drill, so the SRS review reminders (a cloze-practice
+                concern) are hidden there and only the Learn New flow remains
+                (issue #191). */}
+            {practiceFormat === 'cloze' &&
+              (() => {
+                const totalDue = VISIBLE_COLLECTIONS.reduce(
+                  (sum, c) => sum + (collectionCounts?.[c]?.due || 0),
+                  0,
+                );
+                if (totalDue === 0) return null;
+                return (
+                  <div className="mb-8 rounded-2xl border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-5">
+                    <h2 className="mb-3 text-base font-semibold text-[var(--gold-strong)]">
+                      Review Due ({totalDue})
+                    </h2>
+                    <div className="space-y-2">
+                      {VISIBLE_COLLECTIONS.map((coll) => {
+                        const due = collectionCounts?.[coll]?.due || 0;
+                        if (due === 0) return null;
+                        return (
+                          <button
+                            key={coll}
+                            onClick={() => {
+                              setSelectedCollection(coll);
+                              setRoundType('review');
+                              setRoundSize(Math.min(due, 20) as RoundSize);
+                              startRoundWith(coll, 'review', Math.min(due, 20));
+                            }}
+                            className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition-all hover:border-[var(--gold-strong)] active:scale-[0.98]"
+                          >
+                            <span className="font-medium text-foreground">
+                              {COLLECTION_LABELS[coll]}
+                            </span>
+                            <span className="text-sm font-semibold text-[var(--gold-strong)]">
+                              {due} due
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
 
             {/* Learn New section */}
             <div className="rounded-2xl border border-border bg-card p-5">
