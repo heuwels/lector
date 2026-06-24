@@ -19,9 +19,6 @@ export const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 /** Default rows per page when the user hasn't picked one. */
 export const DEFAULT_PAGE_SIZE = 50;
 
-/** localStorage key persisting the user's rows-per-page choice. */
-export const PAGE_SIZE_STORAGE_KEY = "lector-vocab-page-size";
-
 // State sort order for sorting
 export const stateOrder: Record<WordState, number> = {
     new: 0,

@@ -4,15 +4,10 @@ import { Check, ChevronDown, ChevronUp, Loader2, RefreshCw, Upload } from 'lucid
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { WordState } from '@/lib/data-layer';
 import { getPageCount, clampPage, paginate } from '@/lib/pagination';
+import { SETTINGS_KEYS } from '@/app/settings/constants';
 import VocabRow from './components/VocabRow';
 import PaginationControls from './components/PaginationControls';
-import {
-  stateFilters,
-  stateOrder,
-  DEFAULT_PAGE_SIZE,
-  PAGE_SIZE_OPTIONS,
-  PAGE_SIZE_STORAGE_KEY,
-} from './constants';
+import { stateFilters, stateOrder, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from './constants';
 import { AnkiCardType, SortDirection, SortField, VocabListProps } from './types';
 import { Button } from '../ui/button';
 
@@ -40,7 +35,7 @@ export default function VocabList({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(() => {
     if (typeof window === 'undefined') return DEFAULT_PAGE_SIZE;
-    const saved = Number(localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+    const saved = Number(localStorage.getItem(SETTINGS_KEYS.VOCAB_PAGE_SIZE));
     return (PAGE_SIZE_OPTIONS as readonly number[]).includes(saved) ? saved : DEFAULT_PAGE_SIZE;
   });
 
@@ -154,7 +149,7 @@ export default function VocabList({
     setPageSize(size);
     setCurrentPage(1);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size));
+      localStorage.setItem(SETTINGS_KEYS.VOCAB_PAGE_SIZE, String(size));
     }
   }, []);
 

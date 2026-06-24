@@ -6,4 +6,5 @@ export const SETTINGS_KEYS = {
   TTS_SPEED: 'lector-tts-speed',
   THEME: 'lector-theme',
   HIDE_TRANSLATION: 'lector-hide-translation',
+  VOCAB_PAGE_SIZE: 'lector-vocab-page-size',
 } as const;
