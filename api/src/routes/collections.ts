@@ -102,10 +102,13 @@ app.put('/:id', async (c) => {
     updates.push('lastReadAt = ?');
     values.push(new Date().toISOString());
   }
-  values.push(id);
-  values.push(lang);
-
-  db.prepare(`UPDATE collections SET ${updates.join(', ')} WHERE id = ? AND language = ?`).run(...values);
+  // Guard the empty-update case: a body with no recognized fields would otherwise
+  // build `SET  WHERE …` (a syntax error). Matches the cloze PUT handler.
+  if (updates.length > 0) {
+    values.push(id);
+    values.push(lang);
+    db.prepare(`UPDATE collections SET ${updates.join(', ')} WHERE id = ? AND language = ?`).run(...values);
+  }
 
   return c.json({ success: true });
 });

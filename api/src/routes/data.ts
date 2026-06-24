@@ -138,8 +138,8 @@ app.post('/', async (c) => {
 
   if (data.clozeSentences?.length) {
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, language)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, blacklisted, language)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const cs of data.clozeSentences) {
@@ -149,7 +149,7 @@ app.post('/', async (c) => {
         cs.tatoebaSentenceId || null, cs.vocabEntryId || null, cs.masteryLevel || 0,
         cs.nextReview || new Date().toISOString(), cs.reviewCount || 0,
         cs.lastReviewed || null, cs.timesCorrect || 0, cs.timesIncorrect || 0,
-        cs.language || 'af'
+        cs.blacklisted ?? 0, cs.language || 'af'
       );
       results.clozeSentences++;
     }

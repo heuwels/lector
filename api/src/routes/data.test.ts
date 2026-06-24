@@ -49,6 +49,10 @@ describe('data import/restore — language partitioning', () => {
         { date: '2026-06-20', language: 'af', minutesRead: 10, ankiReviews: 5, sessionStartedAt: '2026-06-20T08:00:00Z' },
         { date: '2026-06-20', language: 'de', minutesRead: 3, ankiReviews: 2, sessionStartedAt: '2026-06-20T09:00:00Z' },
       ],
+      // blacklisted is a value-bearing column that the old import dropped → reset to 0.
+      clozeSentences: [
+        { id: 'cs1', sentence: 'Ek lees.', clozeWord: 'lees', clozeIndex: 1, translation: 'I read.', source: 'tatoeba', collection: 'random', nextReview: TS, blacklisted: 1, language: 'de' },
+      ],
     });
     expect(res.status).toBe(200);
 
@@ -76,6 +80,12 @@ describe('data import/restore — language partitioning', () => {
       { language: 'af', minutesRead: 10, ankiReviews: 5, sessionStartedAt: '2026-06-20T08:00:00Z' },
       { language: 'de', minutesRead: 3, ankiReviews: 2, sessionStartedAt: '2026-06-20T09:00:00Z' },
     ]);
+
+    // clozeSentences: language + blacklisted both preserved (blacklisted was reset before).
+    const cs = db
+      .prepare("SELECT language, blacklisted FROM clozeSentences WHERE id = 'cs1'")
+      .get() as { language: string; blacklisted: number };
+    expect(cs).toEqual({ language: 'de', blacklisted: 1 });
   });
 
   test('legacy backups with no language field restore as Afrikaans', async () => {
