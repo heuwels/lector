@@ -5,6 +5,7 @@ import { recordStudySessionPing } from './study-session';
 
 function reset() {
   db.prepare('DELETE FROM dailyStats').run();
+  db.prepare("DELETE FROM settings WHERE key = 'timezone'").run();
 }
 
 describe('recordStudySessionPing', () => {
@@ -47,6 +48,28 @@ describe('recordStudySessionPing', () => {
     expect(af.sessionStartedAt).toBe('2026-06-21T06:00:00Z');
     expect(de).toBeTruthy();
     expect(de!.sessionStartedAt).not.toBeNull();
+  });
+
+  test('records the day in the configured time zone, not raw UTC', () => {
+    const setTimeZone = (zone: string) =>
+      db
+        .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('timezone', ?)")
+        .run(JSON.stringify(zone));
+
+    // Two zones 25h apart always fall on different calendar days at any single
+    // instant, so a timezone-aware writer records two distinct dates here while
+    // the old raw-UTC writer would collapse both onto the one UTC day (1 row).
+    setTimeZone('Pacific/Kiritimati'); // UTC+14
+    recordStudySessionPing('af');
+    setTimeZone('Pacific/Pago_Pago'); // UTC-11
+    recordStudySessionPing('af');
+
+    const dates = db
+      .prepare("SELECT date FROM dailyStats WHERE language = 'af' ORDER BY date")
+      .all() as { date: string }[];
+
+    expect(dates.length).toBe(2);
+    expect(dates[0].date).not.toBe(dates[1].date);
   });
 
   test('is idempotent — a repeat ping keeps the earliest sessionStartedAt', () => {

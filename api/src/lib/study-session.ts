@@ -11,10 +11,12 @@ import { getTodayDate } from './dates';
 // every language's row for the day. This helper is the single source of truth for
 // that write — shared by /translate, /dictionary, and /study-ping so the three
 // callers can't drift apart again (which is exactly how the /translate copy ended
-// up language-less and on a raw-UTC day boundary). Uses getTodayDate() so the day
-// rollover matches every other stats writer (timezone-aware, never raw UTC).
-export function recordStudySessionPing(language: string): void {
-  const today = getTodayDate();
+// up language-less and on a raw-UTC day boundary). Defaults the day to
+// getTodayDate() so the rollover matches every other stats writer (timezone-aware,
+// never raw UTC); callers that make a second same-day write (e.g. the dictionary
+// lookup's extra counter bump) pass a shared `today` so both writes target the
+// same row even if the clock rolls over between them.
+export function recordStudySessionPing(language: string, today: string = getTodayDate()): void {
   const now = new Date().toISOString();
   db.prepare(
     `INSERT OR IGNORE INTO dailyStats

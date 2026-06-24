@@ -12,10 +12,11 @@ const app = new Hono();
 // stats stay accurate when the local DB serves a hit instead of the AI path. Both
 // writes target the looked-up language's (date, language) row.
 function recordDictionaryLookup(language: string) {
-  recordStudySessionPing(language);
+  const today = getTodayDate();
+  recordStudySessionPing(language, today);
   db.prepare(
     'UPDATE dailyStats SET dictionaryLookups = dictionaryLookups + 1 WHERE date = ? AND language = ?',
-  ).run(getTodayDate(), language);
+  ).run(today, language);
 }
 
 // GET /api/dictionary/lookup?word=<word>
