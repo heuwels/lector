@@ -8,6 +8,11 @@ describe('getPageCount', () => {
     expect(getPageCount(1, 50)).toBe(1);
   });
 
+  it('does not add a phantom page for an exact multiple', () => {
+    expect(getPageCount(50, 50)).toBe(1);
+    expect(getPageCount(100, 50)).toBe(2);
+  });
+
   it('returns at least 1 page for an empty list', () => {
     expect(getPageCount(0, 50)).toBe(1);
   });
@@ -93,6 +98,10 @@ describe('getPageRange', () => {
 
   it('clamps an out-of-range page before computing the range', () => {
     expect(getPageRange(99, 50, 320)).toEqual({ from: 301, to: 320 });
+  });
+
+  it('clamps a NaN page to the first page', () => {
+    expect(getPageRange(NaN, 50, 320)).toEqual({ from: 1, to: 50 });
   });
 
   it('returns a zero range for an empty list', () => {

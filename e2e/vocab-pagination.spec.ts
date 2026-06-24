@@ -145,6 +145,18 @@ test.describe('Vocab list pagination', () => {
     await expect(page.getByTestId('vocab-pagination-page')).toHaveText('Page 1 of 1');
   });
 
+  test('sorting keeps the current page (same set, reordered)', async ({ page }) => {
+    await showSeededRows(page);
+    await page.getByLabel('Rows per page').selectOption('25');
+    await page.getByRole('button', { name: 'Next page' }).click();
+    await expect(page.getByTestId('vocab-pagination-page')).toHaveText('Page 2 of 2');
+
+    // Re-sort by a different column: the set is unchanged, only reordered, so
+    // pagination deliberately stays on page 2 (it does not snap back to 1).
+    await page.getByRole('columnheader', { name: /Date Added/ }).click();
+    await expect(page.getByTestId('vocab-pagination-page')).toHaveText('Page 2 of 2');
+  });
+
   test('hides the pagination control and shows an empty state when nothing matches', async ({
     page,
   }) => {

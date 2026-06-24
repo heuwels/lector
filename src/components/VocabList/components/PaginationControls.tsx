@@ -58,7 +58,11 @@ export default function PaginationControls({
 
       {/* Range + page navigation */}
       <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground" data-testid="vocab-pagination-range">
+        <span
+          className="text-sm text-muted-foreground"
+          data-testid="vocab-pagination-range"
+          aria-live="polite"
+        >
           {from}–{to} of {totalItems}
         </span>
         <div className="flex items-center gap-1">
