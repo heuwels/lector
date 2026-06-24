@@ -4,11 +4,25 @@ import { randomUUID } from 'crypto';
 
 const app = new Hono();
 
-// GET /api/groups - List all groups
+// GET /api/groups - List all groups.
+//
+// Groups are language-agnostic containers (collection_groups has no language
+// column) — language lives on the collections within. We return a total
+// collection count (across ALL languages) per group so the library can tell a
+// brand-new empty group, which stays visible so it can be populated, from a
+// group whose collections all belong to other languages, which is hidden in the
+// active language.
 app.get('/', (c) => {
   const groups = db
-    .prepare('SELECT * FROM collection_groups ORDER BY sortOrder ASC')
-    .all() as CollectionGroupRow[];
+    .prepare(
+      `SELECT g.id, g.name, g.sortOrder, g.createdAt,
+              COUNT(col.id) AS collectionCount
+         FROM collection_groups g
+         LEFT JOIN collections col ON col.groupId = g.id
+        GROUP BY g.id
+        ORDER BY g.sortOrder ASC`,
+    )
+    .all() as Array<CollectionGroupRow & { collectionCount: number }>;
 
   return c.json(groups);
 });
