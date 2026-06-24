@@ -41,8 +41,8 @@ app.post(
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       const insertLesson = db.prepare(`
-        INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, createdAt, lastReadAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       db.transaction(() => {
@@ -57,6 +57,7 @@ app.post(
             i,
             chapter.markdown,
             chapter.wordCount,
+            lang,
             now,
             now,
           );

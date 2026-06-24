@@ -223,13 +223,13 @@ function lookupCached(word: string, language: string): ExpandedDictionaryEntry |
   if (!row) return undefined;
 
   const senses = userDb
-    .prepare('SELECT pos, gloss FROM cached_senses WHERE word = ? ORDER BY sort_order')
-    .all(row.word) as Array<{ pos: string | null; gloss: string }>;
+    .prepare('SELECT pos, gloss FROM cached_senses WHERE word = ? AND language = ? ORDER BY sort_order')
+    .all(row.word, language) as Array<{ pos: string | null; gloss: string }>;
   if (senses.length === 0) return undefined;
 
   const related = userDb
-    .prepare('SELECT related_word, relation FROM cached_related_forms WHERE word = ?')
-    .all(row.word) as Array<{ related_word: string; relation: string }>;
+    .prepare('SELECT related_word, relation FROM cached_related_forms WHERE word = ? AND language = ?')
+    .all(row.word, language) as Array<{ related_word: string; relation: string }>;
 
   const entry: ExpandedDictionaryEntry = {
     word: row.word,
@@ -265,20 +265,19 @@ export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
   const upsertEntry = userDb.prepare(`
     INSERT INTO cached_entries (word, language, ipa, etymology, sourceSentence, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(word) DO UPDATE SET
-      language = excluded.language,
+    ON CONFLICT(word, language) DO UPDATE SET
       ipa = excluded.ipa,
       etymology = excluded.etymology,
       sourceSentence = excluded.sourceSentence,
       updatedAt = excluded.updatedAt
   `);
-  const deleteSenses = userDb.prepare('DELETE FROM cached_senses WHERE word = ?');
+  const deleteSenses = userDb.prepare('DELETE FROM cached_senses WHERE word = ? AND language = ?');
   const insertSense = userDb.prepare(
-    'INSERT INTO cached_senses (word, pos, gloss, sort_order) VALUES (?, ?, ?, ?)',
+    'INSERT INTO cached_senses (word, language, pos, gloss, sort_order) VALUES (?, ?, ?, ?, ?)',
   );
-  const deleteRelated = userDb.prepare('DELETE FROM cached_related_forms WHERE word = ?');
+  const deleteRelated = userDb.prepare('DELETE FROM cached_related_forms WHERE word = ? AND language = ?');
   const insertRelated = userDb.prepare(
-    'INSERT INTO cached_related_forms (word, related_word, relation) VALUES (?, ?, ?)',
+    'INSERT INTO cached_related_forms (word, language, related_word, relation) VALUES (?, ?, ?, ?)',
   );
 
   userDb.transaction(() => {
@@ -291,15 +290,15 @@ export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
       now,
       now,
     );
-    deleteSenses.run(word);
+    deleteSenses.run(word, language);
     input.senses.forEach((s, i) => {
       if (!s.gloss) return;
-      insertSense.run(word, s.partOfSpeech || null, s.gloss, i);
+      insertSense.run(word, language, s.partOfSpeech || null, s.gloss, i);
     });
-    deleteRelated.run(word);
+    deleteRelated.run(word, language);
     (input.relatedForms || []).forEach((r) => {
       if (!r.form || !r.relation) return;
-      insertRelated.run(word, r.form, r.relation);
+      insertRelated.run(word, language, r.form, r.relation);
     });
   })();
   return word;

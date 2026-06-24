@@ -50,9 +50,12 @@ app.post('/', async (c) => {
 });
 
 // GET /api/journal/:id
+// By-id routes scope to the active language (defense-in-depth): a stale
+// cross-language id 404s rather than reading/mutating another language's entry.
 app.get('/:id', (c) => {
   const id = c.req.param('id');
-  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(id) as
+  const lang = resolveLanguage(c.req.query('language'));
+  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND language = ?').get(id, lang) as
     | JournalEntryRow
     | undefined;
 
@@ -64,9 +67,10 @@ app.get('/:id', (c) => {
 // PUT /api/journal/:id - update draft body
 app.put('/:id', async (c) => {
   const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'));
   const body = await c.req.json();
 
-  const existing = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(id) as
+  const existing = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND language = ?').get(id, lang) as
     | JournalEntryRow
     | undefined;
   if (!existing) return c.json({ error: 'Entry not found' }, 404);
@@ -86,7 +90,8 @@ app.put('/:id', async (c) => {
   }
 
   values.push(id);
-  db.prepare(`UPDATE journal_entries SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  values.push(lang);
+  db.prepare(`UPDATE journal_entries SET ${updates.join(', ')} WHERE id = ? AND language = ?`).run(...values);
 
   return c.json({ success: true });
 });
@@ -94,11 +99,12 @@ app.put('/:id', async (c) => {
 // DELETE /api/journal/:id
 app.delete('/:id', (c) => {
   const id = c.req.param('id');
-  const entry = db.prepare('SELECT id FROM journal_entries WHERE id = ?').get(id);
+  const lang = resolveLanguage(c.req.query('language'));
+  const entry = db.prepare('SELECT id FROM journal_entries WHERE id = ? AND language = ?').get(id, lang);
 
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
 
-  db.prepare('DELETE FROM journal_entries WHERE id = ?').run(id);
+  db.prepare('DELETE FROM journal_entries WHERE id = ? AND language = ?').run(id, lang);
   return c.json({ success: true });
 });
 
@@ -106,7 +112,8 @@ app.delete('/:id', (c) => {
 // it (correctedBody + corrections, status → submitted).
 app.post('/:id/correct', async (c) => {
   const id = c.req.param('id');
-  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get(id) as
+  const lang = resolveLanguage(c.req.query('language'));
+  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND language = ?').get(id, lang) as
     | JournalEntryRow
     | undefined;
 
@@ -123,8 +130,8 @@ app.post('/:id/correct', async (c) => {
     db.prepare(
       `UPDATE journal_entries
        SET correctedBody = ?, corrections = ?, status = 'submitted', updatedAt = ?
-       WHERE id = ?`,
-    ).run(data.correctedBody ?? null, JSON.stringify(data.corrections ?? null), now, id);
+       WHERE id = ? AND language = ?`,
+    ).run(data.correctedBody ?? null, JSON.stringify(data.corrections ?? null), now, id, lang);
 
     return c.json({ correctedBody: data.correctedBody, corrections: data.corrections });
   } catch (error) {

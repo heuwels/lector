@@ -60,16 +60,19 @@ app.put('/reorder', async (c) => {
 });
 
 // GET /api/collections/:id
+// By-id routes scope to the active language (defense-in-depth): a stale
+// cross-language id 404s rather than reading/mutating another language's row.
 app.get('/:id', (c) => {
   const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'));
   const collection = db.prepare(`
     SELECT c.*, COUNT(l.id) as lessonCount,
       COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
     FROM collections c
-    LEFT JOIN lessons l ON l.collectionId = c.id
-    WHERE c.id = ?
+    LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language
+    WHERE c.id = ? AND c.language = ?
     GROUP BY c.id
-  `).get(id) as (CollectionRow & { lessonCount: number; avgProgress: number }) | undefined;
+  `).get(id, lang) as (CollectionRow & { lessonCount: number; avgProgress: number }) | undefined;
 
   if (!collection) {
     return c.json({ error: 'Collection not found' }, 404);
@@ -81,6 +84,7 @@ app.get('/:id', (c) => {
 // PUT /api/collections/:id
 app.put('/:id', async (c) => {
   const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'));
   const body = await c.req.json();
 
   const updates: string[] = [];
@@ -99,8 +103,9 @@ app.put('/:id', async (c) => {
     values.push(new Date().toISOString());
   }
   values.push(id);
+  values.push(lang);
 
-  db.prepare(`UPDATE collections SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  db.prepare(`UPDATE collections SET ${updates.join(', ')} WHERE id = ? AND language = ?`).run(...values);
 
   return c.json({ success: true });
 });
@@ -108,8 +113,9 @@ app.put('/:id', async (c) => {
 // DELETE /api/collections/:id
 app.delete('/:id', (c) => {
   const id = c.req.param('id');
-  db.prepare('DELETE FROM lessons WHERE collectionId = ?').run(id);
-  db.prepare('DELETE FROM collections WHERE id = ?').run(id);
+  const lang = resolveLanguage(c.req.query('language'));
+  db.prepare('DELETE FROM lessons WHERE collectionId = ? AND language = ?').run(id, lang);
+  db.prepare('DELETE FROM collections WHERE id = ? AND language = ?').run(id, lang);
   return c.json({ success: true });
 });
 
@@ -138,12 +144,20 @@ app.post('/:id/lessons', async (c) => {
     'SELECT COALESCE(MAX(sortOrder), -1) as maxOrder FROM lessons WHERE collectionId = ?'
   ).get(collectionId) as { maxOrder: number };
 
+  // A lesson inherits its parent collection's language so it matches the
+  // l.language = c.language join in the library list; fall back to the active
+  // language if the collection is somehow missing.
+  const parent = db.prepare('SELECT language FROM collections WHERE id = ?').get(collectionId) as
+    | { language: string }
+    | undefined;
+  const language = parent?.language ?? resolveLanguage(c.req.query('language'));
+
   const textContent = body.textContent || '';
 
   db.prepare(`
-    INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, createdAt, lastReadAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, collectionId, body.title, maxOrder.maxOrder + 1, textContent, countWords(textContent), now, now);
+    INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, collectionId, body.title, maxOrder.maxOrder + 1, textContent, countWords(textContent), language, now, now);
 
   db.prepare('UPDATE collections SET lastReadAt = ? WHERE id = ?').run(now, collectionId);
 

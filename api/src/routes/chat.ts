@@ -27,7 +27,7 @@ app.get('/', (c) => {
 
   const limit = parseInt(c.req.query('limit') || '50');
   const before = c.req.query('before'); // cursor for infinite scroll
-  const lang = resolveLanguage(c.req.query('lang'));
+  const lang = resolveLanguage(c.req.query('language'));
 
   let messages: ChatMessageRow[];
 
@@ -132,7 +132,7 @@ app.post('/', async (c) => {
 
 // DELETE /api/chat — clear chat history for the active (or requested) language
 app.delete('/', (c) => {
-  const lang = resolveLanguage(c.req.query('lang'));
+  const lang = resolveLanguage(c.req.query('language'));
   db.prepare('DELETE FROM chat_messages WHERE language = ?').run(lang);
   return c.json({ ok: true });
 });
