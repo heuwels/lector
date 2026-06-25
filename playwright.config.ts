@@ -46,7 +46,7 @@ export default defineConfig({
       // it's read-only test input. The Bun API opens the DB lazily, so there
       // is no startup race with this wipe.
       command:
-        "rm -rf tmp/e2e-data && mkdir -p tmp/e2e-data && (cp data/dictionary-af.db tmp/e2e-data/ 2>/dev/null || true) && npm run dev",
+        "rm -rf tmp/e2e-data && mkdir -p tmp/e2e-data && (cp data/dictionary-*.db tmp/e2e-data/ 2>/dev/null || true) && npm run dev",
       url: "http://localhost:3456",
       reuseExistingServer: false,
       env: { DATA_DIR: "tmp/e2e-data" },

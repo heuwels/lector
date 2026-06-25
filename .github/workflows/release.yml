@@ -51,15 +51,19 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: npm ci
       - run: cd api && bun install
-      - name: Load dictionary pin
-        run: grep -v '^#' dict.env >> "$GITHUB_ENV"
-      - name: Fetch on-device dictionary
+      - name: Fetch on-device dictionaries
+        # Sources dict.env and pulls every language listed in DICT_LANGS.
         run: |
+          set -a; . ./dict.env; set +a
           mkdir -p data
-          curl -fL --retry 3 \
-            "https://github.com/heuwels/lector/releases/download/${DICT_VERSION}/dictionary-af.db" \
-            -o data/dictionary-af.db
-          echo "${DICT_SHA256}  data/dictionary-af.db" | sha256sum -c -
+          for L in $DICT_LANGS; do
+            U=$(echo "$L" | tr a-z A-Z)
+            ver="DICT_VERSION_$U"; sha="DICT_SHA256_$U"
+            curl -fL --retry 3 \
+              "https://github.com/heuwels/lector/releases/download/${!ver}/dictionary-${L}.db" \
+              -o "data/dictionary-${L}.db"
+            echo "${!sha}  data/dictionary-${L}.db" | sha256sum -c -
+          done
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7

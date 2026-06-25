@@ -12,34 +12,50 @@ COPY . .
 RUN npm run build
 
 # ── Dictionary fetch stage ──────────────────────────────────────────────────
-# The Afrikaans dictionary is read-only application data. The pinned release is
-# defined once in dict.env (single source of truth, shared with the CI
-# workflows) and baked into the image here. Override for a custom DB by passing
-# --build-arg DICT_URL=... --build-arg DICT_SHA256=... (both default to the pin
-# in dict.env when left empty).
+# On-device dictionaries are read-only application data. Pins live once in
+# dict.env (single source of truth, shared with the CI workflows): per language
+# DICT_VERSION_<LANG> + DICT_SHA256_<LANG>, with DICT_LANGS listing which to bake
+# in. Each language's dictionary-<lang>.db is fetched from its GitHub release and
+# sha256-verified. Override a single DB with --build-arg DICT_URL=... (plus
+# optional --build-arg DICT_SHA256=... and --build-arg DICT_LANG=de; lang
+# defaults to af).
 #
 # Examples:
-#   docker build .                                   # pinned dict from dict.env
+#   docker build .                                   # pinned dicts from dict.env
 #   docker build \
 #     --build-arg DICT_URL=https://cdn.example.com/lector/my-dict.db \
 #     --build-arg DICT_SHA256=$(sha256sum my-dict.db | awk '{print $1}') .
 FROM alpine:3 AS dict
 ARG DICT_URL=
 ARG DICT_SHA256=
+ARG DICT_LANG=af
 RUN apk add --no-cache curl
 COPY dict.env /tmp/dict.env
 RUN set -e; \
-    OVERRIDE_URL="${DICT_URL}"; OVERRIDE_SHA="${DICT_SHA256}"; \
-    . /tmp/dict.env; \
-    URL="${OVERRIDE_URL:-https://github.com/heuwels/lector/releases/download/${DICT_VERSION}/dictionary-af.db}"; \
-    SHA="${OVERRIDE_SHA:-${DICT_SHA256}}"; \
     mkdir -p /dict; \
-    echo "Fetching dictionary from: ${URL}"; \
-    curl -fL --retry 3 "${URL}" -o /dict/dictionary-af.db; \
-    if [ -n "${SHA}" ]; then \
-      echo "${SHA}  /dict/dictionary-af.db" | sha256sum -c -; \
+    if [ -n "${DICT_URL}" ]; then \
+      echo "Fetching override ${DICT_LANG} dictionary from: ${DICT_URL}"; \
+      curl -fL --retry 3 "${DICT_URL}" -o "/dict/dictionary-${DICT_LANG}.db"; \
+      if [ -n "${DICT_SHA256}" ]; then \
+        echo "${DICT_SHA256}  /dict/dictionary-${DICT_LANG}.db" | sha256sum -c -; \
+      else \
+        echo "WARNING: no SHA-256 to verify against — skipping integrity check"; \
+      fi; \
     else \
-      echo "WARNING: no SHA-256 to verify against — skipping integrity check"; \
+      . /tmp/dict.env; \
+      for L in ${DICT_LANGS}; do \
+        U=$(echo "$L" | tr a-z A-Z); \
+        eval "VER=\${DICT_VERSION_${U}:-}"; \
+        eval "DSHA=\${DICT_SHA256_${U}:-}"; \
+        URL="https://github.com/heuwels/lector/releases/download/${VER}/dictionary-${L}.db"; \
+        echo "Fetching ${L} dictionary from: ${URL}"; \
+        curl -fL --retry 3 "${URL}" -o "/dict/dictionary-${L}.db"; \
+        if [ -n "${DSHA}" ]; then \
+          echo "${DSHA}  /dict/dictionary-${L}.db" | sha256sum -c -; \
+        else \
+          echo "WARNING: no SHA-256 for ${L} — skipping integrity check"; \
+        fi; \
+      done; \
     fi
 
 # ── Bun API build stage ──
@@ -75,8 +91,8 @@ RUN adduser --system --uid 1001 nextjs
 RUN mkdir -p /app/data/books /app/dict \
  && chown -R nextjs:nodejs /app/data /app/dict
 
-# Pull in the dictionary built in the `dict` stage
-COPY --from=dict /dict/dictionary-af.db /app/dict/dictionary-af.db
+# Pull in the dictionaries fetched in the `dict` stage (one per DICT_LANGS entry)
+COPY --from=dict /dict/ /app/dict/
 
 # Copy Next.js standalone build
 COPY --from=builder /app/public ./public
