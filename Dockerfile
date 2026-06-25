@@ -9,6 +9,19 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 COPY . .
+
+# Build/version metadata for Settings → About. The build context has no .git
+# (see .dockerignore), so these are supplied by the callers that do have it —
+# the docker.yml / release.yml workflows and deploy.sh — and read by
+# next.config.ts. Declared after `COPY . .` (which already invalidates per
+# commit) so they don't bust the cached `npm ci` layer. BUILD_TIME is omitted on
+# purpose: next.config stamps it via `new Date()` during `npm run build`.
+ARG APP_VERSION=
+ARG GIT_COMMIT=
+ARG GIT_BRANCH=
+ENV APP_VERSION=$APP_VERSION
+ENV GIT_COMMIT=$GIT_COMMIT
+ENV GIT_BRANCH=$GIT_BRANCH
 RUN npm run build
 
 # ── Dictionary fetch stage ──────────────────────────────────────────────────

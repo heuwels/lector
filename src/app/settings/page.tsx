@@ -10,6 +10,7 @@ import AnkiSettings from './components/AnkiSettings';
 import TTSSettings from './components/TTSSettings';
 import LLMSettings from './components/LLMSettings';
 import PracticeSettings from './components/PracticeSettings';
+import VersionInfo from './components/VersionInfo';
 import PageHeader from '@/components/PageHeader';
 
 export default function SettingsPage() {
@@ -27,6 +28,7 @@ export default function SettingsPage() {
         <KnownWordsImport />
         <Export />
         <DataManagement />
+        <VersionInfo />
       </div>
     </main>
   );
