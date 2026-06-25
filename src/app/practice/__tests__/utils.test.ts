@@ -29,6 +29,11 @@ describe('normalize', () => {
   it('keeps diacritics', () => {
     expect(normalize('Sê!')).toBe('sê');
   });
+
+  it('strips German and curly quotes', () => {
+    expect(normalize('„Sind')).toBe('sind');
+    expect(normalize('„Ja“')).toBe('ja');
+  });
 });
 
 describe('checkAnswer', () => {
@@ -47,6 +52,11 @@ describe('checkAnswer', () => {
 
   it('distinguishes diacritics', () => {
     expect(checkAnswer('se', 'sê')).toBe(false);
+  });
+
+  it('matches when the bank word carries a leading German quote (#203)', () => {
+    expect(checkAnswer('Sind', '„Sind')).toBe(true);
+    expect(checkAnswer('sind', '„Sind')).toBe(true);
   });
 });
 

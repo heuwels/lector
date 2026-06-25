@@ -15,7 +15,7 @@ export function createBlankedSentence(sentence: string, wordIndex: number): stri
 export function normalize(s: string): string {
   return s
     .toLowerCase()
-    .replace(/[.,!?;:'")\]]/g, '')
+    .replace(/[.,!?;:'"„“”‚‘’«»‹›()[\]{}…]/gu, '')
     .trim();
 }
 
