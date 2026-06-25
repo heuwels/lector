@@ -1,17 +1,19 @@
 /**
- * Build the on-device Afrikaans dictionary SQLite database from the kaikki.org
- * Wiktionary dump. Run:
+ * Build an on-device dictionary SQLite database from the kaikki.org Wiktionary
+ * dump. Language-parameterized; defaults to Afrikaans. Run:
  *
- *     npx tsx scripts/build-dictionary.ts
+ *     npx tsx scripts/build-dictionary.ts            # af (default)
+ *     npx tsx scripts/build-dictionary.ts --lang de  # German
  *
  * - Streams the JSONL dump line-by-line (does NOT load into memory).
- * - Caches the download in ./tmp/kaikki-af.jsonl so reruns are fast.
- * - Merges hand-curated frequency ranks from src/lib/dictionary-roots.json.
- * - Writes data/dictionary-af.db (dropped + recreated each run).
+ * - Caches the download in ./tmp/kaikki-<lang>.jsonl so reruns are fast.
+ * - Merges hand-curated frequency ranks from the language's roots JSON (af only).
+ * - Writes data/dictionary-<lang>.db (dropped + recreated each run).
  * - Verifies ≥85% coverage against a corpus drawn from data/lector.db (vocab.text)
  *   and data/books/*. Exits 1 if coverage is below the threshold.
  *
- * Strictly additive: it does not modify the legacy dictionary files.
+ * Per-language behavior lives in PROFILES below; `af` is byte-identical to the
+ * original build. Strictly additive: it does not modify the legacy dictionary files.
  */
 
 import Database from 'better-sqlite3';
@@ -25,25 +27,100 @@ import readline from 'readline';
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const TMP_DIR = path.join(PROJECT_ROOT, 'tmp');
-const CACHE_PATH = path.join(TMP_DIR, 'kaikki-af.jsonl');
 const DATA_DIR = process.env.DATA_DIR || path.join(PROJECT_ROOT, 'data');
-const DB_PATH = path.join(DATA_DIR, 'dictionary-af.db');
 const LECTOR_DB_PATH = path.join(DATA_DIR, 'lector.db');
 const BOOKS_DIR = path.join(DATA_DIR, 'books');
-const ROOTS_JSON_PATH = path.join(PROJECT_ROOT, 'src/lib/dictionary-roots.json');
-
-const KAIKKI_URLS = [
-  'https://kaikki.org/dictionary/Afrikaans/kaikki.org-dictionary-Afrikaans.jsonl',
-  'https://kaikki.org/dictionary/downloads/af/kaikki.org-dictionary-Afrikaans.jsonl',
-];
 
 const COVERAGE_THRESHOLD = 0.85;
 
+// ---------------------------------------------------------------------------
+// Per-language build profiles. Default `af` is byte-identical to the original
+// Afrikaans build. Select another with `--lang <code>` (e.g. `--lang de`).
+// ---------------------------------------------------------------------------
+
+interface LangProfile {
+  /** kaikki.org JSONL dump URLs, tried in order (HEAD-probed). */
+  kaikkiUrls: string[];
+  /** Inner char class (no brackets) for the coverage tokenizer/letter test. */
+  letterClass: string;
+  /** Affix-stripping rules for the coverage lookup. Empty arrays = no affix
+   *  morphology (de resolves inflections via the kaikki `forms` table + UDPipe,
+   *  not affix rules — see issue #203 §4a). */
+  prefixes: string[];
+  suffixes: string[];
+  vowels: string;
+  /** Hand-curated frequency ranks / fallback glosses, relative to PROJECT_ROOT,
+   *  or null if the language has none (de ships rank=null v1). */
+  rootsJsonRel: string | null;
+  /** Newline-delimited word list for the coverage-gate corpus when the live
+   *  corpus (lector.db + books) is thin. null = fall back to rootsJsonRel (af). */
+  coverageCorpusRel: string | null;
+  /** Drop entries with no English gloss — the de→en filter, and the large,
+   *  natural size lever for the 1GB German dump. Off for af (parity-preserving). */
+  glossFilter: boolean;
+}
+
+const PROFILES: Record<string, LangProfile> = {
+  af: {
+    kaikkiUrls: [
+      'https://kaikki.org/dictionary/Afrikaans/kaikki.org-dictionary-Afrikaans.jsonl',
+      'https://kaikki.org/dictionary/downloads/af/kaikki.org-dictionary-Afrikaans.jsonl',
+    ],
+    letterClass: "a-zêëéèôöûüîïáàóíúýÿA-ZÊËÉÈÔÖÛÜÎÏÁÀÓÍÚÝŸ'-",
+    prefixes: ['ont', 'ver', 'her', 'ge', 'be'],
+    suffixes: ['heid', 'tjie', 'jie', 'ing', 'lik', 'te', 'de', 'e', 's'],
+    vowels: 'aeiouyêëéèôöûüîïáà',
+    rootsJsonRel: 'src/lib/dictionary-roots.json',
+    coverageCorpusRel: null,
+    glossFilter: false,
+  },
+  de: {
+    // Canonical /German/ URL only — the /downloads/de/ fallback 404s (verified 2026-06-25).
+    kaikkiUrls: ['https://kaikki.org/dictionary/German/kaikki.org-dictionary-German.jsonl'],
+    // af set + German ä/Ä and ß/ẞ.
+    letterClass: "a-zäöüßêëéèôûîïáàóíúýÿA-ZÄÖÜẞÊËÉÈÔÛÎÏÁÀÓÍÚÝŸ'-",
+    // No hand affix rules: German lookup = exact → inflections table → (UDPipe) → AI.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouyäöü',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-de.txt',
+    glossFilter: true,
+  },
+};
+
+function parseLangArg(): string {
+  const argv = process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--lang' && argv[i + 1]) return argv[i + 1];
+    const m = a.match(/^--lang=(.+)$/);
+    if (m) return m[1];
+  }
+  return 'af';
+}
+
+const LANG = parseLangArg();
+const PROFILE = PROFILES[LANG];
+if (!PROFILE) {
+  console.error(`Unknown --lang "${LANG}". Known: ${Object.keys(PROFILES).join(', ')}`);
+  process.exit(1);
+}
+
+const CACHE_PATH = path.join(TMP_DIR, `kaikki-${LANG}.jsonl`);
+const DB_PATH = path.join(DATA_DIR, `dictionary-${LANG}.db`);
+const ROOTS_JSON_PATH = PROFILE.rootsJsonRel ? path.join(PROJECT_ROOT, PROFILE.rootsJsonRel) : null;
+const COVERAGE_CORPUS_PATH = PROFILE.coverageCorpusRel
+  ? path.join(PROJECT_ROOT, PROFILE.coverageCorpusRel)
+  : null;
+const KAIKKI_URLS = PROFILE.kaikkiUrls;
+
 // Affix-stripping constants — MUST mirror src/lib/dictionary.ts so the coverage
-// check reflects what the live lookup will see.
-const PREFIXES = ['ont', 'ver', 'her', 'ge', 'be'];
-const SUFFIXES = ['heid', 'tjie', 'jie', 'ing', 'lik', 'te', 'de', 'e', 's'];
-const VOWELS = new Set('aeiouyêëéèôöûüîïáà'.split(''));
+// check reflects what the live lookup will see. Empty for languages (de) that
+// resolve inflections via the kaikki `forms` table instead of affix rules.
+const PREFIXES = PROFILE.prefixes;
+const SUFFIXES = PROFILE.suffixes;
+const VOWELS = new Set(PROFILE.vowels.split(''));
 const MIN_STEM = 2;
 
 function undoubleConsonant(stem: string): string | null {
@@ -93,7 +170,7 @@ async function ensureDump(): Promise<string> {
     }
   }
 
-  console.error('\n[!] Could not download the kaikki Afrikaans dump.');
+  console.error(`\n[!] Could not download the kaikki ${LANG} dump.`);
   console.error('    Tried:');
   for (const u of KAIKKI_URLS) console.error('      -', u);
   console.error(`    Manual fix: download one of those URLs and save it as`);
@@ -117,10 +194,19 @@ interface ExtractedEntry {
   inflections: Array<{ inflected: string; type: string }>;
 }
 
-interface KaikkiSound { ipa?: string }
-interface KaikkiSense { glosses?: string[] }
-interface KaikkiForm { form?: string; tags?: string[] }
-interface KaikkiRel { word?: string }
+interface KaikkiSound {
+  ipa?: string;
+}
+interface KaikkiSense {
+  glosses?: string[];
+}
+interface KaikkiForm {
+  form?: string;
+  tags?: string[];
+}
+interface KaikkiRel {
+  word?: string;
+}
 interface KaikkiLine {
   word?: string;
   pos?: string;
@@ -246,7 +332,9 @@ async function parseDump(dumpPath: string): Promise<{
     }
   }
 
-  console.log(`  parsed ${lineNo} lines, extracted ${entries.size} unique words (skipped ${skipped} malformed)`);
+  console.log(
+    `  parsed ${lineNo} lines, extracted ${entries.size} unique words (skipped ${skipped} malformed)`,
+  );
   return { entries, inflectionMap };
 }
 
@@ -261,7 +349,14 @@ interface RootJsonEntry {
 }
 
 function mergeRanks(entries: Map<string, MergedEntry>): { added: number; ranked: number } {
-  const rootJson = JSON.parse(fs.readFileSync(ROOTS_JSON_PATH, 'utf-8')) as Record<string, RootJsonEntry>;
+  if (!ROOTS_JSON_PATH) {
+    console.log('[3/5] No curated roots for this language — skipping rank merge');
+    return { added: 0, ranked: 0 };
+  }
+  const rootJson = JSON.parse(fs.readFileSync(ROOTS_JSON_PATH, 'utf-8')) as Record<
+    string,
+    RootJsonEntry
+  >;
   let ranked = 0;
   let added = 0;
   for (const [word, root] of Object.entries(rootJson)) {
@@ -287,7 +382,9 @@ function mergeRanks(entries: Map<string, MergedEntry>): { added: number; ranked:
     }
     ranked++;
   }
-  console.log(`[3/5] Merged ranks: ${ranked} words tagged, ${added} added that were missing from kaikki`);
+  console.log(
+    `[3/5] Merged ranks: ${ranked} words tagged, ${added} added that were missing from kaikki`,
+  );
   return { added, ranked };
 }
 
@@ -303,7 +400,11 @@ function buildDatabase(
 
   // Remove any prior DB so the build is idempotent
   for (const suffix of ['', '-shm', '-wal']) {
-    try { fs.unlinkSync(DB_PATH + suffix); } catch { /* ignore */ }
+    try {
+      fs.unlinkSync(DB_PATH + suffix);
+    } catch {
+      /* ignore */
+    }
   }
 
   console.log(`[4/5] Writing SQLite to ${DB_PATH}`);
@@ -349,10 +450,18 @@ function buildDatabase(
     CREATE INDEX idx_inflections_lemma ON inflections(lemma);
   `);
 
-  const insertEntry = db.prepare('INSERT INTO entries (word, rank, ipa, etymology) VALUES (?, ?, ?, ?)');
-  const insertSense = db.prepare('INSERT INTO senses (word, pos, gloss, sort_order) VALUES (?, ?, ?, ?)');
-  const insertRelated = db.prepare('INSERT INTO related_forms (word, related_word, relation) VALUES (?, ?, ?)');
-  const insertInflection = db.prepare('INSERT OR IGNORE INTO inflections (inflected_form, lemma, type) VALUES (?, ?, ?)');
+  const insertEntry = db.prepare(
+    'INSERT INTO entries (word, rank, ipa, etymology) VALUES (?, ?, ?, ?)',
+  );
+  const insertSense = db.prepare(
+    'INSERT INTO senses (word, pos, gloss, sort_order) VALUES (?, ?, ?, ?)',
+  );
+  const insertRelated = db.prepare(
+    'INSERT INTO related_forms (word, related_word, relation) VALUES (?, ?, ?)',
+  );
+  const insertInflection = db.prepare(
+    'INSERT OR IGNORE INTO inflections (inflected_form, lemma, type) VALUES (?, ?, ?)',
+  );
 
   let totalEntries = 0;
   let totalSenses = 0;
@@ -456,13 +565,14 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
   };
 }
 
-const AF_LETTERS = /^[a-zêëéèôöûüîïáàóíúýÿA-ZÊËÉÈÔÖÛÜÎÏÁÀÓÍÚÝŸ'-]+$/;
+const LETTER_RE = new RegExp(`^[${PROFILE.letterClass}]+$`);
+const SPLIT_RE = new RegExp(`[^${PROFILE.letterClass}]+`);
 
 function tokenize(text: string): string[] {
   return text
-    .split(/[^A-Za-zêëéèôöûüîïáàóíúýÿÊËÉÈÔÖÛÜÎÏÁÀÓÍÚÝŸ'-]+/)
+    .split(SPLIT_RE)
     .filter(Boolean)
-    .filter((w) => AF_LETTERS.test(w) && w.length >= 2);
+    .filter((w) => LETTER_RE.test(w) && w.length >= 2);
 }
 
 function gatherCorpus(): Set<string> {
@@ -473,7 +583,9 @@ function gatherCorpus(): Set<string> {
     try {
       const lectorDb = new Database(LECTOR_DB_PATH, { readonly: true });
       try {
-        const rows = lectorDb.prepare('SELECT DISTINCT lower(text) AS t FROM vocab').all() as { t: string }[];
+        const rows = lectorDb.prepare('SELECT DISTINCT lower(text) AS t FROM vocab').all() as {
+          t: string;
+        }[];
         for (const row of rows) {
           if (row.t) {
             for (const tok of tokenize(row.t)) corpus.add(tok.toLowerCase());
@@ -517,11 +629,28 @@ function coverageCheck(): { hits: number; total: number; misses: string[] } {
   // The curated frequency-ranked roots in dictionary-roots.json are the next
   // best proxy for "typical Afrikaans reading" — merge them in so the coverage
   // gate still produces a meaningful signal.
-  if (corpus.size < 100) {
-    const rootJson = JSON.parse(fs.readFileSync(ROOTS_JSON_PATH, 'utf-8')) as Record<string, RootJsonEntry>;
+  if (corpus.size < 100 && ROOTS_JSON_PATH) {
+    const rootJson = JSON.parse(fs.readFileSync(ROOTS_JSON_PATH, 'utf-8')) as Record<
+      string,
+      RootJsonEntry
+    >;
     const before = corpus.size;
     for (const w of Object.keys(rootJson)) corpus.add(w.toLowerCase());
-    console.log(`  (corpus was thin, added ${corpus.size - before} curated roots → ${corpus.size} tokens)`);
+    console.log(
+      `  (corpus was thin, added ${corpus.size - before} curated roots → ${corpus.size} tokens)`,
+    );
+  }
+
+  if (corpus.size < 100 && COVERAGE_CORPUS_PATH) {
+    const before = corpus.size;
+    for (const line of fs.readFileSync(COVERAGE_CORPUS_PATH, 'utf-8').split('\n')) {
+      const w = line.trim();
+      if (!w || w.startsWith('#')) continue;
+      corpus.add(w.toLowerCase());
+    }
+    console.log(
+      `  (corpus was thin, added ${corpus.size - before} wordfreq tokens → ${corpus.size} tokens)`,
+    );
   }
 
   const db = new Database(DB_PATH, { readonly: true });
@@ -544,9 +673,24 @@ function coverageCheck(): { hits: number; total: number; misses: string[] } {
 
 async function main() {
   const t0 = Date.now();
+  console.log(`Building ${LANG} dictionary → ${DB_PATH}`);
   const dumpPath = await ensureDump();
   const { entries, inflectionMap } = await parseDump(dumpPath);
   mergeRanks(entries);
+
+  if (PROFILE.glossFilter) {
+    let dropped = 0;
+    for (const [w, e] of entries) {
+      if (e.senses.length === 0) {
+        entries.delete(w);
+        dropped++;
+      }
+    }
+    console.log(
+      `  gloss-filter (${LANG}): dropped ${dropped} glossless entries → ${entries.size} kept`,
+    );
+  }
+
   const summary = buildDatabase(entries, inflectionMap);
   const { hits, total, misses } = coverageCheck();
 
@@ -566,7 +710,9 @@ async function main() {
   console.log(`\nCoverage: ${hits}/${total} words = ${(pct * 100).toFixed(1)}%`);
 
   if (pct < COVERAGE_THRESHOLD) {
-    console.error(`\nCoverage below ${(COVERAGE_THRESHOLD * 100).toFixed(0)}% threshold. First 50 misses:`);
+    console.error(
+      `\nCoverage below ${(COVERAGE_THRESHOLD * 100).toFixed(0)}% threshold. First 50 misses:`,
+    );
     for (const m of misses) console.error('  -', m);
     process.exit(1);
   }
