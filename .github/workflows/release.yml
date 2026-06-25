@@ -89,6 +89,12 @@ jobs:
           push: true
           tags: ghcr.io/heuwels/lector:sha-${{ github.sha }}-amd64
           platforms: linux/amd64
+          # Build context has no .git (see .dockerignore); on a release the tag
+          # IS the version. BUILD_TIME is stamped by next.config; branch is left
+          # unset (a tag build is detached → the About panel hides the Branch row).
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
+            GIT_COMMIT=${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64
           cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64,mode=max,ignore-error=true
 
@@ -112,6 +118,12 @@ jobs:
           push: true
           tags: ghcr.io/heuwels/lector:sha-${{ github.sha }}-arm64
           platforms: linux/arm64
+          # Build context has no .git (see .dockerignore); on a release the tag
+          # IS the version. BUILD_TIME is stamped by next.config; branch is left
+          # unset (a tag build is detached → the About panel hides the Branch row).
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
+            GIT_COMMIT=${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-arm64
           cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-arm64,mode=max,ignore-error=true
 
