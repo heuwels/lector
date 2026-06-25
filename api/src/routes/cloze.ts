@@ -2,21 +2,33 @@ import { Hono } from 'hono';
 import { db, ClozeSentenceRow, ClozeMasteryLevel } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { randomUUID } from 'crypto';
-import sentenceBank from '../lib/sentence-bank.json';
 
 type BankEntry = {
-  id: number;
+  id: number | string;
   text: string;
   translation: string;
   clozeWord: string;
   clozeIndex: number;
   wordRank: number | null;
   collection: string;
+  source?: 'tatoeba' | 'mined';
 };
 
-// The bundled sentence bank is Afrikaans content — always store its rows as
-// 'af' so seeding under another active language can't mislabel them.
-const SENTENCE_BANK_LANGUAGE = 'af';
+// Per-language sentence banks, lazily loaded. Each value is a LITERAL dynamic
+// import so the bundler still includes the JSON, but the file is only read when
+// that language is actually seeded — no need to load every language's bank up
+// front. Add a language by dropping in a sentence-bank-<code>.json and
+// registering it here. Rows are stored under the language whose bank we load,
+// so seeding can never mislabel one language's sentences as another's.
+const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
+  af: () => import('../lib/sentence-bank-af.json'),
+};
+
+async function loadSentenceBank(lang: string): Promise<BankEntry[]> {
+  const loader = SENTENCE_BANKS[lang];
+  if (!loader) return [];
+  return (await loader()).default as BankEntry[];
+}
 
 const app = new Hono();
 
@@ -169,20 +181,34 @@ app.get('/counts', (c) => {
 });
 
 // POST /api/cloze/seed
-app.post('/seed', (c) => {
-  const bank = sentenceBank as BankEntry[];
+app.post('/seed', async (c) => {
+  const lang = resolveLanguage(c.req.query('language'));
+  const bank = await loadSentenceBank(lang);
+  if (bank.length === 0) {
+    return c.json({ seeded: 0, updated: 0, mined: 0, tatoeba: 0, total: 0 });
+  }
 
+  // Tatoeba rows are deduped by their tatoebaSentenceId; mined rows by their
+  // stable string id (stored as the PK) so re-seeding is idempotent for both.
   const existing = db.prepare(
-    'SELECT id, tatoebaSentenceId, clozeWord, collection, reviewCount FROM clozeSentences WHERE tatoebaSentenceId IS NOT NULL'
-  ).all() as { id: string; tatoebaSentenceId: number; clozeWord: string; collection: string; reviewCount: number }[];
-
+    'SELECT id, tatoebaSentenceId, clozeWord, collection, reviewCount FROM clozeSentences WHERE tatoebaSentenceId IS NOT NULL AND language = ?'
+  ).all(lang) as { id: string; tatoebaSentenceId: number; clozeWord: string; collection: string; reviewCount: number }[];
   const existingMap = new Map(existing.map(r => [r.tatoebaSentenceId, r]));
+
+  const existingMined = new Set(
+    (db.prepare("SELECT id FROM clozeSentences WHERE source = 'mined' AND language = ?")
+      .all(lang) as { id: string }[]).map(r => r.id)
+  );
 
   const toInsert: BankEntry[] = [];
   const toUpdate: { id: string; clozeWord: string; clozeIndex: number; wordRank: number | null; collection: string }[] = [];
 
   for (const s of bank) {
-    const ex = existingMap.get(s.id);
+    if ((s.source ?? 'tatoeba') === 'mined') {
+      if (!existingMined.has(String(s.id))) toInsert.push(s);
+      continue;
+    }
+    const ex = existingMap.get(s.id as number);
     if (!ex) {
       toInsert.push(s);
     } else if (ex.reviewCount === 0 && (ex.clozeWord !== s.clozeWord || ex.collection !== s.collection)) {
@@ -201,10 +227,11 @@ app.post('/seed', (c) => {
 
   db.transaction(() => {
     for (const s of toInsert) {
+      const mined = (s.source ?? 'tatoeba') === 'mined';
       insertStmt.run(
-        randomUUID(), s.text, s.clozeWord, s.clozeIndex, s.translation,
-        'tatoeba', s.collection, s.wordRank, s.id,
-        0, new Date().toISOString(), 0, 0, 0, SENTENCE_BANK_LANGUAGE
+        mined ? String(s.id) : randomUUID(), s.text, s.clozeWord, s.clozeIndex, s.translation,
+        mined ? 'mined' : 'tatoeba', s.collection, s.wordRank, mined ? null : (s.id as number),
+        0, new Date().toISOString(), 0, 0, 0, lang
       );
     }
     for (const s of toUpdate) {
@@ -212,19 +239,25 @@ app.post('/seed', (c) => {
     }
   })();
 
-  return c.json({ seeded: toInsert.length, updated: toUpdate.length, total: bank.length });
+  const minedSeeded = toInsert.filter(s => (s.source ?? 'tatoeba') === 'mined').length;
+  return c.json({
+    seeded: toInsert.length, updated: toUpdate.length,
+    mined: minedSeeded, tatoeba: toInsert.length - minedSeeded, total: bank.length,
+  });
 });
 
 // GET /api/cloze/seed
-app.get('/seed', (c) => {
+app.get('/seed', async (c) => {
+  const lang = resolveLanguage(c.req.query('language'));
+  const bank = await loadSentenceBank(lang);
   const count = db.prepare(
     'SELECT COUNT(*) as count FROM clozeSentences WHERE language = ? AND (blacklisted = 0 OR blacklisted IS NULL)'
-  ).get(SENTENCE_BANK_LANGUAGE) as { count: number };
+  ).get(lang) as { count: number };
 
   return c.json({
     dbCount: count.count,
-    bankSize: sentenceBank.length,
-    needsSeed: count.count < sentenceBank.length * 0.5,
+    bankSize: bank.length,
+    needsSeed: bank.length > 0 && count.count < bank.length * 0.5,
   });
 });
 
