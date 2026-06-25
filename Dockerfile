@@ -14,14 +14,19 @@ RUN npm run build
 # ── Dictionary fetch stage ──────────────────────────────────────────────────
 # On-device dictionaries are read-only application data. Pins live once in
 # dict.env (single source of truth, shared with the CI workflows): per language
-# DICT_VERSION_<LANG> + DICT_SHA256_<LANG>, with DICT_LANGS listing which to bake
-# in. Each language's dictionary-<lang>.db is fetched from its GitHub release and
-# sha256-verified. Override a single DB with --build-arg DICT_URL=... (plus
-# optional --build-arg DICT_SHA256=... and --build-arg DICT_LANG=de; lang
-# defaults to af).
+# DICT_VERSION_<LANG> + DICT_SHA256_<LANG>, with DICT_LANGS listing the published
+# set. ALL selected languages are fetched (GitHub release, sha256-verified) and
+# baked into the SAME image — one image serves every bundled language at runtime.
+#
+# Select which languages to bake with --build-arg DICT_LANGS="…" (space-separated;
+# must be a subset of the languages pinned in dict.env). Defaults to dict.env's
+# DICT_LANGS = every published language. Override a single DB with
+# --build-arg DICT_URL=... (+ optional DICT_SHA256=, DICT_LANG=; lang defaults to af).
 #
 # Examples:
-#   docker build .                                   # pinned dicts from dict.env
+#   docker build .                                   # all published dicts (af + de)
+#   docker build --build-arg DICT_LANGS="de" .       # German-only image (smaller)
+#   docker build --build-arg DICT_LANGS="af de" .    # explicit subset
 #   docker build \
 #     --build-arg DICT_URL=https://cdn.example.com/lector/my-dict.db \
 #     --build-arg DICT_SHA256=$(sha256sum my-dict.db | awk '{print $1}') .
@@ -29,9 +34,11 @@ FROM alpine:3 AS dict
 ARG DICT_URL=
 ARG DICT_SHA256=
 ARG DICT_LANG=af
+ARG DICT_LANGS=
 RUN apk add --no-cache curl
 COPY dict.env /tmp/dict.env
 RUN set -e; \
+    OVERRIDE_LANGS="${DICT_LANGS}"; \
     mkdir -p /dict; \
     if [ -n "${DICT_URL}" ]; then \
       echo "Fetching override ${DICT_LANG} dictionary from: ${DICT_URL}"; \
@@ -43,10 +50,16 @@ RUN set -e; \
       fi; \
     else \
       . /tmp/dict.env; \
-      for L in ${DICT_LANGS}; do \
+      LANGS="${OVERRIDE_LANGS:-${DICT_LANGS}}"; \
+      echo "Baking dictionaries for: ${LANGS}"; \
+      for L in ${LANGS}; do \
         U=$(echo "$L" | tr a-z A-Z); \
         eval "VER=\${DICT_VERSION_${U}:-}"; \
         eval "DSHA=\${DICT_SHA256_${U}:-}"; \
+        if [ -z "${VER}" ]; then \
+          echo "ERROR: no DICT_VERSION_${U} pin in dict.env for requested language '${L}'" >&2; \
+          exit 1; \
+        fi; \
         URL="https://github.com/heuwels/lector/releases/download/${VER}/dictionary-${L}.db"; \
         echo "Fetching ${L} dictionary from: ${URL}"; \
         curl -fL --retry 3 "${URL}" -o "/dict/dictionary-${L}.db"; \
