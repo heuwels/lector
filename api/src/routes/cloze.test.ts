@@ -6,6 +6,7 @@ import { db } from '../db';
 // test doesn't seed the full ~11k-row bank.
 const TATOEBA_IDS = [9001, 9002];
 const MINED_ID = 'afm-test-001';
+const DE_TATOEBA_IDS = [7001, 7002];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
   default: [
@@ -40,6 +41,30 @@ mock.module('../lib/sentence-bank-af.json', () => ({
   ],
 }));
 
+// German bank fixture (2 rows) — proves per-language seeding + isolation.
+mock.module('../lib/sentence-bank-de.json', () => ({
+  default: [
+    {
+      id: 7001,
+      text: 'Das Haus ist groß.',
+      translation: 'The house is big.',
+      clozeWord: 'Haus',
+      clozeIndex: 1,
+      wordRank: 40,
+      collection: 'top500',
+    },
+    {
+      id: 7002,
+      text: 'Ich trinke Wasser.',
+      translation: 'I drink water.',
+      clozeWord: 'Wasser',
+      clozeIndex: 2,
+      wordRank: 90,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -51,7 +76,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${TATOEBA_IDS.join(',')}) OR id = ?`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS].join(',')}) OR id = ?`,
   ).run(MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -88,9 +113,10 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
   });
 
   test('seeds nothing when the active language has no bank (no mislabeling)', async () => {
-    // The old guard hard-coded 'af'; now a language with no registered bank
-    // simply seeds nothing, so Afrikaans content can never land under 'de'.
-    setActiveLanguage('de');
+    // A registered language with no sentence bank (es — Spanish is in the
+    // LANGUAGES registry but ships no bank) simply seeds nothing, so one
+    // language's content can never land under another.
+    setActiveLanguage('es');
 
     const res = await app.request('/seed', { method: 'POST' });
     expect(res.status).toBe(200);
@@ -103,6 +129,31 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get(MINED_ID) as { c: number };
     expect(count.c).toBe(0);
+  });
+
+  test('seeds the German bank under de, isolated from Afrikaans (no cross-bleed)', async () => {
+    setActiveLanguage('af');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('de');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const de = db
+      .prepare(
+        `SELECT language FROM clozeSentences WHERE tatoebaSentenceId IN (${DE_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string }[];
+    expect(de.length).toBe(2);
+    expect(de.every((r) => r.language === 'de')).toBe(true);
+
+    // Zero cross-bleed: Afrikaans content never lands under de.
+    const afUnderDe = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'de' AND tatoebaSentenceId IN (${TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(afUnderDe.c).toBe(0);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {

@@ -20,6 +20,12 @@ describe('splitTrailingPunctuation', () => {
   it("keeps the Afrikaans 'n contraction intact", () => {
     expect(splitTrailingPunctuation("'n")).toEqual(["'n", '']);
   });
+
+  it('strips leading quotes/brackets (German „, parens) but not the apostrophe', () => {
+    expect(splitTrailingPunctuation('„Sind')[0]).toBe('Sind');
+    expect(splitTrailingPunctuation('(Haus)')[0]).toBe('Haus');
+    expect(splitTrailingPunctuation("'n")[0]).toBe("'n");
+  });
 });
 
 describe('sentenceContainsWord', () => {

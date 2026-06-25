@@ -3,11 +3,19 @@
 // attached (e.g. "haar."), so anything matching, displaying, or persisting a
 // cloze word must strip it first (issues #68, #108).
 
-/** Strip trailing punctuation from a word, returning [cleanWord, punctuation]. */
+/**
+ * Strip surrounding punctuation from a cloze word, returning [cleanWord,
+ * trailingPunctuation]. Bank words carry punctuation under the app's /\s+/ split:
+ * trailing (e.g. "haar.") and — for languages like German — leading (e.g. „Sind,
+ * the opening quote glued to the word). Both are dropped from the clean word; the
+ * leading strip covers opening quotes/brackets (incl. German „ and guillemets)
+ * but NOT the apostrophe, so the Afrikaans 'n article survives. (issues #68, #108)
+ */
 export function splitTrailingPunctuation(word: string): [string, string] {
-  const match = word.match(/^(.+?)([.,!?;:'")\]]+)$/);
+  const noLead = word.replace(/^[„“”"«»‹›(\[{¿¡]+/u, '');
+  const match = noLead.match(/^(.+?)([.,!?;:'"„“”«»‹›)\]}…]+)$/u);
   if (match) return [match[1], match[2]];
-  return [word, ''];
+  return [noLead, ''];
 }
 
 // Letters (incl. Latin diacritics used by Afrikaans), hyphens and apostrophes —
