@@ -34,6 +34,11 @@ describe('normalize', () => {
     expect(normalize('„Sind')).toBe('sind');
     expect(normalize('„Ja“')).toBe('ja');
   });
+
+  it('strips Spanish inverted question/exclamation marks', () => {
+    expect(normalize('¿Cómo')).toBe('cómo');
+    expect(normalize('¡Hola!')).toBe('hola');
+  });
 });
 
 describe('checkAnswer', () => {
@@ -57,6 +62,11 @@ describe('checkAnswer', () => {
   it('matches when the bank word carries a leading German quote (#203)', () => {
     expect(checkAnswer('Sind', '„Sind')).toBe(true);
     expect(checkAnswer('sind', '„Sind')).toBe(true);
+  });
+
+  it('matches when the bank word carries a leading Spanish ¿/¡ mark', () => {
+    expect(checkAnswer('Cómo', '¿Cómo')).toBe(true);
+    expect(checkAnswer('ni', '¡Ni')).toBe(true);
   });
 });
 

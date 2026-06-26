@@ -65,6 +65,11 @@ mock.module('../lib/sentence-bank-de.json', () => ({
   ],
 }));
 
+// Spanish ships a real bank in production (sentence-bank-es.json); mocked empty
+// here so the "no usable bank" test below exercises the seeds-nothing guard
+// without importing the full ~8k-row bank.
+mock.module('../lib/sentence-bank-es.json', () => ({ default: [] }));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -113,9 +118,9 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
   });
 
   test('seeds nothing when the active language has no bank (no mislabeling)', async () => {
-    // A registered language with no sentence bank (es — Spanish is in the
-    // LANGUAGES registry but ships no bank) simply seeds nothing, so one
-    // language's content can never land under another.
+    // A registered language whose bank has no usable sentences (es is mocked to
+    // an empty bank above) simply seeds nothing, so one language's content can
+    // never land under another.
     setActiveLanguage('es');
 
     const res = await app.request('/seed', { method: 'POST' });
