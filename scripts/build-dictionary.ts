@@ -87,6 +87,22 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-de.txt',
     glossFilter: true,
   },
+  es: {
+    // Canonical /Spanish/ URL (kaikki has no /downloads/es/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Spanish/kaikki.org-dictionary-Spanish.jsonl'],
+    // a-z + Spanish á/é/í/ó/ú/ü/ñ (the inverted marks ¿¡ are punctuation, not word chars).
+    letterClass: "a-záéíóúüñA-ZÁÉÍÓÚÜÑ'-",
+    // No hand affix rules: Spanish is highly inflected, but kaikki carries each
+    // conjugated/plural surface form as its own "form of <lemma>" entry (which
+    // keeps a gloss, so it survives glossFilter) — lookup resolves via those +
+    // the inflections table, same strategy as de (exact → inflections → UDPipe → AI).
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouáéíóúü',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-es.txt',
+    glossFilter: true,
+  },
 };
 
 function parseLangArg(): string {

@@ -26,6 +26,11 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation('(Haus)')[0]).toBe('Haus');
     expect(splitTrailingPunctuation("'n")[0]).toBe("'n");
   });
+
+  it('strips leading Spanish inverted marks ¿ ¡', () => {
+    expect(splitTrailingPunctuation('¿Cómo')[0]).toBe('Cómo');
+    expect(splitTrailingPunctuation('¡Hola!')).toEqual(['Hola', '!']);
+  });
 });
 
 describe('sentenceContainsWord', () => {
