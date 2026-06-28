@@ -232,3 +232,125 @@ html {
     @apply font-sans;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Print — a clean, ink-friendly monochrome copy.
+ *
+ * The warm-sand/sage theme (and its `.dark` variant) is dropped for print:
+ * everything renders black-on-white. Navigation, the chat widget, the
+ * translation drawer and toasts are removed (see also `print:hidden` on those
+ * components). The reader's fixed-height scroll shell is unwound so the whole
+ * text flows across pages instead of clipping to one screen, and its
+ * word-state chips collapse to plain book text.
+ *
+ * Everything here is intentionally `!important`: it has to beat both the design
+ * tokens and the `.dark` overrides, so a dark-mode user who hits Cmd+P still
+ * gets black-on-white.
+ * ───────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* Page box — comfortable margins for a reading copy. */
+  @page {
+    margin: 1.6cm;
+  }
+
+  html {
+    /* The base layer sets `overflow-x: hidden`, which computes `overflow-y` to
+       `auto` and clips print output to one page in some Chromium builds. */
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    /* App shell is a flex column/row — let content stack and grow naturally. */
+    display: block !important;
+    min-height: 0 !important;
+  }
+
+  /* Monochrome reset: strip elevation and colour from everything; soften any
+     structural borders that survive to a light grey. */
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    color: #000 !important;
+    border-color: #ccc !important;
+  }
+
+  /* Strip warm surface fills everywhere EXCEPT the stats Activity heatmap, whose
+     cells encode data as an inline background-color. The `:not()` lets that
+     inline colour through instead of an !important transparent override winning
+     over it, so the heatmap stays meaningful on paper.
+
+     html/body are also excluded: they carry the white page backdrop set above,
+     and a bare `*` selector (specificity 0,1,1 once the `:not()` is counted)
+     would otherwise out-specify the `html`/`body` rules (0,0,1) even though both
+     are !important — leaving the page transparent instead of white. */
+  *:not(html):not(body):not([data-testid='activity-heatmap'] *),
+  *::before,
+  *::after {
+    background: transparent !important;
+  }
+
+  /* Data-viz prints in colour: the heatmap cells and recharts chart fills keep
+     their colours and render even though the print dialog defaults "Background
+     graphics" to off. (recharts uses SVG fill, not CSS background, so it is
+     unaffected by the strip above and only needs the colour-adjust nudge.) */
+  [data-testid='activity-heatmap'],
+  [data-testid='activity-heatmap'] *,
+  .recharts-surface,
+  .recharts-surface * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Portal'd chrome that can't carry a `print:hidden` class. */
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  /* Reader word-state chips → plain text. Every reader word/punctuation leaf
+     carries `data-leaf`, so this collapses the coloured known/level/new pills
+     and the all-bold weight back to ordinary book copy. */
+  [data-leaf] {
+    font-weight: normal !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Reader content links stay legible as black underlined text (they already
+     carry an `underline` class, so nothing extra is needed here). We deliberately
+     do NOT underline links app-wide — that would underline navigational card
+     titles/metadata as noise — and we don't expand URLs: this is a reading copy,
+     not a reference printout. */
+
+  /* Page-break hygiene for long reading copy. */
+  p,
+  li,
+  blockquote {
+    orphans: 3;
+    widows: 3;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  blockquote,
+  pre,
+  img,
+  table,
+  figure {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  img {
+    max-width: 100% !important;
+  }
+}

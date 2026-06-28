@@ -105,6 +105,7 @@ export default function TranslationDrawer({
         shadow-2xl
         flex flex-col
         transition-transform duration-300 ease-out
+        print:hidden
         ${isOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'}
       `}
       ref={drawerRef}

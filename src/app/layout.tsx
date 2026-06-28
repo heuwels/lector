@@ -51,7 +51,7 @@ export default function RootLayout({
         </div>
         <ChatWidget />
         {/* Spacer for mobile bottom nav — invisible on sm+ */}
-        <div className="h-16 sm:hidden" aria-hidden="true" />
+        <div className="h-16 sm:hidden print:hidden" aria-hidden="true" />
         {/* Move Sonner's focus hotkey off its Alt+T default — Alt+T toggles the
             translation on the Practice page. */}
         <Toaster theme="system" duration={5000} hotkey={['altKey', 'KeyN']} />
