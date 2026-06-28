@@ -188,7 +188,7 @@ export default function ChatWidget() {
       {/* Floating trigger button */}
       <Button
         onClick={toggleOpen}
-        className="fixed right-4 bottom-20 z-50 flex h-12 w-12 rounded-full shadow-lg transition-all hover:shadow-xl sm:right-6 sm:bottom-6"
+        className="fixed right-4 bottom-20 z-50 flex h-12 w-12 rounded-full shadow-lg transition-all hover:shadow-xl sm:right-6 sm:bottom-6 print:hidden"
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
         data-testid="chat-toggle"
       >
@@ -198,7 +198,7 @@ export default function ChatWidget() {
       {/* Chat panel */}
       {isOpen && (
         <div
-          className="fixed right-4 bottom-36 z-50 flex h-[80vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl sm:right-6 sm:bottom-20 sm:w-96"
+          className="fixed right-4 bottom-36 z-50 flex h-[80vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl sm:right-6 sm:bottom-20 sm:w-96 print:hidden"
           data-testid="chat-panel"
         >
           {/* Header */}

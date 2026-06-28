@@ -743,8 +743,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     !wordPanel.isStreamingGloss;
 
   return (
-    <div className="flex h-dvh flex-col overflow-x-hidden bg-card">
-      <div className="relative flex-1 overflow-hidden">
+    <div className="flex h-dvh flex-col overflow-x-hidden bg-card print:block print:h-auto print:overflow-visible">
+      <div className="relative flex-1 overflow-hidden print:block print:h-auto print:overflow-visible">
         <MarkdownReader
           lesson={lesson}
           onWordClick={handleWordClick}

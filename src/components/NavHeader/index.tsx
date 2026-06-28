@@ -10,13 +10,13 @@ export default function NavHeader() {
   return (
     <>
       {/* Mobile top bar — language selector, visible only on mobile */}
-      <div className="flex h-[var(--mobile-topbar-h)] items-center justify-between border-b border-border bg-card/80 px-3 py-2 backdrop-blur-sm sm:hidden">
+      <div className="flex h-[var(--mobile-topbar-h)] items-center justify-between border-b border-border bg-card/80 px-3 py-2 backdrop-blur-sm sm:hidden print:hidden">
         <AppName />
         <LanguageSelector compact />
       </div>
 
       {/* Desktop left sidebar — hidden on mobile */}
-      <aside className="sticky top-0 z-50 hidden h-screen w-56 border-r border-border bg-card sm:flex sm:flex-col">
+      <aside className="sticky top-0 z-50 hidden h-screen w-56 border-r border-border bg-card sm:flex sm:flex-col print:hidden">
         <div className="flex h-16 items-center px-5">
           <AppName />
         </div>
@@ -37,7 +37,7 @@ export default function NavHeader() {
       </aside>
 
       {/* Mobile bottom nav — hidden on sm+ */}
-      <nav className="fixed right-0 bottom-0 left-0 z-50 border-t border-border bg-card sm:hidden">
+      <nav className="fixed right-0 bottom-0 left-0 z-50 border-t border-border bg-card sm:hidden print:hidden">
         <div className="flex items-stretch">
           {navLinks.map((link) => {
             return <NavLink key={link.href} link={link} isMobile />;

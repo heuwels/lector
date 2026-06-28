@@ -218,9 +218,9 @@ export default function MarkdownReader({
     }, [onWordClick, highlightPhrase]);
 
     return (
-        <div className="flex flex-col h-full bg-card">
+        <div className="flex flex-col h-full bg-card print:block print:h-auto">
             {/* Header */}
-            <header className="flex items-center justify-between px-4 py-2 border-b border-border">
+            <header className="flex items-center justify-between px-4 py-2 border-b border-border print:border-0 print:px-0">
                 <button
                     onClick={onClose}
                     disabled={isEditing}
@@ -228,18 +228,19 @@ export default function MarkdownReader({
             text-muted-foreground
             hover:bg-accent
             transition-colors
-            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent
+            print:hidden"
                 >
                     <ArrowLeft className="w-5 h-5" />
                     <span className="hidden sm:inline">Back</span>
                 </button>
 
-                <h1 className="text-sm sm:text-lg font-medium text-foreground truncate flex-1 text-center mx-2">
+                <h1 className="text-sm sm:text-lg font-medium text-foreground truncate flex-1 text-center mx-2 print:mx-0 print:text-left print:text-2xl print:font-bold">
                     {lesson.title}
                 </h1>
 
                 {isEditing ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 print:hidden">
                         <Button
                             variant="ghost"
                             size="sm"
@@ -259,7 +260,7 @@ export default function MarkdownReader({
                         </Button>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 print:hidden">
                         <div className="text-sm text-muted-foreground">
                             {scrollPercentage}%
                         </div>
@@ -286,7 +287,7 @@ export default function MarkdownReader({
                 ref={containerRef}
                 onScroll={handleScroll}
                 onMouseUp={handleMouseUp}
-                className="flex-1 overflow-auto"
+                className="flex-1 overflow-auto print:block print:h-auto print:overflow-visible"
             >
                 {isEditing ? (
                     <div className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-12">
@@ -321,7 +322,7 @@ export default function MarkdownReader({
                     </div>
                 ) : (
                     <article
-                        className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-16 text-foreground"
+                        className="max-w-[38em] mx-auto px-4 sm:px-8 py-8 sm:py-16 text-foreground print:px-0 print:py-0"
                         style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}
                     >
                         {/* Block elements are styled explicitly with design tokens (no
@@ -355,7 +356,7 @@ export default function MarkdownReader({
 
                 {/* Prev/Next navigation at bottom */}
                 {!isEditing && (prevLesson || nextLesson) && (
-                    <div className="max-w-[38em] mx-auto px-4 sm:px-8 pb-16 flex items-center justify-between gap-4">
+                    <div className="max-w-[38em] mx-auto px-4 sm:px-8 pb-16 flex items-center justify-between gap-4 print:hidden">
                         {prevLesson ? (
                             <button
                                 onClick={() => router.push(`/read/${prevLesson.id}`)}
