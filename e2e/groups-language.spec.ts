@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { apiUrl } from './api';
 
 // `collection_groups` is a language-agnostic container: a group can hold
 // collections of different languages, and language lives on the collection, not
@@ -8,15 +9,15 @@ import { test, expect, type Page } from "@playwright/test";
 // collections are all in another language is hidden in the active language.
 test.describe("Collection Groups — language-agnostic", () => {
   async function cleanup(page: Page) {
-    const groups = await (await page.request.get("http://localhost:3457/api/groups")).json();
+    const groups = await (await page.request.get(apiUrl("/api/groups"))).json();
     for (const g of groups) {
-      if (g.name.startsWith("Test")) await page.request.delete(`http://localhost:3457/api/groups/${g.id}`);
+      if (g.name.startsWith("Test")) await page.request.delete(apiUrl(`/api/groups/${g.id}`));
     }
     // Collections are language-scoped, so clean each language we touch.
     for (const lang of ["af", "de"]) {
-      const cols = await (await page.request.get(`http://localhost:3457/api/collections?language=${lang}`)).json();
+      const cols = await (await page.request.get(apiUrl(`/api/collections?language=${lang}`))).json();
       for (const c of cols) {
-        if (c.title.startsWith("Test")) await page.request.delete(`http://localhost:3457/api/collections/${c.id}`);
+        if (c.title.startsWith("Test")) await page.request.delete(apiUrl(`/api/collections/${c.id}`));
       }
     }
   }
@@ -31,7 +32,7 @@ test.describe("Collection Groups — language-agnostic", () => {
   });
 
   async function makeGroup(page: Page, name: string): Promise<string> {
-    const res = await page.request.post("http://localhost:3457/api/groups", { data: { name } });
+    const res = await page.request.post(apiUrl("/api/groups"), { data: { name } });
     return (await res.json()).id;
   }
 
@@ -41,7 +42,7 @@ test.describe("Collection Groups — language-agnostic", () => {
     language: string,
     groupId: string,
   ): Promise<string> {
-    const res = await page.request.post("http://localhost:3457/api/collections", {
+    const res = await page.request.post(apiUrl("/api/collections"), {
       data: { title, author: "Test", language, groupId },
     });
     return (await res.json()).id;

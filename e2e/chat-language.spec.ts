@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { apiUrl } from './api';
 
 // The widget must thread the active language (af in e2e, set by global-setup)
 // into every chat API call. The Hono routes filter on the `language` query
@@ -9,11 +10,11 @@ import { test, expect } from "@playwright/test";
 //   - Clear must carry ?language= on the DELETE
 test.describe("Chat Widget — per-language wiring", () => {
   test.beforeEach(async ({ page }) => {
-    await page.request.delete("http://localhost:3457/api/chat?language=af");
+    await page.request.delete(apiUrl("/api/chat?language=af"));
   });
 
   test.afterEach(async ({ page }) => {
-    await page.request.delete("http://localhost:3457/api/chat?language=af");
+    await page.request.delete(apiUrl("/api/chat?language=af"));
   });
 
   test("GET on open carries the active language", async ({ page }) => {

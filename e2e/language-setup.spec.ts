@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { apiUrl } from './api';
 
 test.describe("Language Setup & Switching", () => {
   test("should redirect to /setup when no language is set", async ({ browser }) => {
@@ -9,7 +10,7 @@ test.describe("Language Setup & Switching", () => {
     const page = await context.newPage();
 
     // Clear the server-side language setting
-    await page.request.delete("http://localhost:3457/api/settings/targetLanguage");
+    await page.request.delete(apiUrl("/api/settings/targetLanguage"));
 
     await page.goto("/");
     await page.waitForLoadState("networkidle");

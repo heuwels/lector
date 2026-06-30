@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { apiUrl } from './api';
 
 /**
  * Focused tests for the TranslationDrawer + on-device dictionary lookup
@@ -42,14 +43,14 @@ async function startTypeRound(page: Page) {
 
 test.describe('Translation drawer — dictionary lookup pipeline', () => {
   test.beforeEach(async ({ page }) => {
-    const res = await page.request.post('http://localhost:3457/api/cloze', {
+    const res = await page.request.post(apiUrl('/api/cloze'), {
       data: [testSentence],
     });
     expect(res.ok()).toBeTruthy();
   });
 
   test.afterEach(async ({ page }) => {
-    await page.request.delete(`http://localhost:3457/api/cloze/${TEST_SENTENCE_ID}`);
+    await page.request.delete(apiUrl(`/api/cloze/${TEST_SENTENCE_ID}`));
   });
 
   test('local-dict hit renders senses + on-device badge', async ({ page }) => {
@@ -93,14 +94,14 @@ test.describe('Translation drawer — dictionary lookup pipeline', () => {
       clozeIndex: 4,
       translation: 'I stand in front of the xyznonexistent.',
     };
-    await page.request.post('http://localhost:3457/api/cloze', { data: [missSentence] });
+    await page.request.post(apiUrl('/api/cloze'), { data: [missSentence] });
 
     try {
       await startTypeRound(page);
 
       // Use the API directly to confirm the dict miss
       const lookupRes = await page.request.get(
-        'http://localhost:3457/api/dictionary/lookup?word=xyznonexistent'
+        apiUrl('/api/dictionary/lookup?word=xyznonexistent')
       );
       const lookupData = await lookupRes.json();
       expect(lookupData.entry).toBeNull();
@@ -111,7 +112,7 @@ test.describe('Translation drawer — dictionary lookup pipeline', () => {
       // forcing the cloze word to be served is flaky (sentence rotates),
       // assert the API behavior is the load-bearing claim.
     } finally {
-      await page.request.delete(`http://localhost:3457/api/cloze/test-drawer-miss-1`);
+      await page.request.delete(apiUrl(`/api/cloze/test-drawer-miss-1`));
     }
   });
 

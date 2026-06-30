@@ -1,13 +1,14 @@
 import { request } from '@playwright/test';
+import { API_BASE } from './api';
 
 /**
- * Set the target language before any tests run, so the SetupGuard
- * doesn't redirect every test to /setup. This writes straight to the Hono API
- * on :3457 — the client used to reach it via the Next `/api` proxy, but that
- * proxy is gone (#188), so settings are seeded against the API directly.
+ * Set the target language before any tests run, so the SetupGuard doesn't
+ * redirect every test to /setup. Writes straight to the Hono API (the client
+ * used to reach it via the Next `/api` proxy, but that's gone — #188) at
+ * API_BASE, which is configurable via E2E_API_URL.
  */
 async function globalSetup() {
-  const ctx = await request.newContext({ baseURL: 'http://localhost:3457' });
+  const ctx = await request.newContext({ baseURL: API_BASE });
 
   await ctx.put('/api/settings/targetLanguage', {
     data: { value: 'af' },

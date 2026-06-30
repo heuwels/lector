@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { apiUrl } from './api';
 
 /**
  * Two-tier word translation on the reader (issue: translation latency).
@@ -49,19 +50,19 @@ async function setupMocks(page: Page) {
 }
 
 async function importLesson(page: Page): Promise<string> {
-  const colRes = await page.request.post('http://localhost:3457/api/collections', {
+  const colRes = await page.request.post(apiUrl('/api/collections'), {
     data: { title: TITLE, language: 'af' },
   });
   const { id: collectionId } = await colRes.json();
 
-  await page.request.post(`http://localhost:3457/api/collections/${collectionId}/lessons`, {
+  await page.request.post(apiUrl(`/api/collections/${collectionId}/lessons`), {
     data: {
       title: 'Hoofstuk 1',
       textContent: 'By die see sien sy n seemeeu wat oor die water vlieg.',
     },
   });
 
-  const lessonsRes = await page.request.get(`http://localhost:3457/api/collections/${collectionId}/lessons`);
+  const lessonsRes = await page.request.get(apiUrl(`/api/collections/${collectionId}/lessons`));
   const lessons = await lessonsRes.json();
   await page.goto(`/read/${lessons[0].id}`);
   await page.waitForLoadState('networkidle');
@@ -77,20 +78,20 @@ test.describe('Reader — streamed gloss + enrich', () => {
     await setupMocks(page);
 
     // Clean leftovers from a prior run.
-    const res = await page.request.get('http://localhost:3457/api/collections');
+    const res = await page.request.get(apiUrl('/api/collections'));
     for (const c of await res.json()) {
-      if (c.title === TITLE) await page.request.delete(`http://localhost:3457/api/collections/${c.id}`);
+      if (c.title === TITLE) await page.request.delete(apiUrl(`/api/collections/${c.id}`));
     }
-    const vocabRes = await page.request.get('http://localhost:3457/api/vocab?text=seemeeu');
+    const vocabRes = await page.request.get(apiUrl('/api/vocab?text=seemeeu'));
     for (const v of await vocabRes.json()) {
-      await page.request.delete(`http://localhost:3457/api/vocab/${v.id}`);
+      await page.request.delete(apiUrl(`/api/vocab/${v.id}`));
     }
 
     collectionId = await importLesson(page);
   });
 
   test.afterEach(async ({ page }) => {
-    if (collectionId) await page.request.delete(`http://localhost:3457/api/collections/${collectionId}`);
+    if (collectionId) await page.request.delete(apiUrl(`/api/collections/${collectionId}`));
   });
 
   test('streams a gloss, then enriches to the full entry', async ({ page }) => {
@@ -146,8 +147,8 @@ test.describe('Reader — streamed gloss + enrich', () => {
  */
 test.describe('translate routes are wired', () => {
   for (const path of [
-    'http://localhost:3457/api/translate/gloss',
-    'http://localhost:3457/api/translate/enrich',
+    apiUrl('/api/translate/gloss'),
+    apiUrl('/api/translate/enrich'),
   ]) {
     test(`${path} reaches Hono (not 404)`, async ({ request }) => {
       const res = await request.post(path, { data: { language: 'af' } });

@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { apiUrl } from './api';
 
 // Wait for the practice page to finish seeding and show the setup screen
 async function waitForSetup(page: Page) {
@@ -934,20 +935,20 @@ test.describe("Practice - Learn New should not show reviews", () => {
     ];
 
     // Seed via API
-    const seedRes = await page.request.post("http://localhost:3457/api/cloze", {
+    const seedRes = await page.request.post(apiUrl("/api/cloze"), {
       data: testSentences,
     });
     expect(seedRes.ok()).toBeTruthy();
 
     // Verify seeding worked
-    const checkRes = await page.request.get("http://localhost:3457/api/cloze/test-new-1");
+    const checkRes = await page.request.get(apiUrl("/api/cloze/test-new-1"));
     const checkData = await checkRes.json();
     expect(checkData.id).toBe("test-new-1");
     expect(checkData.reviewCount).toBe(0);
 
     // Hit the "new" API endpoint and verify only reviewCount=0 sentences returned
     const newRes = await page.request.get(
-      `http://localhost:3457/api/cloze/due?mode=new&collection=${TEST_COLLECTION}&limit=50`
+      apiUrl(`/api/cloze/due?mode=new&collection=${TEST_COLLECTION}&limit=50`)
     );
     const newSentences = await newRes.json();
 
@@ -964,7 +965,7 @@ test.describe("Practice - Learn New should not show reviews", () => {
 
     // Hit the "review" API endpoint and verify it returns review-due ones
     const reviewRes = await page.request.get(
-      `http://localhost:3457/api/cloze/due?mode=review&collection=${TEST_COLLECTION}&limit=50`
+      apiUrl(`/api/cloze/due?mode=review&collection=${TEST_COLLECTION}&limit=50`)
     );
     const reviewSentences = await reviewRes.json();
 
@@ -974,18 +975,18 @@ test.describe("Practice - Learn New should not show reviews", () => {
     }
 
     // Verify the seeded review entries are individually accessible and correct
-    const checkReview1 = await page.request.get("http://localhost:3457/api/cloze/test-review-1");
+    const checkReview1 = await page.request.get(apiUrl("/api/cloze/test-review-1"));
     const r1 = await checkReview1.json();
     expect(r1.reviewCount).toBeGreaterThan(0);
     expect(r1.collection).toBe(TEST_COLLECTION);
 
-    const checkReview2 = await page.request.get("http://localhost:3457/api/cloze/test-review-2");
+    const checkReview2 = await page.request.get(apiUrl("/api/cloze/test-review-2"));
     const r2 = await checkReview2.json();
     expect(r2.reviewCount).toBeGreaterThan(0);
 
     // Clean up test sentences
     for (const s of testSentences) {
-      await page.request.delete(`http://localhost:3457/api/cloze/${s.id}`);
+      await page.request.delete(apiUrl(`/api/cloze/${s.id}`));
     }
   });
 });
@@ -999,10 +1000,10 @@ test.describe.serial("Practice - Cloze trailing punctuation", () => {
     // The round draws due sentences in random order, so make sure the seeded
     // ones are the only due reviews in this collection.
     const dueRes = await page.request.get(
-      `http://localhost:3457/api/cloze/due?mode=review&collection=${TEST_COLLECTION}&limit=50`
+      apiUrl(`/api/cloze/due?mode=review&collection=${TEST_COLLECTION}&limit=50`)
     );
     for (const s of await dueRes.json()) {
-      await page.request.delete(`http://localhost:3457/api/cloze/${s.id}`);
+      await page.request.delete(apiUrl(`/api/cloze/${s.id}`));
     }
 
     // Cloze words carry their trailing punctuation, matching the real bank
@@ -1038,7 +1039,7 @@ test.describe.serial("Practice - Cloze trailing punctuation", () => {
       },
     ];
 
-    const seedRes = await page.request.post("http://localhost:3457/api/cloze", {
+    const seedRes = await page.request.post(apiUrl("/api/cloze"), {
       data: testSentences,
     });
     expect(seedRes.ok()).toBeTruthy();
@@ -1067,7 +1068,7 @@ test.describe.serial("Practice - Cloze trailing punctuation", () => {
       expect((await sentence.innerText()).trim()).toMatch(/[.?]$/);
     } finally {
       for (const s of testSentences) {
-        await page.request.delete(`http://localhost:3457/api/cloze/${s.id}`);
+        await page.request.delete(apiUrl(`/api/cloze/${s.id}`));
       }
     }
   });

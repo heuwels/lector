@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { apiUrl } from './api';
 
 const TITLE = 'Markdown Render Test';
 
@@ -12,16 +13,16 @@ Fiela staan en kyk na die *vlakte*.
 Sy weet more gaan moeilik wees.`;
 
 async function seedLesson(page: Page): Promise<string> {
-  const colRes = await page.request.post('http://localhost:3457/api/collections', {
+  const colRes = await page.request.post(apiUrl('/api/collections'), {
     data: { title: TITLE, language: 'af' },
   });
   const { id: collectionId } = await colRes.json();
 
-  await page.request.post(`http://localhost:3457/api/collections/${collectionId}/lessons`, {
+  await page.request.post(apiUrl(`/api/collections/${collectionId}/lessons`), {
     data: { title: 'Hoofstuk 1', textContent: CONTENT },
   });
 
-  const lessonsRes = await page.request.get(`http://localhost:3457/api/collections/${collectionId}/lessons`);
+  const lessonsRes = await page.request.get(apiUrl(`/api/collections/${collectionId}/lessons`));
   const lessons = await lessonsRes.json();
 
   await page.goto(`/read/${lessons[0].id}`);
@@ -52,16 +53,16 @@ test.describe('Reader markdown rendering', () => {
       await route.fulfill({ status: 200, contentType: 'text/plain', body: `[translated: ${body.word}]` });
     });
 
-    const res = await page.request.get('http://localhost:3457/api/collections');
+    const res = await page.request.get(apiUrl('/api/collections'));
     for (const c of await res.json()) {
-      if (c.title === TITLE) await page.request.delete(`http://localhost:3457/api/collections/${c.id}`);
+      if (c.title === TITLE) await page.request.delete(apiUrl(`/api/collections/${c.id}`));
     }
 
     collectionId = await seedLesson(page);
   });
 
   test.afterEach(async ({ page }) => {
-    if (collectionId) await page.request.delete(`http://localhost:3457/api/collections/${collectionId}`);
+    if (collectionId) await page.request.delete(apiUrl(`/api/collections/${collectionId}`));
   });
 
   test('renders "##" as a real, larger heading (not body text)', async ({ page }) => {

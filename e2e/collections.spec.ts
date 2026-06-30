@@ -1,15 +1,16 @@
 import { test, expect } from "@playwright/test";
+import { apiUrl } from './api';
 import path from "path";
 
 test.describe("Collections & Lessons", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     // Clean up any existing test collections via API
-    const res = await page.request.get("http://localhost:3457/api/collections");
+    const res = await page.request.get(apiUrl("/api/collections"));
     const collections = await res.json();
     for (const c of collections) {
       if (c.title.startsWith("Toets") || c.title.startsWith("Test")) {
-        await page.request.delete(`http://localhost:3457/api/collections/${c.id}`);
+        await page.request.delete(apiUrl(`/api/collections/${c.id}`));
       }
     }
   });
@@ -47,7 +48,7 @@ test.describe("Collections & Lessons", () => {
     const fs = await import("fs");
     const buffer = fs.readFileSync(epubPath);
 
-    await page.request.post("http://localhost:3457/api/import/epub", {
+    await page.request.post(apiUrl("/api/import/epub"), {
       multipart: {
         file: {
           name: "test-book.epub",
@@ -82,7 +83,7 @@ test.describe("Collections & Lessons", () => {
     const fs = await import("fs");
     const buffer = fs.readFileSync(epubPath);
 
-    const importRes = await page.request.post("http://localhost:3457/api/import/epub", {
+    const importRes = await page.request.post(apiUrl("/api/import/epub"), {
       multipart: {
         file: {
           name: "test-book.epub",
@@ -95,7 +96,7 @@ test.describe("Collections & Lessons", () => {
 
     // Get lessons
     const lessonsRes = await page.request.get(
-      `http://localhost:3457/api/collections/${collectionId}/lessons`
+      apiUrl(`/api/collections/${collectionId}/lessons`)
     );
     const lessons = await lessonsRes.json();
 
@@ -120,7 +121,7 @@ test.describe("Collections & Lessons", () => {
     const fs = await import("fs");
     const buffer = fs.readFileSync(epubPath);
 
-    const importRes = await page.request.post("http://localhost:3457/api/import/epub", {
+    const importRes = await page.request.post(apiUrl("/api/import/epub"), {
       multipart: {
         file: {
           name: "test-book.epub",
@@ -132,7 +133,7 @@ test.describe("Collections & Lessons", () => {
     const { collectionId } = await importRes.json();
 
     const lessonsRes = await page.request.get(
-      `http://localhost:3457/api/collections/${collectionId}/lessons`
+      apiUrl(`/api/collections/${collectionId}/lessons`)
     );
     const lessons = await lessonsRes.json();
 
@@ -195,7 +196,7 @@ test.describe("Collections & Lessons", () => {
     const fs = await import("fs");
     const buffer = fs.readFileSync(epubPath);
 
-    const importRes = await page.request.post("http://localhost:3457/api/import/epub", {
+    const importRes = await page.request.post(apiUrl("/api/import/epub"), {
       multipart: {
         file: {
           name: "test-book.epub",
@@ -230,7 +231,7 @@ test.describe("Collections & Lessons", () => {
     const fs = await import("fs");
     const buffer = fs.readFileSync(epubPath);
 
-    const importRes = await page.request.post("http://localhost:3457/api/import/epub", {
+    const importRes = await page.request.post(apiUrl("/api/import/epub"), {
       multipart: {
         file: {
           name: "test-book.epub",
@@ -241,7 +242,7 @@ test.describe("Collections & Lessons", () => {
     });
     const { collectionId } = await importRes.json();
     const lessonsRes = await page.request.get(
-      `http://localhost:3457/api/collections/${collectionId}/lessons`
+      apiUrl(`/api/collections/${collectionId}/lessons`)
     );
     const lessons = await lessonsRes.json();
     const firstLessonId = lessons[0].id;
@@ -272,7 +273,7 @@ test.describe("Collections & Lessons", () => {
     const fs = await import("fs");
     const buffer = fs.readFileSync(epubPath);
 
-    const importRes = await page.request.post("http://localhost:3457/api/import/epub", {
+    const importRes = await page.request.post(apiUrl("/api/import/epub"), {
       multipart: {
         file: {
           name: "test-book.epub",
@@ -283,7 +284,7 @@ test.describe("Collections & Lessons", () => {
     });
     const { collectionId } = await importRes.json();
     const lessonsRes = await page.request.get(
-      `http://localhost:3457/api/collections/${collectionId}/lessons`
+      apiUrl(`/api/collections/${collectionId}/lessons`)
     );
     const lessons = await lessonsRes.json();
     const firstLessonId = lessons[0].id;
@@ -321,7 +322,7 @@ test.describe("Collections & Lessons", () => {
     const fs = await import("fs");
     const buffer = fs.readFileSync(epubPath);
 
-    const importRes = await page.request.post("http://localhost:3457/api/import/epub", {
+    const importRes = await page.request.post(apiUrl("/api/import/epub"), {
       multipart: {
         file: {
           name: "test-book.epub",
