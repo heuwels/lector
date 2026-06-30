@@ -70,7 +70,7 @@ export default function ChatWidget() {
 
     try {
       const oldest = messages[0];
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/chat?limit=50&before=${encodeURIComponent(oldest.createdAt)}&lang=${activeLang.code}`,
       );
       const older = await res.json();

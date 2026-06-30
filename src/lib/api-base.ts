@@ -41,7 +41,23 @@ export function apiUrl(path: string): string {
   return `${apiBase()}${suffix}`;
 }
 
-/** `fetch` against the Hono API — drop-in replacement that prepends the base URL. */
-export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(apiUrl(path), init);
+/**
+ * `fetch` against the Hono API — prepends the base URL.
+ *
+ * If the API is unreachable (down, restarting, connection refused, or a CORS
+ * failure), `fetch` rejects. The old Next.js proxy instead returned a parseable
+ * JSON 502, so callers doing `(await apiFetch(...)).json()` never threw. We keep
+ * that contract here — catch the rejection and return the same synthetic 502 —
+ * so removing the proxy doesn't turn a transient API outage into unhandled
+ * promise rejections across the (largely try/catch-free) data layer.
+ */
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(apiUrl(path), init);
+  } catch {
+    return new Response(
+      JSON.stringify({ error: 'The API is currently unavailable. Please try again in a moment.' }),
+      { status: 502, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
 }

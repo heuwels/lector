@@ -101,4 +101,16 @@ describe('apiFetch', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:3457/api/vocab', init);
   });
+
+  it('returns a synthetic JSON 502 when fetch rejects (API unreachable)', async () => {
+    setWindow('localhost', 'http:');
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+
+    const res = await apiFetch('/api/vocab');
+
+    expect(res.status).toBe(502);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const body = await res.json();
+    expect(body.error).toMatch(/unavailable/i);
+  });
 });
