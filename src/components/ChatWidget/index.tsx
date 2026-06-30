@@ -34,7 +34,7 @@ export default function ChatWidget() {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await apiFetch(`/api/chat?limit=50&lang=${activeLang.code}`);
+      const res = await apiFetch(`/api/chat?limit=50&language=${activeLang.code}`);
       const data = await res.json();
       setMessages(data);
       setHasMore(data.length === 50);
@@ -71,7 +71,7 @@ export default function ChatWidget() {
     try {
       const oldest = messages[0];
       const res = await apiFetch(
-        `/api/chat?limit=50&before=${encodeURIComponent(oldest.createdAt)}&lang=${activeLang.code}`,
+        `/api/chat?limit=50&before=${encodeURIComponent(oldest.createdAt)}&language=${activeLang.code}`,
       );
       const older = await res.json();
       if (older.length === 0) {
@@ -157,7 +157,7 @@ export default function ChatWidget() {
 
   async function clearChat() {
     try {
-      await apiFetch(`/api/chat?lang=${activeLang.code}`, { method: 'DELETE' });
+      await apiFetch(`/api/chat?language=${activeLang.code}`, { method: 'DELETE' });
       setMessages([]);
       setHasMore(false);
     } catch (err) {

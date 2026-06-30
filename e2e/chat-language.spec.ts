@@ -1,18 +1,19 @@
 import { test, expect } from "@playwright/test";
 
 // The widget must thread the active language (af in e2e, set by global-setup)
-// into every chat API call. Guards the regressions fixed when chat went
-// per-language:
-//   - GET on open must carry ?lang= (this was a `// TODO`, previously omitted)
+// into every chat API call. The Hono routes filter on the `language` query
+// param / body field, so the widget must send exactly that. Guards the
+// regressions fixed when chat went per-language:
+//   - GET on open must carry ?language= (the route filters messages on it)
 //   - POST send must carry `language` in the body
-//   - Clear must carry ?lang= on the DELETE
+//   - Clear must carry ?language= on the DELETE
 test.describe("Chat Widget — per-language wiring", () => {
   test.beforeEach(async ({ page }) => {
-    await page.request.delete("http://localhost:3457/api/chat?lang=af");
+    await page.request.delete("http://localhost:3457/api/chat?language=af");
   });
 
   test.afterEach(async ({ page }) => {
-    await page.request.delete("http://localhost:3457/api/chat?lang=af");
+    await page.request.delete("http://localhost:3457/api/chat?language=af");
   });
 
   test("GET on open carries the active language", async ({ page }) => {
@@ -25,7 +26,7 @@ test.describe("Chat Widget — per-language wiring", () => {
     await page.getByTestId("chat-toggle").click();
 
     const url = new URL((await getReq).url());
-    expect(url.searchParams.get("lang")).toBe("af");
+    expect(url.searchParams.get("language")).toBe("af");
   });
 
   test("POST send carries the language in the body", async ({ page }) => {
@@ -75,6 +76,6 @@ test.describe("Chat Widget — per-language wiring", () => {
     await page.getByTestId("chat-clear").click();
 
     const url = new URL((await delReq).url());
-    expect(url.searchParams.get("lang")).toBe("af");
+    expect(url.searchParams.get("language")).toBe("af");
   });
 });
