@@ -26,6 +26,11 @@ services:
     environment:
       - NODE_ENV=production
       - DATA_DIR=/app/data
+      # Browser-facing API origin — the web app calls Hono directly, so this
+      # must be reachable FROM THE BROWSER (the host/port you open the app on),
+      # not an internal Docker name. Injected into /__env.js at startup. Unset →
+      # falls back to http://localhost:3457 (only correct when browsing locally).
+      - API_URL=${API_URL:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
       # OpenAI-compatible backend — points at the bundled ollama service by default.
       - OPENAI_COMPAT_URL=${OPENAI_COMPAT_URL:-http://ollama:11434}

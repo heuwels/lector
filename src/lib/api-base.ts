@@ -1,38 +1,35 @@
 /**
  * Resolves the base URL of the Hono API and wraps `fetch` for it.
  *
- * The browser talks to the Hono API directly — the old Next.js `/api/*` proxy
- * routes are gone (#188). The API listens on its own port (3457 by default), so
- * its origin is the same host the UI was served from, on the API port. Deriving
- * that from `window.location` at *runtime* means one prebuilt image works
- * whether the app is reached over localhost, a Tailnet IP, or a hostname — no
- * rebuild per host.
+ * The browser talks to the Hono API directly — the Next.js `/api/*` proxy was
+ * removed (#188). The API origin is configured at *runtime*, not baked at build:
  *
- * Overrides, in priority order:
- *   NEXT_PUBLIC_API_URL   full origin (e.g. https://lector.example.com) for
- *                         reverse-proxied / custom-origin setups. Wins outright.
- *   NEXT_PUBLIC_API_PORT  just the port (default 3457), for a non-default
- *                         published API port.
+ *   - In the browser it's read from `window.__ENV__.API_URL`, injected by a tiny
+ *     `/__env.js` that `docker-entrypoint.sh` writes from the `API_URL` env var
+ *     when the container starts. (NEXT_PUBLIC_* can't carry this: it's inlined at
+ *     build time, so it can't be set per-deployment on a prebuilt image.)
+ *   - On the server (SSR / build / tests — no `window`) it's read from
+ *     `process.env.API_URL`.
  *
- * Off the browser (SSR, `next build`, unit tests — no `window`) there is no
- * location to derive from, so fall back to INTERNAL_API_URL (the in-container
- * address), matching the old proxy's default.
+ * Both fall back to http://localhost:3457 (the dev / docker-compose default) so
+ * local `next dev` and the e2e suite need no configuration. A remote deployment
+ * MUST set `API_URL` to the origin the browser uses to reach the API
+ * (e.g. http://lector.my-tailnet.ts.net:3457), or browser calls fall back to the
+ * user's own localhost and fail.
  */
 
-const DEFAULT_API_PORT = '3457';
+declare global {
+  interface Window {
+    __ENV__?: { API_URL?: string };
+  }
+}
+
+const DEFAULT_API_URL = 'http://localhost:3457';
 
 export function apiBase(): string {
-  const override = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (override) return override.replace(/\/+$/, '');
-
-  if (typeof window === 'undefined') {
-    const internal =
-      process.env.INTERNAL_API_URL?.trim() || `http://localhost:${DEFAULT_API_PORT}`;
-    return internal.replace(/\/+$/, '');
-  }
-
-  const port = process.env.NEXT_PUBLIC_API_PORT?.trim() || DEFAULT_API_PORT;
-  return `${window.location.protocol}//${window.location.hostname}:${port}`;
+  const configured =
+    typeof window === 'undefined' ? process.env.API_URL : window.__ENV__?.API_URL;
+  return (configured || DEFAULT_API_URL).replace(/\/+$/, '');
 }
 
 /** Absolute URL for an API path (e.g. `apiUrl('/api/vocab')`). */

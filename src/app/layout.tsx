@@ -32,6 +32,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Runtime API origin: docker-entrypoint.sh writes /__env.js from the
+            container's API_URL env var; the client reads it as
+            window.__ENV__.API_URL (src/lib/api-base.ts). NEXT_PUBLIC_* can't
+            carry this — it bakes at build, so it can't be set per-deployment on
+            a prebuilt image. beforeInteractive so it's set before any fetch. */}
+        <Script id="lector-env" src="/__env.js" strategy="beforeInteractive" />
         {/* Runs before paint to migrate legacy localStorage keys and apply the
             saved theme, preventing a flash of the wrong colour scheme. Uses
             next/script (beforeInteractive) rather than a raw <script> so React

@@ -79,12 +79,13 @@ services:
       - "3457:3457"   # Hono API — the browser calls it directly, so it must be reachable
     environment:
       - NODE_ENV=production
+      - API_URL=http://localhost:3457   # browser-facing API origin — set to http://<host>:3457 for remote access
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
       - ./data:/app/data
 ```
 
-Both ports must be published: the browser loads the UI from `:3400` and calls the Hono API **directly** on `:3457` (there is no Next.js API proxy). Keep the API on host port `3457` unless you rebuild the image with `NEXT_PUBLIC_API_PORT` set to match — the client's API port is baked in at build time.
+Both ports must be published: the browser loads the UI from `:3400` and calls the Hono API **directly** on `:3457` (there is no Next.js API proxy). Set `API_URL` to the origin the browser uses to reach the API (e.g. `http://<host>:3457`) — it's injected into the page at container start (`/__env.js`). It defaults to `http://localhost:3457`, which only works when you browse from the same host.
 
 Environment variables are injected at runtime — no secrets are baked into the Docker image.
 
