@@ -140,6 +140,5 @@ EXPOSE 3000 3457
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-ENV API_PORT=3457
 
 CMD ["sh", "./docker-entrypoint.sh"]

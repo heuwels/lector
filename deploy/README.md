@@ -28,6 +28,5 @@ Environment variables are injected at runtime via docker-compose. No secrets are
 | `ANTHROPIC_API_KEY` | Optional | Enables AI translation for uncommon words |
 | `LECTOR_VERSION` | No | Image tag (default: `latest`) |
 | `WEB_PORT` | No | Host port for the UI (default: `3400`) |
-| `API_PORT` | No | Host port the Hono API is published on (default: `3457`) |
-| `API_URL` | **Remote** | Browser-facing API origin, e.g. `http://<host>:3457`. The web app calls Hono directly, so it must be reachable from the browser. Defaults to `http://localhost:3457` — correct only when browsing from the host. |
+| `API_URL` | **Remote** | Browser-facing API origin, e.g. `http://<host>:3457` (the API is published on host `:3457`). The web app calls Hono directly, so it must be reachable from the browser. Defaults to `http://localhost:3457` — correct only when browsing from the host. |
 | `DATA_PATH` | No | Persistent data directory (default: `./data`) |

@@ -22,7 +22,9 @@ services:
       - ${DATA_PATH:-./data}:/app/data
     ports:
       - "${WEB_PORT:-3400}:3000"
-      - "${API_PORT:-3457}:3457"
+      # The Hono API is published on a fixed host :3457; the browser is told
+      # where to reach it via API_URL below (which carries host + port).
+      - "3457:3457"
     environment:
       - NODE_ENV=production
       - DATA_DIR=/app/data
