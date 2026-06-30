@@ -9,7 +9,7 @@ const app = new Hono();
 
 // Cap the upload before it's buffered into memory. EPUBs are small; this stops a
 // large/zip-bomb upload from exhausting memory (the multipart body is buffered
-// in full both here and in the Next proxy).
+// in full here).
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
 
 // POST /api/import/epub - import an EPUB as a collection of lessons

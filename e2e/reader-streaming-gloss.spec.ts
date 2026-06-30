@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { apiUrl } from './api';
 
 /**
  * Two-tier word translation on the reader (issue: translation latency).
@@ -49,19 +50,19 @@ async function setupMocks(page: Page) {
 }
 
 async function importLesson(page: Page): Promise<string> {
-  const colRes = await page.request.post('/api/collections', {
+  const colRes = await page.request.post(apiUrl('/api/collections'), {
     data: { title: TITLE, language: 'af' },
   });
   const { id: collectionId } = await colRes.json();
 
-  await page.request.post(`/api/collections/${collectionId}/lessons`, {
+  await page.request.post(apiUrl(`/api/collections/${collectionId}/lessons`), {
     data: {
       title: 'Hoofstuk 1',
       textContent: 'By die see sien sy n seemeeu wat oor die water vlieg.',
     },
   });
 
-  const lessonsRes = await page.request.get(`/api/collections/${collectionId}/lessons`);
+  const lessonsRes = await page.request.get(apiUrl(`/api/collections/${collectionId}/lessons`));
   const lessons = await lessonsRes.json();
   await page.goto(`/read/${lessons[0].id}`);
   await page.waitForLoadState('networkidle');
@@ -77,20 +78,20 @@ test.describe('Reader — streamed gloss + enrich', () => {
     await setupMocks(page);
 
     // Clean leftovers from a prior run.
-    const res = await page.request.get('/api/collections');
+    const res = await page.request.get(apiUrl('/api/collections'));
     for (const c of await res.json()) {
-      if (c.title === TITLE) await page.request.delete(`/api/collections/${c.id}`);
+      if (c.title === TITLE) await page.request.delete(apiUrl(`/api/collections/${c.id}`));
     }
-    const vocabRes = await page.request.get('/api/vocab?text=seemeeu');
+    const vocabRes = await page.request.get(apiUrl('/api/vocab?text=seemeeu'));
     for (const v of await vocabRes.json()) {
-      await page.request.delete(`/api/vocab/${v.id}`);
+      await page.request.delete(apiUrl(`/api/vocab/${v.id}`));
     }
 
     collectionId = await importLesson(page);
   });
 
   test.afterEach(async ({ page }) => {
-    if (collectionId) await page.request.delete(`/api/collections/${collectionId}`);
+    if (collectionId) await page.request.delete(apiUrl(`/api/collections/${collectionId}`));
   });
 
   test('streams a gloss, then enriches to the full entry', async ({ page }) => {
@@ -137,18 +138,21 @@ test.describe('Reader — streamed gloss + enrich', () => {
 });
 
 /**
- * Guard against the easy mistake of adding a Hono route without its Next proxy
- * file (each /api/* path needs its own app/api/.../route.ts — there's no
- * catch-all). The UI specs above mock these endpoints, so a missing proxy would
- * pass there but 404 in the real app. Here we hit the REAL proxy → Hono with no
- * word: a wired route forwards and Hono replies 400; a missing proxy 404s. No
- * LLM call (rejected at validation), so it's safe in CI.
+ * Guard against the easy mistake of calling a Hono route that isn't actually
+ * wired. The UI specs above mock these endpoints, so an unwired route would
+ * pass there but fail in the real app. Here we hit the REAL Hono API (directly,
+ * now that the Next /api proxy is gone — #188) with no word: a wired route
+ * validates and replies 400; an unwired path 404s. No LLM call (rejected at
+ * validation), so it's safe in CI.
  */
-test.describe('translate proxy routes are wired', () => {
-  for (const path of ['/api/translate/gloss', '/api/translate/enrich']) {
-    test(`${path} forwards to Hono (not 404)`, async ({ request }) => {
+test.describe('translate routes are wired', () => {
+  for (const path of [
+    apiUrl('/api/translate/gloss'),
+    apiUrl('/api/translate/enrich'),
+  ]) {
+    test(`${path} reaches Hono (not 404)`, async ({ request }) => {
       const res = await request.post(path, { data: { language: 'af' } });
-      expect(res.status(), `${path} should reach Hono, not be a missing Next route`).toBe(400);
+      expect(res.status(), `${path} should reach Hono, not be an unwired route`).toBe(400);
     });
   }
 });

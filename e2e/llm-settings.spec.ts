@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { apiUrl } from './api';
 
 async function selectOpenAIProvider(page: Page) {
   await page.goto("/settings");
@@ -11,11 +12,11 @@ test.describe("OpenAI-compatible provider settings", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     // Reset to a known state
-    await page.request.delete("/api/settings/openaiUrl");
-    await page.request.delete("/api/settings/openaiApiKey");
-    await page.request.delete("/api/settings/openaiModel");
-    await page.request.delete("/api/settings/openaiPreset");
-    await page.request.put("/api/settings/llmProvider", {
+    await page.request.delete(apiUrl("/api/settings/openaiUrl"));
+    await page.request.delete(apiUrl("/api/settings/openaiApiKey"));
+    await page.request.delete(apiUrl("/api/settings/openaiModel"));
+    await page.request.delete(apiUrl("/api/settings/openaiPreset"));
+    await page.request.put(apiUrl("/api/settings/llmProvider"), {
       data: { value: "anthropic" },
     });
   });
@@ -87,7 +88,7 @@ test.describe("OpenAI-compatible provider settings", () => {
     await page.getByTestId("openai-model").fill("some/custom-model");
 
     await expect.poll(async () => {
-      const saved = await page.request.get("/api/settings/openaiModel");
+      const saved = await page.request.get(apiUrl("/api/settings/openaiModel"));
       return await saved.json();
     }).toBe("some/custom-model");
   });
@@ -102,7 +103,7 @@ test.describe("OpenAI-compatible provider settings", () => {
     await expect(page.getByTestId("openai-model")).toHaveValue("");
 
     await expect.poll(async () => {
-      const saved = await page.request.get("/api/settings/openaiModel");
+      const saved = await page.request.get(apiUrl("/api/settings/openaiModel"));
       const value = await saved.json();
       return value === "" || value === null;
     }).toBeTruthy();
@@ -122,19 +123,19 @@ test.describe("OpenAI-compatible provider settings", () => {
   });
 
   test("API key is masked (true), never the plaintext", async ({ page }) => {
-    await page.request.put("/api/settings/openaiApiKey", { data: { value: "sk-very-secret" } });
+    await page.request.put(apiUrl("/api/settings/openaiApiKey"), { data: { value: "sk-very-secret" } });
 
-    const bulk = await (await page.request.get("/api/settings")).json();
+    const bulk = await (await page.request.get(apiUrl("/api/settings"))).json();
     expect(bulk.openaiApiKey).toBe(true);
 
-    const single = await (await page.request.get("/api/settings/openaiApiKey")).json();
+    const single = await (await page.request.get(apiUrl("/api/settings/openaiApiKey"))).json();
     expect(single).toBe(true);
 
-    await page.request.delete("/api/settings/openaiApiKey");
+    await page.request.delete(apiUrl("/api/settings/openaiApiKey"));
   });
 
   test("Clear removes the configured API key", async ({ page }) => {
-    await page.request.put("/api/settings/openaiApiKey", { data: { value: "sk-prior" } });
+    await page.request.put(apiUrl("/api/settings/openaiApiKey"), { data: { value: "sk-prior" } });
     await selectOpenAIProvider(page);
 
     await expect(page.getByTestId("openai-api-key-status")).toContainText("Configured");
@@ -143,7 +144,7 @@ test.describe("OpenAI-compatible provider settings", () => {
     await expect(page.getByTestId("openai-api-key")).toBeVisible();
     await expect(page.getByTestId("openai-api-key-status")).toHaveCount(0);
 
-    const cleared = await (await page.request.get("/api/settings/openaiApiKey")).json();
+    const cleared = await (await page.request.get(apiUrl("/api/settings/openaiApiKey"))).json();
     expect(cleared).toBeNull();
   });
 

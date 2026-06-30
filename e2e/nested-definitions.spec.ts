@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { apiUrl } from './api';
 
 /**
  * Nested definitions in the dictionary drawer (issue #106).
@@ -15,33 +16,33 @@ const TEST_WORDS = ['vrug', 'vrugte', 'pond'];
 
 /** GET /api/vocab has no text filter — fetch all and match client-side. */
 async function vocabByText(page: Page, text: string): Promise<Array<{ id: string; text: string; state: string }>> {
-  const res = await page.request.get('/api/vocab');
+  const res = await page.request.get(apiUrl('/api/vocab'));
   if (!res.ok()) return [];
   const all = (await res.json()) as Array<{ id: string; text: string; state: string }>;
   return all.filter((v) => v.text === text);
 }
 
 async function cleanupVocab(page: Page, texts: string[]) {
-  const res = await page.request.get('/api/vocab');
+  const res = await page.request.get(apiUrl('/api/vocab'));
   if (!res.ok()) return;
   for (const v of (await res.json()) as Array<{ id: string; text: string }>) {
     if (texts.includes(v.text)) {
-      await page.request.delete(`/api/vocab/${v.id}`);
+      await page.request.delete(apiUrl(`/api/vocab/${v.id}`));
     }
   }
 }
 
 async function importLesson(page: Page): Promise<string> {
-  const colRes = await page.request.post('/api/collections', {
+  const colRes = await page.request.post(apiUrl('/api/collections'), {
     data: { title: COLLECTION_TITLE, language: 'af' },
   });
   const { id: collectionId } = await colRes.json();
 
-  await page.request.post(`/api/collections/${collectionId}/lessons`, {
+  await page.request.post(apiUrl(`/api/collections/${collectionId}/lessons`), {
     data: { title: 'Hoofstuk 1', textContent: LESSON_TEXT },
   });
 
-  const lessonsRes = await page.request.get(`/api/collections/${collectionId}/lessons`);
+  const lessonsRes = await page.request.get(apiUrl(`/api/collections/${collectionId}/lessons`));
   const lessons = await lessonsRes.json();
 
   await page.goto(`/read/${lessons[0].id}`);
@@ -81,10 +82,10 @@ test.describe('Nested dictionary definitions (reader)', () => {
     });
 
     // Remove leftovers from aborted runs
-    const res = await page.request.get('/api/collections');
+    const res = await page.request.get(apiUrl('/api/collections'));
     for (const c of await res.json()) {
       if (c.title === COLLECTION_TITLE) {
-        await page.request.delete(`/api/collections/${c.id}`);
+        await page.request.delete(apiUrl(`/api/collections/${c.id}`));
       }
     }
     await cleanupVocab(page, TEST_WORDS);
@@ -93,7 +94,7 @@ test.describe('Nested dictionary definitions (reader)', () => {
   });
 
   test.afterEach(async ({ page }) => {
-    if (collectionId) await page.request.delete(`/api/collections/${collectionId}`);
+    if (collectionId) await page.request.delete(apiUrl(`/api/collections/${collectionId}`));
     await cleanupVocab(page, TEST_WORDS);
   });
 

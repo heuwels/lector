@@ -15,12 +15,12 @@ Tests live in:
 - `api/src/**/*.test.ts` - bun:test unit tests — run with `cd api && bun test` (vitest excludes `api/**`; don't mix the two runners)
 - `e2e/` - Playwright end-to-end tests — run with `npm run test:e2e` (boots both servers against an isolated `tmp/e2e-data`, never the real `data/`)
 
-CI runs all of these, plus the e2e suite a second time against the production Docker image (`E2E_EXTERNAL_SERVER=1` with the container mapped to :3456) to cover the standalone build and `docker-entrypoint.sh`.
+CI runs all of these, plus the e2e suite a second time against the production Docker image (`E2E_EXTERNAL_SERVER=1` with the container mapped to :3456 for the UI and :3457 for the Hono API the browser calls directly) to cover the standalone build and `docker-entrypoint.sh`.
 
 ## Tech Stack
 
-- Next.js 16 + React 19 — the front-end, plus thin `/api` proxy routes.
-- Hono on Bun is the API backend (`api/`), using Bun's native `bun:sqlite`. Every Next `/api/*` route is a thin proxy to it via `src/lib/server/api-proxy.ts`; the client persists everything through those routes (`src/lib/data-layer.ts`). The Next process holds no database. (better-sqlite3 survives only as a devDependency, for the `scripts/build-dictionary.ts` / `export-cached-entries.ts` tooling.)
+- Next.js 16 + React 19 — the front-end. It serves the UI only: no database, and **no `/api/*` routes** (the Next→Hono proxy was removed in #188).
+- Hono on Bun is the API backend (`api/`), using Bun's native `bun:sqlite`. The browser talks to it **directly** — `src/lib/data-layer.ts` and the other client fetchers route every call through `apiFetch`/`apiUrl` from `src/lib/api-base.ts`, which reads the API origin from `window.__ENV__.API_URL`. That's injected at container start by `docker-entrypoint.sh` from the runtime `API_URL` env (written to `/__env.js`), since `NEXT_PUBLIC_*` bakes at build and can't be set on a prebuilt image; it falls back to `http://localhost:3457` for dev. The cross-origin calls rely on Hono's `app.use('*', cors())`. (better-sqlite3 survives only as a devDependency, for the `scripts/build-dictionary.ts` / `export-cached-entries.ts` tooling.)
 - Tailwind CSS v4 (class-based dark mode via `@custom-variant`)
 - shadcn/ui (Base UI primitives, `base-vega` style, zinc tokens) is initialized — add primitives with `npx shadcn@latest add <component>` into `src/components/ui/` and extend them there. Adoption is gradual: prefer `ui/` components in new/touched code, don't hand-roll buttons/dialogs/menus, and don't mass-migrate existing ones
 

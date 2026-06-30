@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { apiUrl } from './api';
 
 test.describe('Fluency Benchmarks', () => {
   test.beforeEach(async ({ page }) => {
@@ -57,7 +58,7 @@ test.describe('Fluency Benchmarks', () => {
   });
 
   test('fluency API endpoint should return valid data', async ({ page }) => {
-    const response = await page.request.get('/api/stats/fluency');
+    const response = await page.request.get(apiUrl('/api/stats/fluency'));
     expect(response.ok()).toBeTruthy();
 
     const data = await response.json();

@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { apiUrl } from './api';
 
 // Seed a chat message pair by mocking the LLM response
 async function seedMessage(page: Page, userText: string, assistantText: string = "Mock response") {
@@ -34,11 +35,11 @@ async function seedMessage(page: Page, userText: string, assistantText: string =
 test.describe("Chat Widget", () => {
   test.beforeEach(async ({ page }) => {
     // Clear chat history before each test (direct to Hono API)
-    await page.request.delete("/api/chat");
+    await page.request.delete(apiUrl("/api/chat"));
   });
 
   test.afterEach(async ({ page }) => {
-    await page.request.delete("/api/chat");
+    await page.request.delete(apiUrl("/api/chat"));
   });
 
   test("should show chat toggle button on any page", async ({ page }) => {
@@ -166,7 +167,7 @@ test.describe("Chat Widget", () => {
     // Wait for messages to appear
     await expect(page.getByText("Mock response")).toBeVisible({ timeout: 5000 });
 
-    // Unroute to let the DELETE go through to Next.js proxy
+    // Unroute to let the DELETE go through to the Hono API
     await page.unroute("**/api/chat");
 
     // Clear
@@ -187,7 +188,7 @@ test.describe("Chat Widget", () => {
   });
 
   test("should validate empty message via API", async ({ page }) => {
-    const res = await page.request.post("/api/chat", {
+    const res = await page.request.post(apiUrl("/api/chat"), {
       data: { message: "" },
     });
     expect(res.status()).toBe(400);
@@ -218,13 +219,13 @@ test.describe("Chat Widget", () => {
 
   test("should handle GET and DELETE via API directly", async ({ page }) => {
     // GET should return empty array
-    const getRes = await page.request.get("/api/chat");
+    const getRes = await page.request.get(apiUrl("/api/chat"));
     expect(getRes.ok()).toBeTruthy();
     const messages = await getRes.json();
     expect(Array.isArray(messages)).toBeTruthy();
 
     // DELETE should succeed
-    const deleteRes = await page.request.delete("/api/chat");
+    const deleteRes = await page.request.delete(apiUrl("/api/chat"));
     expect(deleteRes.ok()).toBeTruthy();
     const result = await deleteRes.json();
     expect(result.ok).toBe(true);

@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { apiUrl } from './api';
 
 const TEST_COLLECTION = "top500";
 const TEST_SENTENCE_ID = "test-inline-def-1";
@@ -54,7 +55,7 @@ async function expectDrawerClosed(page: Page) {
 
 test.describe("Cloze Inline Definitions (drawer)", () => {
   test.beforeEach(async ({ page }) => {
-    const res = await page.request.post("http://localhost:3456/api/cloze", {
+    const res = await page.request.post(apiUrl("/api/cloze"), {
       data: [testSentence],
     });
     expect(res.ok()).toBeTruthy();
@@ -62,7 +63,7 @@ test.describe("Cloze Inline Definitions (drawer)", () => {
 
   test.afterEach(async ({ page }) => {
     await page.request.delete(
-      `http://localhost:3456/api/cloze/${TEST_SENTENCE_ID}`
+      apiUrl(`/api/cloze/${TEST_SENTENCE_ID}`)
     );
   });
 

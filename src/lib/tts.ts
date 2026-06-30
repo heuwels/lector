@@ -1,6 +1,7 @@
 // Text-to-Speech wrapper
 // Uses Google Cloud TTS when available, falls back to browser TTS
 import { getActiveLanguage } from './data-layer';
+import { apiFetch } from './api-base';
 import { LANGUAGES, DEFAULT_LANGUAGE, type LanguageCode } from './languages';
 
 // Default speech rate (1.0 is normal speed). Exported so callers that offer a
@@ -188,7 +189,7 @@ export function getCurrentVoiceName(): string | undefined {
  */
 async function speakWithGoogle(text: string, rate: number): Promise<boolean> {
   try {
-    const response = await fetch('/api/tts', {
+    const response = await apiFetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, rate, language: getActiveLanguage() }),
@@ -352,7 +353,7 @@ export function resetVoiceCache(): void {
  */
 export async function isGoogleTTSConfigured(): Promise<boolean> {
   try {
-    const response = await fetch('/api/tts', {
+    const response = await apiFetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: 'test' }),

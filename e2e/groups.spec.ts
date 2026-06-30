@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { apiUrl } from './api';
 import path from "path";
 
 test.describe("Collection Groups", () => {
@@ -6,20 +7,20 @@ test.describe("Collection Groups", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
 
     // Clean up test groups
-    const groupsRes = await page.request.get("/api/groups");
+    const groupsRes = await page.request.get(apiUrl("/api/groups"));
     const groups = await groupsRes.json();
     for (const g of groups) {
       if (g.name.startsWith("Test") || g.name.startsWith("Toets")) {
-        await page.request.delete(`/api/groups/${g.id}`);
+        await page.request.delete(apiUrl(`/api/groups/${g.id}`));
       }
     }
 
     // Clean up test collections
-    const colRes = await page.request.get("/api/collections");
+    const colRes = await page.request.get(apiUrl("/api/collections"));
     const collections = await colRes.json();
     for (const c of collections) {
       if (c.title.startsWith("Toets") || c.title.startsWith("Test")) {
-        await page.request.delete(`/api/collections/${c.id}`);
+        await page.request.delete(apiUrl(`/api/collections/${c.id}`));
       }
     }
   });
@@ -39,7 +40,7 @@ test.describe("Collection Groups", () => {
 
   test("should assign a collection to a group via detail page", async ({ page }) => {
     // Create a group via API
-    const groupRes = await page.request.post("/api/groups", {
+    const groupRes = await page.request.post(apiUrl("/api/groups"), {
       data: { name: "Test Assign Group" },
     });
     const { id: groupId } = await groupRes.json();
@@ -48,7 +49,7 @@ test.describe("Collection Groups", () => {
     const epubPath = path.join(__dirname, "fixtures/test-book.epub");
     const fs = await import("fs");
     const buffer = fs.readFileSync(epubPath);
-    const importRes = await page.request.post("/api/import/epub", {
+    const importRes = await page.request.post(apiUrl("/api/import/epub"), {
       multipart: {
         file: {
           name: "test-book.epub",
@@ -83,16 +84,16 @@ test.describe("Collection Groups", () => {
 
   test("should ungroup a collection", async ({ page }) => {
     // Create group + collection assigned to it
-    const groupRes = await page.request.post("/api/groups", {
+    const groupRes = await page.request.post(apiUrl("/api/groups"), {
       data: { name: "Test Ungroup" },
     });
     const { id: groupId } = await groupRes.json();
 
-    const colRes = await page.request.post("/api/collections", {
+    const colRes = await page.request.post(apiUrl("/api/collections"), {
       data: { title: "Test Ungrouped Book", author: "Test" },
     });
     const { id: collectionId } = await colRes.json();
-    await page.request.put(`/api/collections/${collectionId}`, {
+    await page.request.put(apiUrl(`/api/collections/${collectionId}`), {
       data: { groupId },
     });
 
@@ -111,7 +112,7 @@ test.describe("Collection Groups", () => {
   });
 
   test("should rename a group", async ({ page }) => {
-    const groupRes = await page.request.post("/api/groups", {
+    const groupRes = await page.request.post(apiUrl("/api/groups"), {
       data: { name: "Test Rename Me" },
     });
     await groupRes.json();
@@ -138,16 +139,16 @@ test.describe("Collection Groups", () => {
 
   test("should delete a group and ungroup its collections", async ({ page }) => {
     // Create group + collection
-    const groupRes = await page.request.post("/api/groups", {
+    const groupRes = await page.request.post(apiUrl("/api/groups"), {
       data: { name: "Test Delete Group" },
     });
     const { id: groupId } = await groupRes.json();
 
-    const colRes = await page.request.post("/api/collections", {
+    const colRes = await page.request.post(apiUrl("/api/collections"), {
       data: { title: "Test Survives Delete", author: "Test" },
     });
     const { id: collectionId } = await colRes.json();
-    await page.request.put(`/api/collections/${collectionId}`, {
+    await page.request.put(apiUrl(`/api/collections/${collectionId}`), {
       data: { groupId },
     });
 
@@ -175,7 +176,7 @@ test.describe("Collection Groups", () => {
 
   test("should create a new group from collection detail page", async ({ page }) => {
     // Create a collection
-    const colRes = await page.request.post("/api/collections", {
+    const colRes = await page.request.post(apiUrl("/api/collections"), {
       data: { title: "Test Detail Group Book", author: "Test" },
     });
     const { id: collectionId } = await colRes.json();
@@ -201,7 +202,7 @@ test.describe("Collection Groups", () => {
 
   test("groups API CRUD works correctly", async ({ page }) => {
     // POST
-    const createRes = await page.request.post("/api/groups", {
+    const createRes = await page.request.post(apiUrl("/api/groups"), {
       data: { name: "Test API Group" },
     });
     expect(createRes.ok()).toBeTruthy();
@@ -209,33 +210,33 @@ test.describe("Collection Groups", () => {
     expect(id).toBeTruthy();
 
     // GET
-    const listRes = await page.request.get("/api/groups");
+    const listRes = await page.request.get(apiUrl("/api/groups"));
     const groups = await listRes.json();
     const created = groups.find((g: { id: string }) => g.id === id);
     expect(created).toBeTruthy();
     expect(created.name).toBe("Test API Group");
 
     // PUT
-    const updateRes = await page.request.put(`/api/groups/${id}`, {
+    const updateRes = await page.request.put(apiUrl(`/api/groups/${id}`), {
       data: { name: "Test API Group Renamed" },
     });
     expect(updateRes.ok()).toBeTruthy();
 
-    const listRes2 = await page.request.get("/api/groups");
+    const listRes2 = await page.request.get(apiUrl("/api/groups"));
     const groups2 = await listRes2.json();
     expect(groups2.find((g: { id: string }) => g.id === id).name).toBe("Test API Group Renamed");
 
     // DELETE
-    const deleteRes = await page.request.delete(`/api/groups/${id}`);
+    const deleteRes = await page.request.delete(apiUrl(`/api/groups/${id}`));
     expect(deleteRes.ok()).toBeTruthy();
 
-    const listRes3 = await page.request.get("/api/groups");
+    const listRes3 = await page.request.get(apiUrl("/api/groups"));
     const groups3 = await listRes3.json();
     expect(groups3.find((g: { id: string }) => g.id === id)).toBeUndefined();
   });
 
   test("should reject empty group name", async ({ page }) => {
-    const res = await page.request.post("/api/groups", {
+    const res = await page.request.post(apiUrl("/api/groups"), {
       data: { name: "" },
     });
     expect(res.status()).toBe(400);

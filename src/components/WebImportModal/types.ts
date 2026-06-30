@@ -1,4 +1,16 @@
-import type { ExtractedArticle } from '@/app/api/extract-url/route';
+/**
+ * Response contract for an extracted article, returned by the Hono API
+ * (api/src/routes/extract-url.ts) and consumed by the WebImportModal client
+ * components.
+ */
+export interface ExtractedArticle {
+  title: string;
+  author: string | null;
+  content: string;
+  siteName: string | null;
+  excerpt: string | null;
+  wordCount: number;
+}
 
 export interface WebImportModalProps {
   isOpen: boolean;

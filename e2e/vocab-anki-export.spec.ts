@@ -1,4 +1,5 @@
 import { test, expect, Page, Route } from '@playwright/test';
+import { apiUrl } from './api';
 
 /**
  * E2E for the /vocab page → Anki bulk-export flow.
@@ -23,7 +24,7 @@ interface AnkiCall {
 async function seedVocabEntry(page: Page, text: string, sentence: string, translation: string) {
   // Use a deterministic id so we can target the row and clean up reliably.
   const id = `e2e-vocab-${text}-${Date.now().toString(36)}`;
-  const res = await page.request.post('http://localhost:3456/api/vocab', {
+  const res = await page.request.post(apiUrl('/api/vocab'), {
     data: {
       id,
       text,
@@ -43,7 +44,7 @@ async function seedVocabEntry(page: Page, text: string, sentence: string, transl
 }
 
 async function deleteVocabEntry(page: Page, id: string) {
-  await page.request.delete(`http://localhost:3456/api/vocab/${id}`);
+  await page.request.delete(apiUrl(`/api/vocab/${id}`));
 }
 
 /**
@@ -114,7 +115,7 @@ test.describe('Vocab → Anki bulk export', () => {
 
     // Clear any stale ankiConnectUrl setting so the mock at localhost:8765
     // catches the requests. (Live dev may have configured a non-default port.)
-    await page.request.delete('http://localhost:3456/api/settings/ankiConnectUrl').catch(() => {});
+    await page.request.delete(apiUrl('/api/settings/ankiConnectUrl')).catch(() => {});
 
     // The sentence must contain the word (as real reader-mined vocab always
     // does) — a cloze note without a {{c1::}} blank is invalid and rejected.

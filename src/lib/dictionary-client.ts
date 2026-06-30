@@ -7,6 +7,7 @@
  * fall back to the AI translate API when null.
  */
 import { getActiveLanguage } from './data-layer';
+import { apiFetch } from './api-base';
 
 export interface ExpandedDictionaryEntry {
   word: string;
@@ -36,7 +37,7 @@ export async function lookupWordRemote(word: string): Promise<ExpandedDictionary
   }
 
   const url = `/api/dictionary/lookup?word=${encodeURIComponent(word)}&language=${language}`;
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) {
     // Don't cache transport errors — let the next click retry.
     return null;
@@ -83,7 +84,7 @@ export async function cacheAcceptedTranslation(input: CacheAcceptedTranslationIn
   if (!input.word || !input.senses?.length) return;
   invalidateLookupCache(input.word);
   try {
-    const res = await fetch('/api/dictionary/cache', {
+    const res = await apiFetch('/api/dictionary/cache', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),

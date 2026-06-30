@@ -23,12 +23,15 @@ A self-hosted language learning reader — LingQ-style reading, Clozemaster-styl
 
 ### Development
 
+The app runs as two processes — the Next.js front-end (`:3456`) and the Hono API (`:3457`). Start each in its own terminal:
+
 ```bash
 npm install
-npm run dev
+npm run dev:api   # terminal 1 — Hono API on :3457
+npm run dev       # terminal 2 — Next.js UI on :3456
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3456](http://localhost:3456). The browser calls the Hono API **directly** on `:3457` (CORS-enabled) — there is no Next.js API proxy.
 
 ### Environment Variables
 
@@ -72,13 +75,17 @@ services:
     container_name: lector
     restart: unless-stopped
     ports:
-      - "3400:3000"
+      - "3400:3000"   # UI
+      - "3457:3457"   # Hono API — the browser calls it directly, so it must be reachable
     environment:
       - NODE_ENV=production
+      - API_URL=http://localhost:3457   # browser-facing API origin — set to http://<host>:3457 for remote access
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
       - ./data:/app/data
 ```
+
+Both ports must be published: the browser loads the UI from `:3400` and calls the Hono API **directly** on `:3457` (there is no Next.js API proxy). Set `API_URL` to the origin the browser uses to reach the API (e.g. `http://<host>:3457`) — it's injected into the page at container start (`/__env.js`). It defaults to `http://localhost:3457`, which only works when you browse from the same host.
 
 Environment variables are injected at runtime — no secrets are baked into the Docker image.
 

@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { apiUrl } from './api';
 import path from 'path';
 
 async function importAndOpenReader(page: Page) {
@@ -6,7 +7,7 @@ async function importAndOpenReader(page: Page) {
   const epubPath = path.join(__dirname, 'fixtures/test-book.epub');
   const buffer = fs.readFileSync(epubPath);
 
-  const importRes = await page.request.post('/api/import/epub', {
+  const importRes = await page.request.post(apiUrl('/api/import/epub'), {
     multipart: {
       file: {
         name: 'test-book.epub',
@@ -17,7 +18,7 @@ async function importAndOpenReader(page: Page) {
   });
   const { collectionId } = await importRes.json();
 
-  const lessonsRes = await page.request.get(`/api/collections/${collectionId}/lessons`);
+  const lessonsRes = await page.request.get(apiUrl(`/api/collections/${collectionId}/lessons`));
   const lessons = await lessonsRes.json();
 
   await page.goto(`/read/${lessons[0].id}`);
@@ -45,11 +46,11 @@ test.describe('Reader phrase selection', () => {
     });
 
     // Clean up test collections
-    const res = await page.request.get('/api/collections');
+    const res = await page.request.get(apiUrl('/api/collections'));
     const collections = await res.json();
     for (const c of collections) {
       if (c.title.startsWith('Toets') || c.title.startsWith('Test')) {
-        await page.request.delete(`/api/collections/${c.id}`);
+        await page.request.delete(apiUrl(`/api/collections/${c.id}`));
       }
     }
 

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { apiUrl } from './api';
 
 test.describe("Activity Heatmap", () => {
   test.beforeEach(async ({ page }) => {
@@ -27,7 +28,7 @@ test.describe("Activity Heatmap", () => {
 
     const bump = 3;
     for (let i = 0; i < bump; i++) {
-      const res = await page.request.put("/api/stats/today", {
+      const res = await page.request.put(apiUrl("/api/stats/today"), {
         data: { field: "dictionaryLookups", amount: 1 },
       });
       expect(res.ok()).toBeTruthy();
@@ -55,7 +56,7 @@ test.describe("Activity Heatmap", () => {
     // too. Previously the heatmap counted dictionary lookups only.
     const bump = 4;
     for (let i = 0; i < bump; i++) {
-      const res = await page.request.put("/api/stats/today", {
+      const res = await page.request.put(apiUrl("/api/stats/today"), {
         data: { field: "clozePracticed", amount: 1 },
       });
       expect(res.ok()).toBeTruthy();

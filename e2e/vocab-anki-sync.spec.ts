@@ -1,4 +1,5 @@
 import { test, expect, Page, Route } from '@playwright/test';
+import { apiUrl } from './api';
 
 /**
  * E2E for the /vocab page → "Sync with Anki" back-sync flow.
@@ -27,7 +28,7 @@ async function seedVocabEntry(
   state: string,
 ): Promise<string> {
   const id = `e2e-sync-${text}-${Date.now().toString(36)}`;
-  const res = await page.request.post('/api/vocab', {
+  const res = await page.request.post(apiUrl('/api/vocab'), {
     data: {
       id,
       text,
@@ -47,11 +48,11 @@ async function seedVocabEntry(
 }
 
 async function deleteVocabEntry(page: Page, id: string) {
-  await page.request.delete(`/api/vocab/${id}`);
+  await page.request.delete(apiUrl(`/api/vocab/${id}`));
 }
 
 async function getVocabState(page: Page, id: string): Promise<string> {
-  const res = await page.request.get(`/api/vocab/${id}`);
+  const res = await page.request.get(apiUrl(`/api/vocab/${id}`));
   expect(res.ok()).toBeTruthy();
   return ((await res.json()) as { state: string }).state;
 }
@@ -117,7 +118,7 @@ test.describe('Vocab → Sync with Anki back-sync', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.request.delete('/api/settings/ankiConnectUrl').catch(() => {});
+    await page.request.delete(apiUrl('/api/settings/ankiConnectUrl')).catch(() => {});
   });
 
   test.afterEach(async ({ page }) => {
