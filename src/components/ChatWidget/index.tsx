@@ -3,6 +3,7 @@
 import { MessageCircle, X, SendHorizonal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useActiveLanguage } from '@/utils/hooks';
+import { apiFetch } from '@/lib/api-base';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { EXAMPLE_PROMPTS } from './constants';
 
@@ -33,7 +34,7 @@ export default function ChatWidget() {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch(`/api/chat?limit=50&lang=${activeLang.code}`);
+      const res = await apiFetch(`/api/chat?limit=50&lang=${activeLang.code}`);
       const data = await res.json();
       setMessages(data);
       setHasMore(data.length === 50);
@@ -110,7 +111,7 @@ export default function ChatWidget() {
     setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: content, language: activeLang.code }),
@@ -156,7 +157,7 @@ export default function ChatWidget() {
 
   async function clearChat() {
     try {
-      await fetch(`/api/chat?lang=${activeLang.code}`, { method: 'DELETE' });
+      await apiFetch(`/api/chat?lang=${activeLang.code}`, { method: 'DELETE' });
       setMessages([]);
       setHasMore(false);
     } catch (err) {

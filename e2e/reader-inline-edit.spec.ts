@@ -5,26 +5,26 @@ const ORIGINAL_TEXT = 'Die son skyn helder vandag. Ek loop deur die veld.';
 const EDITED_TEXT = 'Die maan skyn helder vannag. Ek loop deur die straat.';
 
 async function createLesson(page: Page): Promise<{ collectionId: string; lessonId: string }> {
-  const colRes = await page.request.post('/api/collections', {
+  const colRes = await page.request.post('http://localhost:3457/api/collections', {
     data: { title: TEST_TITLE, language: 'af' },
   });
   const { id: collectionId } = await colRes.json();
 
-  await page.request.post(`/api/collections/${collectionId}/lessons`, {
+  await page.request.post(`http://localhost:3457/api/collections/${collectionId}/lessons`, {
     data: { title: 'Hoofstuk 1', textContent: ORIGINAL_TEXT },
   });
 
-  const lessonsRes = await page.request.get(`/api/collections/${collectionId}/lessons`);
+  const lessonsRes = await page.request.get(`http://localhost:3457/api/collections/${collectionId}/lessons`);
   const lessons = await lessonsRes.json();
   return { collectionId, lessonId: lessons[0].id };
 }
 
 async function cleanupExisting(page: Page) {
-  const res = await page.request.get('/api/collections');
+  const res = await page.request.get('http://localhost:3457/api/collections');
   const collections = await res.json();
   for (const c of collections) {
     if (c.title === TEST_TITLE) {
-      await page.request.delete(`/api/collections/${c.id}`);
+      await page.request.delete(`http://localhost:3457/api/collections/${c.id}`);
     }
   }
 }
@@ -44,7 +44,7 @@ test.describe('Reader inline editing (issue #67)', () => {
 
   test.afterEach(async ({ page }) => {
     if (collectionId) {
-      await page.request.delete(`/api/collections/${collectionId}`);
+      await page.request.delete(`http://localhost:3457/api/collections/${collectionId}`);
     }
   });
 
@@ -84,7 +84,7 @@ test.describe('Reader inline editing (issue #67)', () => {
 
     // Persisted in DB
     const lessonId = page.url().split('/').pop()!;
-    const checkRes = await page.request.get(`/api/lessons/${lessonId}`);
+    const checkRes = await page.request.get(`http://localhost:3457/api/lessons/${lessonId}`);
     const persisted = await checkRes.json();
     expect(persisted.textContent).toBe(EDITED_TEXT);
   });
@@ -104,7 +104,7 @@ test.describe('Reader inline editing (issue #67)', () => {
 
     // DB still has the original
     const lessonId = page.url().split('/').pop()!;
-    const checkRes = await page.request.get(`/api/lessons/${lessonId}`);
+    const checkRes = await page.request.get(`http://localhost:3457/api/lessons/${lessonId}`);
     const persisted = await checkRes.json();
     expect(persisted.textContent).toBe(ORIGINAL_TEXT);
   });

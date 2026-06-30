@@ -54,7 +54,7 @@ async function expectDrawerClosed(page: Page) {
 
 test.describe("Cloze Inline Definitions (drawer)", () => {
   test.beforeEach(async ({ page }) => {
-    const res = await page.request.post("http://localhost:3456/api/cloze", {
+    const res = await page.request.post("http://localhost:3457/api/cloze", {
       data: [testSentence],
     });
     expect(res.ok()).toBeTruthy();
@@ -62,7 +62,7 @@ test.describe("Cloze Inline Definitions (drawer)", () => {
 
   test.afterEach(async ({ page }) => {
     await page.request.delete(
-      `http://localhost:3456/api/cloze/${TEST_SENTENCE_ID}`
+      `http://localhost:3457/api/cloze/${TEST_SENTENCE_ID}`
     );
   });
 

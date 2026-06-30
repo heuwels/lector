@@ -1,4 +1,5 @@
 import { getActiveLanguage } from './data-layer';
+import { apiFetch } from './api-base';
 
 // Types
 export interface WordTranslation {
@@ -32,7 +33,7 @@ export async function translateWord(
   word: string,
   sentence: string
 ): Promise<WordTranslation> {
-  const response = await fetch('/api/translate', {
+  const response = await apiFetch('/api/translate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ word, sentence, type: 'word', language: getActiveLanguage() }),
@@ -60,7 +61,7 @@ export async function streamWordGloss(
   sentence: string,
   onDelta: (cumulative: string) => void,
 ): Promise<string> {
-  const response = await fetch('/api/translate/gloss', {
+  const response = await apiFetch('/api/translate/gloss', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ word, sentence, language: getActiveLanguage() }),
@@ -102,7 +103,7 @@ export async function enrichWord(
   word: string,
   sentence: string,
 ): Promise<WordTranslation> {
-  const response = await fetch('/api/translate/enrich', {
+  const response = await apiFetch('/api/translate/enrich', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ word, sentence, language: getActiveLanguage() }),
@@ -126,7 +127,7 @@ export async function translatePhrase(
   phrase: string,
   sentence: string
 ): Promise<PhraseTranslation> {
-  const response = await fetch('/api/translate', {
+  const response = await apiFetch('/api/translate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ word: phrase, sentence, type: 'phrase', language: getActiveLanguage() }),

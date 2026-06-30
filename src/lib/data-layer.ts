@@ -1,11 +1,13 @@
 /**
- * Data Layer - Server-side storage via API routes
+ * Data Layer — persistence via the Hono API.
  *
- * All persistence goes through fetch() calls to the server-side API.
- * Shared domain types live in src/types.
+ * All persistence goes through apiFetch() to the Hono API directly; the Next.js
+ * `/api/*` proxy routes were removed in #188. Shared domain types live in
+ * src/types.
  */
 
 import { DEFAULT_LANGUAGE } from './languages';
+import { apiFetch } from './api-base';
 
 // Active language helper — reads from localStorage, falls back to default
 export function getActiveLanguage(): string {
@@ -56,12 +58,12 @@ import type {
 // ============================================================================
 
 export async function getAllCollections(): Promise<Collection[]> {
-  const res = await fetch(`/api/collections${langParam()}`);
+  const res = await apiFetch(`/api/collections${langParam()}`);
   return res.json();
 }
 
 export async function getCollection(id: string): Promise<Collection | undefined> {
-  const res = await fetch(`/api/collections/${id}`);
+  const res = await apiFetch(`/api/collections/${id}`);
   if (!res.ok) return undefined;
   return res.json();
 }
@@ -71,7 +73,7 @@ export async function createCollection(data: {
   author?: string;
   groupId?: string | null;
 }): Promise<string> {
-  const res = await fetch('/api/collections', {
+  const res = await apiFetch('/api/collections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...data, language: getActiveLanguage() }),
@@ -81,7 +83,7 @@ export async function createCollection(data: {
 }
 
 export async function reorderCollections(ids: string[]): Promise<void> {
-  await fetch('/api/collections/reorder', {
+  await apiFetch('/api/collections/reorder', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
@@ -89,14 +91,14 @@ export async function reorderCollections(ids: string[]): Promise<void> {
 }
 
 export async function deleteCollection(id: string): Promise<void> {
-  await fetch(`/api/collections/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/collections/${id}`, { method: 'DELETE' });
 }
 
 export async function updateCollection(
   id: string,
   data: { title?: string; author?: string; groupId?: string | null },
 ): Promise<void> {
-  await fetch(`/api/collections/${id}`, {
+  await apiFetch(`/api/collections/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -108,12 +110,12 @@ export async function updateCollection(
 // ============================================================================
 
 export async function getAllGroups(): Promise<CollectionGroup[]> {
-  const res = await fetch('/api/groups');
+  const res = await apiFetch('/api/groups');
   return res.json();
 }
 
 export async function createGroup(name: string): Promise<string> {
-  const res = await fetch('/api/groups', {
+  const res = await apiFetch('/api/groups', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
@@ -126,7 +128,7 @@ export async function updateGroup(
   id: string,
   data: { name?: string; sortOrder?: number },
 ): Promise<void> {
-  await fetch(`/api/groups/${id}`, {
+  await apiFetch(`/api/groups/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -134,7 +136,7 @@ export async function updateGroup(
 }
 
 export async function deleteGroup(id: string): Promise<void> {
-  await fetch(`/api/groups/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/groups/${id}`, { method: 'DELETE' });
 }
 
 // ============================================================================
@@ -142,12 +144,12 @@ export async function deleteGroup(id: string): Promise<void> {
 // ============================================================================
 
 export async function getLessonsForCollection(collectionId: string): Promise<LessonSummary[]> {
-  const res = await fetch(`/api/collections/${collectionId}/lessons`);
+  const res = await apiFetch(`/api/collections/${collectionId}/lessons`);
   return res.json();
 }
 
 export async function getLesson(id: string): Promise<Lesson | undefined> {
-  const res = await fetch(`/api/lessons/${id}`);
+  const res = await apiFetch(`/api/lessons/${id}`);
   if (!res.ok) return undefined;
   return res.json();
 }
@@ -156,7 +158,7 @@ export async function addLessonToCollection(
   collectionId: string,
   data: { title: string; textContent: string },
 ): Promise<string> {
-  const res = await fetch(`/api/collections/${collectionId}/lessons`, {
+  const res = await apiFetch(`/api/collections/${collectionId}/lessons`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -169,7 +171,7 @@ export async function updateLesson(
   id: string,
   data: { title?: string; textContent?: string },
 ): Promise<void> {
-  await fetch(`/api/lessons/${id}`, {
+  await apiFetch(`/api/lessons/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -177,11 +179,11 @@ export async function updateLesson(
 }
 
 export async function deleteLesson(id: string): Promise<void> {
-  await fetch(`/api/lessons/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/lessons/${id}`, { method: 'DELETE' });
 }
 
 export async function reorderLessons(collectionId: string, ids: string[]): Promise<void> {
-  await fetch(`/api/collections/${collectionId}/lessons/reorder`, {
+  await apiFetch(`/api/collections/${collectionId}/lessons/reorder`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
@@ -192,7 +194,7 @@ export async function updateLessonProgress(
   id: string,
   progress: { scrollPosition?: number; percentComplete?: number },
 ): Promise<void> {
-  await fetch(`/api/lessons/${id}/progress`, {
+  await apiFetch(`/api/lessons/${id}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(progress),
@@ -208,7 +210,7 @@ export async function importEpub(file: File): Promise<{
   const formData = new FormData();
   formData.append('file', file);
   formData.append('language', getActiveLanguage());
-  const res = await fetch('/api/import/epub', {
+  const res = await apiFetch('/api/import/epub', {
     method: 'POST',
     body: formData,
   });
@@ -226,7 +228,7 @@ export async function createStandaloneLesson(data: {
 }): Promise<{ collectionId: string; lessonId: string }> {
   // Create a collection with a single lesson
   const collectionId = await createCollection({ title: data.title, author: data.author });
-  const res = await fetch(`/api/collections/${collectionId}/lessons`, {
+  const res = await apiFetch(`/api/collections/${collectionId}/lessons`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title: data.title, textContent: data.textContent }),
@@ -240,7 +242,7 @@ export async function createStandaloneLesson(data: {
 // ============================================================================
 
 export async function getAllVocab(): Promise<VocabEntry[]> {
-  const res = await fetch(`/api/vocab${langParam()}`);
+  const res = await apiFetch(`/api/vocab${langParam()}`);
   const vocab = await res.json();
   return vocab.map((v: Record<string, unknown>) => ({
     ...v,
@@ -250,7 +252,7 @@ export async function getAllVocab(): Promise<VocabEntry[]> {
 }
 
 export async function getVocabEntry(id: string): Promise<VocabEntry | undefined> {
-  const res = await fetch(`/api/vocab/${id}`);
+  const res = await apiFetch(`/api/vocab/${id}`);
   if (!res.ok) return undefined;
   const data = await res.json();
   return {
@@ -261,7 +263,7 @@ export async function getVocabEntry(id: string): Promise<VocabEntry | undefined>
 }
 
 export async function getVocabByText(text: string): Promise<VocabEntry | undefined> {
-  const res = await fetch(`/api/vocab${langParam()}&text=${encodeURIComponent(text)}`);
+  const res = await apiFetch(`/api/vocab${langParam()}&text=${encodeURIComponent(text)}`);
   const vocab = await res.json();
   const match = vocab.find((v: VocabEntry) => v.text === text);
   if (!match) return undefined;
@@ -273,7 +275,7 @@ export async function getVocabByText(text: string): Promise<VocabEntry | undefin
 }
 
 export async function saveVocab(entry: VocabEntry): Promise<string> {
-  const res = await fetch('/api/vocab', {
+  const res = await apiFetch('/api/vocab', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...entry, language: getActiveLanguage() }),
@@ -283,7 +285,7 @@ export async function saveVocab(entry: VocabEntry): Promise<string> {
 }
 
 export async function updateVocabState(id: string, state: WordState): Promise<void> {
-  await fetch(`/api/vocab/${id}`, {
+  await apiFetch(`/api/vocab/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ state }),
@@ -291,7 +293,7 @@ export async function updateVocabState(id: string, state: WordState): Promise<vo
 }
 
 export async function getVocabByState(state: WordState): Promise<VocabEntry[]> {
-  const res = await fetch(`/api/vocab${langParam()}&state=${state}`);
+  const res = await apiFetch(`/api/vocab${langParam()}&state=${state}`);
   const vocab = await res.json();
   return vocab.map((v: Record<string, unknown>) => ({
     ...v,
@@ -301,7 +303,7 @@ export async function getVocabByState(state: WordState): Promise<VocabEntry[]> {
 }
 
 export async function getVocabForBook(bookId: string): Promise<VocabEntry[]> {
-  const res = await fetch(`/api/vocab${langParam()}&bookId=${bookId}`);
+  const res = await apiFetch(`/api/vocab${langParam()}&bookId=${bookId}`);
   const vocab = await res.json();
   return vocab.map((v: Record<string, unknown>) => ({
     ...v,
@@ -311,7 +313,7 @@ export async function getVocabForBook(bookId: string): Promise<VocabEntry[]> {
 }
 
 export async function getUnpushedVocab(): Promise<VocabEntry[]> {
-  const res = await fetch(`/api/vocab${langParam()}&unpushed=true`);
+  const res = await apiFetch(`/api/vocab${langParam()}&unpushed=true`);
   const vocab = await res.json();
   return vocab.map((v: Record<string, unknown>) => ({
     ...v,
@@ -321,7 +323,7 @@ export async function getUnpushedVocab(): Promise<VocabEntry[]> {
 }
 
 export async function markVocabPushedToAnki(id: string, ankiNoteId: number): Promise<number> {
-  const res = await fetch(`/api/vocab/${id}`, {
+  const res = await apiFetch(`/api/vocab/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pushedToAnki: true, ankiNoteId }),
@@ -330,7 +332,7 @@ export async function markVocabPushedToAnki(id: string, ankiNoteId: number): Pro
 }
 
 export async function deleteVocabEntry(id: string): Promise<void> {
-  await fetch(`/api/vocab/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/vocab/${id}`, { method: 'DELETE' });
 }
 
 // ============================================================================
@@ -343,7 +345,7 @@ export async function getWordState(word: string): Promise<WordState | undefined>
 }
 
 export async function updateWordState(word: string, state: WordState): Promise<void> {
-  await fetch('/api/known-words', {
+  await apiFetch('/api/known-words', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -354,13 +356,13 @@ export async function updateWordState(word: string, state: WordState): Promise<v
 }
 
 export async function getKnownWordsMap(): Promise<Map<string, WordState>> {
-  const res = await fetch(`/api/known-words${langParam()}`);
+  const res = await apiFetch(`/api/known-words${langParam()}`);
   const data = await res.json();
   return new Map(Object.entries(data) as [string, WordState][]);
 }
 
 export async function getAllKnownWords(): Promise<KnownWord[]> {
-  const res = await fetch(`/api/known-words${langParam()}`);
+  const res = await apiFetch(`/api/known-words${langParam()}`);
   const data = await res.json();
   return Object.entries(data).map(([word, state]) => ({ word, state: state as WordState }));
 }
@@ -368,7 +370,7 @@ export async function getAllKnownWords(): Promise<KnownWord[]> {
 export async function bulkUpdateWordStates(
   updates: Array<{ word: string; state: WordState }>,
 ): Promise<void> {
-  await fetch('/api/known-words', {
+  await apiFetch('/api/known-words', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ updates, language: getActiveLanguage() }),
@@ -380,7 +382,7 @@ export async function bulkUpdateWordStates(
 // ============================================================================
 
 export async function getClozeSentence(id: string): Promise<ClozeSentence | undefined> {
-  const res = await fetch(`/api/cloze/${id}${langParam()}`);
+  const res = await apiFetch(`/api/cloze/${id}${langParam()}`);
   if (!res.ok) return undefined;
   const data = await res.json();
   return {
@@ -391,7 +393,7 @@ export async function getClozeSentence(id: string): Promise<ClozeSentence | unde
 }
 
 export async function saveClozeSentence(sentence: ClozeSentence): Promise<string> {
-  const res = await fetch('/api/cloze', {
+  const res = await apiFetch('/api/cloze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -406,7 +408,7 @@ export async function saveClozeSentence(sentence: ClozeSentence): Promise<string
 }
 
 export async function getClozeSentencesDueForReview(limit: number = 20): Promise<ClozeSentence[]> {
-  const res = await fetch(`/api/cloze/due?limit=${limit}${langParam('&')}`);
+  const res = await apiFetch(`/api/cloze/due?limit=${limit}${langParam('&')}`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
     ...s,
@@ -421,7 +423,7 @@ export async function updateClozeAfterReview(
   newMasteryLevel: ClozeMasteryLevel,
   nextReview: Date,
 ): Promise<number> {
-  const res = await fetch(`/api/cloze/${id}/review`, {
+  const res = await apiFetch(`/api/cloze/${id}/review`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -434,7 +436,7 @@ export async function updateClozeAfterReview(
 }
 
 export async function getAllClozeSentences(): Promise<ClozeSentence[]> {
-  const res = await fetch(`/api/cloze${langParam()}&limit=10000`);
+  const res = await apiFetch(`/api/cloze${langParam()}&limit=10000`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
     ...s,
@@ -451,7 +453,7 @@ export async function getClozeSentenceByTatoebaId(
 }
 
 export async function getClozeSentencesForWord(word: string): Promise<ClozeSentence[]> {
-  const res = await fetch(`/api/cloze${langParam()}&word=${encodeURIComponent(word)}`);
+  const res = await apiFetch(`/api/cloze${langParam()}&word=${encodeURIComponent(word)}`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
     ...s,
@@ -461,7 +463,7 @@ export async function getClozeSentencesForWord(word: string): Promise<ClozeSente
 }
 
 export async function bulkSaveClozeSentences(sentences: ClozeSentence[]): Promise<void> {
-  await fetch('/api/cloze', {
+  await apiFetch('/api/cloze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(
@@ -476,12 +478,12 @@ export async function bulkSaveClozeSentences(sentences: ClozeSentence[]): Promis
 }
 
 export async function seedSentenceBank(): Promise<{ seeded: number; total: number }> {
-  const res = await fetch('/api/cloze/seed', { method: 'POST' });
+  const res = await apiFetch('/api/cloze/seed', { method: 'POST' });
   return res.json();
 }
 
 export async function blacklistClozeSentence(id: string): Promise<void> {
-  await fetch(`/api/cloze/${id}`, {
+  await apiFetch(`/api/cloze/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ blacklisted: 1 }),
@@ -489,7 +491,7 @@ export async function blacklistClozeSentence(id: string): Promise<void> {
 }
 
 export async function unblacklistClozeSentence(id: string): Promise<void> {
-  await fetch(`/api/cloze/${id}`, {
+  await apiFetch(`/api/cloze/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ blacklisted: 0 }),
@@ -511,7 +513,7 @@ export async function getClozeSentencesByCollection(
   }
 
   params.set('language', getActiveLanguage());
-  const res = await fetch(`/api/cloze/due?${params}`);
+  const res = await apiFetch(`/api/cloze/due?${params}`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
     ...s,
@@ -535,7 +537,7 @@ export async function getNewSentencesByCollection(
   }
 
   params.set('language', getActiveLanguage());
-  const res = await fetch(`/api/cloze/due?${params}`);
+  const res = await apiFetch(`/api/cloze/due?${params}`);
   const sentences = await res.json();
   return sentences.map((s: Record<string, unknown>) => ({
     ...s,
@@ -547,7 +549,7 @@ export async function getNewSentencesByCollection(
 export async function getCollectionCounts(): Promise<
   Record<ClozeCollection, { total: number; due: number; mastered: number }>
 > {
-  const res = await fetch(`/api/cloze/counts${langParam()}`);
+  const res = await apiFetch(`/api/cloze/counts${langParam()}`);
   return res.json();
 }
 
@@ -556,7 +558,7 @@ export async function getStreak(): Promise<{
   longest: number;
   practicedToday: boolean;
 }> {
-  const res = await fetch(`/api/stats/streak${langParam()}`);
+  const res = await apiFetch(`/api/stats/streak${langParam()}`);
   return res.json();
 }
 
@@ -598,12 +600,12 @@ export interface FluencyStats {
 }
 
 export async function getFluencyStats(): Promise<FluencyStats> {
-  const res = await fetch(`/api/stats/fluency${langParam()}`);
+  const res = await apiFetch(`/api/stats/fluency${langParam()}`);
   return res.json();
 }
 
 export async function getReadingStats(): Promise<import('./stats-derive').ReadingStats> {
-  const res = await fetch(`/api/stats/reading${langParam()}`);
+  const res = await apiFetch(`/api/stats/reading${langParam()}`);
   return res.json();
 }
 
@@ -639,17 +641,17 @@ export async function getJournalEntries(
   limit: number = 20,
   offset: number = 0,
 ): Promise<JournalEntry[]> {
-  const res = await fetch(`/api/journal?limit=${limit}&offset=${offset}${langParam('&')}`);
+  const res = await apiFetch(`/api/journal?limit=${limit}&offset=${offset}${langParam('&')}`);
   return res.json();
 }
 
 export async function getJournalEntriesByDate(date: string): Promise<JournalEntry[]> {
-  const res = await fetch(`/api/journal?date=${date}${langParam('&')}`);
+  const res = await apiFetch(`/api/journal?date=${date}${langParam('&')}`);
   return res.json();
 }
 
 export async function getJournalEntry(id: string): Promise<JournalEntry | undefined> {
-  const res = await fetch(`/api/journal/${id}`);
+  const res = await apiFetch(`/api/journal/${id}`);
   if (!res.ok) return undefined;
   return res.json();
 }
@@ -657,7 +659,7 @@ export async function getJournalEntry(id: string): Promise<JournalEntry | undefi
 export async function createJournalEntry(body: string): Promise<{ id: string }> {
   const entryDate = new Date().toISOString().split('T')[0];
 
-  const res = await fetch('/api/journal', {
+  const res = await apiFetch('/api/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body, entryDate, language: getActiveLanguage() }),
@@ -666,7 +668,7 @@ export async function createJournalEntry(body: string): Promise<{ id: string }> 
 }
 
 export async function updateJournalDraft(id: string, body: string): Promise<void> {
-  await fetch(`/api/journal/${id}`, {
+  await apiFetch(`/api/journal/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body }),
@@ -676,7 +678,7 @@ export async function updateJournalDraft(id: string, body: string): Promise<void
 export async function submitJournalForCorrection(
   id: string,
 ): Promise<{ correctedBody: string; corrections: Correction[] }> {
-  const res = await fetch(`/api/journal/${id}/correct`, { method: 'POST' });
+  const res = await apiFetch(`/api/journal/${id}/correct`, { method: 'POST' });
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.error || 'Correction failed');
@@ -685,7 +687,7 @@ export async function submitJournalForCorrection(
 }
 
 export async function deleteJournalEntry(id: string): Promise<void> {
-  await fetch(`/api/journal/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/journal/${id}`, { method: 'DELETE' });
 }
 
 // ============================================================================
@@ -693,13 +695,13 @@ export async function deleteJournalEntry(id: string): Promise<void> {
 // ============================================================================
 
 export async function getDailyStats(date: string): Promise<DailyStats | undefined> {
-  const res = await fetch(`/api/stats?startDate=${date}&endDate=${date}${langParam('&')}`);
+  const res = await apiFetch(`/api/stats?startDate=${date}&endDate=${date}${langParam('&')}`);
   const stats = await res.json();
   return stats[0];
 }
 
 export async function getTodayStats(): Promise<DailyStats> {
-  const res = await fetch(`/api/stats/today${langParam()}`);
+  const res = await apiFetch(`/api/stats/today${langParam()}`);
   return res.json();
 }
 
@@ -707,7 +709,7 @@ export async function incrementDailyStat(
   field: keyof Omit<DailyStats, 'date'>,
   amount: number = 1,
 ): Promise<void> {
-  await fetch(`/api/stats/today${langParam()}`, {
+  await apiFetch(`/api/stats/today${langParam()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ field, amount }),
@@ -718,19 +720,19 @@ export async function getStatsForDateRange(
   startDate: string,
   endDate: string,
 ): Promise<DailyStats[]> {
-  const res = await fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`);
+  const res = await apiFetch(`/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`);
   return res.json();
 }
 
 // All daily-stats rows, oldest first — used by the stats page so the "All" range
 // and full-history cumulative series have everything to work with.
 export async function getAllDailyStats(): Promise<DailyStats[]> {
-  const res = await fetch(`/api/stats${langParam()}`);
+  const res = await apiFetch(`/api/stats${langParam()}`);
   return res.json();
 }
 
 export async function getRecentStats(days: number = 7): Promise<DailyStats[]> {
-  const res = await fetch(`/api/stats?days=${days}${langParam('&')}`);
+  const res = await apiFetch(`/api/stats?days=${days}${langParam('&')}`);
   return res.json();
 }
 
@@ -743,7 +745,7 @@ export async function syncAnkiReviews(): Promise<{
   synced: number;
   reviewsToday?: number;
 }> {
-  const res = await fetch('/api/anki/sync-reviews', { method: 'POST' });
+  const res = await apiFetch('/api/anki/sync-reviews', { method: 'POST' });
   return res.json();
 }
 
@@ -752,13 +754,13 @@ export async function syncAnkiReviews(): Promise<{
 // ============================================================================
 
 export async function getSetting<T>(key: string): Promise<T | undefined> {
-  const res = await fetch(`/api/settings/${key}`);
+  const res = await apiFetch(`/api/settings/${key}`);
   if (!res.ok) return undefined;
   return res.json();
 }
 
 export async function setSetting<T>(key: string, value: T): Promise<string> {
-  await fetch(`/api/settings/${key}`, {
+  await apiFetch(`/api/settings/${key}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value }),
@@ -767,11 +769,11 @@ export async function setSetting<T>(key: string, value: T): Promise<string> {
 }
 
 export async function deleteSetting(key: string): Promise<void> {
-  await fetch(`/api/settings/${key}`, { method: 'DELETE' });
+  await apiFetch(`/api/settings/${key}`, { method: 'DELETE' });
 }
 
 export async function getAllSettings(): Promise<Record<string, unknown>> {
-  const res = await fetch('/api/settings');
+  const res = await apiFetch('/api/settings');
   return res.json();
 }
 
@@ -793,7 +795,7 @@ export interface ApiTokenCreateResponse extends ApiTokenMeta {
 }
 
 export async function getApiTokens(): Promise<ApiTokenMeta[]> {
-  const res = await fetch('/api/tokens');
+  const res = await apiFetch('/api/tokens');
   return res.json();
 }
 
@@ -802,7 +804,7 @@ export async function createApiToken(data: {
   scopes: string[];
   expiresAt?: string;
 }): Promise<ApiTokenCreateResponse> {
-  const res = await fetch('/api/tokens', {
+  const res = await apiFetch('/api/tokens', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -815,7 +817,7 @@ export async function createApiToken(data: {
 }
 
 export async function revokeApiToken(id: string): Promise<void> {
-  await fetch(`/api/tokens/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/tokens/${id}`, { method: 'DELETE' });
 }
 
 // ============================================================================
@@ -830,7 +832,7 @@ export async function exportAllData(): Promise<{
   dailyStats: DailyStats[];
   settings: unknown[];
 }> {
-  const res = await fetch('/api/data');
+  const res = await apiFetch('/api/data');
   return res.json();
 }
 
@@ -838,7 +840,7 @@ export async function getVocabStats(): Promise<{
   total: number;
   byState: Record<WordState, number>;
 }> {
-  const res = await fetch(`/api/vocab${langParam()}`);
+  const res = await apiFetch(`/api/vocab${langParam()}`);
   const vocab = await res.json();
 
   const byState: Record<WordState, number> = {
@@ -869,7 +871,7 @@ export async function importFromDexie(data: Record<string, unknown[]>): Promise<
   success: boolean;
   imported: Record<string, number>;
 }> {
-  const res = await fetch('/api/data', {
+  const res = await apiFetch('/api/data', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -892,7 +894,7 @@ export interface ChatMessage {
 export async function getChatMessages(limit: number = 50, before?: string): Promise<ChatMessage[]> {
   const params = new URLSearchParams({ limit: limit.toString(), language: getActiveLanguage() });
   if (before) params.set('before', before);
-  const res = await fetch(`/api/chat?${params}`);
+  const res = await apiFetch(`/api/chat?${params}`);
   return res.json();
 }
 
@@ -900,7 +902,7 @@ export async function sendChatMessage(message: string): Promise<{
   userMessage: ChatMessage;
   assistantMessage: ChatMessage;
 }> {
-  const res = await fetch('/api/chat', {
+  const res = await apiFetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, language: getActiveLanguage() }),
@@ -913,5 +915,5 @@ export async function sendChatMessage(message: string): Promise<{
 }
 
 export async function clearChatMessages(): Promise<void> {
-  await fetch(`/api/chat${langParam()}`, { method: 'DELETE' });
+  await apiFetch(`/api/chat${langParam()}`, { method: 'DELETE' });
 }

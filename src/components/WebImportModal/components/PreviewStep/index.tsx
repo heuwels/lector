@@ -1,4 +1,4 @@
-import type { ExtractedArticle } from '@/app/api/extract-url/route';
+import type { ExtractedArticle } from '@/components/WebImportModal/types';
 
 export default function PreviewStep({
   title,

@@ -57,7 +57,7 @@ test.describe('Fluency Benchmarks', () => {
   });
 
   test('fluency API endpoint should return valid data', async ({ page }) => {
-    const response = await page.request.get('/api/stats/fluency');
+    const response = await page.request.get('http://localhost:3457/api/stats/fluency');
     expect(response.ok()).toBeTruthy();
 
     const data = await response.json();

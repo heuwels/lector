@@ -15,7 +15,7 @@ test.describe("Anki stats", () => {
   test("shows the Connect-your-Anki preview when no reviews are synced", async ({
     page,
   }) => {
-    const sync = await page.request.post("/api/anki/sync-reviews");
+    const sync = await page.request.post("http://localhost:3457/api/anki/sync-reviews");
     const syncBody = await sync.json();
     test.skip(syncBody.connected === true, "live Anki would populate review data");
 
@@ -40,7 +40,7 @@ test.describe("Anki stats", () => {
   test("shows the review chart and counts Anki toward the heatmap once synced", async ({
     page,
   }) => {
-    const sync = await page.request.post("/api/anki/sync-reviews");
+    const sync = await page.request.post("http://localhost:3457/api/anki/sync-reviews");
     const syncBody = await sync.json();
     test.skip(syncBody.connected === true, "live Anki would overwrite the seeded count");
 
@@ -56,7 +56,7 @@ test.describe("Anki stats", () => {
     // dailyStats.ankiReviews is in the today-incrementer's allow-list.
     const bump = 5;
     for (let i = 0; i < bump; i++) {
-      const res = await page.request.put("/api/stats/today", {
+      const res = await page.request.put("http://localhost:3457/api/stats/today", {
         data: { field: "ankiReviews", amount: 1 },
       });
       expect(res.ok()).toBeTruthy();
@@ -80,7 +80,7 @@ test.describe("Anki stats", () => {
   }) => {
     // The stats page calls this on every load. Whether or not Anki is running it
     // must return 200 with a well-formed body — a 500 here would break stats.
-    const res = await page.request.post("/api/anki/sync-reviews");
+    const res = await page.request.post("http://localhost:3457/api/anki/sync-reviews");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(typeof body.connected).toBe("boolean");

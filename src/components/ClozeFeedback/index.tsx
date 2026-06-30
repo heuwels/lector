@@ -8,6 +8,7 @@ import { ClozeFeedbackProps } from './types';
 import { toast } from 'sonner';
 import Markdown from 'react-markdown';
 import { getActiveLanguage } from '@/lib/data-layer';
+import { apiFetch } from '@/lib/api-base';
 
 export default function ClozeFeedback({
   isCorrect,
@@ -33,7 +34,7 @@ export default function ClozeFeedback({
     setExplainError(false);
 
     try {
-      const res = await fetch('/api/explain', {
+      const res = await apiFetch('/api/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

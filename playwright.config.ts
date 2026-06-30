@@ -1,11 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // E2E_EXTERNAL_SERVER=1 — the app is already running at localhost:3456 (e.g.
-// the production Docker image with `-p 3456:3000`) and Playwright must not
-// spawn the dev servers. The server must be FRESH: several specs assert
-// empty-DB state, which `webServer` otherwise guarantees by wiping
-// tmp/e2e-data. Specs hardcode the localhost:3456 origin, so the external
-// server has to be mapped there — a different origin is not supported.
+// the production Docker image with `-p 3456:3000 -p 3457:3457`) and Playwright
+// must not spawn the dev servers. The server must be FRESH: several specs
+// assert empty-DB state, which `webServer` otherwise guarantees by wiping
+// tmp/e2e-data. The UI specs hardcode the localhost:3456 origin and the API
+// (the browser client + the specs' page.request calls) is hardcoded to
+// localhost:3457 now that the Next /api proxy is gone (#188), so the external
+// server must publish BOTH ports — a different origin is not supported.
 const externalServer = !!process.env.E2E_EXTERNAL_SERVER;
 
 export default defineConfig({
@@ -52,7 +54,8 @@ export default defineConfig({
       env: { DATA_DIR: "tmp/e2e-data" },
     },
     {
-      // Hono API on :3457 — Next.js proxies /api/chat (and a few others) to it.
+      // Hono API on :3457 — the browser client and the specs' page.request
+      // calls hit it directly now that the Next /api proxy is gone (#188).
       // Started without --watch so it shuts down cleanly when Playwright exits.
       command: "bun run src/index.ts",
       cwd: "./api",

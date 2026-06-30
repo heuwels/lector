@@ -32,6 +32,13 @@ import { startClassifyWorker } from './lib/classify-worker';
 
 const app = new Hono();
 
+// The browser talks to this API directly — the Next.js `/api/*` proxy was
+// removed in #188, so the UI (:3000/:3400) and API (:3457) are different
+// origins and every client call is cross-origin. CORS is therefore
+// load-bearing now (it was dormant while the proxy did server-to-server
+// fetches). Wide-open `*` is deliberate: a Tailnet-only app is reached from
+// arbitrary hosts (localhost, Tailnet IPs, hostnames), so the allowed origin
+// can't be pinned, and requests carry no credentials (auth is bearer-token).
 app.use('*', cors());
 app.use('*', logger());
 app.use('/api/*', authMiddleware);

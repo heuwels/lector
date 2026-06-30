@@ -8,6 +8,7 @@
 
 import { splitTrailingPunctuation } from './words';
 import type { WordState } from '@/types';
+import { apiFetch } from './api-base';
 
 const DEFAULT_ANKI_CONNECT_URL = 'http://localhost:8765';
 
@@ -25,7 +26,7 @@ async function getAnkiUrl(): Promise<string> {
 
   _inflight = (async () => {
     try {
-      const res = await fetch('/api/settings/ankiConnectUrl');
+      const res = await apiFetch('/api/settings/ankiConnectUrl');
       if (res.ok) {
         const value = (await res.json()) as string | null | undefined;
         if (typeof value === 'string' && value.trim()) {

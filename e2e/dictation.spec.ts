@@ -153,12 +153,12 @@ test.describe.serial('Dictation - Cloze review reminders hidden (#191)', () => {
     // Make the seeded card the only review-due one in this collection so the
     // "1000-2000 N due" entry is deterministic.
     const dueRes = await page.request.get(
-      `/api/cloze/due?mode=review&collection=${TEST_COLLECTION}&limit=50`,
+      `http://localhost:3457/api/cloze/due?mode=review&collection=${TEST_COLLECTION}&limit=50`,
     );
     for (const s of await dueRes.json()) {
-      await page.request.delete(`/api/cloze/${s.id}`);
+      await page.request.delete(`http://localhost:3457/api/cloze/${s.id}`);
     }
-    const seedRes = await page.request.post('/api/cloze', { data: [DUE] });
+    const seedRes = await page.request.post('http://localhost:3457/api/cloze', { data: [DUE] });
     expect(seedRes.ok()).toBeTruthy();
 
     const reviewHeading = page.getByRole('heading', { name: /Review Due/ });
@@ -183,7 +183,7 @@ test.describe.serial('Dictation - Cloze review reminders hidden (#191)', () => {
       await expect(reviewHeading).toBeVisible();
       await expect(reviewDueButton).toBeVisible();
     } finally {
-      await page.request.delete(`/api/cloze/${DUE.id}`);
+      await page.request.delete(`http://localhost:3457/api/cloze/${DUE.id}`);
     }
   });
 });

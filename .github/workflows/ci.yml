@@ -113,8 +113,9 @@ jobs:
 
   # The dev-mode e2e job above exercises `next dev` + Bun from source. This one
   # runs the same suite against the production artifact — the standalone Next
-  # build + docker-entrypoint.sh — so INTERNAL_API_URL proxying and standalone
-  # packaging are covered before a release image is ever cut (#110).
+  # build + docker-entrypoint.sh (both servers in one container) — so standalone
+  # packaging and the browser→Hono direct calls are covered before a release
+  # image is ever cut (#110, #188).
   e2e-docker:
     runs-on: ubuntu-latest
     needs: [build]
@@ -152,11 +153,13 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64,mode=max,ignore-error=true
       - name: Start container
         # No volume mount: /app/data starts empty, matching the fresh DB the
-        # dev-mode webServer guarantees. Container :3000 maps to host :3456,
-        # the origin the e2e specs hardcode. host-gateway lets the in-container
-        # Bun API reach test stubs on the runner (lmstudio-chat.spec.ts).
+        # dev-mode webServer guarantees. Container :3000 maps to host :3456 (the
+        # UI origin the specs hardcode); :3457 maps to host :3457 (the Hono API —
+        # the browser client and the specs' page.request calls hit it directly
+        # now that the Next /api proxy is gone, #188). host-gateway lets the
+        # in-container Bun API reach test stubs on the runner (lmstudio-chat.spec.ts).
         run: |
-          docker run -d --name lector-e2e -p 3456:3000 \
+          docker run -d --name lector-e2e -p 3456:3000 -p 3457:3457 \
             --add-host=host.docker.internal:host-gateway lector:e2e
       - run: npm ci
       - run: npx playwright install --with-deps chromium

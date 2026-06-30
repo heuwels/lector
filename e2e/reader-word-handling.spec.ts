@@ -3,13 +3,13 @@ import { test, expect, Page } from '@playwright/test';
 /** Create a collection with a lesson containing hyphenated words via API */
 async function importHyphenatedLesson(page: Page) {
   // Create collection
-  const colRes = await page.request.post('/api/collections', {
+  const colRes = await page.request.post('http://localhost:3457/api/collections', {
     data: { title: 'Hyphen Test', language: 'af' },
   });
   const { id: collectionId } = await colRes.json();
 
   // Add lesson with hyphenated words
-  await page.request.post(`/api/collections/${collectionId}/lessons`, {
+  await page.request.post(`http://localhost:3457/api/collections/${collectionId}/lessons`, {
     data: {
       title: 'Hoofstuk 1',
       textContent:
@@ -18,7 +18,7 @@ async function importHyphenatedLesson(page: Page) {
   });
 
   const lessonsRes = await page.request.get(
-    `/api/collections/${collectionId}/lessons`
+    `http://localhost:3457/api/collections/${collectionId}/lessons`
   );
   const lessons = await lessonsRes.json();
 
@@ -57,19 +57,19 @@ test.describe('Reader word handling', () => {
     });
 
     // Clean up any leftover test collections
-    const res = await page.request.get('/api/collections');
+    const res = await page.request.get('http://localhost:3457/api/collections');
     const collections = await res.json();
     for (const c of collections) {
       if (c.title === 'Hyphen Test') {
-        await page.request.delete(`/api/collections/${c.id}`);
+        await page.request.delete(`http://localhost:3457/api/collections/${c.id}`);
       }
     }
 
     // Delete any stale vocab entries for test words (server-side SQLite)
-    const vocabRes = await page.request.get('/api/vocab?text=perdekraal-fees');
+    const vocabRes = await page.request.get('http://localhost:3457/api/vocab?text=perdekraal-fees');
     const vocabEntries = await vocabRes.json();
     for (const v of vocabEntries) {
-      await page.request.delete(`/api/vocab/${v.id}`);
+      await page.request.delete(`http://localhost:3457/api/vocab/${v.id}`);
     }
 
     collectionId = await importHyphenatedLesson(page);
@@ -77,7 +77,7 @@ test.describe('Reader word handling', () => {
 
   test.afterEach(async ({ page }) => {
     if (collectionId) {
-      await page.request.delete(`/api/collections/${collectionId}`);
+      await page.request.delete(`http://localhost:3457/api/collections/${collectionId}`);
     }
   });
 

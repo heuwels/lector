@@ -4,11 +4,11 @@ test.describe("Anthropic Credential Management", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     // Clean up any existing credentials
-    await page.request.delete("/api/settings/anthropicApiKey");
-    await page.request.delete("/api/settings/claudeOauthToken");
-    await page.request.delete("/api/settings/anthropicAuthMode");
+    await page.request.delete("http://localhost:3457/api/settings/anthropicApiKey");
+    await page.request.delete("http://localhost:3457/api/settings/claudeOauthToken");
+    await page.request.delete("http://localhost:3457/api/settings/anthropicAuthMode");
     // Set provider to anthropic so the credential UI shows
-    await page.request.put("/api/settings/llmProvider", {
+    await page.request.put("http://localhost:3457/api/settings/llmProvider", {
       data: { value: "anthropic" },
     });
   });
@@ -17,17 +17,17 @@ test.describe("Anthropic Credential Management", () => {
     page,
   }) => {
     // Set a credential via PUT
-    await page.request.put("/api/settings/anthropicApiKey", {
+    await page.request.put("http://localhost:3457/api/settings/anthropicApiKey", {
       data: { value: "sk-ant-api-test-secret-key" },
     });
 
     // GET all settings should return true, not the actual key
-    const res = await page.request.get("/api/settings");
+    const res = await page.request.get("http://localhost:3457/api/settings");
     const settings = await res.json();
     expect(settings.anthropicApiKey).toBe(true);
 
     // GET individual setting should also return true
-    const res2 = await page.request.get("/api/settings/anthropicApiKey");
+    const res2 = await page.request.get("http://localhost:3457/api/settings/anthropicApiKey");
     const value = await res2.json();
     expect(value).toBe(true);
   });
@@ -72,7 +72,7 @@ test.describe("Anthropic Credential Management", () => {
 
   test("should clear a configured API key", async ({ page }) => {
     // Pre-set a key
-    await page.request.put("/api/settings/anthropicApiKey", {
+    await page.request.put("http://localhost:3457/api/settings/anthropicApiKey", {
       data: { value: "sk-ant-api-to-clear" },
     });
 
@@ -94,7 +94,7 @@ test.describe("Anthropic Credential Management", () => {
     page,
   }) => {
     // Pre-set a key
-    await page.request.put("/api/settings/anthropicApiKey", {
+    await page.request.put("http://localhost:3457/api/settings/anthropicApiKey", {
       data: { value: "sk-ant-api-original" },
     });
 
@@ -119,7 +119,7 @@ test.describe("Anthropic Credential Management", () => {
     page,
   }) => {
     // Set only API key
-    await page.request.put("/api/settings/anthropicApiKey", {
+    await page.request.put("http://localhost:3457/api/settings/anthropicApiKey", {
       data: { value: "sk-ant-api-only" },
     });
 
@@ -136,10 +136,10 @@ test.describe("Anthropic Credential Management", () => {
     page,
   }) => {
     // Set both credentials
-    await page.request.put("/api/settings/anthropicApiKey", {
+    await page.request.put("http://localhost:3457/api/settings/anthropicApiKey", {
       data: { value: "sk-ant-api-both" },
     });
-    await page.request.put("/api/settings/claudeOauthToken", {
+    await page.request.put("http://localhost:3457/api/settings/claudeOauthToken", {
       data: { value: "sk-ant-oat01-both" },
     });
 
@@ -170,10 +170,10 @@ test.describe("Anthropic Credential Management", () => {
     page,
   }) => {
     // Set both credentials
-    await page.request.put("/api/settings/anthropicApiKey", {
+    await page.request.put("http://localhost:3457/api/settings/anthropicApiKey", {
       data: { value: "sk-ant-api-toggle" },
     });
-    await page.request.put("/api/settings/claudeOauthToken", {
+    await page.request.put("http://localhost:3457/api/settings/claudeOauthToken", {
       data: { value: "sk-ant-oat01-toggle" },
     });
 
@@ -198,7 +198,7 @@ test.describe("Anthropic Credential Management", () => {
     expect(testReq.method()).toBe("POST");
 
     // The auth mode setting should be saved
-    const res = await page.request.get("/api/settings/anthropicAuthMode");
+    const res = await page.request.get("http://localhost:3457/api/settings/anthropicAuthMode");
     const mode = await res.json();
     expect(mode).toBe("oauth");
   });

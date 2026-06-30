@@ -8,11 +8,11 @@ import { test, expect } from "@playwright/test";
 //   - Clear must carry ?lang= on the DELETE
 test.describe("Chat Widget — per-language wiring", () => {
   test.beforeEach(async ({ page }) => {
-    await page.request.delete("/api/chat?lang=af");
+    await page.request.delete("http://localhost:3457/api/chat?lang=af");
   });
 
   test.afterEach(async ({ page }) => {
-    await page.request.delete("/api/chat?lang=af");
+    await page.request.delete("http://localhost:3457/api/chat?lang=af");
   });
 
   test("GET on open carries the active language", async ({ page }) => {

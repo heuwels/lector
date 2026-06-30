@@ -4,11 +4,11 @@ test.describe("API Tokens", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     // Clean up any existing test tokens via API
-    const res = await page.request.get("/api/tokens");
+    const res = await page.request.get("http://localhost:3457/api/tokens");
     const tokens = await res.json();
     for (const t of tokens) {
       if (t.name.startsWith("Test") || t.name.startsWith("E2E")) {
-        await page.request.delete(`/api/tokens/${t.id}`);
+        await page.request.delete(`http://localhost:3457/api/tokens/${t.id}`);
       }
     }
   });
@@ -87,7 +87,7 @@ test.describe("API Tokens", () => {
 
   test("should revoke a token", async ({ page }) => {
     // Create a token via API first
-    await page.request.post("/api/tokens", {
+    await page.request.post("http://localhost:3457/api/tokens", {
       data: { name: "Test Revoke", scopes: ["*"] },
     });
 

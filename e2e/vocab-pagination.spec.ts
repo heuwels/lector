@@ -30,7 +30,7 @@ async function seedVocab(page: Page, prefix: string, count: number): Promise<str
       ids.push(id);
       // Space createdAt apart so any createdAt-ordered view is also stable.
       // Relative URL — resolved against the config baseURL (portable across ports).
-      return page.request.post('/api/vocab', {
+      return page.request.post('http://localhost:3457/api/vocab', {
         data: {
           id,
           text,
@@ -61,7 +61,7 @@ test.describe('Vocab list pagination', () => {
   });
 
   test.afterEach(async ({ page }) => {
-    await Promise.all(ids.map((id) => page.request.delete(`/api/vocab/${id}`)));
+    await Promise.all(ids.map((id) => page.request.delete(`http://localhost:3457/api/vocab/${id}`)));
   });
 
   /** Narrow the list to just this test's seeded rows and sort them by word asc. */

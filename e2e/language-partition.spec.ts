@@ -13,16 +13,16 @@ import { test, expect, type Page } from "@playwright/test";
 test.describe("Language data partitioning", () => {
   async function cleanup(page: Page) {
     for (const lang of ["af", "de"]) {
-      const cols = await (await page.request.get(`/api/collections?language=${lang}`)).json();
+      const cols = await (await page.request.get(`http://localhost:3457/api/collections?language=${lang}`)).json();
       for (const c of cols) {
         if (c.title?.startsWith("PartTest")) {
-          await page.request.delete(`/api/collections/${c.id}?language=${lang}`);
+          await page.request.delete(`http://localhost:3457/api/collections/${c.id}?language=${lang}`);
         }
       }
     }
-    const groups = await (await page.request.get("/api/groups")).json();
+    const groups = await (await page.request.get("http://localhost:3457/api/groups")).json();
     for (const g of groups) {
-      if (g.name?.startsWith("PartTest")) await page.request.delete(`/api/groups/${g.id}`);
+      if (g.name?.startsWith("PartTest")) await page.request.delete(`http://localhost:3457/api/groups/${g.id}`);
     }
   }
 
@@ -34,17 +34,17 @@ test.describe("Language data partitioning", () => {
   });
 
   test("the collections list is scoped to the active language", async ({ page }) => {
-    await page.request.post("/api/collections", {
+    await page.request.post("http://localhost:3457/api/collections", {
       data: { title: "PartTest AF Book", author: "T", language: "af" },
     });
-    await page.request.post("/api/collections", {
+    await page.request.post("http://localhost:3457/api/collections", {
       data: { title: "PartTest DE Book", author: "T", language: "de" },
     });
 
-    const af = (await (await page.request.get("/api/collections?language=af")).json()) as {
+    const af = (await (await page.request.get("http://localhost:3457/api/collections?language=af")).json()) as {
       title: string;
     }[];
-    const de = (await (await page.request.get("/api/collections?language=de")).json()) as {
+    const de = (await (await page.request.get("http://localhost:3457/api/collections?language=de")).json()) as {
       title: string;
     }[];
 
@@ -72,10 +72,10 @@ test.describe("Language data partitioning", () => {
       ],
     };
 
-    const res = await page.request.post("/api/data", { data: backup });
+    const res = await page.request.post("http://localhost:3457/api/data", { data: backup });
     expect(res.ok()).toBeTruthy();
 
-    const exported = (await (await page.request.get("/api/data")).json()) as {
+    const exported = (await (await page.request.get("http://localhost:3457/api/data")).json()) as {
       collections: { id: string; language: string; groupId: string | null }[];
       lessons: { id: string; language: string }[];
       collectionGroups: { id: string }[];

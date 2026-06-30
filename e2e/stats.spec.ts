@@ -48,7 +48,7 @@ test.describe("Stats Page", () => {
   }) => {
     // Seed word states through the same API the reader uses, so the counts
     // are non-zero and both displays have something real to disagree about.
-    const seedRes = await page.request.post("/api/known-words", {
+    const seedRes = await page.request.post("http://localhost:3457/api/known-words", {
       data: {
         updates: [
           { word: "e2e-stats-agree-one", state: "known" },

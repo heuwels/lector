@@ -16,11 +16,11 @@ import { test, expect, Page, Route } from '@playwright/test';
  *      and the AI mock must still report exactly one total invocation.
  */
 async function importBookWithToken(page: Page, token: string) {
-  const colRes = await page.request.post('/api/collections', {
+  const colRes = await page.request.post('http://localhost:3457/api/collections', {
     data: { title: 'Cache Test', language: 'af' },
   });
   const { id: collectionId } = await colRes.json();
-  await page.request.post(`/api/collections/${collectionId}/lessons`, {
+  await page.request.post(`http://localhost:3457/api/collections/${collectionId}/lessons`, {
     data: {
       title: 'Cap. 1',
       // Surround the token with normal Afrikaans so the tokenizer treats it
@@ -28,7 +28,7 @@ async function importBookWithToken(page: Page, token: string) {
       textContent: `Die ${token} is hier.`,
     },
   });
-  const lessonsRes = await page.request.get(`/api/collections/${collectionId}/lessons`);
+  const lessonsRes = await page.request.get(`http://localhost:3457/api/collections/${collectionId}/lessons`);
   const lessons = await lessonsRes.json();
   await page.goto(`/read/${lessons[0].id}`);
   await page.waitForLoadState('networkidle');
@@ -64,11 +64,11 @@ test.describe('AI translation cache', () => {
     });
 
     // Clean any leftover Cache Test collections
-    const res = await page.request.get('/api/collections');
+    const res = await page.request.get('http://localhost:3457/api/collections');
     const cols = await res.json();
     for (const c of cols) {
       if (c.title === 'Cache Test') {
-        await page.request.delete(`/api/collections/${c.id}`);
+        await page.request.delete(`http://localhost:3457/api/collections/${c.id}`);
       }
     }
 
@@ -77,7 +77,7 @@ test.describe('AI translation cache', () => {
 
   test.afterEach(async ({ page }) => {
     if (collectionId) {
-      await page.request.delete(`/api/collections/${collectionId}`);
+      await page.request.delete(`http://localhost:3457/api/collections/${collectionId}`);
     }
     // Clean the cache table so subsequent runs aren't polluted. There's no
     // dedicated DELETE endpoint yet; do it via raw SQL through the data
@@ -105,7 +105,7 @@ test.describe('AI translation cache', () => {
       .poll(
         async () => {
           const r = await page.request.get(
-            `/api/dictionary/lookup?word=${encodeURIComponent(NONSENSE)}`,
+            `http://localhost:3457/api/dictionary/lookup?word=${encodeURIComponent(NONSENSE)}`,
           );
           const data = await r.json();
           return data.entry?.source ?? null;

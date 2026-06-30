@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
 import { deleteSetting, getSetting, setSetting } from '@/lib/data-layer';
+import { apiFetch } from '@/lib/api-base';
 import { Button } from '@/components/ui/button';
 import { LLMProvider, LLMStatus, OpenAIPreset } from './types';
 import { toast } from 'sonner';
@@ -90,7 +91,7 @@ export default function LLMSettings() {
     setIsFetchingLlmStatus(true);
 
     try {
-      const req = await fetch('/api/llm-status');
+      const req = await apiFetch('/api/llm-status');
       const res = await req.json();
 
       setLlmStatus(res);
@@ -107,7 +108,7 @@ export default function LLMSettings() {
     setLlmProvider(provider);
     await setSetting('llmProvider', provider);
     // Reset the cached provider on the server
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     // Refresh status
     await primeLlmStatus();
   };
@@ -127,7 +128,7 @@ export default function LLMSettings() {
     setOpenaiUrl(url);
     await setSetting('openaiUrl', url);
     await resetOpenaiModelSelection();
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     await primeLlmStatus();
   };
 
@@ -151,7 +152,7 @@ export default function LLMSettings() {
   const saveOpenaiModel = async (model: string) => {
     setOpenaiModel(model);
     await setSetting('openaiModel', model);
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     await primeLlmStatus();
   };
 
@@ -162,7 +163,7 @@ export default function LLMSettings() {
     setNewOpenaiApiKey('');
     setEditingOpenaiApiKey(false);
     await resetOpenaiModelSelection();
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     await primeLlmStatus();
   };
 
@@ -172,7 +173,7 @@ export default function LLMSettings() {
     setNewOpenaiApiKey('');
     setEditingOpenaiApiKey(false);
     await resetOpenaiModelSelection();
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     await primeLlmStatus();
   };
 
@@ -181,7 +182,7 @@ export default function LLMSettings() {
     setOpenaiFetchError(null);
     try {
       // The server reads the saved API key from settings — never sent from the browser.
-      const res = await fetch('/api/llm/openai/models', {
+      const res = await apiFetch('/api/llm/openai/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: openaiUrl }),
@@ -210,14 +211,14 @@ export default function LLMSettings() {
     setHasApiKey(true);
     setNewApiKey('');
     setEditingApiKey(false);
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     await primeLlmStatus();
   };
 
   const clearAnthropicApiKey = async () => {
     await deleteSetting('anthropicApiKey');
     setHasApiKey(false);
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     await primeLlmStatus();
   };
 
@@ -226,24 +227,24 @@ export default function LLMSettings() {
     setHasOauthToken(true);
     setNewOauthToken('');
     setEditingOauthToken(false);
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     await primeLlmStatus();
   };
 
   const clearClaudeOauthToken = async () => {
     await deleteSetting('claudeOauthToken');
     setHasOauthToken(false);
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     await primeLlmStatus();
   };
 
   const saveAnthropicAuthMode = async (mode: 'api_key' | 'oauth') => {
     setAnthropicAuthMode(mode);
     await setSetting('anthropicAuthMode', mode);
-    await fetch('/api/llm-status/reset', { method: 'POST' });
+    await apiFetch('/api/llm-status/reset', { method: 'POST' });
     setIsFetchingLlmStatus(true);
     try {
-      const res = await fetch('/api/llm-status/test', { method: 'POST' });
+      const res = await apiFetch('/api/llm-status/test', { method: 'POST' });
       const data = await res.json();
       setLlmStatus((prev) =>
         prev
@@ -262,7 +263,7 @@ export default function LLMSettings() {
   const testLLMConnection = async () => {
     setIsFetchingLlmStatus(true);
     try {
-      const res = await fetch('/api/llm-status/test', { method: 'POST' });
+      const res = await apiFetch('/api/llm-status/test', { method: 'POST' });
       const data = await res.json();
       setLlmStatus((prev) =>
         prev

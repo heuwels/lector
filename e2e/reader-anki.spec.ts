@@ -67,14 +67,14 @@ async function importAndOpenReader(page: Page) {
   const epubPath = path.join(__dirname, 'fixtures/test-book.epub');
   const buffer = fs.readFileSync(epubPath);
 
-  const importRes = await page.request.post('/api/import/epub', {
+  const importRes = await page.request.post('http://localhost:3457/api/import/epub', {
     multipart: {
       file: { name: 'test-book.epub', mimeType: 'application/epub+zip', buffer },
     },
   });
   const { collectionId } = await importRes.json();
 
-  const lessonsRes = await page.request.get(`/api/collections/${collectionId}/lessons`);
+  const lessonsRes = await page.request.get(`http://localhost:3457/api/collections/${collectionId}/lessons`);
   const lessons = await lessonsRes.json();
   const lessonId = lessons[0].id;
 
@@ -86,11 +86,11 @@ async function importAndOpenReader(page: Page) {
 }
 
 async function cleanupCollections(page: Page) {
-  const res = await page.request.get('/api/collections');
+  const res = await page.request.get('http://localhost:3457/api/collections');
   const collections = await res.json();
   for (const c of collections) {
     if (c.title.startsWith('Toets') || c.title.startsWith('Test')) {
-      await page.request.delete(`/api/collections/${c.id}`);
+      await page.request.delete(`http://localhost:3457/api/collections/${c.id}`);
     }
   }
 }
@@ -100,7 +100,7 @@ test.describe('Reader → Anki pipeline', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
 
     // Clear any custom AnkiConnect URL so the mock at localhost:8765 is used.
-    await page.request.delete('http://localhost:3456/api/settings/ankiConnectUrl').catch(() => {});
+    await page.request.delete('http://localhost:3457/api/settings/ankiConnectUrl').catch(() => {});
 
     // Mock translate so word clicks don't need a real LLM.
     await page.route('**/api/translate', async (route) => {

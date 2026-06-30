@@ -9,7 +9,7 @@ test.describe("Language Setup & Switching", () => {
     const page = await context.newPage();
 
     // Clear the server-side language setting
-    await page.request.delete("/api/settings/targetLanguage");
+    await page.request.delete("http://localhost:3457/api/settings/targetLanguage");
 
     await page.goto("/");
     await page.waitForLoadState("networkidle");

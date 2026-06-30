@@ -16,16 +16,16 @@ const CONTENT = `# Die Verhaal
 Die son **sak stadig** agter die *blou berge*.`;
 
 async function seedLesson(page: Page): Promise<{ collectionId: string; lessonId: string }> {
-  const colRes = await page.request.post('/api/collections', {
+  const colRes = await page.request.post('http://localhost:3457/api/collections', {
     data: { title: TITLE, language: 'af' },
   });
   const { id: collectionId } = await colRes.json();
 
-  await page.request.post(`/api/collections/${collectionId}/lessons`, {
+  await page.request.post(`http://localhost:3457/api/collections/${collectionId}/lessons`, {
     data: { title: 'Hoofstuk 1', textContent: CONTENT },
   });
 
-  const lessonsRes = await page.request.get(`/api/collections/${collectionId}/lessons`);
+  const lessonsRes = await page.request.get(`http://localhost:3457/api/collections/${collectionId}/lessons`);
   const lessons = await lessonsRes.json();
   return { collectionId, lessonId: lessons[0].id };
 }
@@ -37,9 +37,9 @@ test.describe('Print stylesheet — monochrome reading copy', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
 
     // Remove any stale collection from a previous aborted run.
-    const res = await page.request.get('/api/collections');
+    const res = await page.request.get('http://localhost:3457/api/collections');
     for (const c of await res.json()) {
-      if (c.title === TITLE) await page.request.delete(`/api/collections/${c.id}`);
+      if (c.title === TITLE) await page.request.delete(`http://localhost:3457/api/collections/${c.id}`);
     }
 
     const seeded = await seedLesson(page);
@@ -50,7 +50,7 @@ test.describe('Print stylesheet — monochrome reading copy', () => {
   });
 
   test.afterEach(async ({ page }) => {
-    if (collectionId) await page.request.delete(`/api/collections/${collectionId}`);
+    if (collectionId) await page.request.delete(`http://localhost:3457/api/collections/${collectionId}`);
   });
 
   test('removes app chrome but keeps the lesson title', async ({ page }) => {
