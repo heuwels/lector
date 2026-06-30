@@ -128,6 +128,10 @@ COPY --from=builder /app/.next/static ./.next/static
 # Copy Hono API
 COPY --from=api-builder /api ./api
 
+# Shared language registry the API imports at runtime
+# (api/src/lib/languages.ts → ../../../languages → /app/languages).
+COPY languages ./languages
+
 # Copy entrypoint
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
