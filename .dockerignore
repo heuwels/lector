@@ -1,6 +1,11 @@
 # Dependencies
 node_modules
 npm-debug.log*
+# api/ gitignores its bun.lock, so CI builds with no lockfile and resolves deps
+# fresh from package.json. Keep any local (possibly stale) bun.lock out of the
+# build context too, so local image builds behave identically — a stale local
+# lock otherwise fails the image's frozen `bun install`.
+api/bun.lock
 
 # Next.js build output
 .next
