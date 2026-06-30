@@ -101,4 +101,6 @@ This downloads Tatoeba's per-language TSV exports, joins Afrikaans sentences wit
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+Copyright © 2026 Luke Boyle.
+
+Licensed under the **GNU Affero General Public License v3.0** (AGPLv3) — see [LICENSE](LICENSE). You're free to use, self-host, study, modify, and redistribute Lector. Under the AGPL's network-use clause (§13), anyone who runs a modified version as a network service must make the corresponding source available to its users.
