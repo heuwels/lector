@@ -1,14 +1,3 @@
-export type LanguageCode = 'af' | 'de' | 'es';
-
-export interface LanguageConfig {
-    name: string;
-    native: string;
-    code: LanguageCode;
-    flag: string;
-    ttsCode: string;
-    ttsVoice: string;
-    tatoebaCode: string;
-    fallbackTts: string[];
-    avoidWords: Set<string>;
-    testPhrase: string;
-}
+// Re-export of the shared registry types (`languages/`). `LanguageCode` is derived
+// from the registry keys; `LanguageConfig` is the per-language shape.
+export type { LanguageCode, LanguageConfig } from '../../languages/registry';
