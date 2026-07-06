@@ -1,0 +1,7 @@
+{
+  "app": "bun bin/lector-cloud-canary.ts",
+  "watch": {
+    "include": ["bin/**", "lib/**"],
+    "exclude": ["node_modules", "cdk.out"]
+  }
+}

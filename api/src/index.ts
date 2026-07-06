@@ -34,13 +34,21 @@ import { config as deploymentConfig, assertBootableMode } from './lib/config';
 
 // Fail-closed deployment-mode guard (#242): `cloud` requires accounts & auth
 // (#218), which have not shipped — never boot today's fail-open API under a
-// flag that promises tenant isolation. docker-entrypoint.sh enforces the same
-// rule; this covers bare `bun run` deployments. Remove the guard when #218 lands.
+// flag that promises tenant isolation, unless an external gate is explicitly
+// declared (the canary shape). docker-entrypoint.sh enforces the same rule;
+// this covers bare `bun run` deployments. Remove the guard when #218 lands.
 try {
-  assertBootableMode(deploymentConfig.mode);
+  assertBootableMode(deploymentConfig.mode, deploymentConfig.cloudGate);
 } catch (err) {
   console.error(`FATAL: ${(err as Error).message}`);
   process.exit(1);
+}
+if (deploymentConfig.mode === 'cloud' && deploymentConfig.cloudGate === 'external') {
+  console.warn(
+    '[lector] cloud mode behind an EXTERNAL gate — app-level auth is delegated. ' +
+      'Every request must pass an authenticating gateway (e.g. Cloudflare Access) ' +
+      'before reaching this app; per-user isolation lands with #217/#218.',
+  );
 }
 
 const app = new Hono();
@@ -88,8 +96,9 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
-// Health check
-app.get('/health', (c) => c.json({ ok: true }));
+// Health check — reports the deployment mode so a canary can be smoke-checked
+// end-to-end (e.g. curl .../health → {"ok":true,"mode":"cloud"}).
+app.get('/health', (c) => c.json({ ok: true, mode: deploymentConfig.mode }));
 
 const port = parseInt(process.env.PORT || '3457');
 

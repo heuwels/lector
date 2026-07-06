@@ -1,0 +1,117 @@
+# Lector cloud canary — `app.lector.dev`
+
+The first **cloud-mode** deployment (#242): the published image running with
+`LECTOR_MODE=cloud` + `LECTOR_CLOUD_GATE=external`, fronted by **Cloudflare
+Access**. Single-user until #217/#218 land — the point is to have the cloud
+shape running in production (one codebase, one image, mode-flagged) before
+accounts exist.
+
+```
+browser ── https://app.lector.dev ──▶ Cloudflare edge (Access policy)
+                                          │ tunnel (outbound-only)
+                                          ▼
+EC2, zero inbound, SSM shell ──── cloudflared ──▶ lector container
+                                     /api/* and /health  → :3457 (Hono API)
+                                     everything else     → :3000 (Next UI)
+EBS gp3 data volume (survives the instance) → /app/data (SQLite, WAL)
+```
+
+Design notes:
+
+- **Zero ingress.** No ports are published on the host and the security group
+  allows no inbound; `cloudflared` dials out. Shell access is SSM Session
+  Manager (no SSH keys). The app is reachable _only_ through Cloudflare, so the
+  Access policy is the sole front door — which is exactly what
+  `LECTOR_CLOUD_GATE=external` asserts.
+- **One hostname, path-split.** The browser calls the Hono API directly
+  (no Next proxy, #188). Routing `/api/*` and `/health` to `:3457` on the same
+  hostname makes UI↔API **same-origin** — no CORS, and the Access cookie just
+  works.
+- **A VM, not Fargate/EFS.** SQLite runs in WAL mode (`api/src/db.ts`), which
+  needs shared memory that network filesystems can't provide safely. Local EBS
+  is the sound home for it, and matches the plan-010 tenancy economics
+  (shared SQLite on a VM; Litestream→R2 comes with #217).
+
+## Prerequisites
+
+- AWS account + credentials, region bootstrapped for CDK (`bunx cdk bootstrap`,
+  first time only). Default region: `ap-southeast-2` (override with
+  `CDK_DEFAULT_REGION`).
+- `bun` (the CDK app runs through it).
+- Cloudflare account with the `lector.dev` zone and Zero Trust enabled.
+- Image access: `ghcr.io/heuwels/lector` is currently **private** → either flip
+  the package to public (GitHub → package settings; the README already assumes
+  public pulls) or create a fine-grained PAT with `read:packages` for step 2.
+
+## Deploy
+
+1. **Create the tunnel** (Cloudflare → Zero Trust → Networks → Tunnels →
+   Create a tunnel → _Cloudflared_, remotely managed). Name it `lector-canary`
+   and copy the token (`eyJ…`).
+
+2. **Put the parameters** (SecureString, in the deploy region):
+
+   ```bash
+   aws ssm put-parameter --name /lector/canary/tunnel-token \
+     --type SecureString --value 'eyJ…'
+   # optional — only if the ghcr package stays private:
+   aws ssm put-parameter --name /lector/canary/ghcr-token \
+     --type SecureString --value 'github_pat_…'
+   # optional — AI translation + TTS:
+   aws ssm put-parameter --name /lector/canary/anthropic-api-key \
+     --type SecureString --value 'sk-ant-…'
+   aws ssm put-parameter --name /lector/canary/google-api-key \
+     --type SecureString --value '…'
+   ```
+
+3. **Deploy the stack:**
+
+   ```bash
+   cd deploy/cloud/cdk
+   bun install
+   bunx cdk deploy          # ~3 min; outputs the instance id + SSM shell hint
+   ```
+
+4. **Route the hostname** (Cloudflare → the tunnel → _Public Hostname_), in
+   this order — first match wins:
+
+   | #   | Hostname         | Path      | Service              |
+   | --- | ---------------- | --------- | -------------------- |
+   | 1   | `app.lector.dev` | `/api/*`  | `http://lector:3457` |
+   | 2   | `app.lector.dev` | `/health` | `http://lector:3457` |
+   | 3   | `app.lector.dev` | _(empty)_ | `http://lector:3000` |
+
+   (`lector` resolves on the instance's compose network, where `cloudflared`
+   runs alongside the app.)
+
+5. **Gate it with Access** (Zero Trust → Access → Applications → self-hosted):
+   application domain `app.lector.dev` (the whole hostname — `/api` and
+   `/health` included), allow-policy on your email(s). **The canary must never
+   run un-gated**: the app delegates all auth to this policy.
+
+6. **Smoke-check:** open `https://app.lector.dev` → Access login → the app.
+   Then `https://app.lector.dev/health` → `{"ok":true,"mode":"cloud"}`.
+
+## Operate
+
+- **Update to the latest image:**
+  `aws ssm start-session --target <instance-id>` → `sudo /srv/lector/update.sh`
+  (pull + recreate; the data volume is untouched).
+- **Logs:** `sudo docker logs lector` / `sudo docker logs cloudflared`;
+  first-boot log at `/var/log/lector-canary-init.log`.
+- **Data:** SQLite lives on the dedicated EBS volume at `/srv/lector/data`.
+  It survives instance replacement (`deleteOnTermination: false`). Backups are
+  EBS snapshots for now; continuous replication (Litestream→R2) arrives with
+  #217. Treat canary data as semi-disposable until then.
+- **Teardown:** `bunx cdk destroy`. The data volume is retained — delete it
+  manually (and the SSM parameters + tunnel + Access app) for a full cleanup.
+
+## Caveats (by design, for now)
+
+- **Single implicit user.** Per-user isolation is #217/#218; everyone the
+  Access policy admits shares one Lector profile. Keep the allow-list tight.
+- **App-level auth is off** behind the gate — that is what
+  `LECTOR_CLOUD_GATE=external` means. Removing the Access app while the tunnel
+  is up would expose an unauthenticated instance; don't.
+- **Cost:** ~US$12–15/mo (t4g.small + 36 GB gp3 + public IPv4). Downsize with
+  `bunx cdk deploy -c instanceType=t4g.micro` if the canary is idle-mostly.

@@ -1,0 +1,22 @@
+{
+  "name": "lector-cloud-canary-cdk",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "scripts": {
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "aws-cdk": "^2.170.0",
+    "typescript": "^5"
+  }
+}
