@@ -3,6 +3,12 @@ name: CI
 on:
   pull_request:
     branches: [master]
+  # Direct pushes to master publish a Docker image (docker.yml) — run the same
+  # gates there so an image sha never ships without a green suite next to it
+  # (DX-02). True *blocking* requires a branch-protection rule; this gives the
+  # signal.
+  push:
+    branches: [master]
 
 jobs:
   lint:
@@ -135,7 +141,9 @@ jobs:
       # Fork PRs can't push to ghcr: skip the login; cache-to then fails soft
       # (ignore-error) and cache-from simply misses.
       - name: Log in to ghcr (build cache)
-        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        # Same-repo PRs and pushes to master can write the cache; fork PRs
+        # can't push to ghcr — skip login, cache-to fails soft (ignore-error).
+        if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -151,6 +159,23 @@ jobs:
           platforms: linux/amd64
           cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64
           cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64,mode=max,ignore-error=true
+      - name: Cloud mode refuses to boot (fail-closed guard, #242)
+        # LECTOR_MODE=cloud must exit non-zero with a clear message until
+        # accounts/auth ship (#218) — never run the fail-open API under a flag
+        # that promises tenant isolation. Also pins the message so the guard
+        # can't silently rot.
+        run: |
+          set +e
+          OUT=$(docker run --rm -e LECTOR_MODE=cloud lector:e2e 2>&1)
+          CODE=$?
+          set -e
+          echo "$OUT"
+          if [ "$CODE" -eq 0 ]; then
+            echo "Expected non-zero exit for LECTOR_MODE=cloud, got success" >&2
+            exit 1
+          fi
+          echo "$OUT" | grep -q "LECTOR_MODE=cloud is not available yet"
+
       - name: Start container
         # No volume mount: /app/data starts empty, matching the fresh DB the
         # dev-mode webServer guarantees. Container :3000 maps to host :3456 (the

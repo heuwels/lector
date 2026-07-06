@@ -20,11 +20,27 @@
 
 declare global {
   interface Window {
-    __ENV__?: { API_URL?: string };
+    __ENV__?: { API_URL?: string; LECTOR_MODE?: string };
   }
 }
 
 const DEFAULT_API_URL = 'http://localhost:3457';
+
+export type LectorMode = 'selfhost' | 'cloud';
+
+/**
+ * Deployment mode (#242): 'selfhost' (the default, today's app) or 'cloud'
+ * (the future managed offering). Injected the same way as API_URL —
+ * `/__env.js` in a container, `process.env` on the server. Deliberately
+ * fail-safe toward 'selfhost': anything unset or unrecognized reads as
+ * selfhost so the client can never render cloud-only chrome by accident
+ * (strict validation lives server-side in api/src/lib/config.ts).
+ */
+export function lectorMode(): LectorMode {
+  const raw =
+    typeof window === 'undefined' ? process.env.LECTOR_MODE : window.__ENV__?.LECTOR_MODE;
+  return raw === 'cloud' ? 'cloud' : 'selfhost';
+}
 
 export function apiBase(): string {
   const configured =

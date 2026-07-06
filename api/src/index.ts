@@ -29,6 +29,19 @@ import chat from './routes/chat';
 import llmOpenai from './routes/llm-openai';
 import { authMiddleware } from './lib/auth';
 import { startClassifyWorker } from './lib/classify-worker';
+// Aliased: this file's Bun.serve export below is also named `config`.
+import { config as deploymentConfig, assertBootableMode } from './lib/config';
+
+// Fail-closed deployment-mode guard (#242): `cloud` requires accounts & auth
+// (#218), which have not shipped — never boot today's fail-open API under a
+// flag that promises tenant isolation. docker-entrypoint.sh enforces the same
+// rule; this covers bare `bun run` deployments. Remove the guard when #218 lands.
+try {
+  assertBootableMode(deploymentConfig.mode);
+} catch (err) {
+  console.error(`FATAL: ${(err as Error).message}`);
+  process.exit(1);
+}
 
 const app = new Hono();
 

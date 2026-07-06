@@ -23,6 +23,9 @@ services:
       - "3457:3457"
     environment:
       - NODE_ENV=production
+      # Deployment mode — selfhost (default) or cloud. Cloud refuses to boot
+      # until accounts/auth ship (#218; seam tracked in #242).
+      - LECTOR_MODE=${LECTOR_MODE:-selfhost}
       # Browser-facing API origin — the web app calls Hono directly, so this
       # must be reachable FROM THE BROWSER (the host/port you open the app on).
       # Injected into /__env.js at startup. Unset → falls back to
