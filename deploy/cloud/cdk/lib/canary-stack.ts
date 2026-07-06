@@ -22,12 +22,20 @@ import { Construct } from 'constructs';
  * storage is the only sound home for it. This also matches the plan-010
  * tenancy decision (shared SQLite on a VM; Litestream→R2 later, #217).
  *
- * Secrets are NOT in this stack. The instance reads them at first boot from
- * SSM Parameter Store (create before deploying — see ../README.md):
- *   /lector/canary/tunnel-token        (required — Cloudflare Tunnel token)
- *   /lector/canary/ghcr-token          (optional — only if the ghcr package is private)
- *   /lector/canary/anthropic-api-key   (optional — LLM translation)
- *   /lector/canary/google-api-key      (optional — TTS)
+ * Secrets are NOT in this stack. SSM Parameter Store is the single source of
+ * truth; the box fetches everything via /srv/lector/refresh-env.sh — run at
+ * first boot and by every /srv/lector/update.sh — so rotating a secret or
+ * flipping LLM provider is `aws ssm put-parameter` + update.sh, no redeploy.
+ * Parameters (see ../README.md for the full table):
+ *   /lector/canary/tunnel-token        SecureString  required — Cloudflare Tunnel token
+ *   /lector/canary/claude-oauth-token  SecureString  optional — CLAUDE_OAUTH_TOKEN (plan credits)
+ *   /lector/canary/anthropic-api-key   SecureString  optional — ANTHROPIC_API_KEY
+ *   /lector/canary/openrouter-api-key  SecureString  optional — OPENAI_COMPAT_API_KEY
+ *   /lector/canary/google-api-key      SecureString  optional — GOOGLE_CLOUD_API_KEY (TTS)
+ *   /lector/canary/llm-provider        String        optional — LLM_PROVIDER (default anthropic)
+ *   /lector/canary/openai-compat-url   String        optional — e.g. https://openrouter.ai/api
+ *   /lector/canary/openai-compat-model String        optional — e.g. google/gemini-flash-lite
+ *   /lector/canary/ghcr-token          SecureString  optional — only if the ghcr package goes private again
  */
 
 const HOSTNAME = 'app.lector.dev';
@@ -162,31 +170,52 @@ UUID=$(blkid -s UUID -o value "$DEV")
 grep -q "$UUID" /etc/fstab || echo "UUID=$UUID /srv/lector/data xfs defaults,nofail 0 2" >> /etc/fstab
 mount -a
 
-# ── secrets from SSM Parameter Store (created out-of-band; see README) ──
-REGION=${this.region}
+# ── secrets: SSM Parameter Store is the source of truth ──
+# refresh-env.sh re-fetches every parameter and rewrites .env; it runs now
+# (first boot) and inside every update.sh, so rotating a secret or flipping
+# LLM provider = put-parameter + update.sh. Only keys with a value are
+# written — absent params stay absent in the container (no empty-string
+# overrides of in-app defaults).
+install -d -m 750 /srv/lector
+cat > /srv/lector/refresh-env.sh <<'REFRESHEOF'
+#!/bin/bash
+set -euo pipefail
+REGION=__REGION__
+ENVFILE=/srv/lector/.env
 get_param() {
   aws ssm get-parameter --region "$REGION" --name "$1" --with-decryption \\
     --query Parameter.Value --output text 2>/dev/null || true
 }
-TUNNEL_TOKEN=$(get_param ${PARAM_PREFIX}/tunnel-token)
-GHCR_TOKEN=$(get_param ${PARAM_PREFIX}/ghcr-token)
-ANTHROPIC_API_KEY=$(get_param ${PARAM_PREFIX}/anthropic-api-key)
-GOOGLE_CLOUD_API_KEY=$(get_param ${PARAM_PREFIX}/google-api-key)
-
-if [ -z "$TUNNEL_TOKEN" ]; then
-  echo "WARNING: ${PARAM_PREFIX}/tunnel-token is missing — cloudflared will crash-loop until it exists (put the parameter, then run /srv/lector/update.sh)" >&2
+TMP=$(mktemp)
+chmod 600 "$TMP"
+put() { # put <ENV_KEY> <param-suffix>
+  VAL=$(get_param "__PARAM_PREFIX__/$2")
+  if [ -n "$VAL" ] && [ "$VAL" != "None" ]; then
+    printf '%s=%s\\n' "$1" "$VAL" >> "$TMP"
+  fi
+}
+put TUNNEL_TOKEN          tunnel-token
+put CLAUDE_OAUTH_TOKEN    claude-oauth-token
+put ANTHROPIC_API_KEY     anthropic-api-key
+put OPENAI_COMPAT_API_KEY openrouter-api-key
+put GOOGLE_CLOUD_API_KEY  google-api-key
+put LLM_PROVIDER          llm-provider
+put OPENAI_COMPAT_URL     openai-compat-url
+put OPENAI_COMPAT_MODEL   openai-compat-model
+mv "$TMP" "$ENVFILE"
+if ! grep -q "^TUNNEL_TOKEN=" "$ENVFILE"; then
+  echo "WARNING: __PARAM_PREFIX__/tunnel-token is missing - cloudflared will crash-loop until it exists (put the parameter, then run /srv/lector/update.sh)" >&2
 fi
-if [ -n "$GHCR_TOKEN" ]; then
+GHCR_TOKEN=$(get_param __PARAM_PREFIX__/ghcr-token)
+if [ -n "$GHCR_TOKEN" ] && [ "$GHCR_TOKEN" != "None" ]; then
   echo "$GHCR_TOKEN" | docker login ghcr.io -u token --password-stdin
 fi
-
-install -d -m 750 /srv/lector
-cat > /srv/lector/.env <<ENVEOF
-TUNNEL_TOKEN=$TUNNEL_TOKEN
-ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
-GOOGLE_CLOUD_API_KEY=$GOOGLE_CLOUD_API_KEY
-ENVEOF
-chmod 600 /srv/lector/.env
+echo "refreshed $ENVFILE with keys:"
+cut -d= -f1 "$ENVFILE"
+REFRESHEOF
+sed -i "s|__REGION__|${this.region}|g; s|__PARAM_PREFIX__|${PARAM_PREFIX}|g" /srv/lector/refresh-env.sh
+chmod +x /srv/lector/refresh-env.sh
+/srv/lector/refresh-env.sh
 
 # ── the whole deployment: lector (cloud canary shape) + cloudflared ──
 # No published ports: nothing listens on the host. cloudflared reaches lector
@@ -203,9 +232,12 @@ services:
       - LECTOR_MODE=cloud
       - LECTOR_CLOUD_GATE=external
       - API_URL=https://${HOSTNAME}
-      - LLM_PROVIDER=anthropic
-      - ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY}
-      - GOOGLE_CLOUD_API_KEY=\${GOOGLE_CLOUD_API_KEY}
+      # Interpolated from .env at compose time so a value set via SSM wins;
+      # absent -> anthropic. All pure secrets ride env_file below instead,
+      # so params that don't exist never become empty-string env overrides.
+      - LLM_PROVIDER=\${LLM_PROVIDER:-anthropic}
+    env_file:
+      - /srv/lector/.env
     volumes:
       - /srv/lector/data:/app/data
 
@@ -220,11 +252,12 @@ services:
       - lector
 COMPOSEEOF
 
-# ── update helper: pull the newest image + recreate ──
+# ── update helper: refresh secrets from SSM + pull newest image + recreate ──
 cat > /srv/lector/update.sh <<'UPDATEEOF'
 #!/bin/bash
 set -euo pipefail
 cd /srv/lector
+./refresh-env.sh
 docker compose pull
 docker compose up -d
 docker image prune -f
