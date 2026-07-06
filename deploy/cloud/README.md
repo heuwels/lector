@@ -35,7 +35,7 @@ Design notes:
 ## Prerequisites
 
 - AWS account + credentials, region bootstrapped for CDK (`bunx cdk bootstrap`,
-  first time only). Default region: `ap-southeast-2` (override with
+  first time only). Default region: `us-east-1` (override with
   `CDK_DEFAULT_REGION`).
 - `bun` (the CDK app runs through it).
 - Cloudflare account with the `lector.dev` zone and Zero Trust enabled.

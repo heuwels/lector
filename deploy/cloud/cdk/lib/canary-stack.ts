@@ -50,13 +50,15 @@ export class LectorCloudCanaryStack extends Stack {
 
     const sg = new ec2.SecurityGroup(this, 'InstanceSg', {
       vpc,
-      description: 'lector canary — zero inbound; cloudflared dials out, shell via SSM',
+      // AWS-visible descriptions must stay ASCII: IAM validates against
+      // [ -~¡-ÿ] and EC2 SG descriptions are stricter still.
+      description: 'lector canary - zero inbound; cloudflared dials out, shell via SSM',
       allowAllOutbound: true,
     });
 
     const role = new iam.Role(this, 'InstanceRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-      description: 'lector canary instance — SSM session access + canary parameters',
+      description: 'lector canary instance - SSM session access + canary parameters',
     });
     role.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
