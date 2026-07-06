@@ -15,21 +15,12 @@ test.describe("Language Setup & Switching", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    // Should redirect to setup page
+    // Should redirect to setup page, client-side (no reload) — SetupGuard
+    // must render the page immediately on the router.replace() navigation,
+    // not just on a hard load. Regression test for the guard getting stuck
+    // on its own spinner forever after a client-side redirect.
     await expect(page).toHaveURL(/\/setup/, { timeout: 15000 });
-
-    // Wait for the setup page to render — may need a reload since the
-    // SetupGuard client-side redirect lands on /setup but the initial
-    // page shell might still be from / (Next.js client nav)
-    await page.waitForLoadState("networkidle");
     const heading = page.getByRole("heading", { name: "Welcome to Lector" });
-    // If heading not visible yet, the SetupGuard may have shown spinner then redirected;
-    // give the client router time to render the setup page
-    if (!(await heading.isVisible())) {
-      await page.waitForTimeout(1000);
-      await page.reload();
-      await page.waitForLoadState("networkidle");
-    }
     await expect(heading).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId("setup-language-af")).toBeVisible();
     await expect(page.getByTestId("setup-language-de")).toBeVisible();
