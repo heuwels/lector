@@ -1,15 +1,29 @@
 #!/bin/sh
+set -eu
 # Deployment-mode guard (#242). `selfhost` (default) is the app as it has
 # always been. `cloud` is fail-closed until accounts & auth ship (#218):
 # booting today's fail-open API under a flag that promises tenant isolation
-# would be worse than not booting. Unknown values refuse too — a typo must
-# not silently run fail-open.
+# would be worse than not booting. The one exception is the canary shape —
+# LECTOR_CLOUD_GATE=external declares that an authenticating gateway (e.g.
+# Cloudflare Access) fronts EVERY request, so auth is deliberately delegated
+# (see deploy/cloud/). Unknown values refuse too — a typo must not silently
+# run fail-open.
 MODE="${LECTOR_MODE:-selfhost}"
+GATE="${LECTOR_CLOUD_GATE:-}"
 case "$MODE" in
   selfhost) ;;
   cloud)
-    echo "FATAL: LECTOR_MODE=cloud is not available yet — cloud mode requires accounts & auth (heuwels/lector#218, tracked under #242). Unset LECTOR_MODE (or set it to selfhost) to run the self-hosted app." >&2
-    exit 1
+    case "$GATE" in
+      external) ;; # canary: an external gateway authenticates every request
+      "")
+        echo "FATAL: LECTOR_MODE=cloud is not available yet — cloud mode requires accounts & auth (heuwels/lector#218, tracked under #242). Unset LECTOR_MODE (or set it to selfhost) to run the self-hosted app. If an authenticating gateway (e.g. Cloudflare Access) fronts EVERY request, set LECTOR_CLOUD_GATE=external to run the cloud canary." >&2
+        exit 1
+        ;;
+      *)
+        echo "FATAL: invalid LECTOR_CLOUD_GATE \"$GATE\" — expected \"external\" (or unset)." >&2
+        exit 1
+        ;;
+    esac
     ;;
   *)
     echo "FATAL: invalid LECTOR_MODE \"$MODE\" — expected \"selfhost\" or \"cloud\" (unset defaults to selfhost)." >&2

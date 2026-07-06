@@ -176,6 +176,21 @@ jobs:
           fi
           echo "$OUT" | grep -q "LECTOR_MODE=cloud is not available yet"
 
+      - name: Cloud canary shape boots (external gate, #242)
+        # cloud + LECTOR_CLOUD_GATE=external is the deploy/cloud/ canary shape
+        # (an authenticating gateway fronts the app). It must boot and report
+        # its mode via /health so the deployed canary can be smoke-checked.
+        run: |
+          docker run -d --name lector-canary -p 3458:3457 \
+            -e LECTOR_MODE=cloud -e LECTOR_CLOUD_GATE=external lector:e2e
+          for i in $(seq 1 30); do
+            BODY=$(curl -fsS http://localhost:3458/health 2>/dev/null) && break
+            sleep 2
+          done
+          echo "health: $BODY"
+          docker rm -f lector-canary
+          echo "$BODY" | grep -q '"mode":"cloud"'
+
       - name: Start container
         # No volume mount: /app/data starts empty, matching the fresh DB the
         # dev-mode webServer guarantees. Container :3000 maps to host :3456 (the

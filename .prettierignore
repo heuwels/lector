@@ -21,3 +21,6 @@ docs
 # Bun API deps
 api/node_modules
 api/bun.lock
+
+# CDK synth output (deploy/cloud)
+deploy/cloud/cdk/cdk.out
