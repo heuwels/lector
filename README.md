@@ -47,6 +47,10 @@ GOOGLE_CLOUD_API_KEY=...
 
 The app works without API keys — the local dictionary covers the top 2000 words. Claude API is only needed for uncommon words and phrase translation.
 
+#### Deployment mode
+
+`LECTOR_MODE` selects the deployment shape: `selfhost` (the default — leave it unset, this is the app as it has always been) or `cloud` (the future managed offering). **Cloud mode refuses to boot** until accounts/auth ship (#218) — the flag exists now so the two modes share one codebase and one image ([#242](https://github.com/heuwels/lector/issues/242)). Self-hosting stays free and BYO-everything.
+
 ### AnkiConnect
 
 The app connects directly to AnkiConnect on `localhost:8765` from your browser. Install the [AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159) in Anki Desktop.

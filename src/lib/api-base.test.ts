@@ -1,15 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { apiBase, apiUrl, apiFetch } from './api-base';
+import { apiBase, apiUrl, apiFetch, lectorMode } from './api-base';
 
-// The module reads `window.__ENV__` (browser) or `process.env.API_URL` (server)
-// at call time, so each test sets the environment it needs and restores after.
-type EnvWindow = { __ENV__?: { API_URL?: string } };
+// The module reads `window.__ENV__` (browser) or `process.env` (server) at
+// call time, so each test sets the environment it needs and restores after.
+type EnvVars = { API_URL?: string; LECTOR_MODE?: string };
+type EnvWindow = { __ENV__?: EnvVars };
 
 let savedApiUrl: string | undefined;
+let savedLectorMode: string | undefined;
 
 function setWindowEnv(apiUrl?: string) {
   (globalThis as unknown as { window?: EnvWindow }).window =
     apiUrl === undefined ? {} : { __ENV__: { API_URL: apiUrl } };
+}
+function setWindowEnvVars(env?: EnvVars) {
+  (globalThis as unknown as { window?: EnvWindow }).window =
+    env === undefined ? {} : { __ENV__: env };
 }
 function clearWindow() {
   delete (globalThis as unknown as { window?: EnvWindow }).window;
@@ -17,13 +23,17 @@ function clearWindow() {
 
 beforeEach(() => {
   savedApiUrl = process.env.API_URL;
+  savedLectorMode = process.env.LECTOR_MODE;
   delete process.env.API_URL;
+  delete process.env.LECTOR_MODE;
   clearWindow();
 });
 
 afterEach(() => {
   if (savedApiUrl === undefined) delete process.env.API_URL;
   else process.env.API_URL = savedApiUrl;
+  if (savedLectorMode === undefined) delete process.env.LECTOR_MODE;
+  else process.env.LECTOR_MODE = savedLectorMode;
   clearWindow();
   vi.restoreAllMocks();
 });
@@ -81,6 +91,38 @@ describe('apiUrl', () => {
   it('tolerates a path with no leading slash', () => {
     setWindowEnv('http://localhost:3457');
     expect(apiUrl('api/stats')).toBe('http://localhost:3457/api/stats');
+  });
+});
+
+describe('lectorMode', () => {
+  it('defaults to selfhost on the server when LECTOR_MODE is unset', () => {
+    expect(lectorMode()).toBe('selfhost');
+  });
+
+  it('reads process.env.LECTOR_MODE on the server', () => {
+    process.env.LECTOR_MODE = 'cloud';
+    expect(lectorMode()).toBe('cloud');
+  });
+
+  it('reads the injected window.__ENV__.LECTOR_MODE in the browser', () => {
+    setWindowEnvVars({ LECTOR_MODE: 'cloud' });
+    expect(lectorMode()).toBe('cloud');
+  });
+
+  it('defaults to selfhost in the browser when __ENV__ is absent (dev stub)', () => {
+    setWindowEnvVars(undefined);
+    expect(lectorMode()).toBe('selfhost');
+  });
+
+  it('reads unrecognized values as selfhost — never render cloud chrome by accident', () => {
+    setWindowEnvVars({ LECTOR_MODE: 'staging' });
+    expect(lectorMode()).toBe('selfhost');
+  });
+
+  it('prefers the browser-injected value over process.env, like apiBase', () => {
+    process.env.LECTOR_MODE = 'cloud';
+    setWindowEnvVars({ API_URL: 'http://x:3457' }); // window exists, no LECTOR_MODE injected
+    expect(lectorMode()).toBe('selfhost');
   });
 });
 
