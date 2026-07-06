@@ -67,7 +67,11 @@ export default function SetupGuard({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (!checked) {
+  // Mirrors the effect's own bail-out condition above. Without the pathname
+  // check, arriving at /setup via the router.replace() below (rather than a
+  // hard load) re-renders with checked still false — the effect bails out
+  // before ever setting it — and the spinner never clears.
+  if (!checked && pathname !== '/setup') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
