@@ -15,6 +15,7 @@
 import { Database } from 'bun:sqlite';
 import { db } from '../db';
 import { MASTERY_STATES } from './domains';
+import { LOCAL_USER_ID } from './user';
 import { classifyWords, type ClassifyItem, type ClassifyResult } from './word-classifier';
 
 // Only states that COUNT toward the radar are worth classifying (MASTERY_STATES,
@@ -45,16 +46,16 @@ export function selectPending(database: Database, limit: number): PendingRow[] {
          FROM knownWords kw
          LEFT JOIN vocab v ON v.id = (
            SELECT v2.id FROM vocab v2
-            WHERE v2.text = kw.word AND v2.language = kw.language
+            WHERE v2.userId = ? AND v2.text = kw.word AND v2.language = kw.language
             ORDER BY (v2.sentence != '') DESC, (v2.translation != '') DESC, v2.stateUpdatedAt DESC
             LIMIT 1
          )
-        WHERE kw.domain IS NULL
+        WHERE kw.userId = ? AND kw.domain IS NULL
           AND kw.state IN (${placeholders})
         ORDER BY kw.word, kw.language
         LIMIT ?`,
     )
-    .all(...MASTERY_STATES, limit) as PendingRow[];
+    .all(LOCAL_USER_ID, LOCAL_USER_ID, ...MASTERY_STATES, limit) as PendingRow[];
 }
 
 /**
@@ -81,14 +82,14 @@ export async function classifyPendingBatch(
 
   const domainByWord = new Map(results.map((r) => [r.word, r.domain]));
   const update = database.prepare(
-    'UPDATE knownWords SET domain = ? WHERE word = ? AND language = ?',
+    'UPDATE knownWords SET domain = ? WHERE userId = ? AND word = ? AND language = ?',
   );
   let updated = 0;
   const apply = database.transaction((batch: PendingRow[]) => {
     for (const r of batch) {
       const domain = domainByWord.get(r.word);
       if (domain) {
-        update.run(domain, r.word, r.language);
+        update.run(domain, LOCAL_USER_ID, r.word, r.language);
         updated += 1;
       }
     }

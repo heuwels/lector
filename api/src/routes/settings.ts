@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getCurrentUserId } from '../lib/user';
 import { db, SettingRow } from '../db';
 
 const SENSITIVE_KEYS = new Set(['anthropicApiKey', 'claudeOauthToken', 'lmstudioApiKey', 'openaiApiKey']);
@@ -7,7 +8,7 @@ const app = new Hono();
 
 // GET /api/settings
 app.get('/', (c) => {
-  const settings = db.prepare('SELECT * FROM settings').all() as SettingRow[];
+  const settings = db.prepare('SELECT * FROM settings WHERE userId = ?').all(getCurrentUserId(c)) as SettingRow[];
   const result: Record<string, unknown> = {};
   for (const s of settings) {
     if (SENSITIVE_KEYS.has(s.key)) {
@@ -27,10 +28,11 @@ app.get('/', (c) => {
 app.put('/', async (c) => {
   const body = await c.req.json();
 
-  const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+  const userId = getCurrentUserId(c);
+  const stmt = db.prepare('INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)');
   db.transaction(() => {
     for (const [key, value] of Object.entries(body)) {
-      stmt.run(key, JSON.stringify(value));
+      stmt.run(userId, key, JSON.stringify(value));
     }
   })();
 
@@ -40,7 +42,7 @@ app.put('/', async (c) => {
 // GET /api/settings/:key
 app.get('/:key', (c) => {
   const key = c.req.param('key');
-  const setting = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as SettingRow | undefined;
+  const setting = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(getCurrentUserId(c), key) as SettingRow | undefined;
 
   if (!setting) return c.json(null);
 
@@ -60,7 +62,7 @@ app.put('/:key', async (c) => {
   const key = c.req.param('key');
   const body = await c.req.json();
 
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, JSON.stringify(body.value));
+  db.prepare('INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)').run(getCurrentUserId(c), key, JSON.stringify(body.value));
 
   return c.json({ success: true });
 });
@@ -68,7 +70,7 @@ app.put('/:key', async (c) => {
 // DELETE /api/settings/:key
 app.delete('/:key', (c) => {
   const key = c.req.param('key');
-  db.prepare('DELETE FROM settings WHERE key = ?').run(key);
+  db.prepare('DELETE FROM settings WHERE userId = ? AND key = ?').run(getCurrentUserId(c), key);
   return c.json({ success: true });
 });
 

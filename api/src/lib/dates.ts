@@ -1,3 +1,4 @@
+import { LOCAL_USER_ID } from './user';
 import { db } from '../db';
 
 // Mirror of src/lib/dates.ts + src/lib/server/dates.ts for the Bun API (the
@@ -39,7 +40,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 // Time Zone); falls back to the server's local zone.
 export function getConfiguredTimeZone(): string {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('timezone') as
+    const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(LOCAL_USER_ID, 'timezone') as
       | { value: string }
       | undefined;
     if (row) {

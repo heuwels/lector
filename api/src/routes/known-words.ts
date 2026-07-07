@@ -1,14 +1,16 @@
 import { Hono } from 'hono';
 import { db, KnownWordRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { getCurrentUserId } from '../lib/user';
 
 const app = new Hono();
 
 // GET /api/known-words - all known words as a word -> state map
 app.get('/', (c) => {
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
 
-  const words = db.prepare('SELECT * FROM knownWords WHERE language = ?').all(lang) as KnownWordRow[];
+  const words = db.prepare('SELECT * FROM knownWords WHERE userId = ? AND language = ?').all(userId, lang) as KnownWordRow[];
   const map: Record<string, string> = {};
   for (const w of words) {
     map[w.word] = w.state;
@@ -18,6 +20,7 @@ app.get('/', (c) => {
 
 // POST /api/known-words - bulk update known words
 app.post('/', async (c) => {
+  const userId = getCurrentUserId(c);
   const body = await c.req.json();
 
   if (!Array.isArray(body.updates)) {
@@ -26,10 +29,10 @@ app.post('/', async (c) => {
 
   const lang = resolveLanguage(body.language);
 
-  const stmt = db.prepare('INSERT OR REPLACE INTO knownWords (word, language, state) VALUES (?, ?, ?)');
+  const stmt = db.prepare('INSERT OR REPLACE INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)');
   db.transaction((updates: Array<{ word: string; state: string }>) => {
     for (const u of updates) {
-      stmt.run(u.word.toLowerCase(), lang, u.state);
+      stmt.run(userId, u.word.toLowerCase(), lang, u.state);
     }
   })(body.updates);
 

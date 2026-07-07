@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { LOCAL_USER_ID } from '../lib/user';
 import { db } from '../db';
 import { getActiveLanguageCode } from '../lib/active-language';
 import { getTodayDate } from '../lib/dates';
@@ -90,7 +91,7 @@ function isHttpUrl(value: string): boolean {
 // local service, so we don't block private addresses here.
 function getAnkiConnectUrl(): string {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('ankiConnectUrl') as
+    const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(LOCAL_USER_ID, 'ankiConnectUrl') as
       | { value: string }
       | undefined;
     const raw = row?.value?.replace(/^"|"$/g, '').trim();
@@ -139,13 +140,13 @@ app.post('/sync-reviews', async (c) => {
 
   // Touch ONLY ankiReviews so the day's other counters are preserved.
   const upsert = db.prepare(
-    `INSERT INTO dailyStats (date, language, ankiReviews) VALUES (?, ?, ?)
-     ON CONFLICT(date, language) DO UPDATE SET ankiReviews = excluded.ankiReviews`,
+    `INSERT INTO dailyStats (userId, date, language, ankiReviews) VALUES (?, ?, ?, ?)
+     ON CONFLICT(userId, date, language) DO UPDATE SET ankiReviews = excluded.ankiReviews`,
   );
   db.transaction((rows: Array<[string, number]>) => {
     for (const [date, count] of rows) {
       if (typeof date === 'string' && Number.isFinite(count)) {
-        upsert.run(date, language, Math.trunc(count));
+        upsert.run(LOCAL_USER_ID, date, language, Math.trunc(count));
       }
     }
   })(byDay);

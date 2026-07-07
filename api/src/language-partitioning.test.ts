@@ -1,3 +1,4 @@
+import './test-guard';
 import { describe, test, expect } from 'bun:test';
 import fs from 'fs';
 import path from 'path';
@@ -79,7 +80,9 @@ const SQL_KEYWORD = /\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i;
 function isByIdScoped(sql: string): boolean {
   // A globally-unique id (collections/lessons/vocab/cloze/journal/chat .id) or a
   // parent …Id (collectionId, groupId) pins the affected rows without language.
-  return /\bid\s*=\s*\?/i.test(sql) || /\b[A-Za-z]+Id\s*=\s*\?/.test(sql);
+  // `userId` is deliberately excluded: it's the tenant axis (#217), not a
+  // row-pinning id — a query scoped only by userId still spans languages.
+  return /\bid\s*=\s*\?/i.test(sql) || /\b(?!userId\b)[A-Za-z]+Id\s*=\s*\?/.test(sql);
 }
 
 const usedAllowlist = new Set<number>();

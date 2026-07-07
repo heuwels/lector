@@ -2,6 +2,7 @@ import type { LLMProvider } from './types';
 import { AnthropicProvider } from './anthropic';
 import { OpenAICompatibleProvider } from './openai-compatible';
 import { db } from '../../db';
+import { LOCAL_USER_ID } from '../user';
 
 export type { LLMProvider, ChatMessage, CompletionOptions } from './types';
 export { parseLooseJson } from './parse-json';
@@ -10,7 +11,7 @@ let cachedProvider: LLMProvider | null = null;
 let cachedProviderKey: string | null = null;
 
 function getSetting(key: string): string | null {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+  const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(LOCAL_USER_ID, key) as
     | { value: string }
     | undefined;
   if (!row) return null;

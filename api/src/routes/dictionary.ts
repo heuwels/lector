@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { LOCAL_USER_ID } from '../lib/user';
 import { db } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getTodayDate } from '../lib/dates';
@@ -15,8 +16,8 @@ function recordDictionaryLookup(language: string) {
   const today = getTodayDate();
   recordStudySessionPing(language, today);
   db.prepare(
-    'UPDATE dailyStats SET dictionaryLookups = dictionaryLookups + 1 WHERE date = ? AND language = ?',
-  ).run(today, language);
+    'UPDATE dailyStats SET dictionaryLookups = dictionaryLookups + 1 WHERE userId = ? AND date = ? AND language = ?',
+  ).run(LOCAL_USER_ID, today, language);
 }
 
 // GET /api/dictionary/lookup?word=<word>

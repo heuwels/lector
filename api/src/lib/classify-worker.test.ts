@@ -15,14 +15,16 @@ function freshDb(): Database {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE knownWords (
+      userId TEXT NOT NULL DEFAULT 'local',
       word TEXT NOT NULL,
       language TEXT NOT NULL DEFAULT 'af',
       state TEXT NOT NULL,
       domain TEXT,
-      PRIMARY KEY (word, language)
+      PRIMARY KEY (userId, word, language)
     );
     CREATE TABLE vocab (
       id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL DEFAULT 'local',
       text TEXT NOT NULL,
       language TEXT NOT NULL DEFAULT 'af',
       sentence TEXT NOT NULL DEFAULT '',

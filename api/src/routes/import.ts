@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { db } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { getCurrentUserId } from '../lib/user';
 import { parseEpub } from '../lib/epub-parser';
 import { randomUUID } from 'crypto';
 
@@ -23,6 +24,7 @@ app.post(
     // formData() parsing is inside the try so a malformed multipart body returns
     // this route's 400 rather than escaping to the global 500 handler.
     try {
+      const userId = getCurrentUserId(c);
       const formData = await c.req.formData();
       const file = formData.get('file');
       const lang = resolveLanguage(formData.get('language') as string | null);
@@ -37,16 +39,16 @@ app.post(
       const now = new Date().toISOString();
 
       const insertCollection = db.prepare(`
-        INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt, userId)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const insertLesson = db.prepare(`
-        INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       db.transaction(() => {
-        insertCollection.run(collectionId, parsed.title, parsed.author, null, lang, now, now);
+        insertCollection.run(collectionId, parsed.title, parsed.author, null, lang, now, now, userId);
 
         for (let i = 0; i < parsed.chapters.length; i++) {
           const chapter = parsed.chapters[i];
@@ -60,6 +62,7 @@ app.post(
             lang,
             now,
             now,
+            userId,
           );
         }
       })();

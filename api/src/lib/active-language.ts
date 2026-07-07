@@ -1,3 +1,4 @@
+import { LOCAL_USER_ID } from './user';
 import { db } from '../db';
 import { type LanguageCode, LANGUAGES, DEFAULT_LANGUAGE, isValidLanguageCode } from './languages';
 
@@ -6,7 +7,7 @@ interface SettingRow {
 }
 
 export function getActiveLanguageCode(): LanguageCode {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('targetLanguage') as SettingRow | undefined;
+  const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(LOCAL_USER_ID, 'targetLanguage') as SettingRow | undefined;
   if (!row) return DEFAULT_LANGUAGE;
 
   // Value may be JSON-encoded (e.g. '"af"') or raw (e.g. 'af')

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, JournalEntryRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { getCurrentUserId } from '../lib/user';
 import { correctJournalText } from '../lib/journal-correct';
 import { randomUUID } from 'crypto';
 
@@ -13,6 +14,7 @@ const withParsedCorrections = (e: JournalEntryRow) => ({
 
 // GET /api/journal - list entries, optionally filtered by date
 app.get('/', (c) => {
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
   const date = c.req.query('date');
   const limit = parseInt(c.req.query('limit') || '20', 10);
@@ -20,20 +22,21 @@ app.get('/', (c) => {
 
   if (date) {
     const entries = db
-      .prepare('SELECT * FROM journal_entries WHERE entryDate = ? AND language = ? ORDER BY createdAt DESC')
-      .all(date, lang) as JournalEntryRow[];
+      .prepare('SELECT * FROM journal_entries WHERE userId = ? AND entryDate = ? AND language = ? ORDER BY createdAt DESC')
+      .all(userId, date, lang) as JournalEntryRow[];
     return c.json(entries.map(withParsedCorrections));
   }
 
   const entries = db
-    .prepare('SELECT * FROM journal_entries WHERE language = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?')
-    .all(lang, limit, offset) as JournalEntryRow[];
+    .prepare('SELECT * FROM journal_entries WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?')
+    .all(userId, lang, limit, offset) as JournalEntryRow[];
 
   return c.json(entries.map(withParsedCorrections));
 });
 
 // POST /api/journal - create a new draft entry
 app.post('/', async (c) => {
+  const userId = getCurrentUserId(c);
   const { body, entryDate, language } = await c.req.json();
   const lang = resolveLanguage(language);
   const date = entryDate || new Date().toISOString().split('T')[0];
@@ -42,20 +45,21 @@ app.post('/', async (c) => {
 
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, language, createdAt, updatedAt)
-     VALUES (?, ?, 'draft', ?, ?, ?, ?, ?)`,
-  ).run(id, body || '', wordCount, date, lang, now, now);
+    `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
+     VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
+  ).run(id, body || '', wordCount, date, lang, now, now, userId);
 
   return c.json({ id, entryDate: date });
 });
 
 // GET /api/journal/:id
-// By-id routes scope to the active language (defense-in-depth): a stale
-// cross-language id 404s rather than reading/mutating another language's entry.
+// By-id routes scope to the user + active language (defense-in-depth): a stale
+// cross-language or cross-user id 404s rather than reading/mutating the entry.
 app.get('/:id', (c) => {
   const id = c.req.param('id');
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
-  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND language = ?').get(id, lang) as
+  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang) as
     | JournalEntryRow
     | undefined;
 
@@ -67,10 +71,11 @@ app.get('/:id', (c) => {
 // PUT /api/journal/:id - update draft body
 app.put('/:id', async (c) => {
   const id = c.req.param('id');
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
   const body = await c.req.json();
 
-  const existing = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND language = ?').get(id, lang) as
+  const existing = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang) as
     | JournalEntryRow
     | undefined;
   if (!existing) return c.json({ error: 'Entry not found' }, 404);
@@ -90,8 +95,9 @@ app.put('/:id', async (c) => {
   }
 
   values.push(id);
+  values.push(userId);
   values.push(lang);
-  db.prepare(`UPDATE journal_entries SET ${updates.join(', ')} WHERE id = ? AND language = ?`).run(...values);
+  db.prepare(`UPDATE journal_entries SET ${updates.join(', ')} WHERE id = ? AND userId = ? AND language = ?`).run(...values);
 
   return c.json({ success: true });
 });
@@ -99,12 +105,13 @@ app.put('/:id', async (c) => {
 // DELETE /api/journal/:id
 app.delete('/:id', (c) => {
   const id = c.req.param('id');
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
-  const entry = db.prepare('SELECT id FROM journal_entries WHERE id = ? AND language = ?').get(id, lang);
+  const entry = db.prepare('SELECT id FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang);
 
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
 
-  db.prepare('DELETE FROM journal_entries WHERE id = ? AND language = ?').run(id, lang);
+  db.prepare('DELETE FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').run(id, userId, lang);
   return c.json({ success: true });
 });
 
@@ -112,8 +119,9 @@ app.delete('/:id', (c) => {
 // it (correctedBody + corrections, status → submitted).
 app.post('/:id/correct', async (c) => {
   const id = c.req.param('id');
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
-  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND language = ?').get(id, lang) as
+  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang) as
     | JournalEntryRow
     | undefined;
 
@@ -130,8 +138,8 @@ app.post('/:id/correct', async (c) => {
     db.prepare(
       `UPDATE journal_entries
        SET correctedBody = ?, corrections = ?, status = 'submitted', updatedAt = ?
-       WHERE id = ? AND language = ?`,
-    ).run(data.correctedBody ?? null, JSON.stringify(data.corrections ?? null), now, id, lang);
+       WHERE id = ? AND userId = ? AND language = ?`,
+    ).run(data.correctedBody ?? null, JSON.stringify(data.corrections ?? null), now, id, userId, lang);
 
     return c.json({ correctedBody: data.correctedBody, corrections: data.corrections });
   } catch (error) {

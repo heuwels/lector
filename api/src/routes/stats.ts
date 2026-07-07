@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, DailyStatsRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { getCurrentUserId } from '../lib/user';
 import { getTodayDate, addDaysToDateString } from '../lib/dates';
 import { activeDateSet, computeStreaks } from '../lib/streak';
 import { deriveReadingStats } from '../lib/stats-derive';
@@ -11,13 +12,14 @@ const app = new Hono();
 
 // GET /api/stats
 app.get('/', (c) => {
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
   const days = c.req.query('days');
 
-  let query = 'SELECT * FROM dailyStats WHERE language = ?';
-  const params: string[] = [lang];
+  let query = 'SELECT * FROM dailyStats WHERE userId = ? AND language = ?';
+  const params: string[] = [userId, lang];
 
   if (startDate && endDate) {
     query += ' AND date BETWEEN ? AND ?';
@@ -37,23 +39,24 @@ app.get('/', (c) => {
 
 // GET /api/stats/today
 app.get('/today', (c) => {
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
   const today = getTodayDate();
   let stats = db
-    .prepare('SELECT * FROM dailyStats WHERE date = ? AND language = ?')
-    .get(today, lang) as DailyStatsRow | undefined;
+    .prepare('SELECT * FROM dailyStats WHERE userId = ? AND date = ? AND language = ?')
+    .get(userId, today, lang) as DailyStatsRow | undefined;
 
   if (!stats) {
     db.prepare(
       `
-      INSERT INTO dailyStats (date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-      VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)
+      INSERT INTO dailyStats (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
+      VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0)
     `,
-    ).run(today, lang);
+    ).run(userId, today, lang);
 
     stats = db
-      .prepare('SELECT * FROM dailyStats WHERE date = ? AND language = ?')
-      .get(today, lang) as DailyStatsRow;
+      .prepare('SELECT * FROM dailyStats WHERE userId = ? AND date = ? AND language = ?')
+      .get(userId, today, lang) as DailyStatsRow;
   }
 
   return c.json(stats);
@@ -61,16 +64,17 @@ app.get('/today', (c) => {
 
 // PUT /api/stats/today
 app.put('/today', async (c) => {
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
   const today = getTodayDate();
   const body = await c.req.json();
 
   db.prepare(
     `
-    INSERT OR IGNORE INTO dailyStats (date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-    VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)
+    INSERT OR IGNORE INTO dailyStats (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
+    VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0)
   `,
-  ).run(today, lang);
+  ).run(userId, today, lang);
 
   const field = body.field as string;
   const amount = body.amount ?? 1;
@@ -89,8 +93,9 @@ app.put('/today', async (c) => {
     return c.json({ error: 'Invalid field' }, 400);
   }
 
-  db.prepare(`UPDATE dailyStats SET ${field} = ${field} + ? WHERE date = ? AND language = ?`).run(
+  db.prepare(`UPDATE dailyStats SET ${field} = ${field} + ? WHERE userId = ? AND date = ? AND language = ?`).run(
     amount,
+    userId,
     today,
     lang,
   );
@@ -100,12 +105,13 @@ app.put('/today', async (c) => {
 
 // GET /api/stats/fluency
 app.get('/fluency', (c) => {
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
 
   // Count words by state from knownWords table
   const stateCounts = db
-    .prepare('SELECT state, COUNT(*) as count FROM knownWords WHERE language = ? GROUP BY state')
-    .all(lang) as { state: string; count: number }[];
+    .prepare('SELECT state, COUNT(*) as count FROM knownWords WHERE userId = ? AND language = ? GROUP BY state')
+    .all(userId, lang) as { state: string; count: number }[];
 
   const countMap: Record<string, number> = {};
   for (const row of stateCounts) {
@@ -138,24 +144,24 @@ app.get('/fluency', (c) => {
 
   const thisWeekRow = db
     .prepare(
-      'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?',
+      'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE userId = ? AND date BETWEEN ? AND ? AND language = ?',
     )
-    .get(weekStart, today, lang) as { total: number };
+    .get(userId, weekStart, today, lang) as { total: number };
 
   const prevWeekRow = db
     .prepare(
-      'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE date BETWEEN ? AND ? AND language = ?',
+      'SELECT COALESCE(SUM(wordsMarkedKnown), 0) as total FROM dailyStats WHERE userId = ? AND date BETWEEN ? AND ? AND language = ?',
     )
-    .get(prevWeekStart, prevWeekEnd, lang) as { total: number };
+    .get(userId, prevWeekStart, prevWeekEnd, lang) as { total: number };
 
   // Per-domain fluency (radar): grouped knownWords counts → axes + a pending
   // count. Aggregated from knownWords (one row per word/language) so it
   // reconciles with totalKnownWords above; the maths lives in deriveDomainFluency.
   const domainRows = db
     .prepare(
-      'SELECT domain, state, COUNT(*) as count FROM knownWords WHERE language = ? GROUP BY domain, state',
+      'SELECT domain, state, COUNT(*) as count FROM knownWords WHERE userId = ? AND language = ? GROUP BY domain, state',
     )
-    .all(lang) as DomainStateRow[];
+    .all(userId, lang) as DomainStateRow[];
   const { byDomain, pending } = deriveDomainFluency(domainRows);
 
   return c.json({
@@ -189,13 +195,15 @@ app.get('/fluency', (c) => {
 // here when partitioning other stats — that silently breaks multi-language
 // streaks (the deleted Next route had no filter).
 app.get('/streak', (c) => {
+  const userId = getCurrentUserId(c);
   const today = getTodayDate();
 
+  // App-wide across languages, but strictly one user's rows.
   const rows = db
     .prepare(
-      'SELECT date, dictionaryLookups, clozePracticed, minutesRead, ankiReviews FROM dailyStats',
+      'SELECT date, dictionaryLookups, clozePracticed, minutesRead, ankiReviews FROM dailyStats WHERE userId = ?',
     )
-    .all() as Pick<
+    .all(userId) as Pick<
     DailyStatsRow,
     'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'
   >[];
@@ -212,10 +220,11 @@ app.get('/streak', (c) => {
 // "how much of THIS language you've read". Streak remains the one deliberately
 // app-wide metric (see /streak).
 app.get('/reading', (c) => {
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
   const rows = db
-    .prepare('SELECT wordCount, progress_percentComplete AS percentComplete FROM lessons WHERE language = ?')
-    .all(lang) as { wordCount: number; percentComplete: number }[];
+    .prepare('SELECT wordCount, progress_percentComplete AS percentComplete FROM lessons WHERE userId = ? AND language = ?')
+    .all(userId, lang) as { wordCount: number; percentComplete: number }[];
 
   return c.json(deriveReadingStats(rows));
 });

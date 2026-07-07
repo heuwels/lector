@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { OpenAICompatibleProvider } from '../lib/llm/openai-compatible';
+import { LOCAL_USER_ID } from '../lib/user';
 import { db } from '../db';
 
 const app = new Hono();
@@ -18,8 +19,8 @@ function resolveApiKey(bodyKey: string | undefined): string | undefined {
   const trimmed = bodyKey?.trim();
   if (trimmed) return trimmed;
   const row = db
-    .prepare('SELECT value FROM settings WHERE key = ?')
-    .get('openaiApiKey') as { value: string } | undefined;
+    .prepare('SELECT value FROM settings WHERE userId = ? AND key = ?')
+    .get(LOCAL_USER_ID, 'openaiApiKey') as { value: string } | undefined;
   if (!row) return undefined;
   try {
     const parsed = JSON.parse(row.value);
