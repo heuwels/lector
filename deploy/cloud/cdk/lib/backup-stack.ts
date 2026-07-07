@@ -97,20 +97,33 @@ export class LectorCanaryBackupStack extends Stack {
     // Grant the canary instance by principal tag (applied to its role by
     // Tags.of() in canary-stack.ts) — see the header for why not an identity
     // policy. Litestream needs get/put/delete on objects + list on the bucket.
+    //
+    // Principal is `*` + conditions, NOT AccountPrincipal: an account-root
+    // principal in a resource policy only DELEGATES to identity policies (the
+    // role would still need its own s3 allow — the exact thing this design
+    // avoids). `*` conditioned on PrincipalAccount + PrincipalTag grants the
+    // matching role directly; the fixed PrincipalAccount also keeps the
+    // policy non-public, so Block Public Access accepts it.
+    const canaryOnly = {
+      StringEquals: {
+        'aws:PrincipalAccount': this.account,
+        'aws:PrincipalTag/stack': 'cloud-canary',
+      },
+    };
     litestreamBucket.addToResourcePolicy(
       new iam.PolicyStatement({
         actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
         resources: [litestreamBucket.arnForObjects('*')],
-        principals: [new iam.AccountPrincipal(this.account)],
-        conditions: { StringEquals: { 'aws:PrincipalTag/stack': 'cloud-canary' } },
+        principals: [new iam.AnyPrincipal()],
+        conditions: canaryOnly,
       }),
     );
     litestreamBucket.addToResourcePolicy(
       new iam.PolicyStatement({
         actions: ['s3:ListBucket'],
         resources: [litestreamBucket.bucketArn],
-        principals: [new iam.AccountPrincipal(this.account)],
-        conditions: { StringEquals: { 'aws:PrincipalTag/stack': 'cloud-canary' } },
+        principals: [new iam.AnyPrincipal()],
+        conditions: canaryOnly,
       }),
     );
 
