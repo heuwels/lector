@@ -25,6 +25,10 @@ const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   journal:         { read: 'collections:read', write: 'collections:write' },
   'llm-status':    { read: 'settings:read',    write: 'settings:write' },
   'translate-compare': { read: 'vocab:read',  write: 'vocab:write' },
+  // Paid-LLM surfaces get their own category: a narrowly-scoped token must
+  // not be able to spend LLM credits (SECURITY-07).
+  chat:            { read: 'chat:read',        write: 'chat:write' },
+  llm:             { read: 'chat:read',        write: 'chat:write' },
 };
 
 function getResourceFromPath(path: string): string | null {
@@ -34,6 +38,9 @@ function getResourceFromPath(path: string): string | null {
 
 function getRequiredScope(resource: string, method: string): string | null {
   const mapping = SCOPE_MAP[resource];
+  // Unmapped resources are the caller's problem, not a free pass — the
+  // middleware treats null as deny (default-deny, SECURITY-07). A new route
+  // must be added to SCOPE_MAP before tokens can reach it.
   if (!mapping) return null;
 
   const isRead = method === 'GET' || method === 'HEAD';
@@ -98,14 +105,20 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     return c.json({ error: 'Token has expired' }, 401);
   }
 
-  // Check scope
+  // Check scope — default-deny: a resource with no SCOPE_MAP entry is not
+  // reachable with a token at all (SECURITY-07). Local/unauthenticated access
+  // is unaffected (it never reaches this branch).
   if (resource) {
     const requiredScope = getRequiredScope(resource, c.req.method);
-    if (requiredScope) {
-      const scopes = parseScopes(matchedToken.scopes);
-      if (!tokenHasScope(scopes, requiredScope)) {
-        return c.json({ error: `Insufficient scope. Required: ${requiredScope}` }, 403);
-      }
+    if (requiredScope === null) {
+      return c.json(
+        { error: `Insufficient scope. Resource "${resource}" is not token-accessible.` },
+        403,
+      );
+    }
+    const scopes = parseScopes(matchedToken.scopes);
+    if (!tokenHasScope(scopes, requiredScope)) {
+      return c.json({ error: `Insufficient scope. Required: ${requiredScope}` }, 403);
     }
   }
 

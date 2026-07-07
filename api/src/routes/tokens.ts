@@ -10,6 +10,7 @@ const VALID_SCOPES = new Set([
   'stats:read', 'stats:write', 'stats:*',
   'settings:read', 'settings:write', 'settings:*',
   'data:export', 'data:import', 'data:*',
+  'chat:read', 'chat:write', 'chat:*',
 ]);
 
 const app = new Hono();
