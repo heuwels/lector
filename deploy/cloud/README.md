@@ -49,20 +49,47 @@ Design notes:
    Create a tunnel → _Cloudflared_, remotely managed). Name it `lector-canary`
    and copy the token (`eyJ…`).
 
-2. **Put the parameters** (SecureString, in the deploy region):
+2. **Put the parameters.** SSM Parameter Store is the single source of truth
+   for every secret and LLM setting; the box re-reads all of them on every
+   `update.sh` (see _Rotate a secret_ below). Only `tunnel-token` is required:
+
+   | Parameter (`/lector/canary/…`) | Type         | Becomes                                                      |
+   | ------------------------------ | ------------ | ------------------------------------------------------------ |
+   | `tunnel-token` **(required)**  | SecureString | cloudflared `TUNNEL_TOKEN`                                    |
+   | `claude-oauth-token`           | SecureString | `CLAUDE_OAUTH_TOKEN` (plan credits — preferred over API key)  |
+   | `anthropic-api-key`            | SecureString | `ANTHROPIC_API_KEY`                                           |
+   | `openrouter-api-key`           | SecureString | `OPENAI_COMPAT_API_KEY`                                       |
+   | `google-api-key`               | SecureString | `GOOGLE_CLOUD_API_KEY` (TTS)                                  |
+   | `llm-provider`                 | String       | `LLM_PROVIDER` (`anthropic` default, or `openai`)             |
+   | `openai-compat-url`            | String       | `OPENAI_COMPAT_URL`                                           |
+   | `openai-compat-model`          | String       | `OPENAI_COMPAT_MODEL`                                         |
+   | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
 
    ```bash
    aws ssm put-parameter --name /lector/canary/tunnel-token \
      --type SecureString --value 'eyJ…'
-   # optional — only if the ghcr package stays private:
-   aws ssm put-parameter --name /lector/canary/ghcr-token \
-     --type SecureString --value 'github_pat_…'
-   # optional — AI translation + TTS:
-   aws ssm put-parameter --name /lector/canary/anthropic-api-key \
-     --type SecureString --value 'sk-ant-…'
+   # LLM via your Claude plan credits (canary-friendly, $0 marginal).
+   # NOTE: `claude setup-token` prints prose AROUND the token — do NOT command-
+   # substitute its output. Run it, copy the bare sk-ant-oat01-… string, paste:
+   aws ssm put-parameter --name /lector/canary/claude-oauth-token \
+     --type SecureString --value 'sk-ant-oat01-…'
+   # …or LLM via OpenRouter (one key, any model):
+   aws ssm put-parameter --name /lector/canary/openrouter-api-key \
+     --type SecureString --value 'sk-or-…'
+   aws ssm put-parameter --name /lector/canary/llm-provider \
+     --type String --value 'openai'
+   aws ssm put-parameter --name /lector/canary/openai-compat-url \
+     --type String --value 'https://openrouter.ai/api'
+   aws ssm put-parameter --name /lector/canary/openai-compat-model \
+     --type String --value 'google/gemini-2.5-flash-lite'
+   # TTS:
    aws ssm put-parameter --name /lector/canary/google-api-key \
      --type SecureString --value '…'
    ```
+
+   Note: the OpenAI-compatible provider uses **one model for everything**
+   (per-task word/phrase/chat models are Anthropic-only for now), so pick an
+   all-rounder. Use `--overwrite` when changing an existing value.
 
 3. **Deploy the stack:**
 
@@ -72,17 +99,17 @@ Design notes:
    bunx cdk deploy          # ~3 min; outputs the instance id + SSM shell hint
    ```
 
-4. **Route the hostname** (Cloudflare → the tunnel → _Public Hostname_), in
-   this order — first match wins:
+4. **Route the hostname** (Cloudflare → the tunnel → _Public Hostname_) — two
+   rules, API rule first (first match wins):
 
-   | #   | Hostname         | Path      | Service              |
-   | --- | ---------------- | --------- | -------------------- |
-   | 1   | `app.lector.dev` | `/api/*`  | `http://lector:3457` |
-   | 2   | `app.lector.dev` | `/health` | `http://lector:3457` |
-   | 3   | `app.lector.dev` | _(empty)_ | `http://lector:3000` |
+   | #   | Hostname         | Path             | Service              |
+   | --- | ---------------- | ---------------- | -------------------- |
+   | 1   | `app.lector.dev` | `^/(api\|health)` | `http://lector:3457` |
+   | 2   | `app.lector.dev` | _(empty)_        | `http://lector:3000` |
 
-   (`lector` resolves on the instance's compose network, where `cloudflared`
-   runs alongside the app.)
+   The path field is a regex. Use the **service names** (`lector`), never
+   `localhost` — cloudflared runs in its own container, so its `localhost` is
+   itself; `lector` resolves on the instance's compose network.
 
 5. **Gate it with Access** (Zero Trust → Access → Applications → self-hosted):
    application domain `app.lector.dev` (the whole hostname — `/api` and
@@ -96,7 +123,10 @@ Design notes:
 
 - **Update to the latest image:**
   `aws ssm start-session --target <instance-id>` → `sudo /srv/lector/update.sh`
-  (pull + recreate; the data volume is untouched).
+  (refreshes all secrets from SSM + pull + recreate; the data volume is untouched).
+- **Rotate a secret / change LLM provider:** `aws ssm put-parameter --overwrite …`,
+  then `update.sh`. Deleted parameters drop out of the container env entirely
+  on the next refresh — nothing lingers as an empty string.
 - **Logs:** `sudo docker logs lector` / `sudo docker logs cloudflared`;
   first-boot log at `/var/log/lector-canary-init.log`.
 - **Data:** SQLite lives on the dedicated EBS volume at `/srv/lector/data`.
