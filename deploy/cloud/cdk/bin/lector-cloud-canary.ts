@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { App } from 'aws-cdk-lib';
+import { LectorCanaryBackupStack } from '../lib/backup-stack';
 import { LectorCloudCanaryStack } from '../lib/canary-stack';
 import { LectorCanaryCiStack } from '../lib/ci-stack';
 
@@ -25,4 +26,11 @@ new LectorCanaryCiStack(app, 'LectorCanaryCi', {
   env,
   description:
     'GitHub OIDC deploy role for the lector cloud canary - assumed by docker.yml deploy-canary',
+});
+
+// Also compute-free and always safe to deploy (see backup-stack.ts).
+new LectorCanaryBackupStack(app, 'LectorCanaryBackup', {
+  env,
+  description:
+    'Nightly DLM snapshots of the lector canary data volume - keep last 30',
 });
