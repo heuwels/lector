@@ -7,10 +7,11 @@ import { getLanguageConfig } from './languages';
  * /api/journal-correct route and the /api/journal/:id/correct flow.
  */
 export async function correctJournalText(
+  userId: string,
   body: string,
   language?: string,
 ): Promise<Record<string, unknown>> {
-  const lang = resolveLanguage(language);
+  const lang = resolveLanguage(language, userId);
   const langName = getLanguageConfig(lang).name;
 
   const provider = getProvider();

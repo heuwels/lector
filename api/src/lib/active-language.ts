@@ -1,4 +1,3 @@
-import { LOCAL_USER_ID } from './user';
 import { db } from '../db';
 import { type LanguageCode, LANGUAGES, DEFAULT_LANGUAGE, isValidLanguageCode } from './languages';
 
@@ -6,8 +5,11 @@ interface SettingRow {
   value: string;
 }
 
-export function getActiveLanguageCode(): LanguageCode {
-  const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(LOCAL_USER_ID, 'targetLanguage') as SettingRow | undefined;
+// targetLanguage is a per-user setting, so resolution needs to know whose
+// default to read (#220) — required params, same rationale as dates.ts.
+
+export function getActiveLanguageCode(userId: string): LanguageCode {
+  const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(userId, 'targetLanguage') as SettingRow | undefined;
   if (!row) return DEFAULT_LANGUAGE;
 
   // Value may be JSON-encoded (e.g. '"af"') or raw (e.g. 'af')
@@ -17,11 +19,11 @@ export function getActiveLanguageCode(): LanguageCode {
   return DEFAULT_LANGUAGE;
 }
 
-export function getActiveLanguageConfig() {
-  return LANGUAGES[getActiveLanguageCode()];
+export function getActiveLanguageConfig(userId: string) {
+  return LANGUAGES[getActiveLanguageCode(userId)];
 }
 
-export function resolveLanguage(requestLang?: string | null): LanguageCode {
+export function resolveLanguage(requestLang: string | null | undefined, userId: string): LanguageCode {
   if (requestLang && isValidLanguageCode(requestLang)) return requestLang;
-  return getActiveLanguageCode();
+  return getActiveLanguageCode(userId);
 }

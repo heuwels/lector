@@ -3,6 +3,7 @@ import { streamText } from 'hono/streaming';
 import { getProvider, parseLooseJson } from '../lib/llm';
 import { getSpelreelsContext } from '../lib/spelreels';
 import { resolveLanguage } from '../lib/active-language';
+import { getCurrentUserId } from '../lib/user';
 import { getLanguageConfig } from '../lib/languages';
 import { buildGlossPrompt, buildWordEntryPrompt, buildPhrasePrompt } from '../lib/translate-prompts';
 import { recordStudySessionPing } from '../lib/study-session';
@@ -51,13 +52,14 @@ const app = new Hono();
 // Streams a plain-text gloss as it generates so the reader sees the meaning
 // form token-by-token instead of waiting for a full structured response.
 app.post('/gloss', async (c) => {
+  const userId = getCurrentUserId(c);
   const { word, sentence, language } = await c.req.json();
   if (!word) {
     return c.json({ error: 'Word is required' }, 400);
   }
 
-  const lang = resolveLanguage(language);
-  recordStudySessionPing(lang);
+  const lang = resolveLanguage(language, userId);
+  recordStudySessionPing(userId, lang);
 
   const langName = getLanguageConfig(lang).name;
   const prompt = buildGlossPrompt(langName, word, sentence || '');
@@ -91,7 +93,7 @@ app.post('/enrich', async (c) => {
     if (!word) {
       return c.json({ error: 'Word is required' }, 400);
     }
-    const lang = resolveLanguage(language);
+    const lang = resolveLanguage(language, getCurrentUserId(c));
     const langName = getLanguageConfig(lang).name;
     return c.json(await buildWordEntryResponse(langName, word, sentence || ''));
   } catch (error) {
@@ -111,8 +113,9 @@ app.post('/', async (c) => {
       return c.json({ error: 'Word is required' }, 400);
     }
 
-    const lang = resolveLanguage(language);
-    recordStudySessionPing(lang);
+    const userId = getCurrentUserId(c);
+    const lang = resolveLanguage(language, userId);
+    recordStudySessionPing(userId, lang);
 
     const langConfig = getLanguageConfig(lang);
     const langName = langConfig.name;

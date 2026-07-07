@@ -2,6 +2,7 @@ import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { db } from '../db';
 import { getTodayDate } from './dates';
+import { LOCAL_USER_ID } from './user';
 import { recordStudySessionPing } from './study-session';
 
 function reset() {
@@ -14,7 +15,7 @@ describe('recordStudySessionPing', () => {
   afterEach(reset);
 
   test("creates today's row for the given language and stamps sessionStartedAt", () => {
-    recordStudySessionPing('de');
+    recordStudySessionPing(LOCAL_USER_ID, 'de');
 
     const rows = db
       .prepare('SELECT date, language, sessionStartedAt FROM dailyStats')
@@ -23,19 +24,19 @@ describe('recordStudySessionPing', () => {
     // The language-less bug created an 'af' row regardless of the active language;
     // the row must be for 'de', on the timezone-aware day boundary.
     expect(rows.length).toBe(1);
-    expect(rows[0].date).toBe(getTodayDate());
+    expect(rows[0].date).toBe(getTodayDate(LOCAL_USER_ID));
     expect(rows[0].language).toBe('de');
     expect(rows[0].sessionStartedAt).not.toBeNull();
   });
 
   test('writes only the given language row — never a blanket cross-language write', () => {
-    const today = getTodayDate();
+    const today = getTodayDate(LOCAL_USER_ID);
     // A pre-existing 'af' session for the same day.
     db.prepare(
       "INSERT INTO dailyStats (date, language, sessionStartedAt) VALUES (?, 'af', ?)",
     ).run(today, '2026-06-21T06:00:00Z');
 
-    recordStudySessionPing('de');
+    recordStudySessionPing(LOCAL_USER_ID, 'de');
 
     const af = db
       .prepare("SELECT sessionStartedAt FROM dailyStats WHERE date = ? AND language = 'af'")
@@ -61,9 +62,9 @@ describe('recordStudySessionPing', () => {
     // instant, so a timezone-aware writer records two distinct dates here while
     // the old raw-UTC writer would collapse both onto the one UTC day (1 row).
     setTimeZone('Pacific/Kiritimati'); // UTC+14
-    recordStudySessionPing('af');
+    recordStudySessionPing(LOCAL_USER_ID, 'af');
     setTimeZone('Pacific/Pago_Pago'); // UTC-11
-    recordStudySessionPing('af');
+    recordStudySessionPing(LOCAL_USER_ID, 'af');
 
     const dates = db
       .prepare("SELECT date FROM dailyStats WHERE language = 'af' ORDER BY date")
@@ -73,15 +74,35 @@ describe('recordStudySessionPing', () => {
     expect(dates[0].date).not.toBe(dates[1].date);
   });
 
+  test("stamps the caller's userId and resolves the day in THEIR time zone (#220)", () => {
+    // Two tenants whose configured zones are 25h apart: the same instant is a
+    // different calendar day for each, and each ping must land on its own
+    // user's row — never pooled into the local pseudo-tenant.
+    db.prepare("INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('user-a', 'timezone', ?)")
+      .run(JSON.stringify('Pacific/Kiritimati')); // UTC+14
+    db.prepare("INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('user-b', 'timezone', ?)")
+      .run(JSON.stringify('Pacific/Pago_Pago')); // UTC-11
+
+    recordStudySessionPing('user-a', 'af');
+    recordStudySessionPing('user-b', 'af');
+
+    const rows = db
+      .prepare('SELECT userId, date FROM dailyStats ORDER BY userId')
+      .all() as { userId: string; date: string }[];
+
+    expect(rows.map((r) => r.userId)).toEqual(['user-a', 'user-b']);
+    expect(rows[0].date).not.toBe(rows[1].date);
+  });
+
   test('is idempotent — a repeat ping keeps the earliest sessionStartedAt', () => {
-    recordStudySessionPing('af');
-    const today = getTodayDate();
+    recordStudySessionPing(LOCAL_USER_ID, 'af');
+    const today = getTodayDate(LOCAL_USER_ID);
     const first = db
       .prepare("SELECT sessionStartedAt FROM dailyStats WHERE date = ? AND language = 'af'")
       .get(today) as { sessionStartedAt: string };
     expect(first.sessionStartedAt).not.toBeNull();
 
-    recordStudySessionPing('af');
+    recordStudySessionPing(LOCAL_USER_ID, 'af');
     const second = db
       .prepare("SELECT sessionStartedAt FROM dailyStats WHERE date = ? AND language = 'af'")
       .get(today) as { sessionStartedAt: string };

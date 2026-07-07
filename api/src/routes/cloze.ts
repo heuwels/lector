@@ -39,7 +39,7 @@ const app = new Hono();
 // GET /api/cloze
 app.get('/', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const collection = c.req.query('collection');
   const word = c.req.query('word');
   const limit = parseInt(c.req.query('limit') || '100');
@@ -66,7 +66,7 @@ app.get('/', (c) => {
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
   const body = await c.req.json();
-  const lang = resolveLanguage(Array.isArray(body) ? body[0]?.language : body.language);
+  const lang = resolveLanguage(Array.isArray(body) ? body[0]?.language : body.language, userId);
 
   if (Array.isArray(body)) {
     const stmt = db.prepare(`
@@ -109,7 +109,7 @@ app.post('/', async (c) => {
 // GET /api/cloze/due
 app.get('/due', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const limit = parseInt(c.req.query('limit') || '20');
   const collection = c.req.query('collection');
   const mode = c.req.query('mode');
@@ -156,7 +156,7 @@ app.get('/due', (c) => {
 // GET /api/cloze/counts
 app.get('/counts', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const now = new Date().toISOString();
 
   const rows = db.prepare(`
@@ -193,7 +193,7 @@ app.get('/counts', (c) => {
 // client-side grew with the bank size (#240).
 app.get('/stats', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
 
   const row = db.prepare(`
     SELECT
@@ -209,7 +209,7 @@ app.get('/stats', (c) => {
 // POST /api/cloze/seed
 app.post('/seed', async (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const bank = await loadSentenceBank(lang);
   if (bank.length === 0) {
     return c.json({ seeded: 0, updated: 0, mined: 0, tatoeba: 0, total: 0 });
@@ -276,7 +276,7 @@ app.post('/seed', async (c) => {
 // GET /api/cloze/seed
 app.get('/seed', async (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const bank = await loadSentenceBank(lang);
   const count = db.prepare(
     'SELECT COUNT(*) as count FROM clozeSentences WHERE userId = ? AND language = ? AND (blacklisted = 0 OR blacklisted IS NULL)'
@@ -295,7 +295,7 @@ app.get('/seed', async (c) => {
 app.get('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const sentence = db
     .prepare('SELECT * FROM clozeSentences WHERE id = ? AND userId = ? AND language = ?')
     .get(id, userId, lang) as ClozeSentenceRow | undefined;
@@ -313,7 +313,7 @@ app.get('/:id', (c) => {
 app.put('/:id', async (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const body = await c.req.json();
 
   const existing = db.prepare('SELECT id FROM clozeSentences WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang);
@@ -345,7 +345,7 @@ app.put('/:id', async (c) => {
 app.delete('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   db.prepare('DELETE FROM clozeSentences WHERE id = ? AND userId = ? AND language = ?').run(id, userId, lang);
   return c.json({ success: true });
 });
@@ -354,7 +354,7 @@ app.delete('/:id', (c) => {
 app.post('/:id/review', async (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const body = await c.req.json();
 
   const sentence = db

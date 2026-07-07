@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import https from 'node:https';
 import { LANGUAGES } from '../lib/languages';
 import { resolveLanguage } from '../lib/active-language';
+import { getCurrentUserId } from '../lib/user';
 
 interface TatoebaApiSentence {
   id: number;
@@ -61,7 +62,7 @@ const app = new Hono();
 app.get('/', async (c) => {
   const limit = c.req.query('limit') || '20';
   const query = c.req.query('query');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), getCurrentUserId(c));
 
   const params = new URLSearchParams({
     from: LANGUAGES[lang].tatoebaCode,

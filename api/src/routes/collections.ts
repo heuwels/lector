@@ -10,7 +10,7 @@ const app = new Hono();
 // GET /api/collections
 app.get('/', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
 
   const collections = db.prepare(`
     SELECT c.*, g.name as groupName, COUNT(l.id) as lessonCount,
@@ -32,7 +32,7 @@ app.post('/', async (c) => {
   const body = await c.req.json();
   const id = body.id || randomUUID();
   const now = new Date().toISOString();
-  const lang = resolveLanguage(body.language);
+  const lang = resolveLanguage(body.language, userId);
 
   db.prepare(`
     INSERT INTO collections (id, title, author, coverUrl, groupId, language, createdAt, lastReadAt, userId)
@@ -69,7 +69,7 @@ app.put('/reorder', async (c) => {
 app.get('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const collection = db.prepare(`
     SELECT c.*, COUNT(l.id) as lessonCount,
       COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
@@ -90,7 +90,7 @@ app.get('/:id', (c) => {
 app.put('/:id', async (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const body = await c.req.json();
 
   const updates: string[] = [];
@@ -124,7 +124,7 @@ app.put('/:id', async (c) => {
 app.delete('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   db.prepare('DELETE FROM lessons WHERE collectionId = ? AND userId = ? AND language = ?').run(id, userId, lang);
   db.prepare('DELETE FROM collections WHERE id = ? AND userId = ? AND language = ?').run(id, userId, lang);
   return c.json({ success: true });
@@ -163,7 +163,7 @@ app.post('/:id/lessons', async (c) => {
   const parent = db.prepare('SELECT language FROM collections WHERE id = ? AND userId = ?').get(collectionId, userId) as
     | { language: string }
     | undefined;
-  const language = parent?.language ?? resolveLanguage(c.req.query('language'));
+  const language = parent?.language ?? resolveLanguage(c.req.query('language'), userId);
 
   const textContent = body.textContent || '';
 

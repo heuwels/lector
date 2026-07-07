@@ -9,7 +9,7 @@ const app = new Hono();
 // GET /api/vocab
 app.get('/', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const state = c.req.query('state');
   const bookId = c.req.query('bookId');
   const unpushed = c.req.query('unpushed');
@@ -44,7 +44,7 @@ app.post('/', async (c) => {
   const body = await c.req.json();
   const id = body.id || randomUUID();
   const now = new Date().toISOString();
-  const lang = resolveLanguage(body.language);
+  const lang = resolveLanguage(body.language, userId);
 
   db.prepare(`
     INSERT OR REPLACE INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId)

@@ -1,4 +1,3 @@
-import { LOCAL_USER_ID } from './user';
 import { db } from '../db';
 
 // Mirror of src/lib/dates.ts + src/lib/server/dates.ts for the Bun API (the
@@ -6,7 +5,10 @@ import { db } from '../db';
 // crypto module). Keep the implementations in sync.
 //
 // All "day" boundaries (daily stats, streaks) are calendar dates in the
-// user's configured time zone — never raw UTC (issue #108).
+// user's configured time zone — never raw UTC (issue #108). The zone is a
+// per-user setting, so every caller must say whose day it is (#220) — a
+// required param, not a default, or a new call site silently lands on the
+// server's zone for every tenant.
 
 export function isValidTimeZone(timeZone: string): boolean {
   if (!timeZone) return false;
@@ -38,9 +40,9 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 
 // Day-rollover time zone. Configurable via the `timezone` setting (Settings →
 // Time Zone); falls back to the server's local zone.
-export function getConfiguredTimeZone(): string {
+export function getConfiguredTimeZone(userId: string): string {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(LOCAL_USER_ID, 'timezone') as
+    const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(userId, 'timezone') as
       | { value: string }
       | undefined;
     if (row) {
@@ -58,7 +60,7 @@ export function getConfiguredTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-/** Today's date (YYYY-MM-DD) in the configured time zone. */
-export function getTodayDate(): string {
-  return dateStringInTimeZone(new Date(), getConfiguredTimeZone());
+/** Today's date (YYYY-MM-DD) in the user's configured time zone. */
+export function getTodayDate(userId: string): string {
+  return dateStringInTimeZone(new Date(), getConfiguredTimeZone(userId));
 }

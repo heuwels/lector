@@ -27,7 +27,7 @@ app.post(
       const userId = getCurrentUserId(c);
       const formData = await c.req.formData();
       const file = formData.get('file');
-      const lang = resolveLanguage(formData.get('language') as string | null);
+      const lang = resolveLanguage(formData.get('language') as string | null, userId);
 
       if (!file || typeof file === 'string') {
         return c.json({ error: 'File required' }, 400);

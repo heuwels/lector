@@ -35,8 +35,9 @@ function getDayActivity(userId: string, date: string): DayActivity {
 // Returns whether any language study happened today. Intended for the Sphere
 // Guardian MCP to poll. Aggregated across languages (app-wide).
 app.get('/', (c) => {
-  const today = getTodayDate();
-  const activity = getDayActivity(getCurrentUserId(c), today);
+  const userId = getCurrentUserId(c);
+  const today = getTodayDate(userId);
+  const activity = getDayActivity(userId, today);
 
   return c.json({
     done: activity.dictionaryLookups > 0 || activity.minutesRead > 0 || activity.clozePracticed > 0,
@@ -52,12 +53,13 @@ app.get('/', (c) => {
 // Called on the first word lookup or page turn of a session; records the session
 // start time once per day, on the active language's row (compound PK).
 app.post('/', (c) => {
-  const today = getTodayDate();
-  const lang = resolveLanguage(c.req.query('language'));
+  const userId = getCurrentUserId(c);
+  const today = getTodayDate(userId);
+  const lang = resolveLanguage(c.req.query('language'), userId);
 
-  recordStudySessionPing(lang);
+  recordStudySessionPing(userId, lang, today);
 
-  const activity = getDayActivity(today);
+  const activity = getDayActivity(userId, today);
   return c.json({
     done: true,
     date: today,

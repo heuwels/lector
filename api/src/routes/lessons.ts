@@ -12,7 +12,7 @@ const app = new Hono();
 app.get('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const lesson = db
     .prepare('SELECT * FROM lessons WHERE id = ? AND userId = ? AND language = ?')
     .get(id, userId, lang) as LessonRow | undefined;
@@ -47,7 +47,7 @@ app.put('/:id', async (c) => {
   values.push(new Date().toISOString());
   values.push(id);
   values.push(userId);
-  values.push(resolveLanguage(c.req.query('language')));
+  values.push(resolveLanguage(c.req.query('language'), userId));
 
   db.prepare(`UPDATE lessons SET ${updates.join(', ')} WHERE id = ? AND userId = ? AND language = ?`).run(...values);
 
@@ -58,7 +58,7 @@ app.put('/:id', async (c) => {
 app.delete('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   db.prepare('DELETE FROM lessons WHERE id = ? AND userId = ? AND language = ?').run(id, userId, lang);
   return c.json({ success: true });
 });
@@ -67,7 +67,7 @@ app.delete('/:id', (c) => {
 app.put('/:id/progress', async (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const body = await c.req.json();
   const now = new Date().toISOString();
 

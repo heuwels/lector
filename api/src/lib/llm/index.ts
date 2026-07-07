@@ -10,6 +10,11 @@ export { parseLooseJson } from './parse-json';
 let cachedProvider: LLMProvider | null = null;
 let cachedProviderKey: string | null = null;
 
+// Deliberately the LOCAL user's settings, not the requester's (#220): the
+// provider is one process-global cached instance, and in cloud mode the
+// 'local' tenant has no settings rows, so every lookup falls through to the
+// env-var managed keys — which is the intended cloud default until BYOK
+// (#223) makes providers per-user.
 function getSetting(key: string): string | null {
   const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(LOCAL_USER_ID, key) as
     | { value: string }
