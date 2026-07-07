@@ -5,7 +5,7 @@ import { Book, BookOpen, CheckCircle, Flame } from 'lucide-react';
 import Link from 'next/link';
 import {
   getAllDailyStats,
-  getAllClozeSentences,
+  getClozeTotals,
   getAllVocab,
   getCollectionCounts,
   getFluencyStats,
@@ -71,9 +71,9 @@ export default function StatsPage() {
         const totalClozeAttempts = last365.reduce((sum, d) => sum + d.clozePracticed, 0);
         const totalPoints = last365.reduce((sum, d) => sum + d.points, 0);
 
-        // Get cloze correct count from db
-        const clozeSentences = await getAllClozeSentences();
-        const totalClozeCorrect = clozeSentences.reduce((sum, c) => sum + c.timesCorrect, 0);
+        // Lifetime cloze-correct total — a server-side SUM, not the whole
+        // table shipped over just to reduce it here (#240).
+        const { timesCorrect: totalClozeCorrect } = await getClozeTotals();
 
         // Unified server-side streaks (issue #108) — one definition app-wide.
         const currentStreak = streakData.streak;

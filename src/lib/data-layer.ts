@@ -263,9 +263,11 @@ export async function getVocabEntry(id: string): Promise<VocabEntry | undefined>
 }
 
 export async function getVocabByText(text: string): Promise<VocabEntry | undefined> {
+  // The server filters by exact text (#240) — newest row first, so [0] matches
+  // what the old client-side `.find()` over the DESC-ordered list returned.
   const res = await apiFetch(`/api/vocab${langParam()}&text=${encodeURIComponent(text)}`);
   const vocab = await res.json();
-  const match = vocab.find((v: VocabEntry) => v.text === text);
+  const match = vocab[0];
   if (!match) return undefined;
   return {
     ...match,
@@ -443,6 +445,11 @@ export async function getAllClozeSentences(): Promise<ClozeSentence[]> {
     nextReview: new Date(s.nextReview as string),
     lastReviewed: s.lastReviewed ? new Date(s.lastReviewed as string) : undefined,
   }));
+}
+
+export async function getClozeTotals(): Promise<{ timesCorrect: number; timesIncorrect: number }> {
+  const res = await apiFetch(`/api/cloze/stats${langParam()}`);
+  return res.json();
 }
 
 export async function getClozeSentenceByTatoebaId(
@@ -834,33 +841,6 @@ export async function exportAllData(): Promise<{
 }> {
   const res = await apiFetch('/api/data');
   return res.json();
-}
-
-export async function getVocabStats(): Promise<{
-  total: number;
-  byState: Record<WordState, number>;
-}> {
-  const res = await apiFetch(`/api/vocab${langParam()}`);
-  const vocab = await res.json();
-
-  const byState: Record<WordState, number> = {
-    new: 0,
-    level1: 0,
-    level2: 0,
-    level3: 0,
-    level4: 0,
-    known: 0,
-    ignored: 0,
-  };
-
-  vocab.forEach((v: VocabEntry) => {
-    byState[v.state]++;
-  });
-
-  return {
-    total: vocab.length,
-    byState,
-  };
 }
 
 // ============================================================================

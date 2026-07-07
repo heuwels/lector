@@ -188,6 +188,24 @@ app.get('/counts', (c) => {
   return c.json(counts);
 });
 
+// GET /api/cloze/stats — lifetime correct/incorrect totals. The stats page
+// needs one number; shipping the whole table (limit=10000) to sum it
+// client-side grew with the bank size (#240).
+app.get('/stats', (c) => {
+  const userId = getCurrentUserId(c);
+  const lang = resolveLanguage(c.req.query('language'));
+
+  const row = db.prepare(`
+    SELECT
+      COALESCE(SUM(timesCorrect), 0) as timesCorrect,
+      COALESCE(SUM(timesIncorrect), 0) as timesIncorrect
+    FROM clozeSentences
+    WHERE userId = ? AND language = ?
+  `).get(userId, lang) as { timesCorrect: number; timesIncorrect: number };
+
+  return c.json(row);
+});
+
 // POST /api/cloze/seed
 app.post('/seed', async (c) => {
   const userId = getCurrentUserId(c);
