@@ -1,13 +1,13 @@
 #!/bin/sh
 set -eu
-# Deployment-mode guard (#242). `selfhost` (default) is the app as it has
-# always been. `cloud` is fail-closed until accounts & auth ship (#218):
-# booting today's fail-open API under a flag that promises tenant isolation
-# would be worse than not booting. The one exception is the canary shape —
-# LECTOR_CLOUD_GATE=external declares that an authenticating gateway (e.g.
-# Cloudflare Access) fronts EVERY request, so auth is deliberately delegated
-# (see deploy/cloud/). Unknown values refuse too — a typo must not silently
-# run fail-open.
+# Deployment-mode guard (#242, re-purposed by #218). `selfhost` (default) is
+# the app as it has always been. `cloud` proper runs built-in accounts &
+# sessions (Better Auth) and must never sign them with the library's default
+# dev secret — refuse to boot without BETTER_AUTH_SECRET. The canary shape is
+# unchanged: LECTOR_CLOUD_GATE=external declares that an authenticating
+# gateway (e.g. Cloudflare Access) fronts EVERY request, so auth is
+# deliberately delegated (see deploy/cloud/). Unknown values refuse too — a
+# typo must not silently run fail-open.
 MODE="${LECTOR_MODE:-selfhost}"
 GATE="${LECTOR_CLOUD_GATE:-}"
 case "$MODE" in
@@ -16,8 +16,10 @@ case "$MODE" in
     case "$GATE" in
       external) ;; # canary: an external gateway authenticates every request
       "")
-        echo "FATAL: LECTOR_MODE=cloud is not available yet — cloud mode requires accounts & auth (heuwels/lector#218, tracked under #242). Unset LECTOR_MODE (or set it to selfhost) to run the self-hosted app. If an authenticating gateway (e.g. Cloudflare Access) fronts EVERY request, set LECTOR_CLOUD_GATE=external to run the cloud canary." >&2
-        exit 1
+        if [ -z "${BETTER_AUTH_SECRET:-}" ]; then
+          echo "FATAL: LECTOR_MODE=cloud requires BETTER_AUTH_SECRET — cloud mode runs built-in accounts & sessions (heuwels/lector#218) and must never sign them with a default secret. Generate one (e.g. \`openssl rand -base64 32\`) and set BETTER_AUTH_SECRET, or set LECTOR_CLOUD_GATE=external if an authenticating gateway fronts EVERY request. Unset LECTOR_MODE (or set it to selfhost) to run the self-hosted app." >&2
+          exit 1
+        fi
         ;;
       *)
         echo "FATAL: invalid LECTOR_CLOUD_GATE \"$GATE\" — expected \"external\" (or unset)." >&2

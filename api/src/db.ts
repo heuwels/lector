@@ -776,6 +776,16 @@ export const db = new Proxy({} as Database, {
   },
 });
 
+/**
+ * The raw bun:sqlite handle behind the lazy proxy. Better Auth's adapter
+ * detection inspects the instance itself (#218), which the proxy defeats —
+ * everything else should keep importing `db`. Calling this boots the DB
+ * (runs the lector migrations), same as first use of `db`.
+ */
+export function getDatabaseInstance(): Database {
+  return getDb();
+}
+
 // Type definitions
 export type WordState = 'new' | 'level1' | 'level2' | 'level3' | 'level4' | 'known' | 'ignored';
 export type VocabType = 'word' | 'phrase';

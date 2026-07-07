@@ -49,9 +49,17 @@ The app works without API keys — the local dictionary covers the top 2000 word
 
 #### Deployment mode
 
-`LECTOR_MODE` selects the deployment shape: `selfhost` (the default — leave it unset, this is the app as it has always been) or `cloud` (the future managed offering). **Cloud mode refuses to boot** until accounts/auth ship (#218) — the flag exists now so the two modes share one codebase and one image ([#242](https://github.com/heuwels/lector/issues/242)). Self-hosting stays free and BYO-everything.
+`LECTOR_MODE` selects the deployment shape: `selfhost` (the default — leave it unset, this is the app as it has always been: single user, no login) or `cloud` — real accounts and per-user data, powered by built-in [Better Auth](https://better-auth.com) sessions ([#218](https://github.com/heuwels/lector/issues/218)). The two modes share one codebase and one image ([#242](https://github.com/heuwels/lector/issues/242)); self-hosting stays free and BYO-everything. Cloud mode is also the **multi-user opt-in for self-hosters** — run it on your own box to give each household member their own library.
 
-The one exception is the **cloud canary**: `LECTOR_CLOUD_GATE=external` declares that an authenticating gateway (e.g. Cloudflare Access) fronts every request, letting cloud mode boot with app-level auth delegated to the gate. The full canary deployment (AWS CDK + Cloudflare Tunnel) lives in [`deploy/cloud/`](deploy/cloud/).
+Cloud mode env:
+
+- `BETTER_AUTH_SECRET` (**required** — cloud refuses to boot without it; generate with `openssl rand -base64 32`)
+- `BETTER_AUTH_URL` — the public origin auth links are minted against (e.g. `https://app.example.com`)
+- `LECTOR_TRUSTED_ORIGINS` — comma-separated browser origins allowed to send credentialed cross-origin requests (only needed when the UI is served from a different origin than the API)
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — optional; enables "Sign in with GitHub"
+- `RESEND_API_KEY` (+ optional `EMAIL_FROM`) — verification and password-reset email delivery; without it, emails land in the server log (fine for trying it out on your own box)
+
+The **cloud canary** exception is unchanged: `LECTOR_CLOUD_GATE=external` declares that an authenticating gateway (e.g. Cloudflare Access) fronts every request, letting cloud mode boot with app-level auth delegated to the gate (built-in accounts are not mounted). The full canary deployment (AWS CDK + Cloudflare Tunnel) lives in [`deploy/cloud/`](deploy/cloud/).
 
 ### AnkiConnect
 

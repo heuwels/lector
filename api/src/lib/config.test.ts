@@ -46,19 +46,24 @@ describe('parseCloudGate', () => {
 });
 
 describe('assertBootableMode', () => {
-  test('selfhost boots, with or without a gate declared', () => {
-    expect(() => assertBootableMode('selfhost', 'none')).not.toThrow();
-    expect(() => assertBootableMode('selfhost', 'external')).not.toThrow();
+  test('selfhost boots, with or without a gate or secret declared', () => {
+    expect(() => assertBootableMode('selfhost', 'none', false)).not.toThrow();
+    expect(() => assertBootableMode('selfhost', 'none', true)).not.toThrow();
+    expect(() => assertBootableMode('selfhost', 'external', false)).not.toThrow();
   });
 
-  test('cloud without a gate is fail-closed until accounts ship (#218)', () => {
-    expect(() => assertBootableMode('cloud', 'none')).toThrow(/not available yet/);
-    expect(() => assertBootableMode('cloud', 'none')).toThrow(/#218/);
-    expect(() => assertBootableMode('cloud', 'none')).toThrow(/LECTOR_CLOUD_GATE=external/);
+  test('cloud proper without BETTER_AUTH_SECRET is fail-closed (#218: no default-secret sessions)', () => {
+    expect(() => assertBootableMode('cloud', 'none', false)).toThrow(/BETTER_AUTH_SECRET/);
+    expect(() => assertBootableMode('cloud', 'none', false)).toThrow(/#218/);
+    expect(() => assertBootableMode('cloud', 'none', false)).toThrow(/LECTOR_CLOUD_GATE=external/);
   });
 
-  test('cloud behind a declared external gate boots (the canary shape)', () => {
-    expect(() => assertBootableMode('cloud', 'external')).not.toThrow();
+  test('cloud proper with a secret boots — built-in accounts are live (#218)', () => {
+    expect(() => assertBootableMode('cloud', 'none', true)).not.toThrow();
+  });
+
+  test('cloud behind a declared external gate boots without a secret (the canary shape)', () => {
+    expect(() => assertBootableMode('cloud', 'external', false)).not.toThrow();
   });
 });
 
