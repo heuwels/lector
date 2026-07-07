@@ -131,17 +131,19 @@ describe('userId scoping ratchet', () => {
     const settings = (await list.json()) as Record<string, unknown>;
     expect(settings.ratchet_secret).toBeUndefined();
 
-    // Bulk PUT lands on the local user, never anyone else
+    // Bulk PUT lands on the local user, never anyone else. Must be an
+    // allowlisted key — settings writes are validated since #233.
     const put = await settingsApp.request('/', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ratchet_mine: 'y' }),
+      body: JSON.stringify({ timezone: 'Australia/Sydney' }),
     });
     expect(put.status).toBe(200);
     const row = db
-      .prepare("SELECT userId FROM settings WHERE key = 'ratchet_mine'")
+      .prepare("SELECT userId FROM settings WHERE key = 'timezone'")
       .get() as { userId: string };
     expect(row.userId).toBe('local');
+    db.prepare("DELETE FROM settings WHERE key = 'timezone'").run();
   });
 
   test("cloze counts don't leak another user's totals", async () => {

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
-import { db } from '../db';
+import { db, SettingRow } from '../db';
 import { getCurrentUserId } from '../lib/user';
+import { SENSITIVE_KEYS, REDACTION_SENTINEL } from '../lib/settings-keys';
 import { countWords } from '../lib/html-to-markdown';
 import { randomUUID } from 'crypto';
 
@@ -18,7 +19,12 @@ app.get('/', (c) => {
   const knownWords = db.prepare('SELECT * FROM knownWords WHERE userId = ?').all(userId);
   const clozeSentences = db.prepare('SELECT * FROM clozeSentences WHERE userId = ?').all(userId);
   const dailyStats = db.prepare('SELECT * FROM dailyStats WHERE userId = ?').all(userId);
-  const settings = db.prepare('SELECT * FROM settings WHERE userId = ?').all(userId);
+  // Never export credentials: GET /api/settings masks them as `true`, so the
+  // backup must not hand out the same keys in cleartext (#233). The sentinel
+  // keeps the key visible in the backup; restore skips it (below).
+  const settings = (db.prepare('SELECT * FROM settings WHERE userId = ?').all(userId) as SettingRow[]).map(
+    (s) => (SENSITIVE_KEYS.has(s.key) ? { ...s, value: REDACTION_SENTINEL } : s)
+  );
 
   return c.json({
     exportedAt: new Date().toISOString(),
@@ -178,6 +184,9 @@ app.post('/', async (c) => {
     const stmt = db.prepare('INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)');
     for (const s of data.settings) {
       const value = typeof s.value === 'string' ? s.value : JSON.stringify(s.value);
+      // Redacted exports carry a sentinel for credential keys — never
+      // overwrite a real stored key with it (#233).
+      if (value === REDACTION_SENTINEL || value === JSON.stringify(REDACTION_SENTINEL)) continue;
       stmt.run(userId, s.key, value);
       results.settings++;
     }

@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
 import { getCurrentUserId } from '../lib/user';
 import { db, SettingRow } from '../db';
-
-const SENSITIVE_KEYS = new Set(['anthropicApiKey', 'claudeOauthToken', 'lmstudioApiKey', 'openaiApiKey']);
+import { SENSITIVE_KEYS, validateSettingWrite } from '../lib/settings-keys';
 
 const app = new Hono();
 
@@ -27,6 +26,13 @@ app.get('/', (c) => {
 // PUT /api/settings
 app.put('/', async (c) => {
   const body = await c.req.json();
+
+  // Validate the whole batch before writing anything — a 400 must not leave
+  // half the batch applied.
+  for (const [key, value] of Object.entries(body)) {
+    const err = validateSettingWrite(key, value);
+    if (err) return c.json({ error: err }, 400);
+  }
 
   const userId = getCurrentUserId(c);
   const stmt = db.prepare('INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)');
@@ -61,6 +67,9 @@ app.get('/:key', (c) => {
 app.put('/:key', async (c) => {
   const key = c.req.param('key');
   const body = await c.req.json();
+
+  const err = validateSettingWrite(key, body.value);
+  if (err) return c.json({ error: err }, 400);
 
   db.prepare('INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)').run(getCurrentUserId(c), key, JSON.stringify(body.value));
 
