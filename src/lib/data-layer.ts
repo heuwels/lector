@@ -747,6 +747,15 @@ export async function getAllDailyStats(): Promise<DailyStats[]> {
   return res.json();
 }
 
+// App-wide activity per date (no language param on purpose, #238) — feeds the
+// heatmap so it agrees with the equally app-wide streak.
+export async function getAppWideActivity(): Promise<
+  Pick<DailyStats, 'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'>[]
+> {
+  const res = await apiFetch('/api/stats/activity');
+  return res.json();
+}
+
 export async function getRecentStats(days: number = 7): Promise<DailyStats[]> {
   const res = await apiFetch(`/api/stats?days=${days}${langParam('&')}`);
   return res.json();
