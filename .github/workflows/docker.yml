@@ -107,3 +107,69 @@ jobs:
           docker buildx imagetools create $TAG_ARGS \
             ghcr.io/heuwels/lector:sha-${{ github.sha }}-amd64 \
             ghcr.io/heuwels/lector:sha-${{ github.sha }}-arm64
+
+  # Roll the cloud canary (app.lector.dev, #242) to the image this run just
+  # published. The canary tracks master for now; whether cloud should pin to
+  # release tags instead — or releases stay the self-host channel — is an
+  # open call. Note ci.yml runs the suite on this same push but does not
+  # block this job (DX-02): true gating needs a branch-protection rule.
+  #
+  # Auth: GitHub OIDC → the lector-canary-github-deploy role (its own stack:
+  # deploy/cloud/cdk/lib/ci-stack.ts) — SSM-only, scoped by instance tags.
+  # What runs on the box: deploy/cloud/deploy-canary.sh.
+  deploy-canary:
+    runs-on: ubuntu-latest
+    needs: [merge]
+    # Never two updates on the box at once; a queued newer push supersedes.
+    concurrency:
+      group: canary-deploy
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v6
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::383411034829:role/lector-canary-github-deploy
+          aws-region: us-east-1
+      - name: Update canary over SSM
+        run: |
+          set -euo pipefail
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:project,Values=lector" \
+                      "Name=tag:stack,Values=cloud-canary" \
+                      "Name=instance-state-name,Values=running" \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          if [ "$(echo "$INSTANCE_ID" | wc -w)" -ne 1 ]; then
+            echo "expected exactly one running canary instance, got: '$INSTANCE_ID'" >&2
+            exit 1
+          fi
+          echo "deploying to $INSTANCE_ID"
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "canary deploy ${GITHUB_SHA:0:12}" \
+            --parameters "$(jq -Rn --rawfile s deploy/cloud/deploy-canary.sh \
+              '{commands: [$s], executionTimeout: ["600"]}')" \
+            --query Command.CommandId --output text)
+          echo "ssm command: $CMD_ID"
+          STATUS=Pending
+          for _ in $(seq 1 120); do
+            STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" \
+              --instance-id "$INSTANCE_ID" --query Status --output text \
+              2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Pending|InProgress|Delayed) sleep 5 ;;
+              *) break ;;
+            esac
+          done
+          aws ssm get-command-invocation --command-id "$CMD_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          aws ssm get-command-invocation --command-id "$CMD_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text >&2
+          echo "status: $STATUS"
+          [ "$STATUS" = "Success" ]
