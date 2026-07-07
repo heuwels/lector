@@ -38,6 +38,7 @@ export class AnthropicProvider implements LLMProvider {
     classification: string;
   };
   private useAgentSdk: boolean;
+  private oauthToken: string | undefined;
 
   constructor(options?: AnthropicProviderOptions) {
     const oauthToken =
@@ -56,6 +57,10 @@ export class AnthropicProvider implements LLMProvider {
       this.client = new Anthropic({ apiKey });
     } else if (oauthToken) {
       this.useAgentSdk = true;
+      // Kept so completeViaAgentSdk can hand it to the SDK's subprocess env —
+      // the subprocess does NOT see this provider's resolution (settings-stored
+      // tokens and CLAUDE_OAUTH_TOKEN would otherwise be invisible to it, #247).
+      this.oauthToken = oauthToken;
       this.client = null;
     } else {
       this.useAgentSdk = false;
@@ -170,6 +175,11 @@ export class AnthropicProvider implements LLMProvider {
         systemPrompt: options.messages.find((m) => m.role === 'system')?.content || undefined,
         allowedTools: [],
         permissionMode: 'bypassPermissions',
+        // The SDK spawns a Claude Code subprocess that authenticates from its
+        // own env (CLAUDE_CODE_OAUTH_TOKEN) — it never sees the token this
+        // provider resolved from settings or CLAUDE_OAUTH_TOKEN unless we pass
+        // it explicitly. Without this, those sources yield "Not logged in" (#247).
+        env: { ...process.env, CLAUDE_CODE_OAUTH_TOKEN: this.oauthToken },
       },
     })) {
       if (message.type === 'assistant') {

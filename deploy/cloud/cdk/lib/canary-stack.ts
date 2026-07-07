@@ -206,11 +206,6 @@ put() { # put <ENV_KEY> <param-suffix>
 }
 put TUNNEL_TOKEN          tunnel-token
 put CLAUDE_OAUTH_TOKEN    claude-oauth-token
-# Same token under the name the Claude Agent SDK subprocess actually reads.
-# The app finds CLAUDE_OAUTH_TOKEN but does not forward it to the SDK's
-# subprocess env (app bug - see heuwels/lector issue re: agent SDK oauth),
-# so without this the oauth path reports "Not logged in".
-put CLAUDE_CODE_OAUTH_TOKEN claude-oauth-token
 put ANTHROPIC_API_KEY     anthropic-api-key
 put OPENAI_COMPAT_API_KEY openrouter-api-key
 put GOOGLE_CLOUD_API_KEY  google-api-key
