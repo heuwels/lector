@@ -281,7 +281,34 @@ function getDb(): Database {
   // Dead table from a long-removed translation-comparison experiment (DEBT-03).
   _db.exec('DROP TABLE IF EXISTS translation_evaluations');
 
+  ensurePartitionIndexes(_db);
+
   return _db;
+}
+
+/**
+ * Composite indexes for the partitioned hot paths (#239, plan 008). Nearly
+ * every user-data query filters WHERE userId = ? AND language = ?, but the
+ * audit's EXPLAIN QUERY PLAN showed full SCANs on knownWords (reader per-open
+ * + 2× per /fluency), vocab (scan + temp B-tree for ORDER BY createdAt),
+ * clozeSentences (due/least-reviewed picks), and dailyStats — cost grows
+ * linearly with vocabulary and bank size. Plan 008 predates the userId axis
+ * (#217), so these lead with userId. vocab(userId, language, text) also backs
+ * the single-row ?text= lookup (#240, plan 009).
+ *
+ * Must run after migrateAddLanguageColumn + migrateAddUserIdColumn (both
+ * columns must exist, and those table rebuilds drop any indexes on the way).
+ */
+function ensurePartitionIndexes(database: Database) {
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_knownWords_user_lang_state ON knownWords(userId, language, state);
+    CREATE INDEX IF NOT EXISTS idx_vocab_user_lang_created ON vocab(userId, language, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_vocab_user_lang_state ON vocab(userId, language, state);
+    CREATE INDEX IF NOT EXISTS idx_vocab_user_lang_text ON vocab(userId, language, text);
+    CREATE INDEX IF NOT EXISTS idx_cloze_user_lang_nextReview ON clozeSentences(userId, language, nextReview);
+    CREATE INDEX IF NOT EXISTS idx_cloze_user_lang_reviewCount ON clozeSentences(userId, language, reviewCount);
+    CREATE INDEX IF NOT EXISTS idx_dailyStats_user_lang_date ON dailyStats(userId, language, date);
+  `);
 }
 
 /**
