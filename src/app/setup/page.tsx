@@ -9,6 +9,7 @@ const languageCards: { code: LanguageCode; flag: string; native: string; name: s
   { code: 'af', flag: LANGUAGES.af.flag, native: LANGUAGES.af.native, name: LANGUAGES.af.name },
   { code: 'de', flag: LANGUAGES.de.flag, native: LANGUAGES.de.native, name: LANGUAGES.de.name },
   { code: 'es', flag: LANGUAGES.es.flag, native: LANGUAGES.es.native, name: LANGUAGES.es.name },
+  { code: 'fr', flag: LANGUAGES.fr.flag, native: LANGUAGES.fr.native, name: LANGUAGES.fr.name },
 ];
 
 export default function SetupPage() {

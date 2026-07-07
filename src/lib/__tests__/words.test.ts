@@ -31,6 +31,14 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation('¿Cómo')[0]).toBe('Cómo');
     expect(splitTrailingPunctuation('¡Hola!')).toEqual(['Hola', '!']);
   });
+
+  it('strips French guillemets but keeps an elided clitic token intact', () => {
+    expect(splitTrailingPunctuation('«Où»')[0]).toBe('Où');
+    expect(splitTrailingPunctuation('café.')).toEqual(['café', '.']);
+    // WORD_PATTERN splits l'eau → l + eau at render time; splitTrailingPunctuation
+    // itself only strips outer punctuation, so an apostrophe token survives here.
+    expect(splitTrailingPunctuation("qu'il")).toEqual(["qu'il", '']);
+  });
 });
 
 describe('sentenceContainsWord', () => {
@@ -66,6 +74,16 @@ describe('sentenceContainsWord', () => {
   it('handles empty inputs', () => {
     expect(sentenceContainsWord('', 'vrug')).toBe(false);
     expect(sentenceContainsWord('Die vrugte is lekker.', '')).toBe(false);
+  });
+
+  it('finds the content word after a French elision (l\'eau → eau)', () => {
+    expect(sentenceContainsWord("L'eau est claire.", 'eau')).toBe(true);
+    expect(sentenceContainsWord("Je pense qu'il dort.", 'il')).toBe(true);
+    expect(sentenceContainsWord("J'aime le café.", 'aime')).toBe(true);
+    // still a whole-token match — the clitic side stays addressable too
+    expect(sentenceContainsWord("L'eau est claire.", 'eau')).toBe(true);
+    // and a genuine substring is still rejected
+    expect(sentenceContainsWord("L'eau est claire.", 'clair')).toBe(false);
   });
 });
 

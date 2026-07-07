@@ -35,5 +35,16 @@ export function sentenceContainsWord(sentence: string, word: string): boolean {
   return sentence
     .toLowerCase()
     .split(NON_TOKEN_CHARS)
-    .some((token) => token === target || token.replace(/^['’]+|['’]+$/g, '') === target);
+    .some((token) => {
+      if (token === target) return true;
+      const stripped = token.replace(/^['’]+|['’]+$/g, '');
+      if (stripped === target) return true;
+      // French elision (l'eau, qu'il, d'accord): the apostrophe glues a clitic
+      // to the content word, so match either side as a whole token — the reader's
+      // WORD_PATTERN already splits these. The Afrikaans 'n has a *leading*
+      // apostrophe, handled by the strip above and unaffected here.
+      return stripped.includes("'") || stripped.includes('’')
+        ? stripped.split(/['’]/).includes(target)
+        : false;
+    });
 }
