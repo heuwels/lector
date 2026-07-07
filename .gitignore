@@ -56,3 +56,9 @@ next-env.d.ts
 /api/bun.lock
 /api/package-lock.json
 /api/.test-data/
+
+# Local SQLite databases (app data + on-device dictionaries) — never commit
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
