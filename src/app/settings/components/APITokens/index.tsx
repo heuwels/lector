@@ -106,6 +106,8 @@ export default function APITokens() {
                 { value: 'settings:write', label: 'Settings (write)' },
                 { value: 'data:export', label: 'Data Export' },
                 { value: 'data:import', label: 'Data Import' },
+                { value: 'chat:read', label: 'Chat / LLM (read)' },
+                { value: 'chat:write', label: 'Chat / LLM (write)' },
               ].map(({ value, label }) => (
                 <label
                   key={value}

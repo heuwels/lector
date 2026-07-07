@@ -27,6 +27,9 @@ function buildApp(): Hono {
   app.get('/api/stats', (c) => c.json({ ok: true }));
   app.get('/api/tokens', (c) => c.json({ ok: true }));
   app.post('/api/tokens', (c) => c.json({ ok: true }));
+  app.post('/api/chat', (c) => c.json({ ok: true }));
+  app.post('/api/llm/openai/v1/chat/completions', (c) => c.json({ ok: true }));
+  app.get('/api/some-future-route', (c) => c.json({ ok: true }));
   return app;
 }
 
@@ -164,6 +167,40 @@ describe('Auth middleware', () => {
   test('allows unauthenticated access to token routes', async () => {
     const res = await app.request('/api/tokens');
     expect(res.status).toBe(200);
+  });
+
+  test('paid-LLM surfaces require the chat scope — a narrow token is denied (SECURITY-07)', async () => {
+    const narrow = createTestToken(['vocab:read', 'collections:*']);
+    for (const path of ['/api/chat', '/api/llm/openai/v1/chat/completions']) {
+      const res = await app.request(path, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${narrow}` },
+      });
+      expect(res.status).toBe(403);
+    }
+
+    const chatToken = createTestToken(['chat:write']);
+    const res = await app.request('/api/chat', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${chatToken}` },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  test('unmapped resources are default-deny for tokens, untouched for local access (SECURITY-07)', async () => {
+    const god = createTestToken(['*']);
+    const res = await app.request('/api/some-future-route', {
+      headers: { Authorization: `Bearer ${god}` },
+    });
+    // Even '*' cannot reach a resource with no SCOPE_MAP entry — new routes
+    // must be mapped before tokens can touch them.
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('not token-accessible');
+
+    // Local (headerless) access is not scope-checked at all.
+    const local = await app.request('/api/some-future-route');
+    expect(local.status).toBe(200);
   });
 
   test('updates lastUsedAt on successful auth', async () => {
