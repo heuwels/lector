@@ -26,6 +26,7 @@ import {
   type ExpandedDictionaryEntry,
 } from '@/lib/dictionary-client';
 import { speak } from '@/lib/tts';
+import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
 import { useActiveLanguage } from '@/utils/hooks';
@@ -391,7 +392,11 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       ankiNoteId: existing?.ankiNoteId,
     };
 
-    await saveVocab(entry);
+    // A failed save must not paint the word as saved (#232).
+    if (!(await saveVocab(entry))) {
+      toast.error('Could not save the word — check your connection and try again.');
+      return;
+    }
     await incrementDailyStat('newWordsSaved');
     persistAcceptedTranslation();
 
@@ -419,9 +424,15 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         createdAt: new Date(),
         pushedToAnki: false,
       };
-      await saveVocab(entry);
+      if (!(await saveVocab(entry))) {
+        toast.error('Could not mark the word as known — check your connection.');
+        return;
+      }
     } else {
-      await updateVocabState(existing.id, 'known');
+      if (!(await updateVocabState(existing.id, 'known'))) {
+        toast.error('Could not mark the word as known — check your connection.');
+        return;
+      }
     }
 
     await incrementDailyStat('wordsMarkedKnown');
@@ -447,9 +458,15 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         createdAt: new Date(),
         pushedToAnki: false,
       };
-      await saveVocab(entry);
+      if (!(await saveVocab(entry))) {
+        toast.error('Could not ignore the word — check your connection.');
+        return;
+      }
     } else {
-      await updateVocabState(existing.id, 'ignored');
+      if (!(await updateVocabState(existing.id, 'ignored'))) {
+        toast.error('Could not ignore the word — check your connection.');
+        return;
+      }
     }
 
     setReaderRefreshTrigger((prev) => prev + 1);
@@ -477,11 +494,17 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           createdAt: new Date(),
           pushedToAnki: false,
         };
-        await saveVocab(entry);
+        if (!(await saveVocab(entry))) {
+          toast.error('Could not set the word level — check your connection.');
+          return;
+        }
         await incrementDailyStat('newWordsSaved');
         setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
       } else {
-        await updateVocabState(existing.id, state);
+        if (!(await updateVocabState(existing.id, state))) {
+          toast.error('Could not set the word level — check your connection.');
+          return;
+        }
         setWordPanel((prev) => ({
           ...prev,
           existingEntry: prev.existingEntry

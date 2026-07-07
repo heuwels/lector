@@ -276,22 +276,26 @@ export async function getVocabByText(text: string): Promise<VocabEntry | undefin
   };
 }
 
-export async function saveVocab(entry: VocabEntry): Promise<string> {
+export async function saveVocab(entry: VocabEntry): Promise<string | null> {
   const res = await apiFetch('/api/vocab', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...entry, language: getActiveLanguage() }),
   });
+  // null = not persisted (#232) — the reader's word-save handlers gate their
+  // optimistic UI on this.
+  if (!res.ok) return null;
   const { id } = await res.json();
   return id;
 }
 
-export async function updateVocabState(id: string, state: WordState): Promise<void> {
-  await apiFetch(`/api/vocab/${id}`, {
+export async function updateVocabState(id: string, state: WordState): Promise<boolean> {
+  const res = await apiFetch(`/api/vocab/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ state }),
   });
+  return res.ok;
 }
 
 export async function getVocabByState(state: WordState): Promise<VocabEntry[]> {
@@ -346,8 +350,11 @@ export async function getWordState(word: string): Promise<WordState | undefined>
   return map.get(word.toLowerCase());
 }
 
-export async function updateWordState(word: string, state: WordState): Promise<void> {
-  await apiFetch('/api/known-words', {
+export async function updateWordState(word: string, state: WordState): Promise<boolean> {
+  // Signals success (#232): apiFetch never throws (it returns a synthetic 502
+  // on network failure), so callers must check res.ok or a failed save looks
+  // exactly like a successful one.
+  const res = await apiFetch('/api/known-words', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -355,6 +362,7 @@ export async function updateWordState(word: string, state: WordState): Promise<v
       language: getActiveLanguage(),
     }),
   });
+  return res.ok;
 }
 
 export async function getKnownWordsMap(): Promise<Map<string, WordState>> {
@@ -715,12 +723,13 @@ export async function getTodayStats(): Promise<DailyStats> {
 export async function incrementDailyStat(
   field: keyof Omit<DailyStats, 'date'>,
   amount: number = 1,
-): Promise<void> {
-  await apiFetch(`/api/stats/today${langParam()}`, {
+): Promise<boolean> {
+  const res = await apiFetch(`/api/stats/today${langParam()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ field, amount }),
   });
+  return res.ok;
 }
 
 export async function getStatsForDateRange(

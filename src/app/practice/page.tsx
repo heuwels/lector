@@ -10,13 +10,11 @@ import {
   getClozeSentencesByCollection,
   getNewSentencesByCollection,
   getCollectionCounts,
-  updateClozeAfterReview,
   getTodayStats,
-  incrementDailyStat,
   migrateClozeSentences,
   seedSentenceBank,
-  updateWordState,
 } from '@/lib/data-layer';
+import { persistReview } from './persist-review';
 import { speak } from '@/lib/tts';
 import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
 import { translateWord } from '@/lib/claude';
@@ -403,21 +401,26 @@ export default function PracticePage() {
   // points their own way, then hand the result here. The card, mastery levels
   // and retry queue are identical across formats (same clozeSentences row).
   const commitReview = useCallback(
-    async (isCorrect: boolean, earnedPoints: number, newMastery: ClozeMasteryLevel) => {
-      if (!current) return;
+    async (
+      isCorrect: boolean,
+      earnedPoints: number,
+      newMastery: ClozeMasteryLevel,
+    ): Promise<boolean> => {
+      if (!current) return false;
       const nextReview = calculateNextReview(newMastery);
 
-      // Update database
-      await updateClozeAfterReview(current.sentence.id, isCorrect, newMastery, nextReview);
-      if (newMastery === 100) {
-        // Strip trailing punctuation so the reader's known-word lookup (clean,
-        // lowercased tokens) matches and fluency stats don't double-count.
-        await updateWordState(splitTrailingPunctuation(current.sentence.clozeWord)[0], 'known');
-      }
-      await incrementDailyStat('clozePracticed');
-      if (earnedPoints > 0) {
-        await incrementDailyStat('points', earnedPoints);
-      }
+      // Persist first (#232). If the review row didn't save, nothing advances —
+      // persistReview already surfaced the error; the caller keeps the learner
+      // on the question instead of showing a feedback screen for a lost answer.
+      const committed = await persistReview(
+        current.sentence.id,
+        current.sentence.clozeWord,
+        isCorrect,
+        earnedPoints,
+        newMastery,
+        nextReview,
+      );
+      if (!committed) return false;
 
       // Update local state — only count first-pass answers toward round progress,
       // so retried sentences don't push the counter past roundSize (issue #57).
@@ -438,6 +441,7 @@ export default function PracticePage() {
           { ...current.sentence, masteryLevel: 0 as ClozeMasteryLevel },
         ]);
       }
+      return true;
     },
     [current, isRetryPhase],
   );
@@ -467,7 +471,15 @@ export default function PracticePage() {
             )
           : 0;
 
-      await commitReview(isCorrect, earnedPoints, newMastery);
+      const committed = await commitReview(isCorrect, earnedPoints, newMastery);
+      if (!committed) {
+        // The answer wasn't saved — stay on the question and unlock the inputs
+        // so it can be resubmitted (the error toast came from persistReview).
+        submittingRef.current = false;
+        setMcLocked(false);
+        setMcSelected(null);
+        return;
+      }
 
       setFeedbackData({
         isCorrect,
@@ -518,7 +530,8 @@ export default function PracticePage() {
       const earnedPoints =
         isPass && !isRetryPhase ? calculateDictationPoints(newMastery, diff.accuracy) : 0;
 
-      await commitReview(isPass, earnedPoints, newMastery);
+      const committed = await commitReview(isPass, earnedPoints, newMastery);
+      if (!committed) return; // not saved — stay on the dictation input
 
       setDictationResult({
         diff,
