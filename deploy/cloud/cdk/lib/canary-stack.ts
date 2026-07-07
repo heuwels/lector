@@ -190,9 +190,19 @@ TMP=$(mktemp)
 chmod 600 "$TMP"
 put() { # put <ENV_KEY> <param-suffix>
   VAL=$(get_param "__PARAM_PREFIX__/$2")
-  if [ -n "$VAL" ] && [ "$VAL" != "None" ]; then
-    printf '%s=%s\\n' "$1" "$VAL" >> "$TMP"
+  if [ -z "$VAL" ] || [ "$VAL" = "None" ]; then
+    return 0
   fi
+  # Every value here is a token/key/slug - none may contain whitespace. A
+  # value with spaces or newlines means the parameter was stored wrong (e.g.
+  # a command's full prose output instead of the bare token); writing it
+  # would corrupt .env and can leak the value through error paths. Skip it
+  # loudly, never printing the value itself.
+  if printf '%s' "$VAL" | grep -q "[[:space:]]"; then
+    echo "WARNING: __PARAM_PREFIX__/$2 contains whitespace - looks like a malformed value (did a command's full output get stored instead of the bare secret?). Skipping it; re-put the parameter with --overwrite." >&2
+    return 0
+  fi
+  printf '%s=%s\\n' "$1" "$VAL" >> "$TMP"
 }
 put TUNNEL_TOKEN          tunnel-token
 put CLAUDE_OAUTH_TOKEN    claude-oauth-token
@@ -211,7 +221,7 @@ if [ -n "$GHCR_TOKEN" ] && [ "$GHCR_TOKEN" != "None" ]; then
   echo "$GHCR_TOKEN" | docker login ghcr.io -u token --password-stdin
 fi
 echo "refreshed $ENVFILE with keys:"
-cut -d= -f1 "$ENVFILE"
+awk -F= 'NF>1{print $1}' "$ENVFILE"
 REFRESHEOF
 sed -i "s|__REGION__|${this.region}|g; s|__PARAM_PREFIX__|${PARAM_PREFIX}|g" /srv/lector/refresh-env.sh
 chmod +x /srv/lector/refresh-env.sh

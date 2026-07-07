@@ -68,9 +68,11 @@ Design notes:
    ```bash
    aws ssm put-parameter --name /lector/canary/tunnel-token \
      --type SecureString --value 'eyJ…'
-   # LLM via your Claude plan credits (canary-friendly, $0 marginal):
+   # LLM via your Claude plan credits (canary-friendly, $0 marginal).
+   # NOTE: `claude setup-token` prints prose AROUND the token — do NOT command-
+   # substitute its output. Run it, copy the bare sk-ant-oat01-… string, paste:
    aws ssm put-parameter --name /lector/canary/claude-oauth-token \
-     --type SecureString --value "$(claude setup-token)"
+     --type SecureString --value 'sk-ant-oat01-…'
    # …or LLM via OpenRouter (one key, any model):
    aws ssm put-parameter --name /lector/canary/openrouter-api-key \
      --type SecureString --value 'sk-or-…'
