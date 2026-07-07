@@ -321,6 +321,11 @@ services:
   litestream:
     image: litestream/litestream:latest
     container_name: litestream
+    # Match the uid that owns the data files (the app image's nextjs user):
+    # litestream must WRITE to the db (it keeps its state in a _litestream_seq
+    # table), and its image doesn't run as root — without this it fails with
+    # "attempt to write a readonly database".
+    user: "1001:1001"
     restart: unless-stopped
     command: replicate
     volumes:
