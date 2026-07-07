@@ -51,8 +51,7 @@ next-env.d.ts
 # Isolated e2e data dir (playwright.config.ts webServer)
 /tmp/
 
-# Hono API (Bun)
+# Hono API (Bun) — bun.lock is committed (reproducible builds, #236)
 /api/node_modules
-/api/bun.lock
 /api/package-lock.json
 /api/.test-data/

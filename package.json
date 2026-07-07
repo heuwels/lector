@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "license": "AGPL-3.0-only",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev --port 3456",
     "dev:api": "cd api && bun run --env-file=../.env.local --watch src/index.ts",
@@ -44,7 +47,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/adm-zip": "^0.5.8",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "adm-zip": "^0.5.17",

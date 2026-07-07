@@ -18,7 +18,7 @@ A self-hosted language learning reader — LingQ-style reading, Clozemaster-styl
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+ (see `.nvmrc`)
 - npm
 
 ### Development
