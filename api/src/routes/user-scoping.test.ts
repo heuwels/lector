@@ -365,6 +365,139 @@ describe('per-user library ratchet (#220)', () => {
     expect(row.userId).toBe('local');
   });
 
+  // The id-only-PK overwrite class: collections/lessons/vocab/clozeSentences/
+  // collection_groups keep `id TEXT PRIMARY KEY` (userId is a plain column),
+  // so an INSERT OR REPLACE keyed on a client-supplied id would conflict on
+  // the GLOBAL id namespace — replacing another tenant's row and re-creating
+  // it under the writer. The upsert paths must leave a foreign row untouched.
+
+  test("posting vocab with another user's row id cannot overwrite or steal it", async () => {
+    seedIntruderVocab('v_intruder');
+
+    const res = await vocabApp.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'v_intruder', text: 'gekaap', language: 'af' }),
+    });
+    expect(res.status).toBe(200);
+
+    const row = db
+      .prepare('SELECT userId, text FROM vocab WHERE id = ?')
+      .get('v_intruder') as { userId: string; text: string };
+    expect(row.userId).toBe(INTRUDER);
+    expect(row.text).toBe('geheim');
+  });
+
+  test("bulk cloze upsert with another user's ids cannot overwrite or steal them", async () => {
+    seedIntruderCloze('c_intruder');
+
+    const res = await clozeApp.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([
+        { id: 'c_intruder', sentence: 'Gekaapte ___.', clozeWord: 'sin', clozeIndex: 0, translation: 'x', language: 'af' },
+      ]),
+    });
+    expect(res.status).toBe(200);
+
+    const row = db
+      .prepare('SELECT userId, sentence FROM clozeSentences WHERE id = ?')
+      .get('c_intruder') as { userId: string; sentence: string };
+    expect(row.userId).toBe(INTRUDER);
+    expect(row.sentence).toBe('Die ___ is geheim.');
+  });
+
+  test("restoring a backup carrying another user's row ids cannot hijack their rows", async () => {
+    seedIntruderCollection('col_intruder');
+    seedIntruderVocab('v_intruder');
+
+    const res = await dataApp.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        collections: [{ id: 'col_intruder', title: 'Gekaap', createdAt: TS, lastReadAt: TS }],
+        vocab: [{ id: 'v_intruder', text: 'gekaap', translation: 'hijacked' }],
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const col = db
+      .prepare('SELECT userId, title FROM collections WHERE id = ?')
+      .get('col_intruder') as { userId: string; title: string };
+    expect(col.userId).toBe(INTRUDER);
+    expect(col.title).toBe('Geheime Boek');
+
+    const voc = db
+      .prepare('SELECT userId, text FROM vocab WHERE id = ?')
+      .get('v_intruder') as { userId: string; text: string };
+    expect(voc.userId).toBe(INTRUDER);
+    expect(voc.text).toBe('geheim');
+  });
+
+  test("mined cloze seeding works for a tenant even when another tenant already holds the bank ids (#220)", async () => {
+    const bank = (await import('../lib/sentence-bank-af.json')).default as {
+      id: number | string;
+      source?: string;
+    }[];
+    const firstMined = bank.find((s) => s.source === 'mined');
+    expect(firstMined).toBeTruthy();
+
+    // Another tenant seeded first (pre-namespacing rows hold the raw bank id).
+    db.prepare(
+      `INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, nextReview, language, userId)
+       VALUES (?, 'Indringer se sin.', 'sin', 0, 'x', 'mined', 'mined', ?, 'af', ?)`,
+    ).run(String(firstMined!.id), TS, INTRUDER);
+
+    const res = await clozeApp.request('/seed?language=af', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const seeded = (await res.json()) as { mined: number };
+    // Every mined bank row lands for the requesting tenant — the intruder's
+    // rows must not shadow them (the old global-id INSERT OR IGNORE skipped
+    // any id another tenant already held).
+    expect(seeded.mined).toBeGreaterThan(0);
+
+    const mine = db
+      .prepare("SELECT COUNT(*) AS n FROM clozeSentences WHERE userId = 'local' AND source = 'mined' AND language = 'af'")
+      .get() as { n: number };
+    expect(mine.n).toBe(seeded.mined);
+
+    // The intruder's row is untouched.
+    const theirs = db
+      .prepare('SELECT userId, sentence FROM clozeSentences WHERE id = ?')
+      .get(String(firstMined!.id)) as { userId: string; sentence: string };
+    expect(theirs.userId).toBe(INTRUDER);
+    expect(theirs.sentence).toBe('Indringer se sin.');
+  });
+
+  test('mined cloze re-seeding stays idempotent, including rows seeded before id namespacing', async () => {
+    const bank = (await import('../lib/sentence-bank-af.json')).default as {
+      id: number | string;
+      source?: string;
+    }[];
+    const legacy = bank.find((s) => s.source === 'mined');
+
+    // One of the local user's mined rows predates namespaced ids (raw bank id).
+    db.prepare(
+      `INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, nextReview, language, userId)
+       VALUES (?, 'Ou saad-ry.', 'saad', 0, 'x', 'mined', 'mined', ?, 'af', 'local')`,
+    ).run(String(legacy!.id), TS);
+
+    const first = (await (await clozeApp.request('/seed?language=af', { method: 'POST' })).json()) as { mined: number };
+    const second = (await (await clozeApp.request('/seed?language=af', { method: 'POST' })).json()) as { mined: number };
+
+    // The legacy row is recognized as already seeded (not duplicated), and a
+    // repeat seed inserts nothing new.
+    const total = db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM clozeSentences
+          WHERE userId = 'local' AND source = 'mined' AND language = 'af'`,
+      )
+      .get() as { n: number };
+    // total = the legacy row + everything the first seed added; the second seed adds zero.
+    expect(total.n).toBe(first.mined + 1);
+    expect(second.mined).toBe(0);
+  });
+
   test('an EPUB import stamps the collection and every lesson with the requester (#220)', async () => {
     const zip = new AdmZip();
     zip.addFile('mimetype', Buffer.from('application/epub+zip'));
