@@ -5,6 +5,7 @@ import { Book, BookOpen, CheckCircle, Flame } from 'lucide-react';
 import Link from 'next/link';
 import {
   getAllDailyStats,
+  getAppWideActivity,
   getClozeTotals,
   getAllVocab,
   getCollectionCounts,
@@ -65,8 +66,15 @@ export default function StatsPage() {
 
         // Fetch all history so the "All" range and the cumulative growth series
         // have everything; panels that are scoped to "the last year" slice it.
-        const [dailyStats, allVocab] = await Promise.all([getAllDailyStats(), getAllVocab()]);
+        // The per-language series feeds the per-language panels; the app-wide
+        // activity series feeds the heatmap only (#238).
+        const [dailyStats, allVocab, appWideActivity] = await Promise.all([
+          getAllDailyStats(),
+          getAllVocab(),
+          getAppWideActivity(),
+        ]);
         const last365 = sliceSeriesByDays(dailyStats, 365, endDate);
+        const activityLast365 = sliceSeriesByDays(appWideActivity, 365, endDate);
 
         const totalClozeAttempts = last365.reduce((sum, d) => sum + d.clozePracticed, 0);
         const totalPoints = last365.reduce((sum, d) => sum + d.points, 0);
@@ -80,9 +88,11 @@ export default function StatsPage() {
         const longestStreak = streakData.longest;
 
         // Activity heatmap: composite study activity (lookups + cloze reviews +
-        // reading minutes) so the heatmap agrees with the streak, not dictionary
-        // lookups alone. Limited to the last year the heatmap renders.
-        const activityData = last365.map((d) => ({
+        // reading minutes + Anki) over the APP-WIDE series, so the heatmap
+        // agrees with the equally app-wide streak — a day studied only in
+        // another language must not render as an empty cell (#238). All other
+        // panels stay language-scoped. Limited to the last year it renders.
+        const activityData = activityLast365.map((d) => ({
           date: d.date,
           count: compositeActivityCount(d),
           // Per-type breakdown so the heatmap tooltip can show what made up the day.

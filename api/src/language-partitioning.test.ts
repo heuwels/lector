@@ -39,6 +39,9 @@ const ALLOWLIST: { file: string; match: string; why: string; transient?: boolean
   { file: 'routes/data.ts', match: 'SELECT * FROM dailyStats', why: 'full-DB backup export' },
   // One streak across all languages (CLAUDE.md / issue #108): aggregates every day row.
   { file: 'routes/stats.ts', match: 'dictionaryLookups, clozePracticed, minutesRead, ankiReviews', why: 'app-wide streak' },
+  // The heatmap must agree with that app-wide streak (#238): same unscoped stance,
+  // summed per date across languages.
+  { file: 'routes/stats.ts', match: 'SUM(dictionaryLookups) as dictionaryLookups', why: 'app-wide activity heatmap' },
   // "Did you study today" is app-wide (Sphere Guardian MCP): sums every language for the date.
   { file: 'routes/study-ping.ts', match: 'COALESCE(SUM(dictionaryLookups)', why: 'app-wide study-today aggregate' },
   // Chat history TTL cleanup is age-based, not language-based — expires old rows of any language.

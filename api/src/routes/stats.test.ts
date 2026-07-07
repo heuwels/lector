@@ -100,3 +100,34 @@ describe('stats /fluency — byDomain + pending', () => {
     expect(body.totalKnownWords).toBe(4);
   });
 });
+
+describe('GET /api/stats/activity — app-wide heatmap series (#238)', () => {
+  beforeEach(reset);
+  afterEach(reset);
+
+  test('sums per date across languages so the heatmap agrees with the streak', async () => {
+    setLang('af');
+    // Same day, two languages: af has lookups, de has cloze practice.
+    db.prepare(
+      'INSERT INTO dailyStats (date, language, dictionaryLookups, clozePracticed) VALUES (?, ?, ?, ?)',
+    ).run('2026-06-01', 'af', 3, 0);
+    db.prepare(
+      'INSERT INTO dailyStats (date, language, dictionaryLookups, clozePracticed) VALUES (?, ?, ?, ?)',
+    ).run('2026-06-01', 'de', 0, 7);
+    // A de-only day — the language-scoped af series would render this empty.
+    db.prepare(
+      'INSERT INTO dailyStats (date, language, minutesRead) VALUES (?, ?, ?)',
+    ).run('2026-06-02', 'de', 12);
+
+    const res = await app.request('/activity');
+    expect(res.status).toBe(200);
+    const rows = (await res.json()) as {
+      date: string; dictionaryLookups: number; clozePracticed: number; minutesRead: number;
+    }[];
+
+    expect(rows.length).toBe(2);
+    expect(rows[0]).toMatchObject({ date: '2026-06-01', dictionaryLookups: 3, clozePracticed: 7 });
+    // The de-only day is present regardless of the active language.
+    expect(rows[1]).toMatchObject({ date: '2026-06-02', minutesRead: 12 });
+  });
+});

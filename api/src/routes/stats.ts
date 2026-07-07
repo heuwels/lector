@@ -213,6 +213,33 @@ app.get('/streak', (c) => {
   return c.json({ streak: current, longest, practicedToday: activeToday });
 });
 
+// GET /api/stats/activity
+// App-wide daily activity for the heatmap — the same deliberately-unscoped
+// stance as /streak (#238): a day studied only in language X must render as an
+// active cell under language Y, or the heatmap contradicts the streak shown
+// beside it. SUMs per date across languages, one user's rows only.
+// ankiReviews is included because the streak's isActiveDay counts it —
+// excluding it would re-create the disagreement for Anki-only days. (Its
+// per-language attribution quirk is CORRECTNESS-11, a separate issue; it can
+// inflate cell intensity, never active/inactive agreement.)
+app.get('/activity', (c) => {
+  const userId = getCurrentUserId(c);
+  const rows = db
+    .prepare(
+      `SELECT date,
+        SUM(dictionaryLookups) as dictionaryLookups,
+        SUM(clozePracticed) as clozePracticed,
+        SUM(minutesRead) as minutesRead,
+        SUM(ankiReviews) as ankiReviews
+      FROM dailyStats
+      WHERE userId = ?
+      GROUP BY date
+      ORDER BY date ASC`,
+    )
+    .all(userId);
+  return c.json(rows);
+});
+
 // GET /api/stats/reading
 // Estimated reading volume derived from per-lesson scroll progress, scoped to the
 // active language: the stats page is a per-language dashboard (fluency, daily
