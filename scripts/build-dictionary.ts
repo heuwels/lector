@@ -103,6 +103,25 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-es.txt',
     glossFilter: true,
   },
+  fr: {
+    // Canonical /French/ URL (kaikki has no /downloads/fr/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/French/kaikki.org-dictionary-French.jsonl'],
+    // a-z + French diacritics é è ê ë à â î ï ô û ù ü ÿ ç œ æ. Apostrophe is a
+    // token boundary (NOT a word char): elision splits l'eau → l + eau, so the
+    // content word `eau` is what the tokenizer sees — matching the runtime
+    // WORD_PATTERN. Hyphen stays a word char for compounds (peut-être, arc-en-ciel).
+    letterClass: "a-zàâæçèéêëîïôûùüÿœA-ZÀÂÆÇÈÉÊËÎÏÔÛÙÜŸŒ-",
+    // No hand affix rules: French is highly inflected, but kaikki carries each
+    // conjugated/plural surface form as its own "form of <lemma>" entry (which
+    // keeps a gloss, so it survives glossFilter) — lookup resolves via those +
+    // the inflections table, same strategy as de/es (exact → inflections → UDPipe → AI).
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouàâæèéêëîïôûùüÿœ',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-fr.txt',
+    glossFilter: true,
+  },
 };
 
 function parseLangArg(): string {

@@ -24,6 +24,7 @@ const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   af: () => import('../lib/sentence-bank-af.json'),
   de: () => import('../lib/sentence-bank-de.json'),
   es: () => import('../lib/sentence-bank-es.json'),
+  fr: () => import('../lib/sentence-bank-fr.json'),
 };
 
 async function loadSentenceBank(lang: string): Promise<BankEntry[]> {

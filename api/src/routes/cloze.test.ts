@@ -7,6 +7,7 @@ import { db } from '../db';
 const TATOEBA_IDS = [9001, 9002];
 const MINED_ID = 'afm-test-001';
 const DE_TATOEBA_IDS = [7001, 7002];
+const FR_TATOEBA_IDS = [6001, 6002];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
   default: [
@@ -70,6 +71,31 @@ mock.module('../lib/sentence-bank-de.json', () => ({
 // without importing the full ~8k-row bank.
 mock.module('../lib/sentence-bank-es.json', () => ({ default: [] }));
 
+// French bank fixture (2 rows) — proves the app picks up a fourth registered
+// language with no code change, seeds it under fr, and keeps it isolated.
+mock.module('../lib/sentence-bank-fr.json', () => ({
+  default: [
+    {
+      id: 6001,
+      text: 'Le chat dort sur le lit.',
+      translation: 'The cat sleeps on the bed.',
+      clozeWord: 'chat',
+      clozeIndex: 1,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 6002,
+      text: 'Je bois du café chaud.',
+      translation: 'I drink hot coffee.',
+      clozeWord: 'café',
+      clozeIndex: 3,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -81,7 +107,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS].join(',')}) OR id = ?`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...FR_TATOEBA_IDS].join(',')}) OR id = ?`,
   ).run(MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -159,6 +185,31 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get() as { c: number };
     expect(afUnderDe.c).toBe(0);
+  });
+
+  test('seeds the French bank under fr, isolated from Afrikaans (fourth language, no code change)', async () => {
+    setActiveLanguage('af');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('fr');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const fr = db
+      .prepare(
+        `SELECT language FROM clozeSentences WHERE tatoebaSentenceId IN (${FR_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string }[];
+    expect(fr.length).toBe(2);
+    expect(fr.every((r) => r.language === 'fr')).toBe(true);
+
+    // Zero cross-bleed: Afrikaans content never lands under fr.
+    const afUnderFr = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'fr' AND tatoebaSentenceId IN (${TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(afUnderFr.c).toBe(0);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {

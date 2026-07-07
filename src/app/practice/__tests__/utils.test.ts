@@ -39,6 +39,12 @@ describe('normalize', () => {
     expect(normalize('¿Cómo')).toBe('cómo');
     expect(normalize('¡Hola!')).toBe('hola');
   });
+
+  it('keeps French diacritics and strips guillemets', () => {
+    expect(normalize('Café')).toBe('café');
+    expect(normalize('« Français »')).toBe('français');
+    expect(normalize('être…')).toBe('être');
+  });
 });
 
 describe('checkAnswer', () => {
@@ -67,6 +73,16 @@ describe('checkAnswer', () => {
   it('matches when the bank word carries a leading Spanish ¿/¡ mark', () => {
     expect(checkAnswer('Cómo', '¿Cómo')).toBe(true);
     expect(checkAnswer('ni', '¡Ni')).toBe(true);
+  });
+
+  it('matches French content words through case and punctuation', () => {
+    expect(checkAnswer('eau', 'eau,')).toBe(true);
+    expect(checkAnswer('Français', 'français')).toBe(true);
+  });
+
+  it('distinguishes French diacritics (a vs à, e vs é)', () => {
+    expect(checkAnswer('a', 'à')).toBe(false);
+    expect(checkAnswer('ecole', 'école')).toBe(false);
   });
 });
 

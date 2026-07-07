@@ -14,12 +14,13 @@ import type { LanguageConfig } from './types';
 import { af } from './af/manifest';
 import { de } from './de/manifest';
 import { es } from './es/manifest';
+import { fr } from './fr/manifest';
 
 export type { LanguageConfig } from './types';
 
 // Keys-only object: `LanguageCode` is derived from these without referencing
 // `LanguageConfig`, which keeps types.ts ⇄ registry.ts free of a type cycle.
-const MANIFESTS = { af, de, es };
+const MANIFESTS = { af, de, es, fr };
 
 /** Derived from the registry keys — never hand-written. */
 export type LanguageCode = keyof typeof MANIFESTS;

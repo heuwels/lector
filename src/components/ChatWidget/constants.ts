@@ -13,6 +13,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     ],
     es: [
         // TODO
+    ],
+    fr: [
+        'When do I use "tu" vs "vous"?',
+        'Explain the difference between "être" and "avoir" as auxiliaries',
+        'How does elision work (l\', d\', qu\')?',
     ]
 
 }
