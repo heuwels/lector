@@ -108,3 +108,55 @@ describe('data import/restore — language partitioning', () => {
     expect(data.collectionGroups.map((g) => g.id)).toContain('g9');
   });
 });
+
+describe('export/restore — credential redaction (#233)', () => {
+  const clearKeys = () => db.prepare("DELETE FROM settings WHERE key IN ('anthropicApiKey', 'timezone')").run();
+  beforeEach(clearKeys);
+  afterEach(clearKeys);
+
+  test('export replaces sensitive settings values with the sentinel', async () => {
+    db.prepare("INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'anthropicApiKey', ?)").run(
+      JSON.stringify('sk-ant-live-secret')
+    );
+    db.prepare("INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'timezone', ?)").run(
+      JSON.stringify('Australia/Sydney')
+    );
+
+    const res = await app.request('/');
+    expect(res.status).toBe(200);
+    const raw = await res.text();
+    // The raw value must not appear anywhere in the export payload.
+    expect(raw).not.toContain('sk-ant-live-secret');
+
+    const data = JSON.parse(raw) as { settings: { key: string; value: string }[] };
+    expect(data.settings.find((s) => s.key === 'anthropicApiKey')?.value).toBe('__REDACTED__');
+    // Non-sensitive settings still round-trip verbatim.
+    expect(data.settings.find((s) => s.key === 'timezone')?.value).toBe(JSON.stringify('Australia/Sydney'));
+  });
+
+  test('restore skips the sentinel instead of clobbering a real stored key', async () => {
+    db.prepare("INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'anthropicApiKey', ?)").run(
+      JSON.stringify('sk-ant-real')
+    );
+
+    const res = await importData({
+      settings: [
+        { key: 'anthropicApiKey', value: '__REDACTED__' },
+        { key: 'timezone', value: JSON.stringify('Europe/Berlin') },
+      ],
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { imported: { settings: number } };
+    // The sentinel row is skipped; only the real setting counts as imported.
+    expect(body.imported.settings).toBe(1);
+
+    const key = db
+      .prepare("SELECT value FROM settings WHERE userId = 'local' AND key = 'anthropicApiKey'")
+      .get() as { value: string };
+    expect(key.value).toBe(JSON.stringify('sk-ant-real'));
+    const tz = db.prepare("SELECT value FROM settings WHERE userId = 'local' AND key = 'timezone'").get() as {
+      value: string;
+    };
+    expect(tz.value).toBe(JSON.stringify('Europe/Berlin'));
+  });
+});
