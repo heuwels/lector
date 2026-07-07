@@ -71,8 +71,9 @@ mock.module('../lib/sentence-bank-de.json', () => ({
 // without importing the full ~8k-row bank.
 mock.module('../lib/sentence-bank-es.json', () => ({ default: [] }));
 
-// French bank fixture (2 rows) — proves the app picks up a fourth registered
-// language with no code change, seeds it under fr, and keeps it isolated.
+// French bank fixture (2 rows) — proves the fourth language seeds under fr and
+// stays isolated, once its bank is registered in SENTENCE_BANKS (the one-line
+// cloze.ts change); everything else about fr is registry-derived.
 mock.module('../lib/sentence-bank-fr.json', () => ({
   default: [
     {
@@ -187,7 +188,7 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
     expect(afUnderDe.c).toBe(0);
   });
 
-  test('seeds the French bank under fr, isolated from Afrikaans (fourth language, no code change)', async () => {
+  test('seeds the French bank under fr, isolated from Afrikaans (fourth language)', async () => {
     setActiveLanguage('af');
     await app.request('/seed', { method: 'POST' });
     setActiveLanguage('fr');
