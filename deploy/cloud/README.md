@@ -142,9 +142,18 @@ Design notes:
 - **Logs:** `sudo docker logs lector` / `sudo docker logs cloudflared`;
   first-boot log at `/var/log/lector-canary-init.log`.
 - **Data:** SQLite lives on the dedicated EBS volume at `/srv/lector/data`.
-  It survives instance replacement (`deleteOnTermination: false`). Backups are
-  EBS snapshots for now; continuous replication (Litestream→R2) arrives with
-  #217. Treat canary data as semi-disposable until then.
+  It survives instance replacement (`deleteOnTermination: false`).
+- **Backups:** the `LectorCanaryBackup` stack (cdk/lib/backup-stack.ts) runs a
+  Data Lifecycle Manager policy: an EBS snapshot of the **data volume only**
+  (boot excluded) nightly at 16:00 UTC ≈ 02:00 Sydney, keeping the newest 30.
+  Crash-consistent is safe here — SQLite WAL recovers a mid-write snapshot
+  like a power loss. List them:
+  `aws ec2 describe-snapshots --owner-ids self --filters Name=tag:backup,Values=lector-canary-nightly`.
+  **Restore:** create a volume from the chosen snapshot in the instance's AZ →
+  `docker compose down` → detach the live data volume, attach the restored one
+  at `/dev/sdf` → `mount -a` → `docker compose up -d`. Snapshot storage for
+  this DB is pennies/month (incremental). Continuous replication
+  (Litestream→R2) still arrives with #217.
 - **Teardown:** `bunx cdk destroy`. The data volume is retained — delete it
   manually (and the SSM parameters + tunnel + Access app) for a full cleanup.
 
