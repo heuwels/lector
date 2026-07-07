@@ -88,6 +88,24 @@ export class LectorCloudCanaryStack extends Stack {
       }),
     );
 
+    // Litestream replica bucket (#270; owned by backup-stack.ts, deterministic
+    // name). The live grant is the backup stack's bucket policy keyed on this
+    // role's stack=cloud-canary tag — this identity policy is belt-and-braces
+    // for the next box, since deploying THIS stack replaces the instance.
+    const litestreamBucketArn = `arn:${this.partition}:s3:::lector-canary-litestream-${this.account}`;
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
+        resources: [`${litestreamBucketArn}/*`],
+      }),
+    );
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ['s3:ListBucket'],
+        resources: [litestreamBucketArn],
+      }),
+    );
+
     const userData = ec2.UserData.forLinux();
     userData.addCommands(this.bootScript());
 
@@ -105,7 +123,6 @@ export class LectorCloudCanaryStack extends Stack {
       machineImage: ec2.MachineImage.latestAmazonLinux2023({
         cpuType: ec2.AmazonLinuxCpuType.ARM_64,
       }),
-      requireImdsv2: true,
       blockDevices: [
         {
           // Root — OS + docker images.
@@ -130,6 +147,18 @@ export class LectorCloudCanaryStack extends Stack {
       ],
       userData,
     });
+
+    // IMDSv2 required, hop limit 2: the Litestream container resolves its S3
+    // credentials from the instance role via IMDS, and the docker bridge adds
+    // a network hop — the default hop limit of 1 would silently starve
+    // containers of credentials. (Replaces requireImdsv2: true, whose aspect-
+    // built launch template can't express a hop limit. Applied to the LIVE box
+    // with `aws ec2 modify-instance-metadata-options` — see the README —
+    // since deploying this stack replaces the instance.)
+    instance.instance.metadataOptions = {
+      httpTokens: 'required',
+      httpPutResponseHopLimit: 2,
+    };
 
     Tags.of(this).add('project', 'lector');
     Tags.of(this).add('stack', 'cloud-canary');
@@ -235,7 +264,24 @@ sed -i "s|__REGION__|${this.region}|g; s|__PARAM_PREFIX__|${PARAM_PREFIX}|g" /sr
 chmod +x /srv/lector/refresh-env.sh
 /srv/lector/refresh-env.sh
 
-# ── the whole deployment: lector (cloud canary shape) + cloudflared ──
+# ── continuous DB replication: Litestream → S3 (#270) ──
+# Credentials come from the instance role via IMDSv2 (hop limit 2 — see the
+# stack); no static keys anywhere. Bucket is owned by backup-stack.ts.
+cat > /srv/lector/litestream.yml <<'LITESTREAMEOF'
+dbs:
+  - path: /data/lector.db
+    replicas:
+      - type: s3
+        bucket: lector-canary-litestream-${this.account}
+        path: lector.db
+        region: ${this.region}
+        # 10s RPO instead of the 1s default: ~10x fewer S3 PUTs, still far
+        # tighter than the nightly EBS snapshots this layers on top of.
+        sync-interval: 10s
+        retention: 72h
+LITESTREAMEOF
+
+# ── the whole deployment: lector (cloud canary shape) + cloudflared + litestream ──
 # No published ports: nothing listens on the host. cloudflared reaches lector
 # on the compose network and dials OUT to Cloudflare; Access fronts every
 # request at the edge (that is what LECTOR_CLOUD_GATE=external asserts).
@@ -268,6 +314,18 @@ services:
       - TUNNEL_TOKEN=\${TUNNEL_TOKEN}
     depends_on:
       - lector
+
+  # Continuous SQLite replication to S3 (#270). Shares the data volume with
+  # lector read-only-in-spirit (Litestream only appends its own -litestream
+  # sidecar files); credentials via the instance role, no env needed.
+  litestream:
+    image: litestream/litestream:latest
+    container_name: litestream
+    restart: unless-stopped
+    command: replicate
+    volumes:
+      - /srv/lector/data:/data
+      - /srv/lector/litestream.yml:/etc/litestream.yml:ro
 COMPOSEEOF
 
 # ── update helper: refresh secrets from SSM + pull newest image + recreate ──
