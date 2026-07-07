@@ -96,7 +96,9 @@ Design notes:
    ```bash
    cd deploy/cloud/cdk
    bun install
-   bunx cdk deploy          # ~3 min; outputs the instance id + SSM shell hint
+   bunx cdk deploy --all    # ~3 min; outputs the instance id + SSM shell hint,
+                            # plus LectorCanaryCi's GitHub deploy role ARN
+                            # (the OIDC role docker.yml uses to auto-deploy)
    ```
 
 4. **Route the hostname** (Cloudflare → the tunnel → _Public Hostname_) — two
@@ -121,9 +123,19 @@ Design notes:
 
 ## Operate
 
-- **Update to the latest image:**
+- **Update to the latest image:** automatic. Every merge to `master` publishes
+  `:latest` (docker.yml), whose `deploy-canary` job then assumes the
+  `LectorCanaryCi` stack's GitHub-OIDC role (no AWS keys in repo secrets) and
+  runs `/srv/lector/update.sh` on the box over SSM, health-gated by
+  [`deploy-canary.sh`](./deploy-canary.sh). Manual fallback — same effect:
   `aws ssm start-session --target <instance-id>` → `sudo /srv/lector/update.sh`
   (refreshes all secrets from SSM + pull + recreate; the data volume is untouched).
+- **Redeploying `LectorCloudCanary`:** a boot-script (UserData) change
+  **replaces the instance**, and the replacement mounts a **fresh, empty data
+  volume** — the old one survives detached, but nothing re-attaches it for
+  you. Run `bunx cdk diff LectorCloudCanary` first and treat an
+  `Instance may be replaced` line as a data-migration step, not a routine
+  deploy. `LectorCanaryCi` (IAM only) is always safe to deploy.
 - **Rotate a secret / change LLM provider:** `aws ssm put-parameter --overwrite …`,
   then `update.sh`. Deleted parameters drop out of the container env entirely
   on the next refresh — nothing lingers as an empty string.

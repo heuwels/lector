@@ -22,6 +22,14 @@ import { Construct } from 'constructs';
  * storage is the only sound home for it. This also matches the plan-010
  * tenancy decision (shared SQLite on a VM; Litestream→R2 later, #217).
  *
+ * Continuous deploy: every master merge publishes :latest (docker.yml), whose
+ * deploy-canary job runs /srv/lector/update.sh on the box via SSM. The IAM
+ * side of that (GitHub OIDC provider + deploy role) lives in its own stack —
+ * see ci-stack.ts — so rolling CI credentials never risks touching this
+ * instance (a UserData change here REPLACES the box and its fresh data
+ * volume starts empty; deploy this stack deliberately, never as a side
+ * effect).
+ *
  * Secrets are NOT in this stack. SSM Parameter Store is the single source of
  * truth; the box fetches everything via /srv/lector/refresh-env.sh — run at
  * first boot and by every /srv/lector/update.sh — so rotating a secret or
