@@ -3,6 +3,7 @@ import { Nunito, Literata } from 'next/font/google';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import Analytics from '@/components/Analytics';
+import AuthGuard from '@/components/AuthGuard';
 import ChatWidget from '@/components/ChatWidget';
 import SetupGuard from '@/components/SetupGuard';
 import './globals.css';
@@ -55,7 +56,12 @@ export default function RootLayout({
         <NavHeader />
 
         <div className="flex-1">
-          <SetupGuard>{children}</SetupGuard>
+          {/* AuthGuard outside SetupGuard: in cloud mode the session must
+              resolve before SetupGuard's settings probe (which would 401
+              unauthenticated). Selfhost passes straight through (#218). */}
+          <AuthGuard>
+            <SetupGuard>{children}</SetupGuard>
+          </AuthGuard>
         </div>
         <ChatWidget />
         {/* Spacer for mobile bottom nav — invisible on sm+ */}

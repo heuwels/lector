@@ -45,6 +45,8 @@ import { Construct } from 'constructs';
  *   /lector/canary/openai-compat-model String        optional — e.g. google/gemini-flash-lite
  *   /lector/canary/resend-api-key      SecureString  optional — RESEND_API_KEY (account emails, #218)
  *   /lector/canary/better-auth-secret  SecureString  optional — BETTER_AUTH_SECRET (session signing, #218; required to flip off the external gate)
+ *   /lector/canary/turnstile-site-key  String        optional — TURNSTILE_SITE_KEY (bot protection on auth forms, #218)
+ *   /lector/canary/turnstile-secret    SecureString  optional — TURNSTILE_SECRET_KEY (server-side captcha verification, #218)
  *   /lector/canary/ghcr-token          SecureString  optional — only if the ghcr package goes private again
  */
 
@@ -224,6 +226,8 @@ put OPENAI_COMPAT_URL     openai-compat-url
 put OPENAI_COMPAT_MODEL   openai-compat-model
 put RESEND_API_KEY        resend-api-key
 put BETTER_AUTH_SECRET    better-auth-secret
+put TURNSTILE_SITE_KEY    turnstile-site-key
+put TURNSTILE_SECRET_KEY  turnstile-secret
 mv "$TMP" "$ENVFILE"
 if ! grep -q "^TUNNEL_TOKEN=" "$ENVFILE"; then
   echo "WARNING: __PARAM_PREFIX__/tunnel-token is missing - cloudflared will crash-loop until it exists (put the parameter, then run /srv/lector/update.sh)" >&2

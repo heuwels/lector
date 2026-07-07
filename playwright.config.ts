@@ -71,5 +71,27 @@ export default defineConfig({
       timeout: 60_000,
       env: { DATA_DIR: "../tmp/e2e-data", PORT: apiPort },
     },
+    {
+      // Second Hono API in CLOUD mode (#218) for the auth-cloud specs. Own
+      // isolated DATA_DIR; emails written to a file the specs read the
+      // verification/reset links back out of. The UI is the same :3456 next
+      // dev — auth-cloud.spec.ts stubs window.__ENV__ per page to point the
+      // browser at this API and flip the client into cloud mode.
+      command:
+        "rm -rf ../tmp/e2e-data-cloud && mkdir -p ../tmp/e2e-data-cloud && bun run src/index.ts",
+      cwd: "./api",
+      url: "http://localhost:3462/health",
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        DATA_DIR: "../tmp/e2e-data-cloud",
+        PORT: "3462",
+        LECTOR_MODE: "cloud",
+        BETTER_AUTH_SECRET: "e2e-only-secret-0123456789abcdef",
+        BETTER_AUTH_URL: "http://localhost:3462",
+        LECTOR_TRUSTED_ORIGINS: "http://localhost:3456",
+        EMAIL_FILE: "../tmp/e2e-data-cloud/emails.jsonl",
+      },
+    },
   ],
 });
