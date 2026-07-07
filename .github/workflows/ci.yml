@@ -159,11 +159,11 @@ jobs:
           platforms: linux/amd64
           cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64
           cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64,mode=max,ignore-error=true
-      - name: Cloud mode refuses to boot (fail-closed guard, #242)
-        # LECTOR_MODE=cloud must exit non-zero with a clear message until
-        # accounts/auth ship (#218) — never run the fail-open API under a flag
-        # that promises tenant isolation. Also pins the message so the guard
-        # can't silently rot.
+      - name: Cloud mode without a secret refuses to boot (fail-closed guard, #242/#218)
+        # LECTOR_MODE=cloud runs built-in accounts (#218) and must exit
+        # non-zero without BETTER_AUTH_SECRET — never sign sessions with the
+        # library's default secret. Also pins the message so the guard can't
+        # silently rot.
         run: |
           set +e
           OUT=$(docker run --rm -e LECTOR_MODE=cloud lector:e2e 2>&1)
@@ -171,10 +171,31 @@ jobs:
           set -e
           echo "$OUT"
           if [ "$CODE" -eq 0 ]; then
-            echo "Expected non-zero exit for LECTOR_MODE=cloud, got success" >&2
+            echo "Expected non-zero exit for LECTOR_MODE=cloud without BETTER_AUTH_SECRET, got success" >&2
             exit 1
           fi
-          echo "$OUT" | grep -q "LECTOR_MODE=cloud is not available yet"
+          echo "$OUT" | grep -q "LECTOR_MODE=cloud requires BETTER_AUTH_SECRET"
+
+      - name: Cloud proper boots with a secret and requires auth (#218)
+        # The other half of the guard: cloud + BETTER_AUTH_SECRET must boot,
+        # report its mode via /health, mount the Better Auth endpoints, and
+        # 401 unauthenticated API requests (the session middleware, not the
+        # selfhost passthrough).
+        run: |
+          docker run -d --name lector-cloud -p 3459:3457 \
+            -e LECTOR_MODE=cloud -e BETTER_AUTH_SECRET=ci-boot-check-secret lector:e2e
+          for i in $(seq 1 30); do
+            BODY=$(curl -fsS http://localhost:3459/health 2>/dev/null) && break
+            sleep 2
+          done
+          echo "health: $BODY"
+          VOCAB_CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3459/api/vocab?language=af")
+          AUTH_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:3459/api/auth/sign-in/email" \
+            -H 'Content-Type: application/json' -d '{"email":"nobody@example.com","password":"wrong"}')
+          echo "unauthenticated /api/vocab: $VOCAB_CODE (want 401), /api/auth sign-in: $AUTH_CODE (want 401 from the engine, not 404)"
+          docker rm -f lector-cloud
+          echo "$BODY" | grep -q '"mode":"cloud"'
+          [ "$VOCAB_CODE" = "401" ] && [ "$AUTH_CODE" = "401" ]
 
       - name: Cloud canary shape boots (external gate, #242)
         # cloud + LECTOR_CLOUD_GATE=external is the deploy/cloud/ canary shape
