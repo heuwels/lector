@@ -1,32 +1,52 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { AnthropicProvider } from './anthropic';
+import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
+
+// Intercept the Agent SDK before the provider module binds it, so the tests
+// below can assert what query() actually receives (notably options.env — the
+// subprocess auth fix for #247). The fake yields a minimal result message.
+type QueryArgs = { prompt: string; options: Record<string, unknown> };
+const queryCalls: QueryArgs[] = [];
+mock.module('@anthropic-ai/claude-agent-sdk', () => ({
+  query: (args: QueryArgs) => {
+    queryCalls.push(args);
+    return (async function* () {
+      yield { type: 'result', result: 'ok' };
+    })();
+  },
+}));
+
+const { AnthropicProvider } = await import('./anthropic');
 
 const ENV_KEYS = [
   'ANTHROPIC_MODEL',
   'ANTHROPIC_WORD_MODEL',
   'ANTHROPIC_PHRASE_MODEL',
   'ANTHROPIC_CHAT_MODEL',
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'CLAUDE_OAUTH_TOKEN',
+  'CLAUDE_CODE_OAUTH_TOKEN',
 ] as const;
 
+let saved: Record<string, string | undefined> = {};
+
+beforeEach(() => {
+  // Snapshot then clear so each test starts from a known, env-free baseline.
+  saved = {};
+  for (const k of ENV_KEYS) {
+    saved[k] = process.env[k];
+    delete process.env[k];
+  }
+  queryCalls.length = 0;
+});
+
+afterEach(() => {
+  for (const k of ENV_KEYS) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
+});
+
 describe('AnthropicProvider model selection', () => {
-  let saved: Record<string, string | undefined> = {};
-
-  beforeEach(() => {
-    // Snapshot then clear so each test starts from a known, env-free baseline.
-    saved = {};
-    for (const k of ENV_KEYS) {
-      saved[k] = process.env[k];
-      delete process.env[k];
-    }
-  });
-
-  afterEach(() => {
-    for (const k of ENV_KEYS) {
-      if (saved[k] === undefined) delete process.env[k];
-      else process.env[k] = saved[k];
-    }
-  });
-
   test('defaults every task to claude-sonnet-4-6 when nothing is configured', () => {
     const p = new AnthropicProvider({ apiKey: 'test' });
     expect(p.modelForTask()).toBe('claude-sonnet-4-6');
@@ -68,5 +88,55 @@ describe('AnthropicProvider model selection', () => {
     const p = new AnthropicProvider({ apiKey: 'test', model: 'claude-sonnet-4-6' });
     // @ts-expect-error — deliberately exercising the default branch
     expect(p.modelForTask('something-else')).toBe('claude-sonnet-4-6');
+  });
+});
+
+describe('Agent SDK subprocess auth (#247)', () => {
+  // The SDK spawns a Claude Code subprocess that authenticates from its own
+  // env — the token the provider resolved must be forwarded explicitly as
+  // CLAUDE_CODE_OAUTH_TOKEN or the subprocess reports "Not logged in".
+
+  test('an explicit oauthToken option (the settings-stored path) reaches the subprocess env', async () => {
+    const p = new AnthropicProvider({ oauthToken: 'tok-from-settings' });
+    await p.complete({ messages: [{ role: 'user', content: 'hi' }], maxTokens: 8 });
+
+    expect(queryCalls).toHaveLength(1);
+    const env = queryCalls[0].options.env as Record<string, string | undefined>;
+    expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe('tok-from-settings');
+  });
+
+  test('the documented CLAUDE_OAUTH_TOKEN env var reaches the subprocess env', async () => {
+    process.env.CLAUDE_OAUTH_TOKEN = 'tok-from-env';
+    const p = new AnthropicProvider();
+    await p.complete({ messages: [{ role: 'user', content: 'hi' }], maxTokens: 8 });
+
+    expect(queryCalls).toHaveLength(1);
+    const env = queryCalls[0].options.env as Record<string, string | undefined>;
+    expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe('tok-from-env');
+  });
+
+  test('the resolved token wins over a stale CLAUDE_CODE_OAUTH_TOKEN already in process.env', async () => {
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = 'stale-ambient-token';
+    const p = new AnthropicProvider({ oauthToken: 'tok-resolved' });
+    await p.complete({ messages: [{ role: 'user', content: 'hi' }], maxTokens: 8 });
+
+    const env = queryCalls[0].options.env as Record<string, string | undefined>;
+    expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe('tok-resolved');
+  });
+
+  test('subprocess env inherits the rest of process.env alongside the token', async () => {
+    process.env.CLAUDE_OAUTH_TOKEN = 'tok';
+    const p = new AnthropicProvider();
+    await p.complete({ messages: [{ role: 'user', content: 'hi' }], maxTokens: 8 });
+
+    const env = queryCalls[0].options.env as Record<string, string | undefined>;
+    expect(env.PATH).toBe(process.env.PATH); // spread, not replaced
+  });
+
+  test('an API key pins the direct-API path — the Agent SDK is never involved', () => {
+    // Peeking at the private flag beats calling complete(), which would hit
+    // the real API over the network in a unit test.
+    const p = new AnthropicProvider({ apiKey: 'sk-ant-test', oauthToken: 'tok-unused' });
+    expect((p as unknown as { useAgentSdk: boolean }).useAgentSdk).toBe(false);
   });
 });
