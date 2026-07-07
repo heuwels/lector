@@ -64,6 +64,7 @@ Design notes:
    | `openai-compat-url`            | String       | `OPENAI_COMPAT_URL`                                           |
    | `openai-compat-model`          | String       | `OPENAI_COMPAT_MODEL`                                         |
    | `resend-api-key`               | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — dormant under the external gate; staged for cloud proper) |
+   | `better-auth-secret`           | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — dormant under the external gate; **required** to flip to cloud proper. Generate: `openssl rand -base64 32`) |
    | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
 
    ```bash
