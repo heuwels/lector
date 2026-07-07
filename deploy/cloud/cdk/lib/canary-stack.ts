@@ -43,6 +43,7 @@ import { Construct } from 'constructs';
  *   /lector/canary/llm-provider        String        optional — LLM_PROVIDER (default anthropic)
  *   /lector/canary/openai-compat-url   String        optional — e.g. https://openrouter.ai/api
  *   /lector/canary/openai-compat-model String        optional — e.g. google/gemini-flash-lite
+ *   /lector/canary/resend-api-key      SecureString  optional — RESEND_API_KEY (account emails, #218)
  *   /lector/canary/ghcr-token          SecureString  optional — only if the ghcr package goes private again
  */
 
@@ -220,6 +221,7 @@ put GOOGLE_CLOUD_API_KEY  google-api-key
 put LLM_PROVIDER          llm-provider
 put OPENAI_COMPAT_URL     openai-compat-url
 put OPENAI_COMPAT_MODEL   openai-compat-model
+put RESEND_API_KEY        resend-api-key
 mv "$TMP" "$ENVFILE"
 if ! grep -q "^TUNNEL_TOKEN=" "$ENVFILE"; then
   echo "WARNING: __PARAM_PREFIX__/tunnel-token is missing - cloudflared will crash-loop until it exists (put the parameter, then run /srv/lector/update.sh)" >&2
