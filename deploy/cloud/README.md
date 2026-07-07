@@ -63,6 +63,8 @@ Design notes:
    | `llm-provider`                 | String       | `LLM_PROVIDER` (`anthropic` default, or `openai`)             |
    | `openai-compat-url`            | String       | `OPENAI_COMPAT_URL`                                           |
    | `openai-compat-model`          | String       | `OPENAI_COMPAT_MODEL`                                         |
+   | `resend-api-key`               | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — dormant under the external gate; staged for cloud proper) |
+   | `better-auth-secret`           | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — dormant under the external gate; **required** to flip to cloud proper. Generate: `openssl rand -base64 32`) |
    | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
 
    ```bash
@@ -139,6 +141,12 @@ Design notes:
 - **Rotate a secret / change LLM provider:** `aws ssm put-parameter --overwrite …`,
   then `update.sh`. Deleted parameters drop out of the container env entirely
   on the next refresh — nothing lingers as an empty string.
+- **Adding a NEW parameter** (a mapping that isn't in the table yet) needs a
+  matching `put <ENV_KEY> <param-suffix>` line in `/srv/lector/refresh-env.sh`.
+  That script is baked into UserData at first boot, so a stack edit only covers
+  *future* instances — patch the live box over SSM (append the line, run
+  `update.sh`); do **not** redeploy the stack for this, a UserData change
+  replaces the instance.
 - **Logs:** `sudo docker logs lector` / `sudo docker logs cloudflared`;
   first-boot log at `/var/log/lector-canary-init.log`.
 - **Data:** SQLite lives on the dedicated EBS volume at `/srv/lector/data`.

@@ -28,17 +28,24 @@ import tokens from './routes/tokens';
 import chat from './routes/chat';
 import llmOpenai from './routes/llm-openai';
 import { authMiddleware } from './lib/auth';
+import { sessionMiddleware } from './lib/session';
+import { getAuthEngine, runAuthMigrations, resolveTrustedOrigins } from './lib/accounts';
+import { HTTPException } from 'hono/http-exception';
 import { startClassifyWorker } from './lib/classify-worker';
 // Aliased: this file's Bun.serve export below is also named `config`.
 import { config as deploymentConfig, assertBootableMode } from './lib/config';
 
-// Fail-closed deployment-mode guard (#242): `cloud` requires accounts & auth
-// (#218), which have not shipped — never boot today's fail-open API under a
-// flag that promises tenant isolation, unless an external gate is explicitly
-// declared (the canary shape). docker-entrypoint.sh enforces the same rule;
-// this covers bare `bun run` deployments. Remove the guard when #218 lands.
+// Fail-closed deployment-mode guard (#242, re-purposed by #218): cloud proper
+// runs built-in accounts & sessions and must never sign them with Better
+// Auth's default dev secret — refuse to boot without BETTER_AUTH_SECRET.
+// docker-entrypoint.sh enforces the same rule; this covers bare `bun run`
+// deployments.
 try {
-  assertBootableMode(deploymentConfig.mode, deploymentConfig.cloudGate);
+  assertBootableMode(
+    deploymentConfig.mode,
+    deploymentConfig.cloudGate,
+    Boolean(deploymentConfig.authSecret),
+  );
 } catch (err) {
   console.error(`FATAL: ${(err as Error).message}`);
   process.exit(1);
@@ -47,7 +54,7 @@ if (deploymentConfig.mode === 'cloud' && deploymentConfig.cloudGate === 'externa
   console.warn(
     '[lector] cloud mode behind an EXTERNAL gate — app-level auth is delegated. ' +
       'Every request must pass an authenticating gateway (e.g. Cloudflare Access) ' +
-      'before reaching this app; per-user isolation lands with #217/#218.',
+      'before reaching this app; built-in accounts (#218) are not mounted.',
   );
 }
 
@@ -57,12 +64,35 @@ const app = new Hono();
 // removed in #188, so the UI (:3000/:3400) and API (:3457) are different
 // origins and every client call is cross-origin. CORS is therefore
 // load-bearing now (it was dormant while the proxy did server-to-server
-// fetches). Wide-open `*` is deliberate: a Tailnet-only app is reached from
-// arbitrary hosts (localhost, Tailnet IPs, hostnames), so the allowed origin
-// can't be pinned, and requests carry no credentials (auth is bearer-token).
-app.use('*', cors());
+// fetches).
+//
+// Selfhost / external gate: wide-open `*` is deliberate — a Tailnet-only app
+// is reached from arbitrary hosts (localhost, Tailnet IPs, hostnames), so the
+// allowed origin can't be pinned, and requests carry no credentials (auth is
+// bearer-token or the gateway's).
+//
+// Cloud proper (#218): sessions ride cookies, and `*` is incompatible with
+// credentialed requests — pin the trusted browser origins and allow
+// credentials. (The canary/prod shape is same-origin path-split — one
+// hostname, /api/* → :3457 — so this mostly serves cross-origin dev.)
+if (deploymentConfig.authRequired) {
+  app.use('*', cors({ origin: resolveTrustedOrigins(), credentials: true }));
+} else {
+  app.use('*', cors());
+}
 app.use('*', logger());
+app.use('/api/*', sessionMiddleware);
 app.use('/api/*', authMiddleware);
+
+// Built-in accounts (#218): only cloud proper mounts the engine. Selfhost
+// keeps its auth-off single-user shape (multi-user self-host is the same
+// opt-in: LECTOR_MODE=cloud + BETTER_AUTH_SECRET on your own box); the
+// external-gate canary keeps delegating to its gateway.
+if (deploymentConfig.authRequired) {
+  await runAuthMigrations(getAuthEngine());
+  app.on(['POST', 'GET'], '/api/auth/*', (c) => getAuthEngine().handler(c.req.raw));
+  console.log('[lector] cloud mode: built-in accounts & sessions active (Better Auth)');
+}
 
 app.route('/api/collections', collections);
 app.route('/api/groups', groups);
@@ -89,8 +119,13 @@ app.route('/api/tokens', tokens);
 app.route('/api/chat', chat);
 app.route('/api/llm/openai', llmOpenai);
 
-// Capture unhandled errors to Sentry/GlitchTip
+// Capture unhandled errors to Sentry/GlitchTip. Deliberate HTTP errors
+// (e.g. the identity seam's fail-closed 401, lib/user.ts) pass through with
+// their intended status instead of being masked as 500s.
 app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    return err.getResponse();
+  }
   Sentry.captureException(err);
   console.error(err);
   return c.json({ error: 'Internal Server Error' }, 500);

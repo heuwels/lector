@@ -6,10 +6,11 @@
  *
  *   - `selfhost` (default, and the behavior of every deployment to date):
  *     single implicit user, no login, API trusts local access.
- *   - `cloud`: the future managed offering (#216) — real accounts, per-request
- *     auth, per-user data isolation. **Fail-closed until that ships**: cloud
- *     mode refuses to boot (see `assertBootableMode`) so no instance can claim
- *     tenant isolation the code does not provide yet (#218).
+ *   - `cloud`: the managed offering (#216) — built-in accounts & sessions
+ *     (Better Auth, #218), per-request auth, per-user data isolation.
+ *     **Fail-closed on misconfiguration**: cloud proper refuses to boot
+ *     without `BETTER_AUTH_SECRET` (see `assertBootableMode`) so no instance
+ *     ever signs sessions with a default secret.
  *
  * `LECTOR_CLOUD_GATE` is the one sanctioned exception, for the cloud *canary*:
  * `external` declares that an authenticating gateway (Cloudflare Access, a VPN,
@@ -60,28 +61,33 @@ export function parseCloudGate(raw: string | undefined): CloudGate {
 }
 
 /**
- * Boot-path guard: cloud mode is fail-closed until accounts & per-user auth
- * land (#218). Today's API treats requests without an Authorization header as
- * trusted local access — booting that under a "cloud" flag would be an
- * unauthenticated instance claiming to be multi-tenant. Refuse instead.
+ * Boot-path guard. Cloud proper (no external gate) runs built-in accounts &
+ * sessions (#218), and Better Auth falls back to a well-known default secret
+ * when none is configured — booting that in production would mean forgeable
+ * session cookies. Refuse instead: cloud without `LECTOR_CLOUD_GATE=external`
+ * requires `BETTER_AUTH_SECRET`.
  *
- * The single exception is the canary shape: `LECTOR_CLOUD_GATE=external`
- * asserts an external gateway (e.g. Cloudflare Access) authenticates every
- * request before it reaches the app, so booting fail-open behind it is a
- * deliberate, named decision rather than an accident.
+ * The canary shape is unchanged: `LECTOR_CLOUD_GATE=external` asserts an
+ * external gateway (e.g. Cloudflare Access) authenticates every request
+ * before it reaches the app, so it boots without built-in auth (and without
+ * a secret) as a deliberate, named decision.
  *
  * Throws (rather than exiting) so callers own the exit; the server entry
  * (src/index.ts) catches, logs FATAL, and exits non-zero. docker-entrypoint.sh
  * enforces the same rule before either server starts.
  */
-export function assertBootableMode(mode: LectorMode, gate: CloudGate): void {
-  if (mode === 'cloud' && gate !== 'external') {
+export function assertBootableMode(
+  mode: LectorMode,
+  gate: CloudGate,
+  hasAuthSecret: boolean,
+): void {
+  if (mode === 'cloud' && gate !== 'external' && !hasAuthSecret) {
     throw new Error(
-      'LECTOR_MODE=cloud is not available yet: cloud mode requires accounts & per-user ' +
-        'auth, which have not shipped (heuwels/lector#218 — tracked under #242). ' +
-        'Unset LECTOR_MODE (or set it to "selfhost") to run the self-hosted app. ' +
-        'If an external gateway (e.g. Cloudflare Access) authenticates EVERY request ' +
-        'before it reaches this app, set LECTOR_CLOUD_GATE=external to run the cloud canary.',
+      'LECTOR_MODE=cloud requires BETTER_AUTH_SECRET: cloud mode runs built-in accounts ' +
+        '& sessions (heuwels/lector#218) and must never sign them with a default secret. ' +
+        'Generate one (e.g. `openssl rand -base64 32`) and set BETTER_AUTH_SECRET, or set ' +
+        'LECTOR_CLOUD_GATE=external if an authenticating gateway fronts EVERY request. ' +
+        'Unset LECTOR_MODE (or set it to "selfhost") to run the self-hosted app.',
     );
   }
 }
@@ -90,14 +96,23 @@ export function assertBootableMode(mode: LectorMode, gate: CloudGate): void {
  * Resolved deployment config — the switch everything mode-specific reads.
  * `authRequired` means "the app itself must authenticate requests": false in
  * selfhost (trusted network) and false under an external gate (the gateway
- * authenticates); it becomes true for cloud proper when #218 ships.
+ * authenticates); true for cloud proper, where Better Auth sessions are the
+ * credential (#218). `authSecret` is Better Auth's session-signing secret —
+ * presence is boot-guarded for cloud proper.
  */
 export const config: {
   readonly mode: LectorMode;
   readonly cloudGate: CloudGate;
   readonly authRequired: boolean;
+  readonly authSecret: string | undefined;
 } = (() => {
   const mode = parseLectorMode(process.env.LECTOR_MODE);
   const cloudGate = parseCloudGate(process.env.LECTOR_CLOUD_GATE);
-  return { mode, cloudGate, authRequired: mode === 'cloud' && cloudGate === 'none' } as const;
+  const authSecret = process.env.BETTER_AUTH_SECRET || undefined;
+  return {
+    mode,
+    cloudGate,
+    authRequired: mode === 'cloud' && cloudGate === 'none',
+    authSecret,
+  } as const;
 })();
