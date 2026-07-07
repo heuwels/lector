@@ -50,7 +50,7 @@ jobs:
           cache: npm
       - uses: oven-sh/setup-bun@v2
       - run: npm ci
-      - run: cd api && bun install
+      - run: cd api && bun install --frozen-lockfile
       - name: Fetch on-device dictionaries
         # Sources dict.env and pulls every language listed in DICT_LANGS.
         run: |

@@ -64,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+      - run: bun install --frozen-lockfile
         working-directory: api
       # bun run test, not bare bun test — the script isolates DATA_DIR
       - run: bun run test
@@ -92,7 +92,7 @@ jobs:
           cache: npm
       - uses: oven-sh/setup-bun@v2
       - run: npm ci
-      - run: cd api && bun install
+      - run: cd api && bun install --frozen-lockfile
       - name: Fetch on-device dictionaries
         # The dictionaries are gitignored — they ship in the Docker image. For CI
         # the dev server needs a copy at data/dictionary-<lang>.db so e2e tests

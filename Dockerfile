@@ -1,5 +1,5 @@
 # ── Next.js build stage ──
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -89,13 +89,13 @@ FROM oven/bun:1-alpine AS api-builder
 
 WORKDIR /api
 
-COPY api/package.json api/bun.lock* ./
-RUN bun install --production
+COPY api/package.json api/bun.lock ./
+RUN bun install --frozen-lockfile --production
 
 COPY api/src ./src
 
 # ── Production stage ──
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
