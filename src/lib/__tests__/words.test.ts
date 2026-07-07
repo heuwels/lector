@@ -39,6 +39,13 @@ describe('splitTrailingPunctuation', () => {
     // itself only strips outer punctuation, so an apostrophe token survives here.
     expect(splitTrailingPunctuation("qu'il")).toEqual(["qu'il", '']);
   });
+
+  it('keeps a Dutch apostrophe-plural and leading-apostrophe contraction intact', () => {
+    expect(splitTrailingPunctuation("auto's")).toEqual(["auto's", '']);
+    expect(splitTrailingPunctuation("foto's.")).toEqual(["foto's", '.']);
+    // leading apostrophe survives, like the Afrikaans 'n
+    expect(splitTrailingPunctuation("'t")).toEqual(["'t", '']);
+  });
 });
 
 describe('sentenceContainsWord', () => {
@@ -84,6 +91,15 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord("L'eau est claire.", 'eau')).toBe(true);
     // and a genuine substring is still rejected
     expect(sentenceContainsWord("L'eau est claire.", 'clair')).toBe(false);
+  });
+
+  it('matches Dutch tokens: apostrophe plurals split, diacritics + ij intact', () => {
+    // auto's → auto + s: the content stem is addressable as a whole token
+    expect(sentenceContainsWord("Ik heb twee auto's.", 'auto')).toBe(true);
+    expect(sentenceContainsWord('De coördinatie is lastig.', 'coördinatie')).toBe(true);
+    expect(sentenceContainsWord('Het is een mooie ijsbeer.', 'ijsbeer')).toBe(true);
+    // a genuine substring is still rejected
+    expect(sentenceContainsWord("Ik heb twee auto's.", 'aut')).toBe(false);
   });
 });
 

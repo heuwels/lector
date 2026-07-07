@@ -122,6 +122,26 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-fr.txt',
     glossFilter: true,
   },
+  nl: {
+    // Canonical /Dutch/ URL (kaikki has no /downloads/nl/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Dutch/kaikki.org-dictionary-Dutch.jsonl'],
+    // a-z + Dutch trema (ë ï ö ü) and loanword accents (é è ê á à â ó ò ô ú ù û ç í î ì).
+    // Apostrophe is a token boundary (NOT a word char): foto's → foto (+ dropped
+    // 's'), 't/'n → dropped, matching the runtime WORD_PATTERN. Hyphen stays a
+    // word char for compounds (zee-egel, na-apen). The ij digraph is plain i+j.
+    letterClass: "a-zàáâäçèéêëìíîïòóôöùúûüA-ZÀÁÂÄÇÈÉÊËÌÍÎÏÒÓÔÖÙÚÛÜ-",
+    // No hand affix rules: like de/es/fr, Dutch inflections (plurals -en/-s,
+    // diminutive -je/-tje, verb forms) resolve via kaikki "form of <lemma>"
+    // entries + the inflections table (exact → inflections → UDPipe → AI). The
+    // Afrikaans affix machinery is available if the coverage gate shows it's
+    // needed, but Dutch is measured empty-first (kaikki Dutch is form-rich).
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouyàáâäèéêëìíîïòóôöùúûü',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-nl.txt',
+    glossFilter: true,
+  },
 };
 
 function parseLangArg(): string {
