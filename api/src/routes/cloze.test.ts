@@ -225,3 +225,28 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
     expect(count.c).toBe(1);
   });
 });
+
+describe('GET /api/cloze/stats — server-side totals (#240)', () => {
+  const clear = () => db.prepare(`DELETE FROM clozeSentences WHERE id IN ('stat1','stat2','stat3')`).run();
+  beforeEach(clear);
+  afterEach(clear);
+
+  test('sums timesCorrect/timesIncorrect for the language only', async () => {
+    const insert = db.prepare(`
+      INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, nextReview, timesCorrect, timesIncorrect, language)
+      VALUES (?, 's', 'w', 0, 't', 'tatoeba', 'random', '2026-01-01', ?, ?, ?)
+    `);
+    insert.run('stat1', 3, 1, 'af');
+    insert.run('stat2', 4, 2, 'af');
+    insert.run('stat3', 100, 100, 'de'); // other language — excluded
+
+    const res = await app.request('/stats?language=af');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ timesCorrect: 7, timesIncorrect: 3 });
+  });
+
+  test('empty table sums to zeros, not nulls', async () => {
+    const res = await app.request('/stats?language=af');
+    expect(await res.json()).toEqual({ timesCorrect: 0, timesIncorrect: 0 });
+  });
+});

@@ -13,6 +13,7 @@ app.get('/', (c) => {
   const state = c.req.query('state');
   const bookId = c.req.query('bookId');
   const unpushed = c.req.query('unpushed');
+  const text = c.req.query('text');
 
   let query = 'SELECT * FROM vocab WHERE userId = ? AND language = ?';
   const params: unknown[] = [userId, lang];
@@ -20,6 +21,10 @@ app.get('/', (c) => {
   if (state) { query += ' AND state = ?'; params.push(state); }
   if (bookId) { query += ' AND bookId = ?'; params.push(bookId); }
   if (unpushed === 'true') { query += ' AND pushedToAnki = 0'; }
+  // Exact match, deliberately not LOWER(): callers pass the already-lowercased
+  // word (same semantics as the old client-side `.find(v.text === text)`), and
+  // the exact comparison rides idx_vocab_user_lang_text (#239/#240).
+  if (text) { query += ' AND text = ?'; params.push(text); }
 
   query += ' ORDER BY createdAt DESC';
 

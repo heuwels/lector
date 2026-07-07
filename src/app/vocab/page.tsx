@@ -7,7 +7,6 @@ import {
   type Collection,
   type WordState,
   updateVocabState,
-  getVocabStats,
   getAllVocab,
   getAllCollections,
   deleteVocabEntry,
@@ -60,14 +59,19 @@ export default function VocabPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [vocabData, collectionsData, statsData] = await Promise.all([
+      const [vocabData, collectionsData] = await Promise.all([
         getAllVocab(),
         getAllCollections(),
-        getVocabStats(),
       ]);
       setEntries(vocabData);
       setCollections(collectionsData);
-      setStats(statsData);
+      // Derive the state breakdown from the list we already fetched — this was
+      // a second identical full-list fetch via getVocabStats (#240).
+      const byState: Record<WordState, number> = {
+        new: 0, level1: 0, level2: 0, level3: 0, level4: 0, known: 0, ignored: 0,
+      };
+      vocabData.forEach((v) => { byState[v.state]++; });
+      setStats({ total: vocabData.length, byState });
     } catch (error) {
       console.error('Failed to load data:', error);
       toast.error('Failed to load vocabulary data', {
