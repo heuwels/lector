@@ -26,6 +26,7 @@ test.describe("Language Setup & Switching", () => {
     await expect(page.getByTestId("setup-language-de")).toBeVisible();
     await expect(page.getByTestId("setup-language-es")).toBeVisible();
     await expect(page.getByTestId("setup-language-fr")).toBeVisible();
+    await expect(page.getByTestId("setup-language-nl")).toBeVisible();
 
     // Select Afrikaans
     await page.getByTestId("setup-language-af").click();
@@ -52,6 +53,7 @@ test.describe("Language Setup & Switching", () => {
     await expect(page.getByTestId("language-option-de").first()).toBeVisible();
     await expect(page.getByTestId("language-option-es").first()).toBeVisible();
     await expect(page.getByTestId("language-option-fr").first()).toBeVisible();
+    await expect(page.getByTestId("language-option-nl").first()).toBeVisible();
 
     // Close with Escape
     await page.keyboard.press("Escape");
