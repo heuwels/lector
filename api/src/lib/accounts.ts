@@ -1,19 +1,10 @@
 /**
- * The accounts engine (#218): Better Auth, running in-process.
- *
- * There is no external identity provider behind this — Better Auth IS the
- * auth engine (it was chosen over hosted engines like Clerk/Cognito/WorkOS,
- * see #218). It hashes passwords, mints and validates session cookies, runs
- * the OAuth dance for social providers, and issues verification/reset
- * tokens — all in this Bun process, persisting to its own tables (`user`,
- * `session`, `account`, `verification`) in the same lector.db the rest of
- * the app uses, so one Litestream stream replicates everything (#217).
- *
- * Only external touchpoints: the optional social provider (GitHub) and the
- * email transport (lib/email.ts). Nothing here runs in selfhost mode — the
- * engine is only constructed, migrated, and mounted when
- * `config.authRequired` (cloud proper). Session → userId resolution happens
- * in lib/session.ts; the identity seam routes read is lib/user.ts.
+ * Better Auth engine (#218): accounts, sessions, email verification, and
+ * password reset, run in-process. Its tables (`user`, `session`, `account`,
+ * `verification`) live in the same lector.db as user data so a single
+ * replication stream covers both (#217). Only constructed, migrated, and
+ * mounted in cloud proper (`config.authRequired`) — selfhost never touches
+ * it. Session → userId: lib/session.ts; route-side reads: lib/user.ts.
  */
 import { betterAuth } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
@@ -33,10 +24,7 @@ export interface AuthEngineOptions {
   github?: { clientId: string; clientSecret: string };
 }
 
-/**
- * Build an isolated engine — the prod singleton and tests share this factory
- * so tests exercise the exact configuration cloud runs (in-memory DB aside).
- */
+/** Factory shared by the prod singleton and tests (in-memory DB aside). */
 export function createAuthEngine(opts: AuthEngineOptions) {
   return betterAuth({
     database: opts.database,
@@ -58,8 +46,7 @@ export function createAuthEngine(opts: AuthEngineOptions) {
               `If this wasn't you, ignore this email — the link expires in an hour.`,
           });
         } catch (err) {
-          // Don't fail the request: the user can retry from the reset form,
-          // and a misconfigured transport should be loud in logs, not a 500.
+          // A transport failure must be loud in logs, not a 500 on the flow.
           console.error(`[accounts] failed to send password reset to ${user.email}:`, err);
         }
       },
@@ -89,9 +76,8 @@ export function createAuthEngine(opts: AuthEngineOptions) {
 export type AuthEngine = ReturnType<typeof createAuthEngine>;
 
 /**
- * Create Better Auth's tables / add missing columns, idempotently. Runs at
- * boot in cloud mode (index.ts) — same self-migrating posture as db.ts, so
- * a container update never needs a manual migration step.
+ * Create/extend Better Auth's tables, idempotently. Runs at boot in cloud
+ * mode (index.ts) — same self-migrating posture as db.ts.
  */
 export async function runAuthMigrations(engine: AuthEngine): Promise<void> {
   const { runMigrations } = await getMigrations(engine.options);
@@ -99,10 +85,9 @@ export async function runAuthMigrations(engine: AuthEngine): Promise<void> {
 }
 
 /**
- * Browser origins the API trusts for credentialed requests in cloud mode.
- * The canary shape is same-origin (one hostname, path-split — deploy/cloud/)
- * so this mostly matters for cross-origin dev: UI on :3456/:3000 talking to
- * the API on :3457.
+ * Browser origins trusted for credentialed requests in cloud mode. Prod is
+ * same-origin path-split (deploy/cloud/), so this mostly serves cross-origin
+ * dev: UI on :3456/:3000 → API on :3457.
  */
 export function resolveTrustedOrigins(): string[] {
   const fromEnv = (process.env.LECTOR_TRUSTED_ORIGINS || '')
