@@ -109,6 +109,38 @@ describe('data import/restore — language partitioning', () => {
   });
 });
 
+describe('restore is transactional (#237)', () => {
+  beforeEach(reset);
+  afterEach(reset);
+
+  test('a malformed row rolls back the whole restore', async () => {
+    const res = await importData({
+      collections: [{ id: 'c_ok', title: 'Fine', language: 'af', createdAt: TS, lastReadAt: TS }],
+      knownWords: [{ word: 'goed', language: 'af', state: 'known' }],
+      // sentence is NOT NULL — this row throws mid-restore, after the rows
+      // above have already been inserted.
+      clozeSentences: [{ id: 'cs_bad', clozeWord: 'w', clozeIndex: 0, translation: 't', nextReview: TS }],
+    });
+    expect(res.status).toBe(500);
+
+    // Nothing from the payload survives — including the rows that inserted
+    // cleanly before the bad one.
+    expect((db.prepare('SELECT COUNT(*) AS n FROM collections').get() as { n: number }).n).toBe(0);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM knownWords').get() as { n: number }).n).toBe(0);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM clozeSentences').get() as { n: number }).n).toBe(0);
+  });
+
+  test('a valid restore still lands in full', async () => {
+    const res = await importData({
+      collections: [{ id: 'c1', title: 'Book', language: 'af', createdAt: TS, lastReadAt: TS }],
+      knownWords: [{ word: 'huis', language: 'af', state: 'known' }],
+    });
+    expect(res.status).toBe(200);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM collections').get() as { n: number }).n).toBe(1);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM knownWords').get() as { n: number }).n).toBe(1);
+  });
+});
+
 describe('export/restore — credential redaction (#233)', () => {
   const clearKeys = () => db.prepare("DELETE FROM settings WHERE key IN ('anthropicApiKey', 'timezone')").run();
   beforeEach(clearKeys);
