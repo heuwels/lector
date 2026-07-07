@@ -71,5 +71,27 @@ export default defineConfig({
       timeout: 60_000,
       env: { DATA_DIR: "../tmp/e2e-data", PORT: apiPort },
     },
+    {
+      // A SECOND Hono API in cloud mode (#218/#220) for the two-user isolation
+      // spec. Its own fresh DATA_DIR (Better Auth tables + tenant rows), file
+      // email outbox (the spec reads verification links from it), and the
+      // default trusted origins already cover the :3456 UI. The UI is served
+      // by the same Next dev server as everything else — the spec points the
+      // browser here by injecting window.__ENV__ per context. Not booted (and
+      // the spec skips) under E2E_EXTERNAL_SERVER.
+      command: "rm -rf ../tmp/e2e-cloud-data && mkdir -p ../tmp/e2e-cloud-data && bun run src/index.ts",
+      cwd: "./api",
+      url: "http://localhost:3467/health",
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        DATA_DIR: "../tmp/e2e-cloud-data",
+        PORT: "3467",
+        LECTOR_MODE: "cloud",
+        BETTER_AUTH_SECRET: "e2e-only-secret-0000000000000000",
+        BETTER_AUTH_URL: "http://localhost:3467",
+        EMAIL_FILE: "../tmp/e2e-cloud-data/outbox.jsonl",
+      },
+    },
   ],
 });
