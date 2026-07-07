@@ -2,6 +2,7 @@
 
 import {
     useEffect,
+    useMemo,
     useRef,
     useState,
     useCallback,
@@ -18,8 +19,8 @@ import remarkBreaks from 'remark-breaks';
 import {
     getKnownWordsMap,
     updateLessonProgress,
-    getSetting,
 } from '@/lib/data-layer';
+import { createTrailingThrottle } from './throttle';
 import type { WordState } from '@/types';
 import { snapToWordBoundaries, splitWords, collectWords, computePhraseHighlightSet } from './utils';
 import { stateClasses } from './theme';
@@ -82,15 +83,31 @@ export default function MarkdownReader({
         getKnownWordsMap().then(setKnownWordsMap);
     }, [refreshTrigger]);
 
-    // Load saved scroll position
+    // Restore the last reading position from the lesson itself —
+    // progress_scrollPosition is exactly what the scroll handler below saves.
+    // (The old code read a `reading-position-*` settings key that nothing ever
+    // wrote, so every partially-read lesson reopened at the top, #234.) The ref
+    // guards re-runs so a prop refresh mid-read can't yank the viewport back.
+    const restoredForLesson = useRef<string | null>(null);
     useEffect(() => {
-        getSetting<{ percentage: number }>(`reading-position-${lesson.id}`).then((pos) => {
-            if (pos && containerRef.current) {
-                const scrollTop = (pos.percentage / 100) * containerRef.current.scrollHeight;
-                containerRef.current.scrollTop = scrollTop;
-            }
-        });
-    }, [lesson.id]);
+        if (restoredForLesson.current === lesson.id) return;
+        restoredForLesson.current = lesson.id;
+        if (containerRef.current && lesson.progress_scrollPosition > 0) {
+            containerRef.current.scrollTop = lesson.progress_scrollPosition;
+        }
+    }, [lesson.id, lesson.progress_scrollPosition]);
+
+    // Persist scroll progress at most once per second (trailing edge, latest
+    // position wins) instead of one PUT per scroll event (#234); pending state
+    // is flushed on unmount/lesson change so the final position isn't lost.
+    const progressWriter = useMemo(
+        () =>
+            createTrailingThrottle((scrollTop: number, percentage: number) => {
+                updateLessonProgress(lesson.id, { scrollPosition: scrollTop, percentComplete: percentage });
+            }, 1000),
+        [lesson.id],
+    );
+    useEffect(() => () => progressWriter.flush(), [progressWriter]);
 
     // Save scroll position on scroll
     const handleScroll = useCallback(() => {
@@ -98,8 +115,8 @@ export default function MarkdownReader({
         const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
         const percentage = Math.round((scrollTop / (scrollHeight - clientHeight)) * 100) || 0;
         setScrollPercentage(percentage);
-        updateLessonProgress(lesson.id, { scrollPosition: scrollTop, percentComplete: percentage });
-    }, [lesson.id]);
+        progressWriter(scrollTop, percentage);
+    }, [progressWriter]);
 
     const getWordState = (word: string): WordState | undefined => {
         return knownWordsMap.get(word.toLowerCase());
