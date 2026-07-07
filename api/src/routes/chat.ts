@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, ChatMessageRow } from '../db';
 import { getProvider } from '../lib/llm';
+import { getCurrentUserId } from '../lib/user';
 import { resolveLanguage } from '../lib/active-language';
 import { getLanguageConfig } from '../lib/languages';
 import { randomUUID } from 'crypto';
@@ -25,6 +26,7 @@ function cleanExpired() {
 app.get('/', (c) => {
   cleanExpired();
 
+  const userId = getCurrentUserId(c);
   const limit = parseInt(c.req.query('limit') || '50');
   const before = c.req.query('before'); // cursor for infinite scroll
   const lang = resolveLanguage(c.req.query('language'));
@@ -33,12 +35,12 @@ app.get('/', (c) => {
 
   if (before) {
     messages = db
-      .prepare('SELECT * FROM chat_messages WHERE createdAt < ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
-      .all(before, lang, limit) as ChatMessageRow[];
+      .prepare('SELECT * FROM chat_messages WHERE userId = ? AND createdAt < ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .all(userId, before, lang, limit) as ChatMessageRow[];
   } else {
     messages = db
-      .prepare('SELECT * FROM chat_messages WHERE language = ? ORDER BY createdAt DESC LIMIT ?')
-      .all(lang, limit) as ChatMessageRow[];
+      .prepare('SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .all(userId, lang, limit) as ChatMessageRow[];
   }
 
   return c.json(messages.reverse());
@@ -49,6 +51,7 @@ app.post('/', async (c) => {
   try {
     cleanExpired();
 
+    const userId = getCurrentUserId(c);
     const { message, language } = await c.req.json();
 
     if (!message?.trim()) {
@@ -77,8 +80,8 @@ app.post('/', async (c) => {
     // was dropped when the local providers were unified behind one
     // OpenAI-compatible backend, so every provider now uses this single path.
     const recentMessages = db
-      .prepare('SELECT * FROM chat_messages WHERE language = ? ORDER BY createdAt DESC LIMIT ?')
-      .all(lang, MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
+      .prepare('SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .all(userId, lang, MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
 
     const history = [...recentMessages.reverse(), userMsg];
 
@@ -112,15 +115,15 @@ app.post('/', async (c) => {
 
     // Save both messages only after LLM succeeds
     const insertMsg = db.prepare(
-      'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt, language) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt, language, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
     insertMsg.run(
       userMsg.id, userMsg.role, userMsg.content, userMsg.provider,
-      userMsg.responseId, userMsg.createdAt, lang
+      userMsg.responseId, userMsg.createdAt, lang, userId
     );
     insertMsg.run(
       assistantMsg.id, assistantMsg.role, assistantMsg.content, assistantMsg.provider,
-      assistantMsg.responseId, assistantMsg.createdAt, lang
+      assistantMsg.responseId, assistantMsg.createdAt, lang, userId
     );
 
     return c.json({ userMessage: userMsg, assistantMessage: assistantMsg });
@@ -132,8 +135,9 @@ app.post('/', async (c) => {
 
 // DELETE /api/chat — clear chat history for the active (or requested) language
 app.delete('/', (c) => {
+  const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'));
-  db.prepare('DELETE FROM chat_messages WHERE language = ?').run(lang);
+  db.prepare('DELETE FROM chat_messages WHERE userId = ? AND language = ?').run(userId, lang);
   return c.json({ ok: true });
 });
 

@@ -135,18 +135,6 @@ function getDb(): Database {
       expiresAt TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS translation_evaluations (
-      id TEXT PRIMARY KEY,
-      inputSentence TEXT NOT NULL,
-      contextSentence TEXT,
-      apfelTranslation TEXT,
-      ollamaTranslation TEXT,
-      claudeTranslation TEXT,
-      selectedProvider TEXT NOT NULL CHECK (selectedProvider IN ('apfel', 'ollama', 'claude', 'manual')),
-      manualTranslation TEXT,
-      createdAt TEXT NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,
       role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
@@ -286,7 +274,120 @@ function getDb(): Database {
     _db.exec('ALTER TABLE knownWords ADD COLUMN domain TEXT');
   }
 
+  // Runs last so the rebuild DDL below can assume every prior migration's
+  // columns (language, domain, ankiReviews, …) already exist.
+  migrateAddUserIdColumn(_db);
+
+  // Dead table from a long-removed translation-comparison experiment (DEBT-03).
+  _db.exec('DROP TABLE IF EXISTS translation_evaluations');
+
   return _db;
+}
+
+/**
+ * The tenant axis (#217, plan 010 piece 2): every user-data table carries
+ * userId, defaulted to the single implicit local user. A no-op for self-hosted
+ * deployments (one user, 'local'); the isolation boundary for cloud (#218).
+ * Same shape as migrateAddLanguageColumn: plain ALTER where the PK is
+ * unaffected, guarded transactional rebuilds where userId joins the PK.
+ * Shared read-only data (cached_entries/senses/related_forms, dictionaries,
+ * sentence banks) deliberately stays global — see plan 010.
+ */
+function migrateAddUserIdColumn(database: Database) {
+  const alterTables = [
+    'collections',
+    'lessons',
+    'vocab',
+    'clozeSentences',
+    'journal_entries',
+    'chat_messages',
+    'collection_groups',
+    'api_tokens',
+  ];
+
+  for (const table of alterTables) {
+    const cols = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (cols.length === 0) continue;
+    if (!cols.some((c) => c.name === 'userId')) {
+      database.exec(`ALTER TABLE ${table} ADD COLUMN userId TEXT NOT NULL DEFAULT 'local'`);
+    }
+  }
+
+  // knownWords: PK (word, language) -> (userId, word, language)
+  const knownWordsSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='knownWords'")
+    .get() as { sql: string } | undefined;
+  if (knownWordsSql && !knownWordsSql.sql.includes('userId')) {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE knownWords_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          word TEXT NOT NULL,
+          language TEXT NOT NULL DEFAULT 'af',
+          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+          domain TEXT,
+          PRIMARY KEY (userId, word, language)
+        );
+        INSERT INTO knownWords_new (userId, word, language, state, domain)
+          SELECT 'local', word, language, state, domain FROM knownWords;
+        DROP TABLE knownWords;
+        ALTER TABLE knownWords_new RENAME TO knownWords;
+      `);
+    })();
+  }
+
+  // dailyStats: PK (date, language) -> (userId, date, language)
+  const dailyStatsSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='dailyStats'")
+    .get() as { sql: string } | undefined;
+  if (dailyStatsSql && !dailyStatsSql.sql.includes('userId')) {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE dailyStats_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          date TEXT NOT NULL,
+          language TEXT NOT NULL DEFAULT 'af',
+          wordsRead INTEGER DEFAULT 0,
+          newWordsSaved INTEGER DEFAULT 0,
+          wordsMarkedKnown INTEGER DEFAULT 0,
+          minutesRead INTEGER DEFAULT 0,
+          clozePracticed INTEGER DEFAULT 0,
+          points INTEGER DEFAULT 0,
+          dictionaryLookups INTEGER DEFAULT 0,
+          ankiReviews INTEGER DEFAULT 0,
+          sessionStartedAt TEXT,
+          PRIMARY KEY (userId, date, language)
+        );
+        INSERT INTO dailyStats_new (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups, ankiReviews, sessionStartedAt)
+          SELECT 'local', date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups, ankiReviews, sessionStartedAt FROM dailyStats;
+        DROP TABLE dailyStats;
+        ALTER TABLE dailyStats_new RENAME TO dailyStats;
+      `);
+    })();
+  }
+
+  // settings: PK (key) -> (userId, key). Every existing setting becomes the
+  // local user's; which keys stay user-editable vs operator-only in cloud is
+  // a #218 policy question, not a schema one.
+  const settingsSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='settings'")
+    .get() as { sql: string } | undefined;
+  if (settingsSql && !settingsSql.sql.includes('userId')) {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE settings_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          key TEXT NOT NULL,
+          value TEXT NOT NULL,
+          PRIMARY KEY (userId, key)
+        );
+        INSERT INTO settings_new (userId, key, value)
+          SELECT 'local', key, value FROM settings;
+        DROP TABLE settings;
+        ALTER TABLE settings_new RENAME TO settings;
+      `);
+    })();
+  }
 }
 
 /**
@@ -656,6 +757,7 @@ export type ClozeSource = 'tatoeba' | 'mined';
 export type ClozeCollection = 'top500' | 'top1000' | 'top2000' | 'mined' | 'random';
 
 export interface CollectionRow {
+  userId: string;
   id: string;
   title: string;
   author: string;
@@ -667,6 +769,7 @@ export interface CollectionRow {
 }
 
 export interface CollectionGroupRow {
+  userId: string;
   id: string;
   name: string;
   sortOrder: number;
@@ -676,6 +779,7 @@ export interface CollectionGroupRow {
 export type JournalStatus = 'draft' | 'submitted';
 
 export interface JournalEntryRow {
+  userId: string;
   id: string;
   body: string;
   correctedBody: string | null;
@@ -689,6 +793,7 @@ export interface JournalEntryRow {
 }
 
 export interface LessonRow {
+  userId: string;
   id: string;
   collectionId: string | null;
   title: string;
@@ -702,6 +807,7 @@ export interface LessonRow {
 }
 
 export interface VocabRow {
+  userId: string;
   id: string;
   text: string;
   type: VocabType;
@@ -719,12 +825,14 @@ export interface VocabRow {
 }
 
 export interface KnownWordRow {
+  userId: string;
   word: string;
   language: string;
   state: WordState;
 }
 
 export interface ClozeSentenceRow {
+  userId: string;
   id: string;
   sentence: string;
   clozeWord: string;
@@ -745,6 +853,7 @@ export interface ClozeSentenceRow {
 }
 
 export interface DailyStatsRow {
+  userId: string;
   date: string;
   wordsRead: number;
   newWordsSaved: number;
@@ -758,11 +867,13 @@ export interface DailyStatsRow {
 }
 
 export interface SettingRow {
+  userId: string;
   key: string;
   value: string;
 }
 
 export interface ApiTokenRow {
+  userId: string;
   id: string;
   name: string;
   tokenHash: string;
@@ -770,20 +881,6 @@ export interface ApiTokenRow {
   createdAt: string;
   lastUsedAt: string | null;
   expiresAt: string | null;
-}
-
-export type EvalProvider = 'apfel' | 'ollama' | 'claude' | 'manual';
-
-export interface TranslationEvaluationRow {
-  id: string;
-  inputSentence: string;
-  contextSentence: string | null;
-  apfelTranslation: string | null;
-  ollamaTranslation: string | null;
-  claudeTranslation: string | null;
-  selectedProvider: EvalProvider;
-  manualTranslation: string | null;
-  createdAt: string;
 }
 
 export interface ChatMessageRow {

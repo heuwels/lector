@@ -1,3 +1,4 @@
+import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { db } from '../db';
 

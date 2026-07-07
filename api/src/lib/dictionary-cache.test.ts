@@ -1,3 +1,4 @@
+import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { db } from '../db';
 import { cacheAcceptedEntry } from './dictionary-db';

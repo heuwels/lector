@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getCurrentUserId } from '../lib/user';
 import { db } from '../db';
 import { getTodayDate } from '../lib/dates';
 import { resolveLanguage } from '../lib/active-language';
@@ -17,7 +18,7 @@ interface DayActivity {
 // app-wide question, so aggregate every language's row for the date (matching
 // the app-wide streak): SUM the activity and take the earliest session start.
 // An aggregate over zero rows still returns one all-zero/NULL row.
-function getDayActivity(date: string): DayActivity {
+function getDayActivity(userId: string, date: string): DayActivity {
   return db
     .prepare(
       `SELECT
@@ -25,9 +26,9 @@ function getDayActivity(date: string): DayActivity {
          COALESCE(SUM(minutesRead), 0)       AS minutesRead,
          COALESCE(SUM(clozePracticed), 0)    AS clozePracticed,
          MIN(sessionStartedAt)               AS sessionStartedAt
-       FROM dailyStats WHERE date = ?`,
+       FROM dailyStats WHERE userId = ? AND date = ?`,
     )
-    .get(date) as DayActivity;
+    .get(userId, date) as DayActivity;
 }
 
 // GET /api/study-ping
@@ -35,7 +36,7 @@ function getDayActivity(date: string): DayActivity {
 // Guardian MCP to poll. Aggregated across languages (app-wide).
 app.get('/', (c) => {
   const today = getTodayDate();
-  const activity = getDayActivity(today);
+  const activity = getDayActivity(getCurrentUserId(c), today);
 
   return c.json({
     done: activity.dictionaryLookups > 0 || activity.minutesRead > 0 || activity.clozePracticed > 0,

@@ -1,3 +1,4 @@
+import { LOCAL_USER_ID } from './user';
 import { db } from '../db';
 import { getTodayDate } from './dates';
 
@@ -20,10 +21,10 @@ export function recordStudySessionPing(language: string, today: string = getToda
   const now = new Date().toISOString();
   db.prepare(
     `INSERT OR IGNORE INTO dailyStats
-      (date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-     VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`,
-  ).run(today, language);
+      (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
+     VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0)`,
+  ).run(LOCAL_USER_ID, today, language);
   db.prepare(
-    'UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE date = ? AND language = ?',
-  ).run(now, today, language);
+    'UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE userId = ? AND date = ? AND language = ?',
+  ).run(now, LOCAL_USER_ID, today, language);
 }

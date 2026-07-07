@@ -1,3 +1,4 @@
+import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { Hono } from 'hono';
 import { randomBytes, randomUUID } from 'crypto';
