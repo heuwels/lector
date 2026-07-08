@@ -8,7 +8,11 @@ const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN;
 if (dsn) {
   Sentry.init({
     dsn,
-    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? "1.0") || 1.0,
+    // Finite rate from env (a deliberate 0 turns tracing OFF); else full.
+    // `Number(x) || 1.0` would wrongly coerce 0 back to 1.0.
+    tracesSampleRate: Number.isFinite(Number(process.env.SENTRY_TRACES_SAMPLE_RATE))
+      ? Number(process.env.SENTRY_TRACES_SAMPLE_RATE)
+      : 1.0,
     tracePropagationTargets: [
       "localhost",
       process.env.API_URL || "http://localhost:3457",

@@ -2,25 +2,39 @@ import * as Sentry from "@sentry/bun";
 
 // Sentry for the Hono API *and* the in-process classify-worker (both live in this
 // Bun process). @sentry/bun is the Bun-native SDK — the API runs on `bun run`,
-// not Node — and wires Bun's global uncaught-exception / unhandled-rejection
-// handlers on init. Init is a no-op without SENTRY_DSN, so the SDK stays dormant
-// unless a deployment opts in.
+// not Node — and on init it wires Bun's global uncaught-exception /
+// unhandled-rejection handlers plus auto-instrumentation of the served fetch
+// handler. Init is a no-op without SENTRY_DSN, so the SDK stays dormant unless a
+// deployment opts in.
 //
-// Imported first thing by index.ts (and by classify-worker.ts) so init runs
-// before the server starts serving or the worker's first tick fires. The DSN can
-// be injected at runtime like the rest of the app's config — see
-// docker-entrypoint.sh.
+// This module is imported FIRST by index.ts (and by classify-worker.ts) — before
+// Hono and the routes — so init runs before the server's fetch handler is
+// registered. That ordering is load-bearing: the auto HTTP-server instrumentation
+// only patches what is set up after init. The DSN can be injected at runtime like
+// the rest of the app's config — see docker-entrypoint.sh.
 const dsn = process.env.SENTRY_DSN;
 
 if (dsn) {
   Sentry.init({
     dsn,
-    // Distributed tracing: the browser SDK stamps sentry-trace/baggage onto its
-    // cross-origin API calls; the middleware in index.ts continues those traces
-    // and opens a server span per request, so a browser action and the API work
-    // it triggers land in one trace. Full sampling by default (low-traffic app);
-    // dial down with SENTRY_TRACES_SAMPLE_RATE on a busier deployment.
-    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? "1.0") || 1.0,
+    // Distributed tracing. The auto instrumentation opens an http.server span per
+    // request AND continues the inbound sentry-trace/baggage the browser SDK
+    // stamps on its cross-origin calls, so a browser action and the API work it
+    // triggers land in ONE trace (index.ts only relabels the span with the
+    // parameterized route). Full sampling by default (low-traffic app); dial down
+    // with SENTRY_TRACES_SAMPLE_RATE on a busier deployment. A deliberate 0 turns
+    // tracing off; `Number(x) || 1.0` would wrongly coerce that back to 1.0.
+    tracesSampleRate: Number.isFinite(Number(process.env.SENTRY_TRACES_SAMPLE_RATE))
+      ? Number(process.env.SENTRY_TRACES_SAMPLE_RATE)
+      : 1.0,
+    // Drop the high-frequency, low-signal transactions the auto instrumentation
+    // records for the /health probe and CORS preflights. Errors on those paths are
+    // still reported — this only filters trace transactions, not events.
+    beforeSendTransaction(event) {
+      const name = event.transaction ?? "";
+      if (name === "GET /health" || name.startsWith("OPTIONS ")) return null;
+      return event;
+    },
     debug: process.env.SENTRY_DEBUG === "1",
     // Don't attach request bodies / user IPs by default.
     sendDefaultPii: false,
