@@ -67,6 +67,30 @@ if (deploymentConfig.mode === 'cloud' && deploymentConfig.cloudGate === 'externa
 
 const app = new Hono();
 
+// ── Distributed tracing: parameterize the auto span's transaction name ───────
+app.use('*', async (c, next) => {
+  await next();
+  // @sentry/bun auto-instruments the served fetch handler: per request it opens an
+  // http.server span, continues the inbound sentry-trace/baggage the browser SDK
+  // stamps on its cross-origin calls (so the browser's trace and the API work it
+  // triggers share ONE trace — see src/instrumentation-client.ts), and isolates
+  // the scope. The only thing it gets wrong for a parameterized API is the
+  // transaction NAME: it uses the raw path (e.g. /api/vocab/abc,
+  // /api/dictionary/<word>), which explodes transaction cardinality and defeats
+  // per-route aggregation. Relabel the request's root span with the matched route,
+  // now that routing has resolved (c.req.routePath → "/api/vocab/:id"). No-op when
+  // tracing is off/unsampled (getActiveSpan → undefined) or the path didn't match
+  // a route (routePath stays "/*", e.g. a CORS preflight short-circuited by cors()).
+  const active = Sentry.getActiveSpan();
+  const routePath = c.req.routePath;
+  if (active && routePath && routePath !== '/*') {
+    const root = Sentry.getRootSpan(active);
+    root.updateName(`${c.req.method} ${routePath}`);
+    root.setAttribute('http.route', routePath);
+    root.setAttribute('http.response.status_code', c.res.status);
+  }
+});
+
 // The browser talks to this API directly — the Next.js `/api/*` proxy was
 // removed in #188, so the UI (:3000/:3400) and API (:3457) are different
 // origins and every client call is cross-origin. CORS is therefore

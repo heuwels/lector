@@ -22,6 +22,11 @@ declare global {
   interface Window {
     __ENV__?: {
       API_URL?: string;
+      /** Sentry DSN for the browser SDK (public by design — the DSN is meant to
+       *  ship in client code). Injected at runtime like API_URL so a prebuilt
+       *  image can be pointed at a project without a rebuild; read by
+       *  src/instrumentation-client.ts. */
+      SENTRY_DSN?: string;
       LECTOR_MODE?: string;
       /** Cloudflare Turnstile site key — presence turns the widget on (#218). */
       TURNSTILE_SITE_KEY?: string;

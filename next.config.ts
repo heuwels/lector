@@ -50,10 +50,20 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  // Disable source map upload — not needed for GlitchTip
+  // Source-map upload gives un-minified production front-end stack traces (the
+  // "full stack traces" this instrumentation is for). It runs during
+  // `next build` only, and only when a Sentry auth token is present — a clean
+  // no-op for local dev / CI without one. To enable, set SENTRY_AUTH_TOKEN
+  // (sentry.io → Settings → Auth Tokens, project:releases scope) plus the
+  // SENTRY_ORG / SENTRY_PROJECT slugs.
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
   sourcemaps: {
-    disable: true,
+    disable: !process.env.SENTRY_AUTH_TOKEN,
   },
+  // Upload a wider set of client bundles for prettier stack traces.
+  widenClientFileUpload: true,
   // Disable telemetry
   telemetry: false,
 });

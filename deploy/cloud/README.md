@@ -79,6 +79,8 @@ Design notes:
    | `paddle-price-plus-monthly`    | String       | `PADDLE_PRICE_PLUS_MONTHLY` (`pri_…` — Plus monthly) |
    | `paddle-price-plus-annual`     | String       | `PADDLE_PRICE_PLUS_ANNUAL` (`pri_…` — Plus annual) |
    | `billing-exempt-emails`        | String       | `BILLING_EXEMPT_EMAILS` (comma-separated accounts the gate never locks — operator + test accounts) |
+   | `sentry-dsn`                   | String       | `SENTRY_DSN` — full-stack error tracking + tracing (API + browser, injected into `window.__ENV__`); public DSN; unset = off. Points at Sentry.io, self-hosted Sentry, or GlitchTip |
+   | `sentry-traces-sample-rate`    | String       | `SENTRY_TRACES_SAMPLE_RATE` (0–1, server/API only; `0` = errors only, no traces; default full sampling) |
    | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
 
    ```bash
@@ -101,6 +103,9 @@ Design notes:
    # TTS:
    aws ssm put-parameter --name /lector/canary/google-api-key \
      --type SecureString --value '…'
+   # Error tracking + tracing — Sentry.io, self-hosted Sentry, or GlitchTip:
+   aws ssm put-parameter --name /lector/canary/sentry-dsn \
+     --type String --value 'https://<key>@o<org>.ingest.<region>.sentry.io/<project>'
    ```
 
    Note: the OpenAI-compatible provider uses **one model for everything**
