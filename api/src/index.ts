@@ -67,6 +67,31 @@ if (deploymentConfig.mode === 'cloud' && deploymentConfig.cloudGate === 'externa
 
 const app = new Hono();
 
+// ── Distributed tracing bridge (front-end → API → worker) ────────────────────
+// Hono runs on Bun.serve (a fetch handler), not node:http, so Sentry's auto HTTP
+// server instrumentation never fires. Bridge it by hand: continue the trace the
+// browser SDK started — the sentry-trace/baggage headers it stamps on
+// cross-origin calls (see src/instrumentation-client.ts's
+// tracePropagationTargets) — and open one http.server span per request, so a
+// browser action and the API work it triggers share a trace. Registered first so
+// the span wraps CORS, auth, and routing. Skips OPTIONS preflights and the
+// frequent /health probe to keep the trace stream signal-heavy. No-op when
+// SENTRY_DSN is unset: startSpan still runs the handler, it just records nothing.
+app.use('*', (c, next) => {
+  if (c.req.method === 'OPTIONS' || c.req.path === '/health') return next();
+  return Sentry.continueTrace(
+    { sentryTrace: c.req.header('sentry-trace'), baggage: c.req.header('baggage') },
+    () =>
+      Sentry.startSpan(
+        { name: `${c.req.method} ${c.req.path}`, op: 'http.server' },
+        async (span) => {
+          await next();
+          span.setAttribute('http.response.status_code', c.res.status);
+        },
+      ),
+  );
+});
+
 // The browser talks to this API directly — the Next.js `/api/*` proxy was
 // removed in #188, so the UI (:3000/:3400) and API (:3457) are different
 // origins and every client call is cross-origin. CORS is therefore

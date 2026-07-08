@@ -15,7 +15,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.114",
     "@anthropic-ai/sdk": "^0.78.0",
     "@mozilla/readability": "^0.6.0",
-    "@sentry/node": "^10",
+    "@sentry/bun": "^10.64.0",
     "adm-zip": "^0.5.17",
     "better-auth": "^1.6.23",
     "hono": "^4.12.25",

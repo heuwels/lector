@@ -16,6 +16,7 @@ import { Database } from 'bun:sqlite';
 import { db } from '../db';
 import { MASTERY_STATES } from './domains';
 import { classifyWords, type ClassifyItem, type ClassifyResult } from './word-classifier';
+import { Sentry } from './sentry';
 
 // Only states that COUNT toward the radar are worth classifying (MASTERY_STATES,
 // shared with the radar aggregation) — skip new/ignored to save calls. If such a
@@ -129,9 +130,19 @@ export function startClassifyWorker(): boolean {
     if (ticking) return; // never overlap a slow LLM call
     ticking = true;
     try {
-      const n = await classifyPendingBatch(db, batchSize);
-      if (n > 0) console.log(`[classify-worker] classified ${n} word(s)`);
+      // Each drain is its own root trace (no inbound request). Wrapping it in a
+      // span means a failed LLM classification surfaces in Sentry with a full
+      // worker stack trace + timing, instead of being swallowed as a console
+      // line — this background loop has no request handler to bubble errors to.
+      await Sentry.startSpan(
+        { name: 'classify-worker.tick', op: 'queue.process' },
+        async () => {
+          const n = await classifyPendingBatch(db, batchSize);
+          if (n > 0) console.log(`[classify-worker] classified ${n} word(s)`);
+        },
+      );
     } catch (err) {
+      Sentry.captureException(err);
       console.error('[classify-worker] tick failed:', err);
     } finally {
       ticking = false;
