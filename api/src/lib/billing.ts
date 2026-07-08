@@ -112,18 +112,28 @@ export interface BillingPrice {
 
 function pricesFromEnv(env: NodeJS.ProcessEnv): BillingPrice[] {
   const prices: BillingPrice[] = [];
-  if (env.PADDLE_PRICE_MONTHLY) {
-    prices.push({ id: env.PADDLE_PRICE_MONTHLY, plan: 'cloud', cycle: 'month' });
-  }
-  if (env.PADDLE_PRICE_ANNUAL) {
-    prices.push({ id: env.PADDLE_PRICE_ANNUAL, plan: 'cloud', cycle: 'year' });
-  }
-  if (env.PADDLE_PRICE_PLUS_MONTHLY) {
-    prices.push({ id: env.PADDLE_PRICE_PLUS_MONTHLY, plan: 'plus', cycle: 'month' });
-  }
-  if (env.PADDLE_PRICE_PLUS_ANNUAL) {
-    prices.push({ id: env.PADDLE_PRICE_PLUS_ANNUAL, plan: 'plus', cycle: 'year' });
-  }
+  const add = (
+    key: string,
+    id: string | undefined,
+    plan: BillingPrice['plan'],
+    cycle: BillingPrice['cycle'],
+  ) => {
+    if (!id) return;
+    // A Paddle price id, not an amount: "pri_…". Configuring "5" here (it
+    // has happened) fails silently at Paddle's end when checkout opens —
+    // warn loudly but still serve it, so the fix stays a param change.
+    if (!id.startsWith('pri_')) {
+      console.warn(
+        `[billing] ${key}="${id}" does not look like a Paddle price id (pri_…) — checkout ` +
+          'will fail for this plan. Use the id from Paddle → Catalog → Prices.',
+      );
+    }
+    prices.push({ id, plan, cycle });
+  };
+  add('PADDLE_PRICE_MONTHLY', env.PADDLE_PRICE_MONTHLY, 'cloud', 'month');
+  add('PADDLE_PRICE_ANNUAL', env.PADDLE_PRICE_ANNUAL, 'cloud', 'year');
+  add('PADDLE_PRICE_PLUS_MONTHLY', env.PADDLE_PRICE_PLUS_MONTHLY, 'plus', 'month');
+  add('PADDLE_PRICE_PLUS_ANNUAL', env.PADDLE_PRICE_PLUS_ANNUAL, 'plus', 'year');
   return prices;
 }
 
