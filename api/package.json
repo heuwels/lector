@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
+    "adopt-local-data": "bun run src/scripts/adopt-local-data.ts",
     "test": "rm -rf .test-data && DATA_DIR=.test-data bun test"
   },
   "dependencies": {
