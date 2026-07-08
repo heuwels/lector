@@ -30,7 +30,7 @@ Design notes:
 - **A VM, not Fargate/EFS.** SQLite runs in WAL mode (`api/src/db.ts`), which
   needs shared memory that network filesystems can't provide safely. Local EBS
   is the sound home for it, and matches the plan-010 tenancy economics
-  (shared SQLite on a VM; Litestream→R2 comes with #217).
+  (shared SQLite on a VM, continuously replicated to S3 by Litestream — #270).
 
 ## Prerequisites
 
@@ -162,8 +162,39 @@ Design notes:
   **Restore:** create a volume from the chosen snapshot in the instance's AZ →
   `docker compose down` → detach the live data volume, attach the restored one
   at `/dev/sdf` → `mount -a` → `docker compose up -d`. Snapshot storage for
-  this DB is pennies/month (incremental). Continuous replication
-  (Litestream→R2) still arrives with #217.
+  this DB is pennies/month (incremental).
+- **Continuous replication (Litestream → S3, #270):** a `litestream` sidecar
+  in the compose file replicates `/srv/lector/data/lector.db` to
+  `s3://lector-canary-litestream-<account>/lector.db` every 10s (72h
+  retention) — second-level RPO on top of the nightly snapshots. Credentials
+  come from the **instance role via IMDSv2** (hop limit 2; no static keys);
+  the bucket + its principal-tag bucket policy live in `LectorCanaryBackup`,
+  which is always safe to deploy.
+
+  **Applying to an already-running box** (the boot script only runs at first
+  boot, and redeploying `LectorCloudCanary` replaces the instance — don't):
+  1. `bunx cdk deploy LectorCanaryBackup` — creates the bucket + access policy.
+  2. From your workstation, let containers reach IMDS (one extra hop through
+     the docker bridge):
+     `aws ec2 modify-instance-metadata-options --instance-id <id> --http-tokens required --http-put-response-hop-limit 2 --region us-east-1`
+  3. On the box (SSM session, `sudo -i`): write `/srv/lector/litestream.yml`
+     and append the `litestream` service to `/srv/lector/docker-compose.yml`
+     **exactly as the boot script in `canary-stack.ts` defines them** (copy
+     from there — it stays the single source of truth), then
+     `/srv/lector/update.sh`.
+  4. Verify: `docker logs litestream` shows an initial snapshot upload, and
+     `aws s3 ls s3://lector-canary-litestream-<account>/lector.db/ --recursive | head`
+     shows `generations/…` objects growing.
+
+  **Restore drill** (run it now, and again before real users — an unrestored
+  backup is a hope, not a backup):
+  ```bash
+  docker run --rm -v /tmp:/out -v /srv/lector/litestream.yml:/etc/litestream.yml:ro \
+    litestream/litestream restore -o /out/restored.db /data/lector.db
+  sqlite3 /tmp/restored.db 'PRAGMA integrity_check; SELECT COUNT(*) FROM lessons;'
+  ```
+  Full recovery = restore onto a fresh box's data volume, then
+  `docker compose up -d`.
 - **Teardown:** `bunx cdk destroy`. The data volume is retained — delete it
   manually (and the SSM parameters + tunnel + Access app) for a full cleanup.
 

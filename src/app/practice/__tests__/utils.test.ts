@@ -45,6 +45,11 @@ describe('normalize', () => {
     expect(normalize('« Français »')).toBe('français');
     expect(normalize('être…')).toBe('être');
   });
+
+  it('keeps Dutch trema diacritics and strips quotes', () => {
+    expect(normalize('Coördinatie')).toBe('coördinatie');
+    expect(normalize('reëel!')).toBe('reëel');
+  });
 });
 
 describe('checkAnswer', () => {
@@ -83,6 +88,16 @@ describe('checkAnswer', () => {
   it('distinguishes French diacritics (a vs à, e vs é)', () => {
     expect(checkAnswer('a', 'à')).toBe(false);
     expect(checkAnswer('ecole', 'école')).toBe(false);
+  });
+
+  it('matches Dutch content words through case and the IJ digraph', () => {
+    expect(checkAnswer('koffie', 'Koffie.')).toBe(true);
+    expect(checkAnswer('ijsbeer', 'IJsbeer')).toBe(true);
+  });
+
+  it('distinguishes Dutch diacritics (een vs één, e vs ë)', () => {
+    expect(checkAnswer('een', 'één')).toBe(false);
+    expect(checkAnswer('reeel', 'reëel')).toBe(false);
   });
 });
 

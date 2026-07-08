@@ -1,6 +1,7 @@
-import { CfnOutput, Stack, StackProps, Tags } from 'aws-cdk-lib';
+import { CfnOutput, Duration, Stack, StackProps, Tags } from 'aws-cdk-lib';
 import * as dlm from 'aws-cdk-lib/aws-dlm';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
 /**
@@ -12,9 +13,16 @@ import { Construct } from 'constructs';
  * Crash-consistency is enough here: SQLite runs in WAL mode, and a
  * point-in-time snapshot taken mid-write recovers exactly like a power loss
  * (WAL replay/rollback on next open). DB + WAL live on the same volume, so
- * the snapshot is internally consistent. Continuous replication
- * (Litestream → R2) still arrives with #217; this is the safety net until
- * then — and stays useful after, snapshots also cover the dictionaries/books.
+ * the snapshot is internally consistent.
+ *
+ * This stack also owns the Litestream replica bucket (#270): continuous WAL
+ * replication → S3 gives second-level RPO on top of the nightly snapshots
+ * (which stay useful — they also cover the dictionaries/books). The sidecar
+ * itself lives in the canary stack's compose file; access is granted HERE via
+ * a bucket policy keyed on the instance role's `stack=cloud-canary` principal
+ * tag, because attaching an identity policy would mean deploying the canary
+ * stack — and any UserData drift there replaces the instance. Same-account S3
+ * access needs only one side (identity OR resource policy) to allow.
  *
  * Targets the INSTANCE by the canary stack's `stack=cloud-canary` tag with
  * the boot volume excluded, rather than tagging the data volume directly:
@@ -73,8 +81,59 @@ export class LectorCanaryBackupStack extends Stack {
       },
     });
 
+    // ── Litestream replica bucket (#270) ──────────────────────────────────
+    // Deterministic name so the canary box's litestream.yml can reference it
+    // without cross-stack exports. Unversioned on purpose: Litestream manages
+    // its own generations and prunes by its `retention` setting; the nightly
+    // EBS snapshots above are the independent safety net.
+    const litestreamBucket = new s3.Bucket(this, 'LitestreamBucket', {
+      bucketName: `lector-canary-litestream-${this.account}`,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      enforceSSL: true,
+      lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(7) }],
+    });
+
+    // Grant the canary instance by principal tag (applied to its role by
+    // Tags.of() in canary-stack.ts) — see the header for why not an identity
+    // policy. Litestream needs get/put/delete on objects + list on the bucket.
+    //
+    // Principal is `*` + conditions, NOT AccountPrincipal: an account-root
+    // principal in a resource policy only DELEGATES to identity policies (the
+    // role would still need its own s3 allow — the exact thing this design
+    // avoids). `*` conditioned on PrincipalAccount + PrincipalTag grants the
+    // matching role directly; the fixed PrincipalAccount also keeps the
+    // policy non-public, so Block Public Access accepts it.
+    const canaryOnly = {
+      StringEquals: {
+        'aws:PrincipalAccount': this.account,
+        'aws:PrincipalTag/stack': 'cloud-canary',
+      },
+    };
+    litestreamBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
+        resources: [litestreamBucket.arnForObjects('*')],
+        principals: [new iam.AnyPrincipal()],
+        conditions: canaryOnly,
+      }),
+    );
+    litestreamBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        actions: ['s3:ListBucket'],
+        resources: [litestreamBucket.bucketArn],
+        principals: [new iam.AnyPrincipal()],
+        conditions: canaryOnly,
+      }),
+    );
+
     Tags.of(this).add('project', 'lector');
     Tags.of(this).add('stack', 'canary-backup');
+
+    new CfnOutput(this, 'LitestreamBucketName', {
+      value: litestreamBucket.bucketName,
+      description: 'S3 bucket receiving continuous Litestream replication (#270)',
+    });
 
     new CfnOutput(this, 'LifecyclePolicyId', {
       value: policy.ref,

@@ -18,6 +18,10 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
         'When do I use "tu" vs "vous"?',
         'Explain the difference between "être" and "avoir" as auxiliaries',
         'How does elision work (l\', d\', qu\')?',
-    ]
-
+    ],
+    nl: [
+        'When do I use "de" vs "het" as a noun\'s article?',
+        'How do separable verbs work (e.g. "opbellen", "meenemen")?',
+        'What\'s the difference between "kennen" and "weten"?',
+    ],
 }
