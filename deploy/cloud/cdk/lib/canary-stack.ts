@@ -289,10 +289,14 @@ dbs:
         retention: 72h
 LITESTREAMEOF
 
-# ── the whole deployment: lector (cloud canary shape) + cloudflared + litestream ──
+# ── the whole deployment: lector (cloud proper) + cloudflared + litestream ──
 # No published ports: nothing listens on the host. cloudflared reaches lector
-# on the compose network and dials OUT to Cloudflare; Access fronts every
-# request at the edge (that is what LECTOR_CLOUD_GATE=external asserts).
+# on the compose network and dials OUT to Cloudflare. Cloud PROPER since the
+# 2026-07-08 flip (#218): built-in Better Auth accounts are the app-level
+# gate — no LECTOR_CLOUD_GATE=external — and BETTER_AUTH_SECRET (SSM) is
+# REQUIRED or the container refuses to boot. Cloudflare Access may still
+# front the hostname as an outer gate during the soak; removing it is a
+# Cloudflare-side decision, not a box change.
 cat > /srv/lector/docker-compose.yml <<'COMPOSEEOF'
 services:
   lector:
@@ -302,8 +306,8 @@ services:
     environment:
       - NODE_ENV=production
       - LECTOR_MODE=cloud
-      - LECTOR_CLOUD_GATE=external
       - API_URL=https://${HOSTNAME}
+      - BETTER_AUTH_URL=https://${HOSTNAME}
       # Interpolated from .env at compose time so a value set via SSM wins;
       # absent -> anthropic. All pure secrets ride env_file below instead,
       # so params that don't exist never become empty-string env overrides.

@@ -63,8 +63,8 @@ Design notes:
    | `llm-provider`                 | String       | `LLM_PROVIDER` (`anthropic` default, or `openai`)             |
    | `openai-compat-url`            | String       | `OPENAI_COMPAT_URL`                                           |
    | `openai-compat-model`          | String       | `OPENAI_COMPAT_MODEL`                                         |
-   | `resend-api-key`               | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — dormant under the external gate; staged for cloud proper) |
-   | `better-auth-secret`           | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — dormant under the external gate; **required** to flip to cloud proper. Generate: `openssl rand -base64 32`) |
+   | `resend-api-key`               | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — the sending domain must be verified at resend.com/domains or sends 403) |
+   | `better-auth-secret`           | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — **required**: cloud proper refuses to boot without it. Generate: `openssl rand -base64 32`) |
    | `turnstile-site-key`           | String       | `TURNSTILE_SITE_KEY` (Cloudflare Turnstile widget on the auth forms, #218 — public key, rides `window.__ENV__`) |
    | `turnstile-secret`             | SecureString | `TURNSTILE_SECRET_KEY` (server-side captcha verification; set both or neither) |
    | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
@@ -198,12 +198,18 @@ Design notes:
 - **Teardown:** `bunx cdk destroy`. The data volume is retained — delete it
   manually (and the SSM parameters + tunnel + Access app) for a full cleanup.
 
-## Caveats (by design, for now)
+## Caveats
 
-- **Single implicit user.** Per-user isolation is #217/#218; everyone the
-  Access policy admits shares one Lector profile. Keep the allow-list tight.
-- **App-level auth is off** behind the gate — that is what
-  `LECTOR_CLOUD_GATE=external` means. Removing the Access app while the tunnel
-  is up would expose an unauthenticated instance; don't.
+- **Cloud proper since 2026-07-08** (#218): built-in Better Auth accounts are
+  the app-level gate — real signup/login, per-user isolation, Turnstile on the
+  auth forms. `LECTOR_CLOUD_GATE=external` is gone from the compose env;
+  `BETTER_AUTH_SECRET` is **required** (the container refuses to boot without
+  it) and `BETTER_AUTH_URL` must be the public origin. Cloudflare Access may
+  stay in front as an outer gate during the soak — the app no longer depends
+  on it for auth, so removing the Access app is safe when ready for public
+  signup.
+- **Pre-flip data** (everything created under the external gate) belongs to
+  the implicit `local` tenant: invisible to session users, retained in the DB
+  and in every Litestream/EBS backup.
 - **Cost:** ~US$12–15/mo (t4g.small + 36 GB gp3 + public IPv4). Downsize with
   `bunx cdk deploy -c instanceType=t4g.micro` if the canary is idle-mostly.
