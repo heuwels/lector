@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { initializePaddle, type Paddle } from '@paddle/paddle-js';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { apiUrl } from '@/lib/api-base';
 import { authClient } from '@/lib/auth-client';
@@ -37,6 +38,17 @@ export default function SubscribePage() {
   const [opening, setOpening] = useState<string | null>(null);
   const paddleRef = useRef<Paddle | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Paddle's overlay loads from its CDN, so there's a visible gap between the
+  // click and anything appearing — the clicked tile spins until Paddle
+  // reports loaded/closed/error (eventCallback below) or this deadline says
+  // it never will (e.g. the domain isn't checkout-approved).
+  const clearOpening = useCallback(() => {
+    if (openTimer.current) clearTimeout(openTimer.current);
+    openTimer.current = null;
+    setOpening(null);
+  }, []);
 
   // One-shot activation poll: the webhook usually lands within seconds of
   // checkout completing; give it 90 before suggesting patience.
@@ -59,7 +71,13 @@ export default function SubscribePage() {
     tick(0);
   }, []);
 
-  useEffect(() => () => clearTimeout(pollTimer.current ?? undefined), []);
+  useEffect(
+    () => () => {
+      clearTimeout(pollTimer.current ?? undefined);
+      clearTimeout(openTimer.current ?? undefined);
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +103,15 @@ export default function SubscribePage() {
         token: clientToken,
         environment,
         eventCallback: (event) => {
+          // Whatever the overlay did — appeared, was dismissed, or failed —
+          // the clicked tile's pending spinner is done.
+          if (
+            event.name === 'checkout.loaded' ||
+            event.name === 'checkout.closed' ||
+            event.name === 'checkout.error'
+          ) {
+            clearOpening();
+          }
           if (event.name === 'checkout.completed') {
             setPhase('activating');
             pollUntilActive();
@@ -118,12 +145,16 @@ export default function SubscribePage() {
     return () => {
       cancelled = true;
     };
-  }, [pollUntilActive]);
+  }, [pollUntilActive, clearOpening]);
 
   function openCheckout(price: BillingPrice) {
     const paddle = paddleRef.current;
-    if (!paddle || !status) return;
+    if (!paddle || !status || opening !== null) return;
     setOpening(price.id);
+    openTimer.current = setTimeout(() => {
+      setOpening(null);
+      toast.error("Checkout didn't open. Please try again in a moment.");
+    }, 12000);
     paddle.Checkout.open({
       items: [{ priceId: price.id, quantity: 1 }],
       // The webhook matches this account by custom_data first, email second
@@ -139,7 +170,6 @@ export default function SubscribePage() {
         ...(status.checkout.email ? { allowLogout: false } : {}),
       },
     });
-    setOpening(null);
   }
 
   async function signOut() {
@@ -199,13 +229,22 @@ export default function SubscribePage() {
             type="button"
             onClick={() => openCheckout(price)}
             disabled={opening !== null}
-            className="w-full rounded-xl border border-border bg-background p-4 text-left transition-colors hover:border-primary"
+            className="w-full cursor-pointer rounded-xl border border-border bg-background p-4 text-left transition-colors hover:border-primary disabled:cursor-default disabled:opacity-70"
             data-testid={`subscribe-price-${price.plan}-${price.cycle}`}
           >
-            <div className="flex items-baseline justify-between gap-2">
+            <div className="flex items-center justify-between gap-2">
               <span className="font-semibold text-foreground">{PLAN_COPY[price.plan].name}</span>
-              {amounts[price.id] && (
-                <span className="text-sm font-medium text-foreground">{amounts[price.id]}</span>
+              {opening === price.id ? (
+                <span
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary"
+                  role="status"
+                  aria-label="Opening checkout"
+                  data-testid="subscribe-price-opening"
+                />
+              ) : (
+                amounts[price.id] && (
+                  <span className="text-sm font-medium text-foreground">{amounts[price.id]}</span>
+                )
               )}
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
