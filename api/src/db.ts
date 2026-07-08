@@ -305,6 +305,10 @@ function getDb(): Database {
   // columns (language, domain, ankiReviews, …) already exist.
   migrateAddUserIdColumn(_db);
 
+  // Runs after migrateAddUserIdColumn (needs the userId column) and before
+  // ensurePartitionIndexes (the rebuilds drop every index on the way).
+  migrateCompositeTenantKeys(_db);
+
   // Dead table from a long-removed translation-comparison experiment (DEBT-03).
   _db.exec('DROP TABLE IF EXISTS translation_evaluations');
 
@@ -439,6 +443,217 @@ function migrateAddUserIdColumn(database: Database) {
           SELECT 'local', key, value FROM settings;
         DROP TABLE settings;
         ALTER TABLE settings_new RENAME TO settings;
+      `);
+    })();
+  }
+}
+
+/**
+ * Composite (userId, id) primary keys for the synthetic-id tenant tables
+ * (#279). W1 (#217) added userId as a plain column but left `id TEXT PRIMARY
+ * KEY` alone, so ids stayed a GLOBAL namespace: any `INSERT OR REPLACE` (or
+ * id-keyed upsert) with a caller-supplied id could collide with another
+ * tenant's row and clobber it. PR #275 papered over the known write sites with
+ * `ON CONFLICT(id) DO UPDATE … WHERE userId = excluded.userId` guards; this
+ * rebuild makes the collision impossible at the schema level — the same id
+ * under two tenants is simply two rows.
+ *
+ * Deliberately NOT a retained `UNIQUE(id)`: that would keep the global
+ * namespace, and `INSERT OR REPLACE` replaces on ANY uniqueness violation —
+ * i.e. it would preserve exactly the cross-tenant clobber this migration
+ * exists to kill.
+ *
+ * Foreign keys: enforcement is off app-wide (see routes/groups.ts), so the
+ * declarations are documentation. lessons.collectionId keeps a composite FK
+ * (sound if ever enforced). The two ON DELETE SET NULL relations
+ * (clozeSentences.vocabEntryId → vocab, collections.groupId →
+ * collection_groups) lose their declarations: a composite FK with SET NULL
+ * would null userId too (NOT NULL violation if ever enforced), and the routes
+ * already do the cleanup manually (groups.ts ungroups; vocab deletes leave
+ * cloze refs dangling, as they always have with enforcement off).
+ *
+ * Same discipline as the other rebuilds: guarded on the current PK shape,
+ * transactional per table, idempotent. Exported for the migration tests.
+ */
+export function migrateCompositeTenantKeys(database: Database) {
+  const REBUILDS: { table: string; createSql: string; columns: string[]; indexSql: string[] }[] = [
+    {
+      table: 'collection_groups',
+      createSql: `
+        CREATE TABLE collection_groups_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          sortOrder INTEGER NOT NULL DEFAULT 0,
+          createdAt TEXT NOT NULL,
+          PRIMARY KEY (userId, id)
+        )`,
+      columns: ['userId', 'id', 'name', 'sortOrder', 'createdAt'],
+      indexSql: [],
+    },
+    {
+      table: 'collections',
+      // groupId: no FK declaration — see the SET NULL note above.
+      createSql: `
+        CREATE TABLE collections_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          author TEXT NOT NULL DEFAULT 'Unknown',
+          coverUrl TEXT,
+          groupId TEXT,
+          sortOrder INTEGER NOT NULL DEFAULT 0,
+          language TEXT NOT NULL DEFAULT 'af',
+          createdAt TEXT NOT NULL,
+          lastReadAt TEXT NOT NULL,
+          PRIMARY KEY (userId, id)
+        )`,
+      columns: ['userId', 'id', 'title', 'author', 'coverUrl', 'groupId', 'sortOrder', 'language', 'createdAt', 'lastReadAt'],
+      indexSql: [],
+    },
+    {
+      table: 'lessons',
+      createSql: `
+        CREATE TABLE lessons_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          id TEXT NOT NULL,
+          collectionId TEXT,
+          title TEXT NOT NULL,
+          sortOrder INTEGER NOT NULL DEFAULT 0,
+          textContent TEXT NOT NULL DEFAULT '',
+          progress_scrollPosition INTEGER DEFAULT 0,
+          progress_percentComplete REAL DEFAULT 0,
+          wordCount INTEGER DEFAULT 0,
+          language TEXT NOT NULL DEFAULT 'af',
+          createdAt TEXT NOT NULL,
+          lastReadAt TEXT NOT NULL,
+          PRIMARY KEY (userId, id),
+          FOREIGN KEY (userId, collectionId) REFERENCES collections(userId, id) ON DELETE CASCADE
+        )`,
+      columns: ['userId', 'id', 'collectionId', 'title', 'sortOrder', 'textContent', 'progress_scrollPosition', 'progress_percentComplete', 'wordCount', 'language', 'createdAt', 'lastReadAt'],
+      indexSql: [
+        'CREATE INDEX IF NOT EXISTS idx_lessons_collectionId ON lessons(collectionId)',
+        'CREATE INDEX IF NOT EXISTS idx_lessons_sortOrder ON lessons(collectionId, sortOrder)',
+      ],
+    },
+    {
+      table: 'vocab',
+      createSql: `
+        CREATE TABLE vocab_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          id TEXT NOT NULL,
+          text TEXT NOT NULL,
+          type TEXT NOT NULL CHECK (type IN ('word', 'phrase')),
+          sentence TEXT NOT NULL,
+          translation TEXT NOT NULL,
+          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+          stateUpdatedAt TEXT NOT NULL,
+          reviewCount INTEGER DEFAULT 0,
+          bookId TEXT,
+          chapter INTEGER,
+          language TEXT NOT NULL DEFAULT 'af',
+          createdAt TEXT NOT NULL,
+          pushedToAnki INTEGER DEFAULT 0,
+          ankiNoteId INTEGER,
+          PRIMARY KEY (userId, id)
+        )`,
+      columns: ['userId', 'id', 'text', 'type', 'sentence', 'translation', 'state', 'stateUpdatedAt', 'reviewCount', 'bookId', 'chapter', 'language', 'createdAt', 'pushedToAnki', 'ankiNoteId'],
+      indexSql: [
+        'CREATE INDEX IF NOT EXISTS idx_vocab_text ON vocab(text)',
+        'CREATE INDEX IF NOT EXISTS idx_vocab_state ON vocab(state)',
+        'CREATE INDEX IF NOT EXISTS idx_vocab_bookId ON vocab(bookId)',
+      ],
+    },
+    {
+      table: 'clozeSentences',
+      // vocabEntryId: no FK declaration — see the SET NULL note above.
+      createSql: `
+        CREATE TABLE clozeSentences_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          id TEXT NOT NULL,
+          sentence TEXT NOT NULL,
+          clozeWord TEXT NOT NULL,
+          clozeIndex INTEGER NOT NULL,
+          translation TEXT NOT NULL,
+          source TEXT NOT NULL CHECK (source IN ('tatoeba', 'mined')),
+          collection TEXT NOT NULL CHECK (collection IN ('top500', 'top1000', 'top2000', 'mined', 'random')),
+          wordRank INTEGER,
+          tatoebaSentenceId INTEGER,
+          vocabEntryId TEXT,
+          masteryLevel INTEGER DEFAULT 0 CHECK (masteryLevel IN (0, 25, 50, 75, 100)),
+          nextReview TEXT NOT NULL,
+          reviewCount INTEGER DEFAULT 0,
+          lastReviewed TEXT,
+          timesCorrect INTEGER DEFAULT 0,
+          timesIncorrect INTEGER DEFAULT 0,
+          blacklisted INTEGER DEFAULT 0,
+          language TEXT NOT NULL DEFAULT 'af',
+          PRIMARY KEY (userId, id)
+        )`,
+      columns: ['userId', 'id', 'sentence', 'clozeWord', 'clozeIndex', 'translation', 'source', 'collection', 'wordRank', 'tatoebaSentenceId', 'vocabEntryId', 'masteryLevel', 'nextReview', 'reviewCount', 'lastReviewed', 'timesCorrect', 'timesIncorrect', 'blacklisted', 'language'],
+      indexSql: [
+        'CREATE INDEX IF NOT EXISTS idx_cloze_collection ON clozeSentences(collection)',
+        'CREATE INDEX IF NOT EXISTS idx_cloze_nextReview ON clozeSentences(nextReview)',
+        'CREATE INDEX IF NOT EXISTS idx_cloze_clozeWord ON clozeSentences(clozeWord)',
+        'CREATE INDEX IF NOT EXISTS idx_cloze_masteryLevel ON clozeSentences(masteryLevel)',
+      ],
+    },
+    {
+      table: 'chat_messages',
+      createSql: `
+        CREATE TABLE chat_messages_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          id TEXT NOT NULL,
+          role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+          content TEXT NOT NULL,
+          provider TEXT,
+          responseId TEXT,
+          createdAt TEXT NOT NULL,
+          language TEXT NOT NULL DEFAULT 'af',
+          PRIMARY KEY (userId, id)
+        )`,
+      columns: ['userId', 'id', 'role', 'content', 'provider', 'responseId', 'createdAt', 'language'],
+      indexSql: ['CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt)'],
+    },
+    {
+      table: 'journal_entries',
+      createSql: `
+        CREATE TABLE journal_entries_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          id TEXT NOT NULL,
+          body TEXT NOT NULL DEFAULT '',
+          correctedBody TEXT,
+          corrections TEXT,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
+          wordCount INTEGER DEFAULT 0,
+          language TEXT NOT NULL DEFAULT 'af',
+          entryDate TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL,
+          PRIMARY KEY (userId, id)
+        )`,
+      columns: ['userId', 'id', 'body', 'correctedBody', 'corrections', 'status', 'wordCount', 'language', 'entryDate', 'createdAt', 'updatedAt'],
+      indexSql: [
+        'CREATE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate)',
+        'CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status)',
+      ],
+    },
+  ];
+
+  for (const rebuild of REBUILDS) {
+    const row = database
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?")
+      .get(rebuild.table) as { sql: string } | undefined;
+    if (!row || /PRIMARY KEY\s*\(\s*userId\s*,\s*id\s*\)/i.test(row.sql)) continue;
+
+    const cols = rebuild.columns.join(', ');
+    database.transaction(() => {
+      database.exec(`
+        ${rebuild.createSql};
+        INSERT INTO ${rebuild.table}_new (${cols}) SELECT ${cols} FROM ${rebuild.table};
+        DROP TABLE ${rebuild.table};
+        ALTER TABLE ${rebuild.table}_new RENAME TO ${rebuild.table};
+        ${rebuild.indexSql.map((s) => `${s};`).join('\n')}
       `);
     })();
   }

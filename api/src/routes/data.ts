@@ -73,24 +73,18 @@ app.post('/', async (c) => {
   // misleading partial count — and one commit beats hundreds of per-row WAL
   // autocommits. Every other multi-write path here already does this
   // (import.ts, known-words.ts).
-  // Guarded upserts, not INSERT OR REPLACE, for every id-only-PK table below
-  // (collection_groups/collections/lessons/vocab/clozeSentences). Their PK is
-  // the bare id, so REPLACE would conflict on the GLOBAL id namespace — a
-  // backup carrying another tenant's row id would delete their row and
-  // re-create it under the restorer. `ON CONFLICT(id) DO UPDATE ... WHERE
-  // table.userId = excluded.userId` overwrites your OWN row on a re-restore
-  // but no-ops a foreign id (#220). The composite-PK tables (knownWords,
-  // dailyStats, settings) keep REPLACE — userId is in their PK, so a foreign
-  // row is a different key, never a clobber.
+  // Every table below has userId in its PK (#217/#279), so ids are per-tenant:
+  // a backup carrying another tenant's row id restores as the restorer's OWN
+  // distinct row and can never touch theirs. The upserts conflict on
+  // (userId, id) — re-restoring your own backup overwrites your rows in place.
   db.transaction(() => {
     // Groups before collections so a restored collection's groupId resolves.
     if (data.collectionGroups?.length) {
       const stmt = db.prepare(`
       INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId)
       VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(userId, id) DO UPDATE SET
         name = excluded.name, sortOrder = excluded.sortOrder, createdAt = excluded.createdAt
-      WHERE collection_groups.userId = excluded.userId
     `);
       for (const g of data.collectionGroups) {
         stmt.run(g.id, g.name, g.sortOrder || 0, g.createdAt || new Date().toISOString(), userId);
@@ -102,11 +96,10 @@ app.post('/', async (c) => {
       const stmt = db.prepare(`
       INSERT INTO collections (id, title, author, coverUrl, sortOrder, groupId, language, createdAt, lastReadAt, userId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(userId, id) DO UPDATE SET
         title = excluded.title, author = excluded.author, coverUrl = excluded.coverUrl,
         sortOrder = excluded.sortOrder, groupId = excluded.groupId, language = excluded.language,
         createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt
-      WHERE collections.userId = excluded.userId
     `);
       for (const col of data.collections) {
         stmt.run(
@@ -129,12 +122,11 @@ app.post('/', async (c) => {
       const stmt = db.prepare(`
       INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, language, createdAt, lastReadAt, userId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(userId, id) DO UPDATE SET
         collectionId = excluded.collectionId, title = excluded.title, sortOrder = excluded.sortOrder,
         textContent = excluded.textContent, progress_scrollPosition = excluded.progress_scrollPosition,
         progress_percentComplete = excluded.progress_percentComplete, wordCount = excluded.wordCount,
         language = excluded.language, createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt
-      WHERE lessons.userId = excluded.userId
     `);
       for (const l of data.lessons) {
         stmt.run(
@@ -156,27 +148,25 @@ app.post('/', async (c) => {
     }
 
     // Legacy: import old books as collections+lessons. Pre-dates multi-language, so
-    // these are Afrikaans ('af'). Same guarded-upsert rule (book.id is
+    // these are Afrikaans ('af'). Same (userId, id) upsert shape (book.id is
     // client-supplied); the lesson id is a fresh randomUUID so it never
-    // conflicts, but stays guarded for uniformity.
+    // conflicts, but keeps the shape for uniformity.
     if (data.books?.length) {
       const insertCollection = db.prepare(`
       INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt, userId)
       VALUES (?, ?, ?, ?, 'af', ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(userId, id) DO UPDATE SET
         title = excluded.title, author = excluded.author, coverUrl = excluded.coverUrl,
         language = excluded.language, createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt
-      WHERE collections.userId = excluded.userId
     `);
       const insertLesson = db.prepare(`
       INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, language, createdAt, lastReadAt, userId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'af', ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(userId, id) DO UPDATE SET
         collectionId = excluded.collectionId, title = excluded.title, sortOrder = excluded.sortOrder,
         textContent = excluded.textContent, progress_scrollPosition = excluded.progress_scrollPosition,
         progress_percentComplete = excluded.progress_percentComplete, wordCount = excluded.wordCount,
         language = excluded.language, createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt
-      WHERE lessons.userId = excluded.userId
     `);
 
       for (const book of data.books) {
@@ -214,13 +204,12 @@ app.post('/', async (c) => {
       const stmt = db.prepare(`
       INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, language, createdAt, pushedToAnki, ankiNoteId, userId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(userId, id) DO UPDATE SET
         text = excluded.text, type = excluded.type, sentence = excluded.sentence,
         translation = excluded.translation, state = excluded.state, stateUpdatedAt = excluded.stateUpdatedAt,
         reviewCount = excluded.reviewCount, bookId = excluded.bookId, chapter = excluded.chapter,
         language = excluded.language, createdAt = excluded.createdAt,
         pushedToAnki = excluded.pushedToAnki, ankiNoteId = excluded.ankiNoteId
-      WHERE vocab.userId = excluded.userId
     `);
 
       for (const v of data.vocab) {
@@ -259,7 +248,7 @@ app.post('/', async (c) => {
       const stmt = db.prepare(`
       INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, blacklisted, language, userId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(userId, id) DO UPDATE SET
         sentence = excluded.sentence, clozeWord = excluded.clozeWord, clozeIndex = excluded.clozeIndex,
         translation = excluded.translation, source = excluded.source, collection = excluded.collection,
         wordRank = excluded.wordRank, tatoebaSentenceId = excluded.tatoebaSentenceId,
@@ -267,7 +256,6 @@ app.post('/', async (c) => {
         nextReview = excluded.nextReview, reviewCount = excluded.reviewCount, lastReviewed = excluded.lastReviewed,
         timesCorrect = excluded.timesCorrect, timesIncorrect = excluded.timesIncorrect,
         blacklisted = excluded.blacklisted, language = excluded.language
-      WHERE clozeSentences.userId = excluded.userId
     `);
 
       for (const cs of data.clozeSentences) {

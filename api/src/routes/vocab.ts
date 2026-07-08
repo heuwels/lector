@@ -46,22 +46,19 @@ app.post('/', async (c) => {
   const now = new Date().toISOString();
   const lang = resolveLanguage(body.language, userId);
 
-  // Guarded upsert, not INSERT OR REPLACE: vocab's PK is the bare id (userId
-  // is a plain column), so REPLACE would conflict on the GLOBAL id namespace —
-  // a client-supplied id belonging to another tenant would delete their row
-  // and re-create it under the writer. The WHERE makes a foreign-id conflict
-  // a no-op instead (#220).
+  // Upsert on the composite (userId, id) PK (#279): ids are per-tenant, so a
+  // client-supplied id belonging to another tenant is simply a different row —
+  // re-posting your own id updates it, someone else's id creates yours.
   db.prepare(`
     INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
+    ON CONFLICT(userId, id) DO UPDATE SET
       text = excluded.text, type = excluded.type, sentence = excluded.sentence,
       translation = excluded.translation, state = excluded.state,
       stateUpdatedAt = excluded.stateUpdatedAt, reviewCount = excluded.reviewCount,
       bookId = excluded.bookId, chapter = excluded.chapter, createdAt = excluded.createdAt,
       pushedToAnki = excluded.pushedToAnki, ankiNoteId = excluded.ankiNoteId,
       language = excluded.language
-    WHERE vocab.userId = excluded.userId
   `).run(
     id, body.text, body.type || 'word', body.sentence || '', body.translation || '',
     body.state || 'new', now, body.reviewCount || 0, body.bookId || null,
