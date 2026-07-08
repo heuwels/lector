@@ -3,8 +3,10 @@
  * resets. The transport is resolved from env at first send:
  *
  *   - `EMAIL_FILE` set → append one JSON line per message to that path.
- *     For the e2e suite (specs read verification/reset links back out) and
- *     local dev where grepping a file beats scrolling server logs.
+ *     For the e2e suites (specs read verification/reset links back out — a
+ *     console log isn't reachable across the HTTP boundary) and doubles as
+ *     a local outbox for debugging. Wins over Resend so setting it always
+ *     captures instead of sending.
  *   - `RESEND_API_KEY` set → Resend's HTTP API (plain fetch, no SDK).
  *     `EMAIL_FROM` overrides the sender.
  *   - otherwise → the server log. The self-host/dev default: the link lands

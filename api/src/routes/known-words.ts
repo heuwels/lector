@@ -8,7 +8,7 @@ const app = new Hono();
 // GET /api/known-words - all known words as a word -> state map
 app.get('/', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
 
   const words = db.prepare('SELECT * FROM knownWords WHERE userId = ? AND language = ?').all(userId, lang) as KnownWordRow[];
   const map: Record<string, string> = {};
@@ -27,7 +27,7 @@ app.post('/', async (c) => {
     return c.json({ error: 'updates array required' }, 400);
   }
 
-  const lang = resolveLanguage(body.language);
+  const lang = resolveLanguage(body.language, userId);
 
   const stmt = db.prepare('INSERT OR REPLACE INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)');
   db.transaction((updates: Array<{ word: string; state: string }>) => {

@@ -13,7 +13,7 @@ const app = new Hono();
 // GET /api/stats
 app.get('/', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
   const days = c.req.query('days');
@@ -25,7 +25,7 @@ app.get('/', (c) => {
     query += ' AND date BETWEEN ? AND ?';
     params.push(startDate, endDate);
   } else if (days) {
-    const end = getTodayDate();
+    const end = getTodayDate(userId);
     const start = addDaysToDateString(end, -(parseInt(days) - 1));
     query += ' AND date BETWEEN ? AND ?';
     params.push(start, end);
@@ -40,8 +40,8 @@ app.get('/', (c) => {
 // GET /api/stats/today
 app.get('/today', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
-  const today = getTodayDate();
+  const lang = resolveLanguage(c.req.query('language'), userId);
+  const today = getTodayDate(userId);
   let stats = db
     .prepare('SELECT * FROM dailyStats WHERE userId = ? AND date = ? AND language = ?')
     .get(userId, today, lang) as DailyStatsRow | undefined;
@@ -65,8 +65,8 @@ app.get('/today', (c) => {
 // PUT /api/stats/today
 app.put('/today', async (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
-  const today = getTodayDate();
+  const lang = resolveLanguage(c.req.query('language'), userId);
+  const today = getTodayDate(userId);
   const body = await c.req.json();
 
   db.prepare(
@@ -106,7 +106,7 @@ app.put('/today', async (c) => {
 // GET /api/stats/fluency
 app.get('/fluency', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
 
   // Count words by state from knownWords table
   const stateCounts = db
@@ -137,7 +137,7 @@ app.get('/fluency', (c) => {
     deriveCefrProgress(totalKnownWords);
 
   // Weekly growth: words marked known in last 7 days vs previous 7 days
-  const today = getTodayDate();
+  const today = getTodayDate(userId);
   const weekStart = addDaysToDateString(today, -6);
   const prevWeekStart = addDaysToDateString(today, -13);
   const prevWeekEnd = addDaysToDateString(today, -7);
@@ -196,7 +196,7 @@ app.get('/fluency', (c) => {
 // streaks (the deleted Next route had no filter).
 app.get('/streak', (c) => {
   const userId = getCurrentUserId(c);
-  const today = getTodayDate();
+  const today = getTodayDate(userId);
 
   // App-wide across languages, but strictly one user's rows.
   const rows = db
@@ -248,7 +248,7 @@ app.get('/activity', (c) => {
 // app-wide metric (see /streak).
 app.get('/reading', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const rows = db
     .prepare('SELECT wordCount, progress_percentComplete AS percentComplete FROM lessons WHERE userId = ? AND language = ?')
     .all(userId, lang) as { wordCount: number; percentComplete: number }[];

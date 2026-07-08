@@ -9,7 +9,7 @@ const app = new Hono();
 // GET /api/vocab
 app.get('/', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const state = c.req.query('state');
   const bookId = c.req.query('bookId');
   const unpushed = c.req.query('unpushed');
@@ -44,11 +44,24 @@ app.post('/', async (c) => {
   const body = await c.req.json();
   const id = body.id || randomUUID();
   const now = new Date().toISOString();
-  const lang = resolveLanguage(body.language);
+  const lang = resolveLanguage(body.language, userId);
 
+  // Guarded upsert, not INSERT OR REPLACE: vocab's PK is the bare id (userId
+  // is a plain column), so REPLACE would conflict on the GLOBAL id namespace —
+  // a client-supplied id belonging to another tenant would delete their row
+  // and re-create it under the writer. The WHERE makes a foreign-id conflict
+  // a no-op instead (#220).
   db.prepare(`
-    INSERT OR REPLACE INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId)
+    INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      text = excluded.text, type = excluded.type, sentence = excluded.sentence,
+      translation = excluded.translation, state = excluded.state,
+      stateUpdatedAt = excluded.stateUpdatedAt, reviewCount = excluded.reviewCount,
+      bookId = excluded.bookId, chapter = excluded.chapter, createdAt = excluded.createdAt,
+      pushedToAnki = excluded.pushedToAnki, ankiNoteId = excluded.ankiNoteId,
+      language = excluded.language
+    WHERE vocab.userId = excluded.userId
   `).run(
     id, body.text, body.type || 'word', body.sentence || '', body.translation || '',
     body.state || 'new', now, body.reviewCount || 0, body.bookId || null,

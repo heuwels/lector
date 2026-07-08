@@ -39,9 +39,10 @@ function addKnown(
   db: Database,
   word: string,
   state: string,
-  opts: { language?: string; domain?: string | null } = {},
+  opts: { language?: string; domain?: string | null; userId?: string } = {},
 ): void {
-  db.prepare('INSERT INTO knownWords (word, language, state, domain) VALUES (?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO knownWords (userId, word, language, state, domain) VALUES (?, ?, ?, ?, ?)').run(
+    opts.userId ?? 'local',
     word,
     opts.language ?? 'af',
     state,
@@ -58,12 +59,14 @@ function addVocab(
     sentence?: string;
     translation?: string;
     stateUpdatedAt?: string;
+    userId?: string;
   } = {},
 ): void {
   db.prepare(
-    'INSERT INTO vocab (id, text, language, sentence, translation, stateUpdatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO vocab (id, userId, text, language, sentence, translation, stateUpdatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
   ).run(
     `v${vocabId++}`,
+    opts.userId ?? 'local',
     text,
     opts.language ?? 'af',
     opts.sentence ?? '',
@@ -126,6 +129,29 @@ describe('selectPending', () => {
     expect(row.translation).toBeNull();
     expect(row.sentence).toBeNull();
   });
+
+  test('sweeps every tenant, not just the local user (#220)', () => {
+    const db = freshDb();
+    addKnown(db, 'koffie', 'known'); // local
+    addKnown(db, 'brood', 'known', { userId: 'user-a' });
+    addKnown(db, 'wyn', 'level2', { userId: 'user-b' });
+    const rows = selectPending(db, 10);
+    expect(rows.map((r) => `${r.userId}:${r.word}`).sort()).toEqual([
+      'local:koffie',
+      'user-a:brood',
+      'user-b:wyn',
+    ]);
+  });
+
+  test("matches context within the same tenant only — another user's encounter never leaks (#220)", () => {
+    const db = freshDb();
+    addKnown(db, 'bank', 'known', { userId: 'user-a' });
+    addVocab(db, 'bank', { userId: 'user-b', translation: 'bench', sentence: 'B se sin.' });
+    const [row] = selectPending(db, 10);
+    expect(row.userId).toBe('user-a');
+    expect(row.translation).toBeNull();
+    expect(row.sentence).toBeNull();
+  });
 });
 
 describe('classifyPendingBatch', () => {
@@ -169,6 +195,20 @@ describe('classifyPendingBatch', () => {
     expect(rows).toEqual([
       { language: 'af', domain: 'food' },
       { language: 'nl', domain: 'food' },
+    ]);
+  });
+
+  test("writes each row to its own tenant — same word for two users updates both, in place (#220)", async () => {
+    const db = freshDb();
+    addKnown(db, 'kos', 'known', { userId: 'user-a' });
+    addKnown(db, 'kos', 'known', { userId: 'user-b' });
+    expect(await classifyPendingBatch(db, 30, stubFood())).toBe(2);
+    const rows = db
+      .prepare('SELECT userId, domain FROM knownWords WHERE word = ? ORDER BY userId')
+      .all('kos');
+    expect(rows).toEqual([
+      { userId: 'user-a', domain: 'food' },
+      { userId: 'user-b', domain: 'food' },
     ]);
   });
 

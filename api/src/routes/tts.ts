@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { resolveLanguage } from '../lib/active-language';
+import { getCurrentUserId } from '../lib/user';
 import { getLanguageConfig } from '../lib/languages';
 
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
@@ -35,7 +36,7 @@ app.post('/', async (c) => {
       return c.json({ error: 'Google Cloud API key not configured', fallback: true }, 503);
     }
 
-    const lang = resolveLanguage(language);
+    const lang = resolveLanguage(language, getCurrentUserId(c));
     const langConfig = getLanguageConfig(lang);
 
     const synthesizeRequest: SynthesizeRequest = {

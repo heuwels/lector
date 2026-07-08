@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { LOCAL_USER_ID } from '../lib/user';
+import { getCurrentUserId } from '../lib/user';
 import { db } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getTodayDate } from '../lib/dates';
@@ -12,12 +12,12 @@ const app = new Hono();
 // on the looked-up language's row) plus a dictionaryLookups bump, so daily lookup
 // stats stay accurate when the local DB serves a hit instead of the AI path. Both
 // writes target the looked-up language's (date, language) row.
-function recordDictionaryLookup(language: string) {
-  const today = getTodayDate();
-  recordStudySessionPing(language, today);
+function recordDictionaryLookup(userId: string, language: string) {
+  const today = getTodayDate(userId);
+  recordStudySessionPing(userId, language, today);
   db.prepare(
     'UPDATE dailyStats SET dictionaryLookups = dictionaryLookups + 1 WHERE userId = ? AND date = ? AND language = ?',
-  ).run(LOCAL_USER_ID, today, language);
+  ).run(userId, today, language);
 }
 
 // GET /api/dictionary/lookup?word=<word>
@@ -30,9 +30,10 @@ app.get('/lookup', (c) => {
       return c.json({ error: 'Word is required' }, 400);
     }
 
-    const lang = resolveLanguage(c.req.query('language'));
+    const userId = getCurrentUserId(c);
+    const lang = resolveLanguage(c.req.query('language'), userId);
     const entry = lookupWord(word.trim(), lang);
-    if (entry) recordDictionaryLookup(lang);
+    if (entry) recordDictionaryLookup(userId, lang);
 
     return c.json({ entry: entry ?? null });
   } catch (error) {

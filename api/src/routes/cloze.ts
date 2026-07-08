@@ -39,7 +39,7 @@ const app = new Hono();
 // GET /api/cloze
 app.get('/', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const collection = c.req.query('collection');
   const word = c.req.query('word');
   const limit = parseInt(c.req.query('limit') || '100');
@@ -66,12 +66,25 @@ app.get('/', (c) => {
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
   const body = await c.req.json();
-  const lang = resolveLanguage(Array.isArray(body) ? body[0]?.language : body.language);
+  const lang = resolveLanguage(Array.isArray(body) ? body[0]?.language : body.language, userId);
 
   if (Array.isArray(body)) {
+    // Guarded upsert, not INSERT OR REPLACE: the PK is the bare id, so a
+    // client-supplied id owned by another tenant would otherwise REPLACE
+    // (destroy + steal) their row. Foreign-id conflicts no-op instead (#220).
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, language, userId)
+      INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, language, userId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        sentence = excluded.sentence, clozeWord = excluded.clozeWord,
+        clozeIndex = excluded.clozeIndex, translation = excluded.translation,
+        source = excluded.source, collection = excluded.collection,
+        wordRank = excluded.wordRank, tatoebaSentenceId = excluded.tatoebaSentenceId,
+        vocabEntryId = excluded.vocabEntryId, masteryLevel = excluded.masteryLevel,
+        nextReview = excluded.nextReview, reviewCount = excluded.reviewCount,
+        lastReviewed = excluded.lastReviewed, timesCorrect = excluded.timesCorrect,
+        timesIncorrect = excluded.timesIncorrect, language = excluded.language
+      WHERE clozeSentences.userId = excluded.userId
     `);
 
     db.transaction(() => {
@@ -109,7 +122,7 @@ app.post('/', async (c) => {
 // GET /api/cloze/due
 app.get('/due', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const limit = parseInt(c.req.query('limit') || '20');
   const collection = c.req.query('collection');
   const mode = c.req.query('mode');
@@ -156,7 +169,7 @@ app.get('/due', (c) => {
 // GET /api/cloze/counts
 app.get('/counts', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const now = new Date().toISOString();
 
   const rows = db.prepare(`
@@ -193,7 +206,7 @@ app.get('/counts', (c) => {
 // client-side grew with the bank size (#240).
 app.get('/stats', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
 
   const row = db.prepare(`
     SELECT
@@ -209,7 +222,7 @@ app.get('/stats', (c) => {
 // POST /api/cloze/seed
 app.post('/seed', async (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const bank = await loadSentenceBank(lang);
   if (bank.length === 0) {
     return c.json({ seeded: 0, updated: 0, mined: 0, tatoeba: 0, total: 0 });
@@ -226,13 +239,22 @@ app.post('/seed', async (c) => {
     (db.prepare("SELECT id FROM clozeSentences WHERE userId = ? AND source = 'mined' AND language = ?")
       .all(userId, lang) as { id: string }[]).map(r => r.id)
   );
+  // Mined rows carry a stable, non-random id derived from the bank id (unlike
+  // tatoeba rows' randomUUID), so the id must be namespaced per tenant — the
+  // PK is the bare id, and a raw bank id could only ever be seeded by ONE
+  // tenant (INSERT OR IGNORE silently skipped everyone after the first, #220).
+  // Legacy rows seeded before namespacing hold the raw id, so dedup accepts
+  // either form and only ever inserts the namespaced one.
+  const minedId = (rawId: number | string) => `mined:${userId}:${rawId}`;
+  const alreadyMined = (rawId: number | string) =>
+    existingMined.has(minedId(rawId)) || existingMined.has(String(rawId));
 
   const toInsert: BankEntry[] = [];
   const toUpdate: { id: string; clozeWord: string; clozeIndex: number; wordRank: number | null; collection: string }[] = [];
 
   for (const s of bank) {
     if ((s.source ?? 'tatoeba') === 'mined') {
-      if (!existingMined.has(String(s.id))) toInsert.push(s);
+      if (!alreadyMined(s.id)) toInsert.push(s);
       continue;
     }
     const ex = existingMap.get(s.id as number);
@@ -256,7 +278,7 @@ app.post('/seed', async (c) => {
     for (const s of toInsert) {
       const mined = (s.source ?? 'tatoeba') === 'mined';
       insertStmt.run(
-        mined ? String(s.id) : randomUUID(), s.text, s.clozeWord, s.clozeIndex, s.translation,
+        mined ? minedId(s.id) : randomUUID(), s.text, s.clozeWord, s.clozeIndex, s.translation,
         mined ? 'mined' : 'tatoeba', s.collection, s.wordRank, mined ? null : (s.id as number),
         0, new Date().toISOString(), 0, 0, 0, lang, userId
       );
@@ -276,7 +298,7 @@ app.post('/seed', async (c) => {
 // GET /api/cloze/seed
 app.get('/seed', async (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const bank = await loadSentenceBank(lang);
   const count = db.prepare(
     'SELECT COUNT(*) as count FROM clozeSentences WHERE userId = ? AND language = ? AND (blacklisted = 0 OR blacklisted IS NULL)'
@@ -295,7 +317,7 @@ app.get('/seed', async (c) => {
 app.get('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const sentence = db
     .prepare('SELECT * FROM clozeSentences WHERE id = ? AND userId = ? AND language = ?')
     .get(id, userId, lang) as ClozeSentenceRow | undefined;
@@ -313,7 +335,7 @@ app.get('/:id', (c) => {
 app.put('/:id', async (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const body = await c.req.json();
 
   const existing = db.prepare('SELECT id FROM clozeSentences WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang);
@@ -345,7 +367,7 @@ app.put('/:id', async (c) => {
 app.delete('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   db.prepare('DELETE FROM clozeSentences WHERE id = ? AND userId = ? AND language = ?').run(id, userId, lang);
   return c.json({ success: true });
 });
@@ -354,7 +376,7 @@ app.delete('/:id', (c) => {
 app.post('/:id/review', async (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const body = await c.req.json();
 
   const sentence = db

@@ -1,11 +1,20 @@
 import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import AdmZip from 'adm-zip';
 import { db } from '../db';
 
 const { default: vocabApp } = await import('../routes/vocab');
 const { default: clozeApp } = await import('../routes/cloze');
 const { default: knownWordsApp } = await import('../routes/known-words');
 const { default: settingsApp } = await import('../routes/settings');
+const { default: collectionsApp } = await import('../routes/collections');
+const { default: lessonsApp } = await import('../routes/lessons');
+const { default: journalApp } = await import('../routes/journal');
+const { default: statsApp } = await import('../routes/stats');
+const { default: chatApp } = await import('../routes/chat');
+const { default: groupsApp } = await import('../routes/groups');
+const { default: dataApp } = await import('../routes/data');
+const { default: importApp } = await import('../routes/import');
 
 // The userId-scoping ratchet (#217, plan 010 piece 2) — the multi-tenant twin
 // of language-scoping.test.ts. Rows are seeded for a different user directly
@@ -35,7 +44,27 @@ function reset() {
   db.prepare('DELETE FROM vocab').run();
   db.prepare('DELETE FROM knownWords').run();
   db.prepare('DELETE FROM clozeSentences').run();
+  db.prepare('DELETE FROM collections').run();
+  db.prepare('DELETE FROM lessons').run();
+  db.prepare('DELETE FROM collection_groups').run();
+  db.prepare('DELETE FROM journal_entries').run();
+  db.prepare('DELETE FROM chat_messages').run();
+  db.prepare('DELETE FROM dailyStats').run();
   db.prepare("DELETE FROM settings WHERE key LIKE 'ratchet_%'").run();
+}
+
+function seedIntruderCollection(id: string) {
+  db.prepare(
+    `INSERT INTO collections (id, title, author, language, createdAt, lastReadAt, userId)
+     VALUES (?, 'Geheime Boek', 'Indringer', 'af', ?, ?, ?)`,
+  ).run(id, TS, TS, INTRUDER);
+}
+
+function seedIntruderLesson(id: string, collectionId: string) {
+  db.prepare(
+    `INSERT INTO lessons (id, collectionId, title, textContent, wordCount, language, createdAt, lastReadAt, userId)
+     VALUES (?, ?, 'Geheime Les', 'geheime teks', 2, 'af', ?, ?, ?)`,
+  ).run(id, collectionId, TS, TS, INTRUDER);
 }
 
 function seedIntruderVocab(id: string) {
@@ -152,5 +181,360 @@ describe('userId scoping ratchet', () => {
     const counts = (await res.json()) as Record<string, { total: number }>;
     const total = Object.values(counts).reduce((s, c) => s + c.total, 0);
     expect(total).toBe(0);
+  });
+});
+
+// The #220 extension: every library domain the issue names — collections,
+// lessons, journal, stats, chat, groups — plus the import and backup paths.
+// Same discipline as above: intruder rows seeded straight into the DB must be
+// invisible and immutable through every route.
+describe('per-user library ratchet (#220)', () => {
+  beforeEach(reset);
+  afterEach(reset);
+
+  test("collection lists and by-id reads exclude another user's collections", async () => {
+    seedIntruderCollection('col_intruder');
+
+    const list = await collectionsApp.request('/?language=af');
+    const rows = (await list.json()) as { id: string }[];
+    expect(rows.find((r) => r.id === 'col_intruder')).toBeUndefined();
+
+    expect((await collectionsApp.request('/col_intruder?language=af')).status).toBe(404);
+  });
+
+  test("collection mutations no-op on another user's collection", async () => {
+    seedIntruderCollection('col_intruder');
+
+    await collectionsApp.request('/col_intruder?language=af', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Gekaap' }),
+    });
+    await collectionsApp.request('/col_intruder?language=af', { method: 'DELETE' });
+    await collectionsApp.request('/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ['col_intruder'] }),
+    });
+
+    const row = db
+      .prepare('SELECT title, sortOrder FROM collections WHERE id = ?')
+      .get('col_intruder') as { title: string; sortOrder: number };
+    expect(row.title).toBe('Geheime Boek'); // PUT didn't land
+    expect(row.sortOrder).toBe(0); // reorder didn't land
+  });
+
+  test("a collection's lesson list never serves another user's lessons", async () => {
+    seedIntruderCollection('col_intruder');
+    seedIntruderLesson('les_intruder', 'col_intruder');
+
+    const res = await collectionsApp.request('/col_intruder/lessons');
+    const rows = (await res.json()) as { id: string }[];
+    expect(rows).toHaveLength(0);
+  });
+
+  test("lesson by-id routes 404 / no-op on another user's lesson", async () => {
+    seedIntruderCollection('col_intruder');
+    seedIntruderLesson('les_intruder', 'col_intruder');
+
+    expect((await lessonsApp.request('/les_intruder?language=af')).status).toBe(404);
+
+    const progress = await lessonsApp.request('/les_intruder/progress?language=af', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scrollPosition: 100, percentComplete: 50 }),
+    });
+    expect(progress.status).toBe(404);
+
+    await lessonsApp.request('/les_intruder?language=af', { method: 'DELETE' });
+    const survives = db.prepare('SELECT COUNT(*) AS n FROM lessons WHERE id = ?').get('les_intruder') as { n: number };
+    expect(survives.n).toBe(1);
+  });
+
+  test("journal lists exclude and by-id routes 404 on another user's entries", async () => {
+    db.prepare(
+      `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
+       VALUES ('j_intruder', 'geheime dagboek', 'draft', 2, '2026-01-01', 'af', ?, ?, ?)`,
+    ).run(TS, TS, INTRUDER);
+
+    const list = await journalApp.request('/?language=af');
+    const rows = (await list.json()) as { id: string }[];
+    expect(rows.find((r) => r.id === 'j_intruder')).toBeUndefined();
+
+    expect((await journalApp.request('/j_intruder?language=af')).status).toBe(404);
+
+    const put = await journalApp.request('/j_intruder?language=af', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: 'gekaap' }),
+    });
+    expect(put.status).toBe(404);
+
+    expect((await journalApp.request('/j_intruder?language=af', { method: 'DELETE' })).status).toBe(404);
+    const survives = db.prepare("SELECT body FROM journal_entries WHERE id = 'j_intruder'").get() as { body: string };
+    expect(survives.body).toBe('geheime dagboek');
+  });
+
+  test("stats never include another user's rows — list, streak, activity", async () => {
+    db.prepare(
+      `INSERT INTO dailyStats (userId, date, language, dictionaryLookups, minutesRead)
+       VALUES (?, '2026-01-01', 'af', 9, 30)`,
+    ).run(INTRUDER);
+
+    const list = await statsApp.request('/?language=af');
+    expect(((await list.json()) as unknown[])).toHaveLength(0);
+
+    const streak = await statsApp.request('/streak');
+    const s = (await streak.json()) as { streak: number; longest: number };
+    expect(s.longest).toBe(0); // the intruder's active day is not my streak
+
+    const activity = await statsApp.request('/activity');
+    expect(((await activity.json()) as unknown[])).toHaveLength(0);
+  });
+
+  test("chat history excludes another user's messages, and clearing chat leaves theirs", async () => {
+    // A fresh timestamp: the chat routes run a global 7-day TTL sweep
+    // (legitimately cross-user), and an expired seed would vanish to the TTL
+    // rather than prove the DELETE is user-scoped.
+    db.prepare(
+      `INSERT INTO chat_messages (id, role, content, createdAt, language, userId)
+       VALUES ('m_intruder', 'user', 'geheime boodskap', ?, 'af', ?)`,
+    ).run(new Date().toISOString(), INTRUDER);
+
+    const list = await chatApp.request('/?language=af');
+    const rows = (await list.json()) as { id: string }[];
+    expect(rows.find((r) => r.id === 'm_intruder')).toBeUndefined();
+
+    await chatApp.request('/?language=af', { method: 'DELETE' });
+    const survives = db.prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE id = 'm_intruder'").get() as { n: number };
+    expect(survives.n).toBe(1);
+  });
+
+  test("group lists exclude and mutations no-op on another user's groups", async () => {
+    db.prepare(
+      "INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId) VALUES ('g_intruder', 'Geheime Groep', 0, ?, ?)",
+    ).run(TS, INTRUDER);
+
+    const list = await groupsApp.request('/');
+    const rows = (await list.json()) as { id: string }[];
+    expect(rows.find((r) => r.id === 'g_intruder')).toBeUndefined();
+
+    await groupsApp.request('/g_intruder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Gekaap' }),
+    });
+    await groupsApp.request('/g_intruder', { method: 'DELETE' });
+
+    const row = db.prepare("SELECT name FROM collection_groups WHERE id = 'g_intruder'").get() as { name: string };
+    expect(row.name).toBe('Geheime Groep');
+  });
+
+  test("the backup export contains only the requesting user's rows", async () => {
+    seedIntruderCollection('col_intruder');
+    seedIntruderLesson('les_intruder', 'col_intruder');
+    seedIntruderVocab('v_intruder');
+    db.prepare(
+      "INSERT INTO dailyStats (userId, date, language, dictionaryLookups) VALUES (?, '2026-01-01', 'af', 9)",
+    ).run(INTRUDER);
+    db.prepare("INSERT INTO settings (userId, key, value) VALUES (?, 'ratchet_secret', '\"x\"')").run(INTRUDER);
+
+    const res = await dataApp.request('/');
+    const backup = (await res.json()) as Record<string, { id?: string; key?: string }[]>;
+
+    expect(backup.collections).toHaveLength(0);
+    expect(backup.lessons).toHaveLength(0);
+    expect(backup.vocab).toHaveLength(0);
+    expect(backup.dailyStats).toHaveLength(0);
+    expect(backup.settings.find((s) => s.key === 'ratchet_secret')).toBeUndefined();
+  });
+
+  test('restoring a backup stamps every row with the requester, never a userId from the payload', async () => {
+    const res = await dataApp.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        collections: [
+          { id: 'col_restored', title: 'Myne Nou', createdAt: TS, lastReadAt: TS, userId: INTRUDER },
+        ],
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const row = db.prepare("SELECT userId FROM collections WHERE id = 'col_restored'").get() as { userId: string };
+    expect(row.userId).toBe('local');
+  });
+
+  // The id-only-PK overwrite class: collections/lessons/vocab/clozeSentences/
+  // collection_groups keep `id TEXT PRIMARY KEY` (userId is a plain column),
+  // so an INSERT OR REPLACE keyed on a client-supplied id would conflict on
+  // the GLOBAL id namespace — replacing another tenant's row and re-creating
+  // it under the writer. The upsert paths must leave a foreign row untouched.
+
+  test("posting vocab with another user's row id cannot overwrite or steal it", async () => {
+    seedIntruderVocab('v_intruder');
+
+    const res = await vocabApp.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'v_intruder', text: 'gekaap', language: 'af' }),
+    });
+    expect(res.status).toBe(200);
+
+    const row = db
+      .prepare('SELECT userId, text FROM vocab WHERE id = ?')
+      .get('v_intruder') as { userId: string; text: string };
+    expect(row.userId).toBe(INTRUDER);
+    expect(row.text).toBe('geheim');
+  });
+
+  test("bulk cloze upsert with another user's ids cannot overwrite or steal them", async () => {
+    seedIntruderCloze('c_intruder');
+
+    const res = await clozeApp.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([
+        { id: 'c_intruder', sentence: 'Gekaapte ___.', clozeWord: 'sin', clozeIndex: 0, translation: 'x', language: 'af' },
+      ]),
+    });
+    expect(res.status).toBe(200);
+
+    const row = db
+      .prepare('SELECT userId, sentence FROM clozeSentences WHERE id = ?')
+      .get('c_intruder') as { userId: string; sentence: string };
+    expect(row.userId).toBe(INTRUDER);
+    expect(row.sentence).toBe('Die ___ is geheim.');
+  });
+
+  test("restoring a backup carrying another user's row ids cannot hijack their rows", async () => {
+    seedIntruderCollection('col_intruder');
+    seedIntruderVocab('v_intruder');
+
+    const res = await dataApp.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        collections: [{ id: 'col_intruder', title: 'Gekaap', createdAt: TS, lastReadAt: TS }],
+        vocab: [{ id: 'v_intruder', text: 'gekaap', translation: 'hijacked' }],
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const col = db
+      .prepare('SELECT userId, title FROM collections WHERE id = ?')
+      .get('col_intruder') as { userId: string; title: string };
+    expect(col.userId).toBe(INTRUDER);
+    expect(col.title).toBe('Geheime Boek');
+
+    const voc = db
+      .prepare('SELECT userId, text FROM vocab WHERE id = ?')
+      .get('v_intruder') as { userId: string; text: string };
+    expect(voc.userId).toBe(INTRUDER);
+    expect(voc.text).toBe('geheim');
+  });
+
+  test("mined cloze seeding works for a tenant even when another tenant already holds the bank ids (#220)", async () => {
+    const bank = (await import('../lib/sentence-bank-af.json')).default as {
+      id: number | string;
+      source?: string;
+    }[];
+    const firstMined = bank.find((s) => s.source === 'mined');
+    expect(firstMined).toBeTruthy();
+
+    // Another tenant seeded first (pre-namespacing rows hold the raw bank id).
+    db.prepare(
+      `INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, nextReview, language, userId)
+       VALUES (?, 'Indringer se sin.', 'sin', 0, 'x', 'mined', 'mined', ?, 'af', ?)`,
+    ).run(String(firstMined!.id), TS, INTRUDER);
+
+    const res = await clozeApp.request('/seed?language=af', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const seeded = (await res.json()) as { mined: number };
+    // Every mined bank row lands for the requesting tenant — the intruder's
+    // rows must not shadow them (the old global-id INSERT OR IGNORE skipped
+    // any id another tenant already held).
+    expect(seeded.mined).toBeGreaterThan(0);
+
+    const mine = db
+      .prepare("SELECT COUNT(*) AS n FROM clozeSentences WHERE userId = 'local' AND source = 'mined' AND language = 'af'")
+      .get() as { n: number };
+    expect(mine.n).toBe(seeded.mined);
+
+    // The intruder's row is untouched.
+    const theirs = db
+      .prepare('SELECT userId, sentence FROM clozeSentences WHERE id = ?')
+      .get(String(firstMined!.id)) as { userId: string; sentence: string };
+    expect(theirs.userId).toBe(INTRUDER);
+    expect(theirs.sentence).toBe('Indringer se sin.');
+  });
+
+  test('mined cloze re-seeding stays idempotent, including rows seeded before id namespacing', async () => {
+    const bank = (await import('../lib/sentence-bank-af.json')).default as {
+      id: number | string;
+      source?: string;
+    }[];
+    const legacy = bank.find((s) => s.source === 'mined');
+
+    // One of the local user's mined rows predates namespaced ids (raw bank id).
+    db.prepare(
+      `INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, nextReview, language, userId)
+       VALUES (?, 'Ou saad-ry.', 'saad', 0, 'x', 'mined', 'mined', ?, 'af', 'local')`,
+    ).run(String(legacy!.id), TS);
+
+    const first = (await (await clozeApp.request('/seed?language=af', { method: 'POST' })).json()) as { mined: number };
+    const second = (await (await clozeApp.request('/seed?language=af', { method: 'POST' })).json()) as { mined: number };
+
+    // The legacy row is recognized as already seeded (not duplicated), and a
+    // repeat seed inserts nothing new.
+    const total = db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM clozeSentences
+          WHERE userId = 'local' AND source = 'mined' AND language = 'af'`,
+      )
+      .get() as { n: number };
+    // total = the legacy row + everything the first seed added; the second seed adds zero.
+    expect(total.n).toBe(first.mined + 1);
+    expect(second.mined).toBe(0);
+  });
+
+  test('an EPUB import stamps the collection and every lesson with the requester (#220)', async () => {
+    const zip = new AdmZip();
+    zip.addFile('mimetype', Buffer.from('application/epub+zip'));
+    zip.addFile(
+      'META-INF/container.xml',
+      Buffer.from(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',
+      ),
+    );
+    zip.addFile(
+      'OEBPS/content.opf',
+      Buffer.from(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Ratchet Boek</dc:title><dc:creator>Toets</dc:creator><dc:identifier id="uid">ratchet-epub</dc:identifier></metadata><manifest><item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="ch1"/></spine></package>',
+      ),
+    );
+    zip.addFile(
+      'OEBPS/ch1.xhtml',
+      Buffer.from(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Een</title></head><body><h1>Een</h1><p>Die kat sit op die mat.</p></body></html>',
+      ),
+    );
+
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(zip.toBuffer())], 'ratchet.epub', { type: 'application/epub+zip' }));
+    form.append('language', 'af');
+
+    const res = await importApp.request('/epub', { method: 'POST', body: form });
+    expect(res.status).toBe(200);
+    const { collectionId } = (await res.json()) as { collectionId: string };
+
+    const col = db.prepare('SELECT userId FROM collections WHERE id = ?').get(collectionId) as { userId: string };
+    expect(col.userId).toBe('local');
+
+    const lessons = db
+      .prepare('SELECT userId FROM lessons WHERE collectionId = ?')
+      .all(collectionId) as { userId: string }[];
+    expect(lessons.length).toBeGreaterThan(0);
+    for (const l of lessons) expect(l.userId).toBe('local');
   });
 });

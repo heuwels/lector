@@ -15,7 +15,6 @@
 import { Database } from 'bun:sqlite';
 import { db } from '../db';
 import { MASTERY_STATES } from './domains';
-import { LOCAL_USER_ID } from './user';
 import { classifyWords, type ClassifyItem, type ClassifyResult } from './word-classifier';
 
 // Only states that COUNT toward the radar are worth classifying (MASTERY_STATES,
@@ -24,6 +23,7 @@ import { classifyWords, type ClassifyItem, type ClassifyResult } from './word-cl
 // picks it up then.
 
 export interface PendingRow {
+  userId: string;
   word: string;
   language: string;
   translation: string | null;
@@ -31,7 +31,9 @@ export interface PendingRow {
 }
 
 /**
- * Up to `limit` unclassified mastery-state words, each with a single
+ * Up to `limit` unclassified mastery-state words across EVERY tenant (#220 —
+ * the worker has no request context, so it sweeps all users; each word's
+ * vocab context comes from that same user's rows), each with a single
  * representative vocab encounter for context — preferring a row that carries an
  * example `sentence` (richest), then one with a translation, then the most
  * recent. A bulk-imported word with no vocab row at all yields NULL context and
@@ -41,21 +43,21 @@ export function selectPending(database: Database, limit: number): PendingRow[] {
   const placeholders = MASTERY_STATES.map(() => '?').join(',');
   return database
     .prepare(
-      `SELECT kw.word AS word, kw.language AS language,
+      `SELECT kw.userId AS userId, kw.word AS word, kw.language AS language,
               v.translation AS translation, v.sentence AS sentence
          FROM knownWords kw
          LEFT JOIN vocab v ON v.id = (
            SELECT v2.id FROM vocab v2
-            WHERE v2.userId = ? AND v2.text = kw.word AND v2.language = kw.language
+            WHERE v2.userId = kw.userId AND v2.text = kw.word AND v2.language = kw.language
             ORDER BY (v2.sentence != '') DESC, (v2.translation != '') DESC, v2.stateUpdatedAt DESC
             LIMIT 1
          )
-        WHERE kw.userId = ? AND kw.domain IS NULL
+        WHERE kw.domain IS NULL
           AND kw.state IN (${placeholders})
-        ORDER BY kw.word, kw.language
+        ORDER BY kw.userId, kw.word, kw.language
         LIMIT ?`,
     )
-    .all(LOCAL_USER_ID, LOCAL_USER_ID, ...MASTERY_STATES, limit) as PendingRow[];
+    .all(...MASTERY_STATES, limit) as PendingRow[];
 }
 
 /**
@@ -89,7 +91,7 @@ export async function classifyPendingBatch(
     for (const r of batch) {
       const domain = domainByWord.get(r.word);
       if (domain) {
-        update.run(domain, LOCAL_USER_ID, r.word, r.language);
+        update.run(domain, r.userId, r.word, r.language);
         updated += 1;
       }
     }
