@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getProvider } from '../lib/llm';
 import { resolveLanguage } from '../lib/active-language';
+import { getCurrentUserId } from '../lib/user';
 import { getLanguageConfig } from '../lib/languages';
 
 const app = new Hono();
@@ -14,7 +15,7 @@ app.post('/', async (c) => {
       return c.json({ error: 'sentence and translation are required' }, 400);
     }
 
-    const lang = resolveLanguage(language);
+    const lang = resolveLanguage(language, getCurrentUserId(c));
     const langName = getLanguageConfig(lang).name;
 
     const provider = getProvider();

@@ -2,6 +2,11 @@
  * Outbound email for account flows (#218): verification links and password
  * resets. The transport is resolved from env at first send:
  *
+ *   - `EMAIL_FILE` set → append one JSON line per message to that path.
+ *     For the e2e suites (specs read verification/reset links back out — a
+ *     console log isn't reachable across the HTTP boundary) and doubles as
+ *     a local outbox for debugging. Wins over Resend so setting it always
+ *     captures instead of sending.
  *   - `RESEND_API_KEY` set → Resend's HTTP API (plain fetch, no SDK).
  *     `EMAIL_FROM` overrides the sender.
  *   - otherwise → the server log. The self-host/dev default: the link lands
@@ -11,6 +16,8 @@
  * Callers that must not fail the surrounding request (Better Auth's send
  * hooks) catch errors themselves; sendEmail always propagates failures.
  */
+import { appendFileSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
 
 export interface EmailMessage {
   to: string;
@@ -23,6 +30,13 @@ export type EmailTransport = (message: EmailMessage) => Promise<void>;
 const consoleTransport: EmailTransport = async ({ to, subject, text }) => {
   console.log(`[email → console] to=${to} subject="${subject}"\n${text}`);
 };
+
+function fileTransport(path: string): EmailTransport {
+  return async (message) => {
+    mkdirSync(dirname(path), { recursive: true });
+    appendFileSync(path, `${JSON.stringify(message)}\n`);
+  };
+}
 
 function resendTransport(apiKey: string): EmailTransport {
   const from = process.env.EMAIL_FROM || 'Lector <no-reply@lector.dev>';
@@ -50,8 +64,13 @@ export function setEmailTransport(t: EmailTransport | null): void {
 
 export async function sendEmail(message: EmailMessage): Promise<void> {
   if (!transport) {
+    const filePath = process.env.EMAIL_FILE;
     const apiKey = process.env.RESEND_API_KEY;
-    transport = apiKey ? resendTransport(apiKey) : consoleTransport;
+    transport = filePath
+      ? fileTransport(filePath)
+      : apiKey
+        ? resendTransport(apiKey)
+        : consoleTransport;
   }
   await transport(message);
 }

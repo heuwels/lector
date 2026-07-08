@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { OpenAICompatibleProvider } from '../lib/llm/openai-compatible';
-import { LOCAL_USER_ID } from '../lib/user';
+import { getCurrentUserId } from '../lib/user';
 import { db } from '../db';
 
 const app = new Hono();
@@ -15,12 +15,12 @@ interface ModelsBody {
  * over the wire (the settings GET masks it as `true`), so the server resolves
  * it itself when the request body doesn't carry one.
  */
-function resolveApiKey(bodyKey: string | undefined): string | undefined {
+function resolveApiKey(userId: string, bodyKey: string | undefined): string | undefined {
   const trimmed = bodyKey?.trim();
   if (trimmed) return trimmed;
   const row = db
     .prepare('SELECT value FROM settings WHERE userId = ? AND key = ?')
-    .get(LOCAL_USER_ID, 'openaiApiKey') as { value: string } | undefined;
+    .get(userId, 'openaiApiKey') as { value: string } | undefined;
   if (!row) return undefined;
   try {
     const parsed = JSON.parse(row.value);
@@ -48,7 +48,7 @@ app.post('/models', async (c) => {
 
   const provider = new OpenAICompatibleProvider({
     baseUrl,
-    apiKey: resolveApiKey(body.apiKey),
+    apiKey: resolveApiKey(getCurrentUserId(c), body.apiKey),
   });
 
   try {

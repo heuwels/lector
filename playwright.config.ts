@@ -71,5 +71,49 @@ export default defineConfig({
       timeout: 60_000,
       env: { DATA_DIR: "../tmp/e2e-data", PORT: apiPort },
     },
+    {
+      // A SECOND Hono API in CLOUD mode (#218) for the auth-cloud specs. Own
+      // isolated DATA_DIR; emails written to a file the specs read the
+      // verification/reset links back out of. The UI is the same :3456 next
+      // dev — auth-cloud.spec.ts stubs window.__ENV__ per page to point the
+      // browser at this API and flip the client into cloud mode.
+      command:
+        "rm -rf ../tmp/e2e-data-cloud && mkdir -p ../tmp/e2e-data-cloud && bun run src/index.ts",
+      cwd: "./api",
+      url: "http://localhost:3462/health",
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        DATA_DIR: "../tmp/e2e-data-cloud",
+        PORT: "3462",
+        LECTOR_MODE: "cloud",
+        BETTER_AUTH_SECRET: "e2e-only-secret-0123456789abcdef",
+        BETTER_AUTH_URL: "http://localhost:3462",
+        LECTOR_TRUSTED_ORIGINS: "http://localhost:3456",
+        EMAIL_FILE: "../tmp/e2e-data-cloud/emails.jsonl",
+      },
+    },
+    {
+      // A THIRD Hono API in cloud mode (#218/#220) for the two-user isolation
+      // spec. Its own fresh DATA_DIR (Better Auth tables + tenant rows), file
+      // email outbox (the spec reads verification links from it), and the
+      // default trusted origins already cover the :3456 UI. The UI is served
+      // by the same Next dev server as everything else — the spec points the
+      // browser here by injecting window.__ENV__ per context. Not booted (and
+      // the spec skips) under E2E_EXTERNAL_SERVER.
+      command: "rm -rf ../tmp/e2e-cloud-data && mkdir -p ../tmp/e2e-cloud-data && bun run src/index.ts",
+      cwd: "./api",
+      url: "http://localhost:3467/health",
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        DATA_DIR: "../tmp/e2e-cloud-data",
+        PORT: "3467",
+        LECTOR_MODE: "cloud",
+        BETTER_AUTH_SECRET: "e2e-only-secret-0000000000000000",
+        BETTER_AUTH_URL: "http://localhost:3467",
+        EMAIL_FILE: "../tmp/e2e-cloud-data/outbox.jsonl",
+      },
+    },
   ],
 });

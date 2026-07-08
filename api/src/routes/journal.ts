@@ -15,7 +15,7 @@ const withParsedCorrections = (e: JournalEntryRow) => ({
 // GET /api/journal - list entries, optionally filtered by date
 app.get('/', (c) => {
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const date = c.req.query('date');
   const limit = parseInt(c.req.query('limit') || '20', 10);
   const offset = parseInt(c.req.query('offset') || '0', 10);
@@ -38,7 +38,7 @@ app.get('/', (c) => {
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
   const { body, entryDate, language } = await c.req.json();
-  const lang = resolveLanguage(language);
+  const lang = resolveLanguage(language, userId);
   const date = entryDate || new Date().toISOString().split('T')[0];
   const now = new Date().toISOString();
   const wordCount = (body || '').trim().split(/\s+/).filter(Boolean).length;
@@ -58,7 +58,7 @@ app.post('/', async (c) => {
 app.get('/:id', (c) => {
   const id = c.req.param('id');
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang) as
     | JournalEntryRow
     | undefined;
@@ -72,7 +72,7 @@ app.get('/:id', (c) => {
 app.put('/:id', async (c) => {
   const id = c.req.param('id');
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const body = await c.req.json();
 
   const existing = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang) as
@@ -106,7 +106,7 @@ app.put('/:id', async (c) => {
 app.delete('/:id', (c) => {
   const id = c.req.param('id');
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const entry = db.prepare('SELECT id FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang);
 
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
@@ -120,7 +120,7 @@ app.delete('/:id', (c) => {
 app.post('/:id/correct', async (c) => {
   const id = c.req.param('id');
   const userId = getCurrentUserId(c);
-  const lang = resolveLanguage(c.req.query('language'));
+  const lang = resolveLanguage(c.req.query('language'), userId);
   const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang) as
     | JournalEntryRow
     | undefined;
@@ -129,7 +129,7 @@ app.post('/:id/correct', async (c) => {
   if (!entry.body.trim()) return c.json({ error: 'Entry body is empty' }, 400);
 
   try {
-    const data = (await correctJournalText(entry.body, entry.language)) as {
+    const data = (await correctJournalText(userId, entry.body, entry.language)) as {
       correctedBody?: string;
       corrections?: unknown;
     };

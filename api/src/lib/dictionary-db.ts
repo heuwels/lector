@@ -2,7 +2,6 @@ import { Database, type Statement } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
 import { db as userDb } from '../db';
-import { getActiveLanguageCode } from './active-language';
 
 /**
  * Read-only SQLite-backed bilingual dictionary, selected by the active language.
@@ -310,7 +309,7 @@ export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
 
 export function lookupWord(
   word: string,
-  language: string = getActiveLanguageCode(),
+  language: string,
 ): ExpandedDictionaryEntry | undefined {
   const lower = word.toLowerCase();
   const stmts = getStmts(language);

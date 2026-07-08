@@ -3,16 +3,21 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { Hono } from 'hono';
 import { randomBytes, randomUUID } from 'crypto';
 import { db } from '../db';
-import { authMiddleware } from './auth';
+import { authMiddleware, makePatMiddleware } from './auth';
 import { hashToken } from './crypto';
+import { LOCAL_USER_ID } from './user';
 
-function createTestToken(scopes: string[] = ['*'], expiresAt?: string): string {
+function createTestToken(
+  scopes: string[] = ['*'],
+  expiresAt?: string,
+  userId: string = LOCAL_USER_ID,
+): string {
   const token = `ltr_${randomBytes(32).toString('base64url')}`;
   const id = randomUUID();
   db.prepare(`
-    INSERT INTO api_tokens (id, name, tokenHash, scopes, createdAt, expiresAt)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, 'test-token', hashToken(token), JSON.stringify(scopes), new Date().toISOString(), expiresAt || null);
+    INSERT INTO api_tokens (id, name, tokenHash, scopes, createdAt, expiresAt, userId)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, 'test-token', hashToken(token), JSON.stringify(scopes), new Date().toISOString(), expiresAt || null, userId);
   return token;
 }
 
@@ -162,7 +167,7 @@ describe('Auth middleware', () => {
     });
     expect(res.status).toBe(403);
     const body = await res.json() as { error: string };
-    expect(body.error).toContain('local access');
+    expect(body.error).toContain('not token auth');
   });
 
   test('allows unauthenticated access to token routes', async () => {
@@ -211,5 +216,65 @@ describe('Auth middleware', () => {
     });
     const row = db.prepare('SELECT lastUsedAt FROM api_tokens WHERE name = ?').get('test-token') as { lastUsedAt: string | null };
     expect(row.lastUsedAt).not.toBeNull();
+  });
+
+  test('resolves the token owner into context (the tenant seam cloud scopes by)', async () => {
+    const probe = new Hono();
+    probe.use('/api/*', authMiddleware);
+    probe.get('/api/stats', (c) => c.json({ userId: c.get('userId') ?? null }));
+
+    const token = createTestToken(['*']);
+    const res = await probe.request('/api/stats', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { userId: string | null }).userId).toBe(LOCAL_USER_ID);
+  });
+});
+
+// The cloud-proper binding (#218): a PAT is a real credential and must
+// resolve a real tenant. Whole-flow coverage (session mints a token, the
+// token authenticates API calls) lives in lib/accounts.test.ts; this pins
+// the middleware contract in isolation.
+describe('Auth middleware in cloud mode (per-user PATs)', () => {
+  const cloudPat = makePatMiddleware(true);
+  let app: Hono;
+
+  beforeEach(() => {
+    app = new Hono();
+    app.use('/api/*', cloudPat);
+    app.get('/api/stats', (c) => c.json({ userId: c.get('userId') ?? null }));
+    cleanupTokens();
+  });
+
+  afterEach(() => {
+    cleanupTokens();
+  });
+
+  test("a tenant token authenticates and resolves its owner's userId", async () => {
+    const token = createTestToken(['*'], undefined, 'user-abc');
+    const res = await app.request('/api/stats', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { userId: string | null }).userId).toBe('user-abc');
+  });
+
+  test("a pre-accounts token (userId 'local') is refused — no session-less door to the shared pseudo-tenant", async () => {
+    const token = createTestToken(['*'], undefined, LOCAL_USER_ID);
+    const res = await app.request('/api/stats', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('predates accounts');
+  });
+
+  test('scope checks still apply to tenant tokens', async () => {
+    const narrow = createTestToken(['collections:read'], undefined, 'user-abc');
+    const res = await app.request('/api/stats', {
+      headers: { Authorization: `Bearer ${narrow}` },
+    });
+    expect(res.status).toBe(403);
   });
 });

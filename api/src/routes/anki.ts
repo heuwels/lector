@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { LOCAL_USER_ID } from '../lib/user';
+import { getCurrentUserId } from '../lib/user';
 import { db } from '../db';
 import { getActiveLanguageCode } from '../lib/active-language';
 import { getTodayDate } from '../lib/dates';
@@ -89,9 +89,9 @@ function isHttpUrl(value: string): boolean {
 // The setting is user-editable, so require an http(s) URL before fetch()ing it
 // (rejects file:// and other schemes); localhost stays valid — AnkiConnect is a
 // local service, so we don't block private addresses here.
-function getAnkiConnectUrl(): string {
+function getAnkiConnectUrl(userId: string): string {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(LOCAL_USER_ID, 'ankiConnectUrl') as
+    const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(userId, 'ankiConnectUrl') as
       | { value: string }
       | undefined;
     const raw = row?.value?.replace(/^"|"$/g, '').trim();
@@ -123,7 +123,8 @@ async function ankiRequestWithUrl<T>(
 // dailyStats.ankiReviews so the heatmap/streak count Anki study days. Best-
 // effort: an unreachable AnkiConnect leaves previously-synced data untouched.
 app.post('/sync-reviews', async (c) => {
-  const url = getAnkiConnectUrl();
+  const userId = getCurrentUserId(c);
+  const url = getAnkiConnectUrl(userId);
 
   let byDay: Array<[string, number]>;
   try {
@@ -136,7 +137,7 @@ app.post('/sync-reviews', async (c) => {
     });
   }
 
-  const language = getActiveLanguageCode();
+  const language = getActiveLanguageCode(userId);
 
   // Touch ONLY ankiReviews so the day's other counters are preserved.
   const upsert = db.prepare(
@@ -146,12 +147,12 @@ app.post('/sync-reviews', async (c) => {
   db.transaction((rows: Array<[string, number]>) => {
     for (const [date, count] of rows) {
       if (typeof date === 'string' && Number.isFinite(count)) {
-        upsert.run(LOCAL_USER_ID, date, language, Math.trunc(count));
+        upsert.run(userId, date, language, Math.trunc(count));
       }
     }
   })(byDay);
 
-  const reviewsToday = byDay.find(([d]) => d === getTodayDate())?.[1] ?? 0;
+  const reviewsToday = byDay.find(([d]) => d === getTodayDate(userId))?.[1] ?? 0;
 
   return c.json({ connected: true, synced: byDay.length, reviewsToday });
 });

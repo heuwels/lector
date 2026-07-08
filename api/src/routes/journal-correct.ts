@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { correctJournalText } from '../lib/journal-correct';
+import { getCurrentUserId } from '../lib/user';
 
 const app = new Hono();
 
@@ -12,7 +13,7 @@ app.post('/', async (c) => {
       return c.json({ error: 'body is required' }, 400);
     }
 
-    const result = await correctJournalText(body, language);
+    const result = await correctJournalText(getCurrentUserId(c), body, language);
     return c.json(result);
   } catch (error) {
     console.error('Journal correction error:', error);

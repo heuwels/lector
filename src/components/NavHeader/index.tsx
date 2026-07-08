@@ -1,18 +1,30 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import LanguageSelector from '@/components/LanguageSelector';
+import { isAuthRoute } from '@/lib/auth-client';
 import { navLinks } from './constants';
 import NavLink from './components/NavLink';
 import AppName from './components/AppName';
+import AccountMenu from './components/AccountMenu';
 
 export default function NavHeader() {
+  const pathname = usePathname();
+
+  // Auth pages are pre-session chrome (#218): no nav — its links would all
+  // 401 for a signed-out cloud visitor.
+  if (isAuthRoute(pathname)) return null;
+
   return (
     <>
       {/* Mobile top bar — language selector, visible only on mobile */}
       <div className="flex h-[var(--mobile-topbar-h)] items-center justify-between border-b border-border bg-card/80 px-3 py-2 backdrop-blur-sm sm:hidden print:hidden">
         <AppName />
-        <LanguageSelector compact />
+        <div className="flex items-center gap-1">
+          <LanguageSelector compact />
+          <AccountMenu compact />
+        </div>
       </div>
 
       {/* Desktop left sidebar — hidden on mobile */}
@@ -30,6 +42,8 @@ export default function NavHeader() {
             return <NavLink key={link.href} link={link} isMobile={false} />;
           })}
         </nav>
+
+        <AccountMenu />
 
         <div className="border-t border-border px-4 py-3">
           <ThemeToggle />

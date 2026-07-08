@@ -2,6 +2,7 @@ import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { db } from '../db';
 import { getTodayDate } from '../lib/dates';
+import { LOCAL_USER_ID } from '../lib/user';
 
 const { default: app } = await import('../routes/study-ping');
 
@@ -38,7 +39,7 @@ describe('study-ping', () => {
   afterEach(reset);
 
   test('GET aggregates activity across languages (app-wide), earliest session start', async () => {
-    const today = getTodayDate();
+    const today = getTodayDate(LOCAL_USER_ID);
     addStats(today, 'af', { dictionaryLookups: 3, minutesRead: 10, sessionStartedAt: '2026-06-21T09:00:00Z' });
     addStats(today, 'de', { dictionaryLookups: 2, clozePracticed: 4, sessionStartedAt: '2026-06-21T08:00:00Z' });
 
@@ -70,7 +71,7 @@ describe('study-ping', () => {
       'targetLanguage',
       JSON.stringify('de'),
     );
-    const today = getTodayDate();
+    const today = getTodayDate(LOCAL_USER_ID);
 
     const res = await app.request('/', { method: 'POST' });
     expect(res.status).toBe(200);
