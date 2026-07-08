@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { apiBase, apiUrl, apiFetch, lectorMode } from './api-base';
+import { apiBase, apiUrl, apiFetch, lectorMode, isAuthRoute, isBareRoute } from './api-base';
 
 // The module reads `window.__ENV__` (browser) or `process.env` (server) at
 // call time, so each test sets the environment it needs and restores after.
@@ -91,6 +91,25 @@ describe('apiUrl', () => {
   it('tolerates a path with no leading slash', () => {
     setWindowEnv('http://localhost:3457');
     expect(apiUrl('api/stats')).toBe('http://localhost:3457/api/stats');
+  });
+});
+
+describe('route helpers', () => {
+  it('isAuthRoute: the pre-session pages and their subpaths only', () => {
+    expect(isAuthRoute('/login')).toBe(true);
+    expect(isAuthRoute('/register')).toBe(true);
+    expect(isAuthRoute('/reset-password/token-x')).toBe(true);
+    expect(isAuthRoute('/subscribe')).toBe(false);
+    expect(isAuthRoute('/')).toBe(false);
+  });
+
+  it('isBareRoute: auth pages plus /subscribe (#224), nothing else', () => {
+    expect(isBareRoute('/login')).toBe(true);
+    expect(isBareRoute('/subscribe')).toBe(true);
+    expect(isBareRoute('/')).toBe(false);
+    expect(isBareRoute('/vocab')).toBe(false);
+    // /subscribe is a single page, not a namespace.
+    expect(isBareRoute('/subscribe/deeper')).toBe(false);
   });
 });
 

@@ -51,6 +51,14 @@ import { Construct } from 'constructs';
  *   /lector/canary/oidc-client-id      String        optional — OIDC_CLIENT_ID
  *   /lector/canary/oidc-client-secret  SecureString  optional — OIDC_CLIENT_SECRET
  *   /lector/canary/oidc-provider-name  String        optional — OIDC_PROVIDER_NAME (login-button label)
+ *   /lector/canary/lector-billing      String        optional — LECTOR_BILLING ("paddle" arms the subscription gate, #224)
+ *   /lector/canary/paddle-webhook-secret SecureString optional — PADDLE_WEBHOOK_SECRET (required once billing is armed)
+ *   /lector/canary/paddle-client-token String        optional — PADDLE_CLIENT_TOKEN (public checkout token for the /subscribe overlay)
+ *   /lector/canary/paddle-price-monthly String       optional — PADDLE_PRICE_MONTHLY (pri_… Cloud monthly)
+ *   /lector/canary/paddle-price-annual String        optional — PADDLE_PRICE_ANNUAL (pri_… Cloud annual)
+ *   /lector/canary/paddle-price-plus-monthly String  optional — PADDLE_PRICE_PLUS_MONTHLY (pri_… Plus monthly)
+ *   /lector/canary/paddle-price-plus-annual String   optional — PADDLE_PRICE_PLUS_ANNUAL (pri_… Plus annual)
+ *   /lector/canary/billing-exempt-emails String      optional — BILLING_EXEMPT_EMAILS (comma-separated operator/test accounts)
  *   /lector/canary/ghcr-token          SecureString  optional — only if the ghcr package goes private again
  */
 
@@ -265,6 +273,14 @@ put OIDC_ISSUER           oidc-issuer
 put OIDC_CLIENT_ID        oidc-client-id
 put OIDC_CLIENT_SECRET    oidc-client-secret
 put OIDC_PROVIDER_NAME    oidc-provider-name
+put LECTOR_BILLING        lector-billing
+put PADDLE_WEBHOOK_SECRET paddle-webhook-secret
+put PADDLE_CLIENT_TOKEN   paddle-client-token
+put PADDLE_PRICE_MONTHLY  paddle-price-monthly
+put PADDLE_PRICE_ANNUAL   paddle-price-annual
+put PADDLE_PRICE_PLUS_MONTHLY paddle-price-plus-monthly
+put PADDLE_PRICE_PLUS_ANNUAL  paddle-price-plus-annual
+put BILLING_EXEMPT_EMAILS billing-exempt-emails
 mv "$TMP" "$ENVFILE"
 if ! grep -q "^TUNNEL_TOKEN=" "$ENVFILE"; then
   echo "WARNING: __PARAM_PREFIX__/tunnel-token is missing - cloudflared will crash-loop until it exists (put the parameter, then run /srv/lector/update.sh)" >&2

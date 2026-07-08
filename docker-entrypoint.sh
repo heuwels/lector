@@ -33,6 +33,30 @@ case "$MODE" in
     ;;
 esac
 
+# Billing gate guard (#224), mirroring api/src/lib/billing.ts's boot assert:
+# the API process backgrounds below, so without this check a misconfigured
+# box would serve a live UI over a dead API. Armed billing needs cloud proper
+# (subscriptions attach to built-in accounts) and the webhook secret (without
+# webhooks no account could ever become paid — everyone would be locked out).
+BILLING="${LECTOR_BILLING:-}"
+case "$BILLING" in
+  "") ;;
+  paddle)
+    if [ "$MODE" != "cloud" ] || [ -n "$GATE" ]; then
+      echo "FATAL: LECTOR_BILLING=paddle requires cloud proper (LECTOR_MODE=cloud without LECTOR_CLOUD_GATE) — subscriptions attach to built-in accounts (heuwels/lector#224). Unset LECTOR_BILLING, or run cloud mode with built-in auth." >&2
+      exit 1
+    fi
+    if [ -z "${PADDLE_WEBHOOK_SECRET:-}" ]; then
+      echo "FATAL: LECTOR_BILLING=paddle requires PADDLE_WEBHOOK_SECRET — without Paddle webhooks no account can ever become paid, so enforcement would lock everyone out (heuwels/lector#224). Copy the notification destination's secret key from Paddle → Developer tools → Notifications." >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "FATAL: invalid LECTOR_BILLING \"$BILLING\" — expected \"paddle\" (or unset for no billing)." >&2
+    exit 1
+    ;;
+esac
+
 # Start Hono API in background
 cd /app/api
 DATA_DIR=/app/data DICT_DIR=${DICT_DIR:-/app/dict} PORT=3457 bun run src/index.ts &

@@ -71,6 +71,14 @@ Design notes:
    | `oidc-client-id`               | String       | `OIDC_CLIENT_ID` |
    | `oidc-client-secret`           | SecureString | `OIDC_CLIENT_SECRET` (redirect URI to allowlist on the IdP: `https://app.lector.dev/api/auth/oauth2/callback/oidc`) |
    | `oidc-provider-name`           | String       | `OIDC_PROVIDER_NAME` (optional login-button label, default "SSO" — rides `window.__ENV__`) |
+   | `lector-billing`               | String       | `LECTOR_BILLING` (#224 — `paddle` arms the subscription gate; unset = billing off. Requires `paddle-webhook-secret`, or the container refuses to boot) |
+   | `paddle-webhook-secret`        | SecureString | `PADDLE_WEBHOOK_SECRET` (the notification destination's secret key, Paddle → Developer tools → Notifications) |
+   | `paddle-client-token`          | String       | `PADDLE_CLIENT_TOKEN` (public client-side token for the in-app checkout overlay — Paddle → Developer tools → Authentication → Client-side tokens) |
+   | `paddle-price-monthly`         | String       | `PADDLE_PRICE_MONTHLY` (`pri_…` — Cloud monthly; a plan card renders for each configured price) |
+   | `paddle-price-annual`          | String       | `PADDLE_PRICE_ANNUAL` (`pri_…` — Cloud annual) |
+   | `paddle-price-plus-monthly`    | String       | `PADDLE_PRICE_PLUS_MONTHLY` (`pri_…` — Plus monthly) |
+   | `paddle-price-plus-annual`     | String       | `PADDLE_PRICE_PLUS_ANNUAL` (`pri_…` — Plus annual) |
+   | `billing-exempt-emails`        | String       | `BILLING_EXEMPT_EMAILS` (comma-separated accounts the gate never locks — operator + test accounts) |
    | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
 
    ```bash
@@ -201,6 +209,57 @@ Design notes:
   `docker compose up -d`.
 - **Teardown:** `bunx cdk destroy`. The data volume is retained — delete it
   manually (and the SSM parameters + tunnel + Access app) for a full cleanup.
+
+## Billing go-live (Paddle, #224)
+
+The subscription gate ships dark: with `lector-billing` unset the app behaves
+exactly as before. Arming it (order matters — the gate locks every account
+that isn't subscribed or exempt the moment it's on):
+
+1. **Paddle dashboard** (once):
+   - Create the subscription prices (Cloud $5/mo, $50/yr; Plus ~$12/mo,
+     ~$120/yr) and note their `pri_…` ids.
+   - Create a **client-side token** for the app (separate from lector-site's).
+   - Approve `app.lector.dev` under Checkout → Website approval, or the
+     overlay refuses to open.
+   - Add a **notification destination**: URL
+     `https://app.lector.dev/api/billing/webhook`, type webhook, and select
+     **all `customer.*` and `subscription.*` events** (customer events carry
+     the email that links a Paddle customer to an account; subscription
+     events carry the state the gate enforces). Copy the destination's
+     **secret key**.
+2. **While Cloudflare Access still fronts the hostname**, Paddle can't reach
+   the webhook: add a separate Access application for
+   `app.lector.dev/api/billing/webhook` with a **Bypass** policy (the route
+   authenticates by HMAC signature, not by session). Removing Access for
+   public launch removes the need.
+3. **Parameters** (the boot script maps them via `refresh-env.sh`; a box
+   provisioned before #224 needs the new `put` lines appended first — see
+   *Adding a NEW parameter* above):
+   ```bash
+   aws ssm put-parameter --name /lector/canary/paddle-webhook-secret \
+     --type SecureString --value 'pdl_ntfset_…'
+   aws ssm put-parameter --name /lector/canary/paddle-client-token \
+     --type String --value 'live_…'
+   aws ssm put-parameter --name /lector/canary/paddle-price-monthly \
+     --type String --value 'pri_…'      # + annual / plus variants as created
+   aws ssm put-parameter --name /lector/canary/billing-exempt-emails \
+     --type String --value 'you@example.com'
+   # Last — this is the switch:
+   aws ssm put-parameter --name /lector/canary/lector-billing \
+     --type String --value 'paddle'
+   ```
+4. `sudo /srv/lector/update.sh`, then smoke-check: `docker logs lector` shows
+   `billing: Paddle subscription gate active`, an exempt account still gets
+   the app, a fresh account lands on `/subscribe`, and a test webhook from
+   Paddle's dashboard (Notifications → the destination → Send test) returns
+   200 in its delivery log.
+
+A subscriber's account activates on the `subscription.created`/`.updated`
+webhook: matched by the checkout's `custom_data.lectorUserId` (checkout
+opened in-app) or by customer email (checkout on lector.dev). Dunning
+(`past_due`) keeps access; cancellation locks the account to data takeout +
+resubscribe at period end, with all data retained (#216 lapse contract).
 
 ## Caveats
 

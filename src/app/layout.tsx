@@ -4,6 +4,7 @@ import Script from 'next/script';
 import { Toaster } from 'sonner';
 import Analytics from '@/components/Analytics';
 import AuthGuard from '@/components/AuthGuard';
+import BillingGuard from '@/components/BillingGuard';
 import ChatWidget from '@/components/ChatWidget';
 import SetupGuard from '@/components/SetupGuard';
 import './globals.css';
@@ -58,9 +59,14 @@ export default function RootLayout({
         <div className="flex-1">
           {/* AuthGuard outside SetupGuard: in cloud mode the session must
               resolve before SetupGuard's settings probe (which would 401
-              unauthenticated). Selfhost passes straight through (#218). */}
+              unauthenticated). Selfhost passes straight through (#218).
+              BillingGuard between them (#224): session first, then the
+              subscription check, and only then anything that fires gated
+              API calls. */}
           <AuthGuard>
-            <SetupGuard>{children}</SetupGuard>
+            <BillingGuard>
+              <SetupGuard>{children}</SetupGuard>
+            </BillingGuard>
           </AuthGuard>
         </div>
         <ChatWidget />

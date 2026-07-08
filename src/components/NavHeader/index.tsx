@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import LanguageSelector from '@/components/LanguageSelector';
-import { isAuthRoute } from '@/lib/auth-client';
+import { isBareRoute } from '@/lib/auth-client';
 import { navLinks } from './constants';
 import NavLink from './components/NavLink';
 import AppName from './components/AppName';
@@ -13,8 +13,9 @@ export default function NavHeader() {
   const pathname = usePathname();
 
   // Auth pages are pre-session chrome (#218): no nav — its links would all
-  // 401 for a signed-out cloud visitor.
-  if (isAuthRoute(pathname)) return null;
+  // 401 for a signed-out cloud visitor. Same on /subscribe (#224), where
+  // they'd all 402 for a locked account.
+  if (isBareRoute(pathname)) return null;
 
   return (
     <>

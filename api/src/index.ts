@@ -27,8 +27,10 @@ import llmStatus from './routes/llm-status';
 import tokens from './routes/tokens';
 import chat from './routes/chat';
 import llmOpenai from './routes/llm-openai';
+import billing from './routes/billing';
 import { authMiddleware } from './lib/auth';
 import { sessionMiddleware } from './lib/session';
+import { assertBillingBootable, billingConfig, billingMiddleware } from './lib/billing';
 import { getAuthEngine, runAuthMigrations, resolveTrustedOrigins } from './lib/accounts';
 import { HTTPException } from 'hono/http-exception';
 import { startClassifyWorker } from './lib/classify-worker';
@@ -45,6 +47,11 @@ try {
     deploymentConfig.mode,
     deploymentConfig.cloudGate,
     Boolean(deploymentConfig.authSecret),
+  );
+  assertBillingBootable(
+    billingConfig.mode,
+    deploymentConfig.authRequired,
+    Boolean(billingConfig.webhookSecret),
   );
 } catch (err) {
   console.error(`FATAL: ${(err as Error).message}`);
@@ -83,6 +90,9 @@ if (deploymentConfig.authRequired) {
 app.use('*', logger());
 app.use('/api/*', sessionMiddleware);
 app.use('/api/*', authMiddleware);
+// Billing gate (#224) — after session/PAT so the tenant is resolved. A no-op
+// unless LECTOR_BILLING=paddle (cloud proper only, boot-guarded above).
+app.use('/api/*', billingMiddleware);
 
 // Built-in accounts (#218): only cloud proper mounts the engine. Selfhost
 // keeps its auth-off single-user shape (multi-user self-host is the same
@@ -92,6 +102,9 @@ if (deploymentConfig.authRequired) {
   await runAuthMigrations(getAuthEngine());
   app.on(['POST', 'GET'], '/api/auth/*', (c) => getAuthEngine().handler(c.req.raw));
   console.log('[lector] cloud mode: built-in accounts & sessions active (Better Auth)');
+}
+if (billingConfig.enforced) {
+  console.log('[lector] billing: Paddle subscription gate active (#224)');
 }
 
 app.route('/api/collections', collections);
@@ -118,6 +131,7 @@ app.route('/api/llm-status', llmStatus);
 app.route('/api/tokens', tokens);
 app.route('/api/chat', chat);
 app.route('/api/llm/openai', llmOpenai);
+app.route('/api/billing', billing);
 
 // Capture unhandled errors to Sentry/GlitchTip. Deliberate HTTP errors
 // (e.g. the identity seam's fail-closed 401, lib/user.ts) pass through with
