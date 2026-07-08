@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { getSetting } from '@/lib/data-layer';
+import { readLanguageCache, writeLanguageCache } from '@/lib/language-cache';
 import { isBareRoute } from '@/lib/auth-client';
 
 export default function SetupGuard({ children }: { children: React.ReactNode }) {
@@ -26,17 +27,23 @@ export default function SetupGuard({ children }: { children: React.ReactNode }) 
 
     async function checkLanguage() {
       // Fast path: a cached language means setup is already done — skip the
-      // network round-trip in the common case.
-      if (localStorage.getItem('lector-target-language')) {
+      // network round-trip in the common case. The cache is keyed by tenant
+      // (#281): this only ever sees the CURRENT user's value, so another
+      // account's (or the pre-flip app's) browser leftovers can no longer
+      // bypass setup. AuthGuard sits above us, so in cloud the session — and
+      // with it the cache tenant — is resolved before this runs.
+      if (readLanguageCache()) {
         setChecked(true);
         return;
       }
 
       try {
+        // The server-side setting is the source of truth; on a hit, backfill
+        // this browser's keyed cache so the fast path works next load.
         const serverLang = await getSetting<string>('targetLanguage');
         if (cancelled) return;
         if (serverLang) {
-          localStorage.setItem('lector-target-language', serverLang);
+          writeLanguageCache(serverLang);
           setChecked(true);
           return;
         }

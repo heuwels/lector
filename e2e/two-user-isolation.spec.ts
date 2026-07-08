@@ -63,13 +63,8 @@ async function verificationLink(email: string): Promise<string> {
   return link!;
 }
 
-/**
- * A browser context signed in as a brand-new user: sign-up → email
- * verification (via the outbox link) → sign-in. The context's request
- * fixture shares its cookie jar, so pages opened afterwards carry the
- * session.
- */
-async function newUserContext(browser: Browser, email: string): Promise<BrowserContext> {
+/** A fresh context (own cookie jar + localStorage) serving the cloud env. */
+async function cloudContext(browser: Browser): Promise<BrowserContext> {
   const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   // The app reads its runtime config from /__env.js (written by
   // docker-entrypoint.sh in a real deployment; an empty default in dev).
@@ -81,6 +76,26 @@ async function newUserContext(browser: Browser, email: string): Promise<BrowserC
       body: `window.__ENV__ = { API_URL: ${JSON.stringify(CLOUD_API)}, LECTOR_MODE: 'cloud' };`,
     }),
   );
+  return ctx;
+}
+
+/** Sign an existing user into a context ("another device" for that account). */
+async function signIn(ctx: BrowserContext, email: string): Promise<void> {
+  const res = await ctx.request.post(`${CLOUD_API}/api/auth/sign-in/email`, {
+    headers: AUTH_HEADERS,
+    data: { email, password: PASSWORD },
+  });
+  expect(res.status(), await res.text()).toBe(200);
+}
+
+/**
+ * A browser context signed in as a brand-new user: sign-up → email
+ * verification (via the outbox link) → sign-in. The context's request
+ * fixture shares its cookie jar, so pages opened afterwards carry the
+ * session.
+ */
+async function newUserContext(browser: Browser, email: string): Promise<BrowserContext> {
+  const ctx = await cloudContext(browser);
 
   const signUp = await ctx.request.post(`${CLOUD_API}/api/auth/sign-up/email`, {
     headers: AUTH_HEADERS,
@@ -94,11 +109,7 @@ async function newUserContext(browser: Browser, email: string): Promise<BrowserC
   });
   expect([200, 302]).toContain(verify.status());
 
-  const signIn = await ctx.request.post(`${CLOUD_API}/api/auth/sign-in/email`, {
-    headers: AUTH_HEADERS,
-    data: { email, password: PASSWORD },
-  });
-  expect(signIn.status(), await signIn.text()).toBe(200);
+  await signIn(ctx, email);
 
   return ctx;
 }
@@ -176,6 +187,46 @@ test.describe('two users, isolated libraries (#220)', () => {
 
     await anna.close();
     await bernd.close();
+  });
+
+  test('stale browser language state cannot bypass onboarding, and setup survives to a fresh device (#281)', async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+
+    const run = Date.now();
+    const email = `carla-${run}@example.com`;
+    const carla = await newUserContext(browser, email);
+
+    // The #281 repro: this browser profile "previously ran Lector" — it
+    // carries the pre-flip unkeyed language key AND another account's keyed
+    // value. Neither may stand in for Carla's own (unset) server setting.
+    await carla.addInitScript(() => {
+      localStorage.setItem('lector-target-language', 'af');
+      localStorage.setItem('lector-target-language:some-other-user', 'de');
+    });
+
+    const page = await carla.newPage();
+    await page.goto('/');
+    await expect(page).toHaveURL(/\/setup/, { timeout: 15_000 });
+    await page.getByTestId('setup-language-af').click();
+    await expect(page).toHaveURL('/', { timeout: 15_000 });
+
+    // Her choice landed server-side — the source of truth the old
+    // localStorage fast-path used to silently skip writing.
+    const settings = await carla.request.get(`${CLOUD_API}/api/settings`);
+    expect(((await settings.json()) as { targetLanguage?: string }).targetLanguage).toBe('af');
+    await carla.close();
+
+    // A fresh device (clean context, same account): no setup page — the
+    // language comes from the server and the empty library renders.
+    const device2 = await cloudContext(browser);
+    await signIn(device2, email);
+    const page2 = await device2.newPage();
+    await page2.goto('/');
+    await expect(page2.getByText('No books in your library')).toBeVisible({ timeout: 15_000 });
+    expect(page2.url()).not.toMatch(/\/setup/);
+    await device2.close();
   });
 
   test('no session → no library: the API refuses unauthenticated reads', async ({ playwright }) => {

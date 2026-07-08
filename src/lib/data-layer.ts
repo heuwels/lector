@@ -8,11 +8,12 @@
 
 import { DEFAULT_LANGUAGE } from './languages';
 import { apiFetch } from './api-base';
+import { readLanguageCache } from './language-cache';
 
-// Active language helper — reads from localStorage, falls back to default
+// Active language helper — reads the tenant-keyed cache (#281), falls back
+// to the default (SSR, cloud pre-session, or simply nothing cached yet).
 export function getActiveLanguage(): string {
-  if (typeof window === 'undefined') return DEFAULT_LANGUAGE;
-  return localStorage.getItem('lector-target-language') || DEFAULT_LANGUAGE;
+  return readLanguageCache() || DEFAULT_LANGUAGE;
 }
 
 function langParam(prefix: '?' | '&' = '?'): string {

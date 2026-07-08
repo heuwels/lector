@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { bounceToLogin } from '@/lib/api-base';
+import { setActiveTenant } from '@/lib/language-cache';
 import { useLectorMode } from '@/lib/use-env';
 import { authClient, isAuthRoute } from '@/lib/auth-client';
 
@@ -38,6 +39,14 @@ function CloudSessionGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session, isPending } = authClient.useSession();
   const onAuthRoute = isAuthRoute(pathname);
+
+  // Record the session user as the language-cache tenant (#281) during
+  // render, not in an effect: parents render before children, so every gated
+  // component (SetupGuard's cache fast-path included) reads the keyed cache
+  // under the right namespace from its very first render. Idempotent, so
+  // re-renders are free; account switches go through hard navigations
+  // (bounceToLogin), so a stale in-memory tenant can't outlive its session.
+  if (session) setActiveTenant(session.user.id);
 
   useEffect(() => {
     if (isPending || onAuthRoute || session) return;
