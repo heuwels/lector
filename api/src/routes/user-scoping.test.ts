@@ -383,13 +383,62 @@ describe('per-user library ratchet (#220)', () => {
     expect(row.userId).toBe('local');
   });
 
-  // The id-only-PK overwrite class: collections/lessons/vocab/clozeSentences/
-  // collection_groups keep `id TEXT PRIMARY KEY` (userId is a plain column),
-  // so an INSERT OR REPLACE keyed on a client-supplied id would conflict on
-  // the GLOBAL id namespace — replacing another tenant's row and re-creating
-  // it under the writer. The upsert paths must leave a foreign row untouched.
+  // The cross-tenant overwrite class (#220 → #279): the synthetic-id tenant
+  // tables carry a composite PRIMARY KEY (userId, id), so ids are per-tenant —
+  // a client-supplied id belonging to another tenant can never conflict with
+  // (let alone REPLACE) their row. It lands as the writer's OWN distinct row,
+  // and the schema guarantees it even for write sites that forget every guard.
 
-  test("posting vocab with another user's row id cannot overwrite or steal it", async () => {
+  const COMPOSITE_PK_TABLES = [
+    'collections',
+    'lessons',
+    'vocab',
+    'clozeSentences',
+    'collection_groups',
+    'chat_messages',
+    'journal_entries',
+  ];
+
+  test('every synthetic-id tenant table keys on (userId, id) — schema ratchet (#279)', () => {
+    for (const table of COMPOSITE_PK_TABLES) {
+      const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string; pk: number }[];
+      const pk = cols.filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name);
+      expect(pk, `${table} must key on (userId, id)`).toEqual(['userId', 'id']);
+    }
+  });
+
+  test('the same id under two tenants is two distinct rows, both directions (#279)', () => {
+    // Schema-level: no route guard involved. Direction 1: intruder holds the
+    // id first, local takes it too. Direction 2: local holds an id, the
+    // intruder takes it too. Neither insert may throw or clobber.
+    seedIntruderVocab('v_shared');
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, userId)
+       VALUES ('v_shared', 'myne', 'word', 'sin', 'mine', 'new', ?, ?, 'af', 'local')`,
+    ).run(TS, TS);
+
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, userId)
+       VALUES ('v_local_first', 'oorspronklik', 'word', 'sin', 'original', 'new', ?, ?, 'af', 'local')`,
+    ).run(TS, TS);
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, userId)
+       VALUES ('v_local_first', 'indringer', 'word', 'sin', 'intruder copy', 'new', ?, ?, 'af', ?)`,
+    ).run(TS, TS, INTRUDER);
+
+    const shared = db.prepare("SELECT userId, text FROM vocab WHERE id = 'v_shared' ORDER BY userId").all() as { userId: string; text: string }[];
+    expect(shared).toEqual([
+      { userId: INTRUDER, text: 'geheim' },
+      { userId: 'local', text: 'myne' },
+    ]);
+    const localFirst = db.prepare("SELECT userId, text FROM vocab WHERE id = 'v_local_first' ORDER BY userId").all() as { userId: string; text: string }[];
+    expect(localFirst).toEqual([
+      { userId: INTRUDER, text: 'indringer' },
+      { userId: 'local', text: 'oorspronklik' },
+    ]);
+  });
+
+  test("posting vocab with another user's row id leaves theirs untouched and creates the writer's own", async () => {
     seedIntruderVocab('v_intruder');
 
     const res = await vocabApp.request('/', {
@@ -399,14 +448,18 @@ describe('per-user library ratchet (#220)', () => {
     });
     expect(res.status).toBe(200);
 
-    const row = db
-      .prepare('SELECT userId, text FROM vocab WHERE id = ?')
-      .get('v_intruder') as { userId: string; text: string };
-    expect(row.userId).toBe(INTRUDER);
-    expect(row.text).toBe('geheim');
+    const theirs = db
+      .prepare('SELECT text FROM vocab WHERE id = ? AND userId = ?')
+      .get('v_intruder', INTRUDER) as { text: string };
+    expect(theirs.text).toBe('geheim');
+
+    const mine = db
+      .prepare("SELECT text FROM vocab WHERE id = ? AND userId = 'local'")
+      .get('v_intruder') as { text: string };
+    expect(mine.text).toBe('gekaap');
   });
 
-  test("bulk cloze upsert with another user's ids cannot overwrite or steal them", async () => {
+  test("bulk cloze upsert with another user's ids leaves theirs untouched and creates the writer's own", async () => {
     seedIntruderCloze('c_intruder');
 
     const res = await clozeApp.request('/', {
@@ -418,11 +471,15 @@ describe('per-user library ratchet (#220)', () => {
     });
     expect(res.status).toBe(200);
 
-    const row = db
-      .prepare('SELECT userId, sentence FROM clozeSentences WHERE id = ?')
-      .get('c_intruder') as { userId: string; sentence: string };
-    expect(row.userId).toBe(INTRUDER);
-    expect(row.sentence).toBe('Die ___ is geheim.');
+    const theirs = db
+      .prepare('SELECT sentence FROM clozeSentences WHERE id = ? AND userId = ?')
+      .get('c_intruder', INTRUDER) as { sentence: string };
+    expect(theirs.sentence).toBe('Die ___ is geheim.');
+
+    const mine = db
+      .prepare("SELECT sentence FROM clozeSentences WHERE id = ? AND userId = 'local'")
+      .get('c_intruder') as { sentence: string };
+    expect(mine.sentence).toBe('Gekaapte ___.');
   });
 
   test("restoring a backup carrying another user's row ids cannot hijack their rows", async () => {
@@ -439,17 +496,25 @@ describe('per-user library ratchet (#220)', () => {
     });
     expect(res.status).toBe(200);
 
+    // The intruder's rows are untouched…
     const col = db
-      .prepare('SELECT userId, title FROM collections WHERE id = ?')
-      .get('col_intruder') as { userId: string; title: string };
-    expect(col.userId).toBe(INTRUDER);
+      .prepare('SELECT title FROM collections WHERE id = ? AND userId = ?')
+      .get('col_intruder', INTRUDER) as { title: string };
     expect(col.title).toBe('Geheime Boek');
-
     const voc = db
-      .prepare('SELECT userId, text FROM vocab WHERE id = ?')
-      .get('v_intruder') as { userId: string; text: string };
-    expect(voc.userId).toBe(INTRUDER);
+      .prepare('SELECT text FROM vocab WHERE id = ? AND userId = ?')
+      .get('v_intruder', INTRUDER) as { text: string };
     expect(voc.text).toBe('geheim');
+
+    // …and the restorer gets their own distinct rows under the same ids.
+    const myCol = db
+      .prepare("SELECT title FROM collections WHERE id = 'col_intruder' AND userId = 'local'")
+      .get() as { title: string };
+    expect(myCol.title).toBe('Gekaap');
+    const myVoc = db
+      .prepare("SELECT text FROM vocab WHERE id = 'v_intruder' AND userId = 'local'")
+      .get() as { text: string };
+    expect(myVoc.text).toBe('gekaap');
   });
 
   test("mined cloze seeding works for a tenant even when another tenant already holds the bank ids (#220)", async () => {

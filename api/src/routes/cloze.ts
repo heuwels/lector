@@ -70,13 +70,13 @@ app.post('/', async (c) => {
   const lang = resolveLanguage(Array.isArray(body) ? body[0]?.language : body.language, userId);
 
   if (Array.isArray(body)) {
-    // Guarded upsert, not INSERT OR REPLACE: the PK is the bare id, so a
-    // client-supplied id owned by another tenant would otherwise REPLACE
-    // (destroy + steal) their row. Foreign-id conflicts no-op instead (#220).
+    // Upsert on the composite (userId, id) PK (#279): ids are per-tenant, so
+    // another tenant's id can never conflict here — it just becomes the
+    // writer's own row.
     const stmt = db.prepare(`
       INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, language, userId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(userId, id) DO UPDATE SET
         sentence = excluded.sentence, clozeWord = excluded.clozeWord,
         clozeIndex = excluded.clozeIndex, translation = excluded.translation,
         source = excluded.source, collection = excluded.collection,
@@ -85,7 +85,6 @@ app.post('/', async (c) => {
         nextReview = excluded.nextReview, reviewCount = excluded.reviewCount,
         lastReviewed = excluded.lastReviewed, timesCorrect = excluded.timesCorrect,
         timesIncorrect = excluded.timesIncorrect, language = excluded.language
-      WHERE clozeSentences.userId = excluded.userId
     `);
 
     db.transaction(() => {
