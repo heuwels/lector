@@ -19,22 +19,61 @@ import { fetchBillingStatus, type BillingPrice, type BillingStatus } from '@/lib
  * as a normal route) — checkout needs to know who it's activating.
  */
 
-const PLAN_COPY: Record<BillingPrice['plan'], { name: string; blurb: string }> = {
-  cloud: { name: 'Lector Cloud', blurb: 'Managed keys with a monthly usage allowance' },
-  plus: { name: 'Cloud Plus', blurb: 'A larger managed allowance, premium models included' },
-};
-
-const CYCLE_COPY: Record<BillingPrice['cycle'], string> = {
-  month: 'per month',
-  year: 'per year — 2 months free',
-};
+/**
+ * Plan copy mirrored from lector-site's /pricing tiers (its `tiers` array) —
+ * static on purpose: what the tier costs must render even when Paddle is
+ * unreachable, and the two surfaces should read identically. If the site
+ * copy changes, change this with it. The Paddle `pri_…` ids stay env-config
+ * (PADDLE_PRICE_*, api/src/lib/billing.ts) — a tier renders its buy buttons
+ * only for the cycles that have one configured.
+ */
+const TIERS: Array<{
+  plan: BillingPrice['plan'];
+  name: string;
+  price: string;
+  badge?: string;
+  tagline: string;
+  features: string[];
+  annualNote: string;
+  featured: boolean;
+}> = [
+  {
+    plan: 'cloud',
+    name: 'Cloud',
+    price: '$5',
+    badge: 'Beta',
+    tagline: "We host it for you — no Docker, no setup. For when you'd rather just read.",
+    features: [
+      'Fully managed — nothing to install or maintain',
+      'Managed translation with a monthly allowance',
+      'Automatic backups and updates',
+      'Bring-your-own-key toggle lifts caps at the same price',
+      'Email support',
+    ],
+    annualNote: 'or $50/year — two months free',
+    featured: true,
+  },
+  {
+    plan: 'plus',
+    name: 'Cloud Plus',
+    price: '$12',
+    tagline: 'For heavy readers who want the whole thing handled.',
+    features: [
+      'Everything in Cloud',
+      'A much larger monthly translation allowance',
+      'Priority support',
+      'Early access to new language packs',
+    ],
+    annualNote: 'or ~$120/year — two months free',
+    featured: false,
+  },
+];
 
 type Phase = 'loading' | 'pick' | 'activating' | 'slow' | 'unavailable';
 
 export default function SubscribePage() {
   const [status, setStatus] = useState<Extract<BillingStatus, { enforced: true }> | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
-  const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [opening, setOpening] = useState<string | null>(null);
   const paddleRef = useRef<Paddle | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,22 +163,6 @@ export default function SubscribePage() {
       }
       paddleRef.current = paddle;
       setPhase('pick');
-
-      // Real, tax-aware amounts from Paddle rather than copy that drifts.
-      // Purely decorative — a preview failure just leaves the cards unpriced.
-      try {
-        const preview = await paddle.PricePreview({
-          items: prices.map((p) => ({ priceId: p.id, quantity: 1 })),
-        });
-        if (cancelled) return;
-        const next: Record<string, string> = {};
-        for (const item of preview.data.details.lineItems) {
-          next[item.price.id] = item.formattedTotals.total;
-        }
-        setAmounts(next);
-      } catch {
-        /* cards render without amounts */
-      }
     });
 
     return () => {
@@ -223,35 +246,81 @@ export default function SubscribePage() {
 
       {phase === 'pick' &&
         status !== null &&
-        status.checkout.prices.map((price) => (
-          <button
-            key={price.id}
-            type="button"
-            onClick={() => openCheckout(price)}
-            disabled={opening !== null}
-            className="w-full cursor-pointer rounded-xl border border-border bg-background p-4 text-left transition-colors hover:border-primary disabled:cursor-default disabled:opacity-70"
-            data-testid={`subscribe-price-${price.plan}-${price.cycle}`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold text-foreground">{PLAN_COPY[price.plan].name}</span>
-              {opening === price.id ? (
-                <span
-                  className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary"
-                  role="status"
-                  aria-label="Opening checkout"
-                  data-testid="subscribe-price-opening"
-                />
-              ) : (
-                amounts[price.id] && (
-                  <span className="text-sm font-medium text-foreground">{amounts[price.id]}</span>
-                )
+        TIERS.map((tier) => {
+          const monthly = status.checkout.prices.find(
+            (p) => p.plan === tier.plan && p.cycle === 'month',
+          );
+          const annual = status.checkout.prices.find(
+            (p) => p.plan === tier.plan && p.cycle === 'year',
+          );
+          if (!monthly && !annual) return null;
+          const primary = monthly ?? annual!;
+          return (
+            <div
+              key={tier.plan}
+              className={`rounded-xl border p-4 ${
+                tier.featured ? 'border-primary' : 'border-border'
+              }`}
+              data-testid={`subscribe-tier-${tier.plan}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-foreground">{tier.name}</span>
+                {tier.badge && (
+                  <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-medium text-primary">
+                    {tier.badge}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1">
+                <span className="text-2xl font-bold text-foreground">{tier.price}</span>
+                <span className="text-sm text-muted-foreground">/month</span>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{tier.tagline}</p>
+              <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+                {tier.features.map((feature) => (
+                  <li key={feature} className="flex gap-2">
+                    <span aria-hidden="true" className="text-primary">
+                      ✓
+                    </span>
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                type="button"
+                className="mt-4 w-full cursor-pointer"
+                disabled={opening !== null}
+                onClick={() => openCheckout(primary)}
+                data-testid={`subscribe-price-${primary.plan}-${primary.cycle}`}
+              >
+                {opening === primary.id ? (
+                  <>
+                    <span
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-background/40 border-t-background"
+                      role="status"
+                      aria-label="Opening checkout"
+                      data-testid="subscribe-price-opening"
+                    />
+                    Opening checkout…
+                  </>
+                ) : (
+                  `Subscribe — ${tier.price}/month`
+                )}
+              </Button>
+              {annual && monthly && (
+                <button
+                  type="button"
+                  className="mt-2 w-full cursor-pointer text-center text-xs font-medium text-primary hover:underline disabled:cursor-default disabled:opacity-70"
+                  disabled={opening !== null}
+                  onClick={() => openCheckout(annual)}
+                  data-testid={`subscribe-price-${annual.plan}-${annual.cycle}`}
+                >
+                  {opening === annual.id ? 'Opening checkout…' : tier.annualNote}
+                </button>
               )}
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {PLAN_COPY[price.plan].blurb} · {CYCLE_COPY[price.cycle]}
-            </p>
-          </button>
-        ))}
+          );
+        })}
 
       <div className="flex items-center justify-between border-t border-border pt-4 text-sm">
         <a
