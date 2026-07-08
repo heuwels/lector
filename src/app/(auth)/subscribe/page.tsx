@@ -1,18 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { initializePaddle, type Paddle } from '@paddle/paddle-js';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, checkoutUrl } from '@/lib/api-base';
 import { authClient } from '@/lib/auth-client';
-import { fetchBillingStatus, type BillingPrice, type BillingStatus } from '@/lib/billing';
+import {
+  fetchBillingStatus,
+  startCheckout,
+  type BillingPrice,
+  type BillingStatus,
+} from '@/lib/billing';
 
 /**
- * The locked-account screen (#224): pick a plan → Paddle overlay checkout →
- * poll /api/billing/status until the webhook flips the account active → back
- * into the app. Also the #216 lapse contract's other half: a locked account
- * can always export its data or sign out from here.
+ * The locked-account screen (#224): pick a plan → the API creates a Paddle
+ * transaction → redirect to lector.dev/checkout, where the overlay opens on
+ * Paddle's approved domain (app.lector.dev is not approved) → Paddle bounces
+ * back here with ?checkout=success → poll /api/billing/status until the webhook
+ * flips the account active → into the app. Also the #216 lapse contract's
+ * other half: a locked account can always export its data or sign out here.
  *
  * Lives in the (auth) route group for the chrome-free shell and the selfhost
  * bounce, but unlike its siblings it REQUIRES a session (AuthGuard treats it
@@ -75,19 +81,7 @@ export default function SubscribePage() {
   const [status, setStatus] = useState<Extract<BillingStatus, { enforced: true }> | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [opening, setOpening] = useState<string | null>(null);
-  const paddleRef = useRef<Paddle | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Paddle's overlay loads from its CDN, so there's a visible gap between the
-  // click and anything appearing — the clicked tile spins until Paddle
-  // reports loaded/closed/error (eventCallback below) or this deadline says
-  // it never will (e.g. the domain isn't checkout-approved).
-  const clearOpening = useCallback(() => {
-    if (openTimer.current) clearTimeout(openTimer.current);
-    openTimer.current = null;
-    setOpening(null);
-  }, []);
 
   // One-shot activation poll: the webhook usually lands within seconds of
   // checkout completing; give it 90 before suggesting patience.
@@ -110,18 +104,12 @@ export default function SubscribePage() {
     tick(0);
   }, []);
 
-  useEffect(
-    () => () => {
-      clearTimeout(pollTimer.current ?? undefined);
-      clearTimeout(openTimer.current ?? undefined);
-    },
-    [],
-  );
+  useEffect(() => () => clearTimeout(pollTimer.current ?? undefined), []);
 
   useEffect(() => {
     let cancelled = false;
 
-    fetchBillingStatus().then(async (s) => {
+    fetchBillingStatus().then((s) => {
       if (cancelled) return;
 
       // Billing off, already active, or status unreachable → this page has
@@ -132,67 +120,46 @@ export default function SubscribePage() {
       }
 
       setStatus(s);
-      const { clientToken, environment, prices } = s.checkout;
-      if (!clientToken || prices.length === 0) {
+
+      // Returning from the lector.dev overlay (Paddle's successUrl bounces
+      // here): the webhook may not have landed yet, so show activation and
+      // poll rather than the tiles the user just used.
+      if (new URLSearchParams(window.location.search).get('checkout') === 'success') {
+        setPhase('activating');
+        pollUntilActive();
+        return;
+      }
+
+      // Nothing to sell, or nowhere approved to check out → graceful fallback
+      // (dev and the e2e billing server run without prices / CHECKOUT_URL).
+      if (s.checkout.prices.length === 0 || checkoutUrl() === '') {
         setPhase('unavailable');
         return;
       }
 
-      const paddle = await initializePaddle({
-        token: clientToken,
-        environment,
-        eventCallback: (event) => {
-          // Whatever the overlay did — appeared, was dismissed, or failed —
-          // the clicked tile's pending spinner is done.
-          if (
-            event.name === 'checkout.loaded' ||
-            event.name === 'checkout.closed' ||
-            event.name === 'checkout.error'
-          ) {
-            clearOpening();
-          }
-          if (event.name === 'checkout.completed') {
-            setPhase('activating');
-            pollUntilActive();
-          }
-        },
-      });
-      if (cancelled || !paddle) {
-        if (!cancelled) setPhase('unavailable');
-        return;
-      }
-      paddleRef.current = paddle;
       setPhase('pick');
     });
 
     return () => {
       cancelled = true;
     };
-  }, [pollUntilActive, clearOpening]);
+  }, [pollUntilActive]);
 
-  function openCheckout(price: BillingPrice) {
-    const paddle = paddleRef.current;
-    if (!paddle || !status || opening !== null) return;
+  async function openCheckout(price: BillingPrice) {
+    if (opening !== null) return;
     setOpening(price.id);
-    openTimer.current = setTimeout(() => {
+    const txnId = await startCheckout(price.id);
+    if (txnId === null) {
       setOpening(null);
-      toast.error("Checkout didn't open. Please try again in a moment.");
-    }, 12000);
-    paddle.Checkout.open({
-      items: [{ priceId: price.id, quantity: 1 }],
-      // The webhook matches this account by custom_data first, email second
-      // (api/src/lib/billing.ts) — locking the checkout email keeps the
-      // fallback aligned too.
-      customData: { lectorUserId: status.checkout.userId },
-      ...(status.checkout.email
-        ? { customer: { email: status.checkout.email } }
-        : {}),
-      settings: {
-        displayMode: 'overlay',
-        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-        ...(status.checkout.email ? { allowLogout: false } : {}),
-      },
-    });
+      toast.error("Checkout couldn't be started. Please try again in a moment.");
+      return;
+    }
+    // Hard navigate to the approved-domain checkout page; Paddle opens the
+    // overlay for this transaction there and bounces back to ?checkout=success.
+    // Pass the current theme so the overlay matches the app; the tenant rides
+    // the transaction (custom_data), never the URL.
+    const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+    window.location.assign(`${checkoutUrl()}?_ptxn=${encodeURIComponent(txnId)}&theme=${theme}`);
   }
 
   async function signOut() {

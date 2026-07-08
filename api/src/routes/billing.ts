@@ -3,19 +3,25 @@ import { getCurrentUserId } from '../lib/user';
 import {
   applyPaddleEvent,
   billingConfig,
+  findPaddleCustomerId,
   getUserEmail,
   isEntitledStatus,
+  makePaddleTransactionCreator,
   resolveBillingStatus,
   verifyPaddleSignature,
+  type CreateTransaction,
 } from '../lib/billing';
 
 /**
  * Route factory (mirrors makeSessionMiddleware/makePatMiddleware): the prod
- * export binds the env-resolved billingConfig; tests bind their own.
+ * export binds the env-resolved billingConfig; tests bind their own. The
+ * Paddle transaction creator is a seam too, so /checkout route tests never
+ * touch the network.
  */
 export function makeBillingRoutes(
   cfg: typeof billingConfig,
   resolveEmail: (userId: string) => string | null = getUserEmail,
+  createTransaction: CreateTransaction = makePaddleTransactionCreator(cfg),
 ) {
   const app = new Hono();
 
@@ -23,9 +29,10 @@ export function makeBillingRoutes(
   // like every /api route (and deliberately absent from the PAT SCOPE_MAP:
   // billing is a browser concern, a token has no business reading it).
   // Exempt from the billing gate itself, so a locked account can render
-  // /subscribe: the screen needs `checkout` (Paddle client token + price ids
-  // + who to bill) to open the overlay, and polls `active` afterwards until
-  // the webhook lands.
+  // /subscribe: the screen needs the plan `prices` to render its tiers and
+  // polls `active` afterwards until the webhook lands. Checkout no longer
+  // opens here — POST /checkout creates it and the overlay opens on
+  // lector.dev (app.lector.dev is not a Paddle-approved checkout domain).
   app.get('/status', (c) => {
     if (!cfg.enforced) {
       return c.json({ enforced: false as const, active: true });
@@ -41,14 +48,52 @@ export function makeBillingRoutes(
       active: exempt || isEntitledStatus(status),
       exempt,
       status: status ?? 'none',
-      checkout: {
-        clientToken: cfg.clientToken ?? null,
-        environment: cfg.environment,
-        prices: cfg.prices,
-        email,
-        userId,
-      },
+      checkout: { prices: cfg.prices },
     });
+  });
+
+  // POST /api/billing/checkout — start a subscription (#224). Session-authed
+  // and gate-exempt (a locked account must be able to subscribe). Creates a
+  // Paddle transaction stamped with this tenant in custom_data, then returns
+  // its id; the browser redirects to lector.dev/checkout?_ptxn=<id>, where the
+  // overlay opens on the approved domain. Grants nothing on its own —
+  // activation still comes from the webhook. 404 when billing/apiKey are off,
+  // mirroring the webhook (this deployment can't do checkout at all).
+  app.post('/checkout', async (c) => {
+    if (!cfg.enforced || !cfg.apiKey) {
+      return c.json({ error: 'Billing is not enabled on this deployment' }, 404);
+    }
+
+    const userId = getCurrentUserId(c);
+
+    let body: { priceId?: unknown };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Malformed JSON body' }, 400);
+    }
+    const priceId = typeof body.priceId === 'string' ? body.priceId : '';
+    // Only a price this deployment actually offers — never forward an
+    // arbitrary id to Paddle (nor let a client bill itself for some other
+    // catalog price).
+    if (!cfg.prices.some((p) => p.id === priceId)) {
+      return c.json({ error: 'Unknown price' }, 400);
+    }
+
+    const email = resolveEmail(userId);
+    try {
+      const txn = await createTransaction({
+        priceId,
+        userId,
+        customerId: findPaddleCustomerId(email),
+      });
+      return c.json({ txnId: txn.id });
+    } catch (err) {
+      // Paddle down / bad key / rejected price — the /subscribe screen turns a
+      // non-2xx into its "try again" state; nothing is charged.
+      console.error(`[billing] checkout create failed: ${(err as Error).message}`);
+      return c.json({ error: 'checkout_unavailable' }, 502);
+    }
   });
 
   // POST /api/billing/webhook — Paddle's notification destination. Reachable

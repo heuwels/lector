@@ -28,6 +28,11 @@ declare global {
        *  src/instrumentation-client.ts. */
       SENTRY_DSN?: string;
       LECTOR_MODE?: string;
+      /** Where a locked cloud account is sent to check out (#224): the
+       *  marketing site's approved-domain checkout page, e.g.
+       *  https://lector.dev/checkout. app.lector.dev is not a Paddle-approved
+       *  checkout domain, so the overlay can't open in-app. */
+      CHECKOUT_URL?: string;
       /** Cloudflare Turnstile site key — presence turns the widget on (#218). */
       TURNSTILE_SITE_KEY?: string;
       /** '1' when the API has GitHub OAuth configured — shows the button (#218). */
@@ -62,6 +67,18 @@ export function apiBase(): string {
   const configured =
     typeof window === 'undefined' ? process.env.API_URL : window.__ENV__?.API_URL;
   return (configured || DEFAULT_API_URL).replace(/\/+$/, '');
+}
+
+/**
+ * The marketing-site checkout URL (#224), read at runtime like API_URL. Empty
+ * when unset — the /subscribe screen treats that as "checkout unavailable"
+ * (dev and the e2e billing server run without it). Trailing slash trimmed so
+ * `${checkoutUrl()}?_ptxn=…` is well-formed.
+ */
+export function checkoutUrl(): string {
+  const configured =
+    typeof window === 'undefined' ? process.env.CHECKOUT_URL : window.__ENV__?.CHECKOUT_URL;
+  return (configured || '').replace(/\/+$/, '');
 }
 
 /** Routes that must render without a session (and without app chrome). #218 */

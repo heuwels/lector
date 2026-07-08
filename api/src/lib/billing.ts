@@ -6,8 +6,11 @@
  *
  * Moving parts:
  *   - Paddle (merchant of record) owns checkout, tax, dunning, and the
- *     subscription state machine. We never talk to the Paddle API — its
- *     webhooks (signature-verified, routes/billing.ts) are mirrored into
+ *     subscription state machine. Our only outbound call is creating a
+ *     checkout transaction (makePaddleTransactionCreator → POST /transactions)
+ *     so checkout can be opened on the approved lector.dev domain — we never
+ *     poll or read subscription state. Entitlement flows the other way:
+ *     signature-verified webhooks (routes/billing.ts) are mirrored into
  *     billing_customers / billing_subscriptions and that mirror is the whole
  *     source of truth here.
  *   - `makeBillingMiddleware` enforces the mirror on /api/* after the session
@@ -74,16 +77,25 @@ export function parsePaddleEnvironment(raw: string | undefined): PaddleEnvironme
   throw new Error(`Invalid PADDLE_ENV "${value}" — expected "production" or "sandbox".`);
 }
 
+/** Paddle REST API base for the configured environment. */
+export function paddleApiBase(environment: PaddleEnvironment): string {
+  return environment === 'sandbox'
+    ? 'https://sandbox-api.paddle.com'
+    : 'https://api.paddle.com';
+}
+
 /**
- * Boot-path guard, `assertBootableMode`'s billing twin. Enforcement without
- * the webhook secret would lock every account out with no way to ever mark
- * one paid; billing outside cloud proper means there are no accounts to
- * attach subscriptions to. Both are deploy mistakes — refuse to boot.
+ * Boot-path guard, `assertBootableMode`'s billing twin. Enforcement without a
+ * way to ever mark an account paid — no webhook secret (nothing can flip an
+ * account active) or no API key (no account can even start checkout) — would
+ * lock every account out; billing outside cloud proper means there are no
+ * accounts to attach subscriptions to. All deploy mistakes — refuse to boot.
  */
 export function assertBillingBootable(
   billing: BillingMode,
   authRequired: boolean,
   hasWebhookSecret: boolean,
+  hasApiKey: boolean,
 ): void {
   if (billing !== 'paddle') return;
   if (!authRequired) {
@@ -98,6 +110,14 @@ export function assertBillingBootable(
       'LECTOR_BILLING=paddle requires PADDLE_WEBHOOK_SECRET: without Paddle webhooks no ' +
         'account can ever become paid, so enforcement would lock everyone out. Copy the ' +
         "endpoint's secret key from Paddle → Developer tools → Notifications.",
+    );
+  }
+  if (!hasApiKey) {
+    throw new Error(
+      'LECTOR_BILLING=paddle requires PADDLE_API_KEY: checkout is created server-side (a ' +
+        'Paddle transaction) and opened on the approved lector.dev domain, so without the ' +
+        'key no account could start a subscription and enforcement would lock everyone out. ' +
+        'Create a server-side key in Paddle → Developer tools → Authentication.',
     );
   }
 }
@@ -155,7 +175,7 @@ export const billingConfig: {
   readonly mode: BillingMode;
   readonly enforced: boolean;
   readonly webhookSecret: string | undefined;
-  readonly clientToken: string | undefined;
+  readonly apiKey: string | undefined;
   readonly environment: PaddleEnvironment;
   readonly prices: BillingPrice[];
   readonly exemptEmails: Set<string>;
@@ -165,12 +185,86 @@ export const billingConfig: {
     mode,
     enforced: mode === 'paddle',
     webhookSecret: process.env.PADDLE_WEBHOOK_SECRET || undefined,
-    clientToken: process.env.PADDLE_CLIENT_TOKEN || undefined,
+    apiKey: process.env.PADDLE_API_KEY || undefined,
     environment: parsePaddleEnvironment(process.env.PADDLE_ENV),
     prices: pricesFromEnv(process.env),
     exemptEmails: parseExemptEmails(process.env.BILLING_EXEMPT_EMAILS),
   } as const;
 })();
+
+/**
+ * Checkout creation — the one outbound Paddle call. A locked account picks a
+ * plan in-app; we create a Paddle transaction server-side stamped with
+ * custom_data.lectorUserId (the webhook's primary match key), then hand the
+ * browser its id (`txn_…`). The overlay is opened for that transaction on the
+ * approved lector.dev domain — app.lector.dev is not an approved checkout
+ * domain, which is the whole reason checkout is deferred to the marketing
+ * site. This call grants nothing on its own: entitlement still arrives only
+ * through the webhook mirror above.
+ */
+export interface CheckoutTransaction {
+  /** Paddle transaction id (txn_…) — the browser opens the overlay for this. */
+  id: string;
+  /** Paddle's own checkout URL, when a default payment link is configured. */
+  checkoutUrl: string | null;
+}
+
+export type CreateTransaction = (args: {
+  priceId: string;
+  userId: string;
+  customerId: string | null;
+}) => Promise<CheckoutTransaction>;
+
+/**
+ * The prod transaction creator (test seam: routes bind their own). POSTs the
+ * chosen price with the tenant in custom_data; passes a known customer id when
+ * we have one so a returning subscriber's details prefill. `collection_mode:
+ * automatic` is what makes the transaction checkout-able (vs an invoice).
+ */
+export function makePaddleTransactionCreator(cfg: {
+  apiKey: string | undefined;
+  environment: PaddleEnvironment;
+}): CreateTransaction {
+  return async ({ priceId, userId, customerId }) => {
+    const res = await fetch(`${paddleApiBase(cfg.environment)}/transactions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cfg.apiKey ?? ''}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        items: [{ price_id: priceId, quantity: 1 }],
+        custom_data: { lectorUserId: userId },
+        collection_mode: 'automatic',
+        ...(customerId ? { customer_id: customerId } : {}),
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Paddle POST /transactions ${res.status}: ${await res.text()}`);
+    }
+    const json = (await res.json()) as {
+      data?: { id?: string; checkout?: { url?: string } | null };
+    };
+    const id = json.data?.id;
+    if (!id) throw new Error('Paddle transaction response missing data.id');
+    return { id, checkoutUrl: json.data?.checkout?.url ?? null };
+  };
+}
+
+/**
+ * The Paddle customer id last mirrored for this email, if any — lets a
+ * returning/lapsed subscriber's checkout prefill their details. Read-only
+ * against the same mirror the webhook writes; null when we've never seen them.
+ */
+export function findPaddleCustomerId(email: string | null): string | null {
+  if (!email) return null;
+  const row = db
+    .prepare(
+      'SELECT paddleCustomerId FROM billing_customers WHERE email = lower(?) ORDER BY occurredAt DESC LIMIT 1',
+    )
+    .get(email) as { paddleCustomerId: string } | undefined;
+  return row?.paddleCustomerId ?? null;
+}
 
 /**
  * Verify a Paddle webhook signature: `Paddle-Signature: ts=<unix>;h1=<hex>`,

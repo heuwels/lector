@@ -53,7 +53,8 @@ import { Construct } from 'constructs';
  *   /lector/canary/oidc-provider-name  String        optional — OIDC_PROVIDER_NAME (login-button label)
  *   /lector/canary/lector-billing      String        optional — LECTOR_BILLING ("paddle" arms the subscription gate, #224)
  *   /lector/canary/paddle-webhook-secret SecureString optional — PADDLE_WEBHOOK_SECRET (required once billing is armed)
- *   /lector/canary/paddle-client-token String        optional — PADDLE_CLIENT_TOKEN (public checkout token for the /subscribe overlay)
+ *   /lector/canary/paddle-api-key      SecureString  optional — PADDLE_API_KEY (server key that creates checkout transactions; required once billing is armed)
+ *   /lector/canary/checkout-url        String        optional — CHECKOUT_URL (approved-domain checkout page, e.g. https://lector.dev/checkout; unset → subscribe shows its unavailable fallback)
  *   /lector/canary/paddle-price-monthly String       optional — PADDLE_PRICE_MONTHLY (pri_… Cloud monthly)
  *   /lector/canary/paddle-price-annual String        optional — PADDLE_PRICE_ANNUAL (pri_… Cloud annual)
  *   /lector/canary/paddle-price-plus-monthly String  optional — PADDLE_PRICE_PLUS_MONTHLY (pri_… Plus monthly)
@@ -277,7 +278,8 @@ put OIDC_CLIENT_SECRET    oidc-client-secret
 put OIDC_PROVIDER_NAME    oidc-provider-name
 put LECTOR_BILLING        lector-billing
 put PADDLE_WEBHOOK_SECRET paddle-webhook-secret
-put PADDLE_CLIENT_TOKEN   paddle-client-token
+put PADDLE_API_KEY        paddle-api-key
+put CHECKOUT_URL          checkout-url
 put PADDLE_PRICE_MONTHLY  paddle-price-monthly
 put PADDLE_PRICE_ANNUAL   paddle-price-annual
 put PADDLE_PRICE_PLUS_MONTHLY paddle-price-plus-monthly

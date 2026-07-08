@@ -14,6 +14,7 @@ import {
   parsePaddleEnvironment,
   resolveBillingStatus,
   verifyPaddleSignature,
+  type CreateTransaction,
 } from './billing';
 import { makeBillingRoutes } from '../routes/billing';
 import { makeSessionMiddleware } from './session';
@@ -92,11 +93,12 @@ describe('billing env parsing', () => {
     expect(parseExemptEmails(undefined).size).toBe(0);
   });
 
-  test('boot guard: paddle needs cloud proper AND a webhook secret', () => {
-    expect(() => assertBillingBootable('off', false, false)).not.toThrow();
-    expect(() => assertBillingBootable('paddle', true, true)).not.toThrow();
-    expect(() => assertBillingBootable('paddle', false, true)).toThrow(/cloud proper/);
-    expect(() => assertBillingBootable('paddle', true, false)).toThrow(/PADDLE_WEBHOOK_SECRET/);
+  test('boot guard: paddle needs cloud proper, a webhook secret, and an API key', () => {
+    expect(() => assertBillingBootable('off', false, false, false)).not.toThrow();
+    expect(() => assertBillingBootable('paddle', true, true, true)).not.toThrow();
+    expect(() => assertBillingBootable('paddle', false, true, true)).toThrow(/cloud proper/);
+    expect(() => assertBillingBootable('paddle', true, false, true)).toThrow(/PADDLE_WEBHOOK_SECRET/);
+    expect(() => assertBillingBootable('paddle', true, true, false)).toThrow(/PADDLE_API_KEY/);
   });
 
   test('billing defaults off in this test env', () => {
@@ -354,15 +356,19 @@ describe('billing routes', () => {
     mode: 'paddle',
     enforced: true,
     webhookSecret: SECRET,
-    clientToken: 'live_test_token',
+    apiKey: 'pdl_test_key',
     environment: 'production',
     prices: [{ id: 'pri_monthly', plan: 'cloud', cycle: 'month' }],
     exemptEmails: new Set<string>(),
   };
 
-  function buildApp(cfg: typeof billingConfig, email: string | null = 'local@example.com') {
+  function buildApp(
+    cfg: typeof billingConfig,
+    email: string | null = 'local@example.com',
+    createTransaction?: CreateTransaction,
+  ) {
     const app = new Hono();
-    app.route('/api/billing', makeBillingRoutes(cfg, () => email));
+    app.route('/api/billing', makeBillingRoutes(cfg, () => email, createTransaction));
     return app;
   }
 
@@ -381,7 +387,7 @@ describe('billing routes', () => {
     expect(await res.json()).toEqual({ enforced: false, active: true });
   });
 
-  test('status reports a locked account with its checkout config', async () => {
+  test('status reports a locked account with its plan prices', async () => {
     const app = buildApp(enforcedCfg);
     const res = await app.request('/api/billing/status');
     expect(res.status).toBe(200);
@@ -390,12 +396,7 @@ describe('billing routes', () => {
     expect(body.active).toBe(false);
     expect(body.status).toBe('none');
     expect(body.checkout).toEqual({
-      clientToken: 'live_test_token',
-      environment: 'production',
       prices: [{ id: 'pri_monthly', plan: 'cloud', cycle: 'month' }],
-      email: 'local@example.com',
-      // selfhost test config resolves the implicit local tenant
-      userId: 'local',
     });
   });
 
@@ -439,6 +440,77 @@ describe('billing routes', () => {
     const app = buildApp(billingConfig);
     const evt = JSON.stringify(subscriptionEvent({}));
     expect((await postWebhook(app, evt, sign(evt))).status).toBe(404);
+  });
+
+  test('checkout creates a transaction for a known price and returns its id', async () => {
+    const calls: Array<{ priceId: string; userId: string; customerId: string | null }> = [];
+    const app = buildApp(enforcedCfg, 'local@example.com', async (args) => {
+      calls.push(args);
+      return { id: 'txn_stub_1', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ txnId: 'txn_stub_1' });
+    // Tenant stamped server-side; no prior customer for this email yet.
+    expect(calls).toEqual([{ priceId: 'pri_monthly', userId: 'local', customerId: null }]);
+  });
+
+  test('checkout prefills a known Paddle customer id for a returning buyer', async () => {
+    applyPaddleEvent(customerEvent({ id: 'ctm_ret', email: 'local@example.com' }));
+    let seen: string | null = 'unset';
+    const app = buildApp(enforcedCfg, 'local@example.com', async (args) => {
+      seen = args.customerId;
+      return { id: 'txn_stub_2', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(200);
+    expect(seen).toBe('ctm_ret');
+  });
+
+  test('checkout rejects an unknown price without calling Paddle', async () => {
+    let called = false;
+    const app = buildApp(enforcedCfg, 'local@example.com', async () => {
+      called = true;
+      return { id: 'txn_x', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_not_ours' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(400);
+    expect(called).toBe(false);
+  });
+
+  test('checkout 502s when Paddle creation fails; nothing is charged', async () => {
+    const app = buildApp(enforcedCfg, 'local@example.com', async () => {
+      throw new Error('paddle down');
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe('checkout_unavailable');
+  });
+
+  test('checkout 404s when billing is off', async () => {
+    const app = buildApp(billingConfig);
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(404);
   });
 });
 
