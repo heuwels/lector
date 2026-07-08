@@ -154,6 +154,13 @@ test.describe.serial('cloud auth lifecycle', () => {
     await page.getByTestId('login-submit').click();
     await page.waitForURL((url) => url.pathname === '/');
 
+    // This account has never chosen a language, and the tenant-keyed cache
+    // (#281) means the suite's seeded browser-scoped key no longer stands in
+    // for it — complete onboarding once so SetupGuard lets /settings render.
+    await page.goto('/setup');
+    await page.getByTestId('setup-language-af').click();
+    await page.waitForURL((url) => url.pathname === '/');
+
     // Mint a token in the Settings UI (session-authenticated — reachable in
     // cloud now that api_tokens is tenanted, #218).
     await page.goto('/settings');
