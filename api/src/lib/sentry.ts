@@ -23,9 +23,10 @@ if (dsn) {
     // triggers land in ONE trace (index.ts only relabels the span with the
     // parameterized route). Full sampling by default (low-traffic app); dial down
     // with SENTRY_TRACES_SAMPLE_RATE on a busier deployment. A deliberate 0 turns
-    // tracing off; `Number(x) || 1.0` would wrongly coerce that back to 1.0.
-    tracesSampleRate: Number.isFinite(Number(process.env.SENTRY_TRACES_SAMPLE_RATE))
-      ? Number(process.env.SENTRY_TRACES_SAMPLE_RATE)
+    // tracing off; empty/unset → full. parseFloat, not Number: Number("") is 0,
+    // which would silently disable tracing when compose passes an unset var as "".
+    tracesSampleRate: Number.isFinite(parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE ?? ""))
+      ? parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE ?? "")
       : 1.0,
     // Drop the high-frequency, low-signal transactions the auto instrumentation
     // records for the /health probe and CORS preflights. Errors on those paths are

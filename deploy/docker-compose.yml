@@ -42,6 +42,11 @@ services:
       - OPENAI_COMPAT_MODEL=${OPENAI_COMPAT_MODEL:-llama3.1:8b}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - CLAUDE_OAUTH_TOKEN=${CLAUDE_OAUTH_TOKEN:-}
+      # Error tracking + tracing (optional). One DSN covers the API and, via
+      # /__env.js, the browser. Point it at Sentry.io, self-hosted Sentry, or
+      # GlitchTip. Unset → Sentry stays off.
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s

@@ -29,10 +29,10 @@ function initSentry(): boolean {
     // Full tracing on a low-traffic app. browserTracing samples page loads +
     // navigations and — the load-bearing part for end-to-end traces —
     // propagates sentry-trace/baggage onto the cross-origin apiFetch() calls.
-    // A finite rate from env (so a deliberate 0 turns tracing OFF); otherwise
-    // full sampling. `Number(x) || 1.0` would wrongly coerce 0 back to 1.0.
-    tracesSampleRate: Number.isFinite(Number(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE))
-      ? Number(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE)
+    // Finite rate from env (a deliberate 0 turns tracing OFF); empty/unset → full.
+    // parseFloat, not Number: Number("") is 0, which would silently disable tracing.
+    tracesSampleRate: Number.isFinite(parseFloat(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? ""))
+      ? parseFloat(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? "")
       : 1.0,
     // Attach trace headers to the Hono API (a different origin — see
     // api-base.ts) and to any same-origin /api call, and nowhere else. Without
