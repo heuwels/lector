@@ -67,6 +67,10 @@ Design notes:
    | `better-auth-secret`           | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — **required**: cloud proper refuses to boot without it. Generate: `openssl rand -base64 32`) |
    | `turnstile-site-key`           | String       | `TURNSTILE_SITE_KEY` (Cloudflare Turnstile widget on the auth forms, #218 — public key, rides `window.__ENV__`) |
    | `turnstile-secret`             | SecureString | `TURNSTILE_SECRET_KEY` (server-side captcha verification; set both or neither) |
+   | `oidc-issuer`                  | String       | `OIDC_ISSUER` (BYO OIDC, #218 — issuer origin or pasted discovery URL; needs all three `oidc-*` credentials) |
+   | `oidc-client-id`               | String       | `OIDC_CLIENT_ID` |
+   | `oidc-client-secret`           | SecureString | `OIDC_CLIENT_SECRET` (redirect URI to allowlist on the IdP: `https://app.lector.dev/api/auth/oauth2/callback/oidc`) |
+   | `oidc-provider-name`           | String       | `OIDC_PROVIDER_NAME` (optional login-button label, default "SSO" — rides `window.__ENV__`) |
    | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
 
    ```bash

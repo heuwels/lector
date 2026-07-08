@@ -12,7 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import { Database } from 'bun:sqlite';
 import { randomBytes, randomUUID } from 'crypto';
 import { db } from '../db';
-import { createAuthEngine, runAuthMigrations, type AuthEngine } from './accounts';
+import { createAuthEngine, oidcDiscoveryUrl, runAuthMigrations, type AuthEngine } from './accounts';
 import { makePatMiddleware } from './auth';
 import { hashToken } from './crypto';
 import { makeSessionMiddleware } from './session';
@@ -330,6 +330,33 @@ describe('turnstile captcha (when configured)', () => {
 
   test('the engine without a turnstile key loads no captcha plugin (selfhost/dev default)', () => {
     expect(engine.options.plugins ?? []).toHaveLength(0);
+  });
+});
+
+describe('BYO OIDC (#218, when configured)', () => {
+  test('OIDC options load the generic-oauth plugin; the default engine has none', () => {
+    const withOidc = createAuthEngine({
+      database: new Database(':memory:'),
+      baseURL: BASE,
+      secret: 'test-secret-000000000000000000000000',
+      trustedOrigins: [BASE],
+      oidc: { issuer: 'https://idp.example.com', clientId: 'lector', clientSecret: 'shh' },
+    });
+    const ids = (withOidc.options.plugins ?? []).map((p) => p.id);
+    expect(ids).toContain('generic-oauth');
+
+    // The keyless default engine (shared harness) stays plugin-free — BYO
+    // OIDC is opt-in exactly like the captcha.
+    expect((engine.options.plugins ?? []).map((p) => p.id)).not.toContain('generic-oauth');
+  });
+
+  test('oidcDiscoveryUrl takes an issuer origin (trailing slash or not) or a pasted discovery URL', () => {
+    const want = 'https://idp.example.com/.well-known/openid-configuration';
+    expect(oidcDiscoveryUrl('https://idp.example.com')).toBe(want);
+    expect(oidcDiscoveryUrl('https://idp.example.com/')).toBe(want);
+    // Keycloak-style issuer path, pasted straight from IdP docs.
+    const pasted = 'https://kc.example.com/realms/home/.well-known/openid-configuration';
+    expect(oidcDiscoveryUrl(pasted)).toBe(pasted);
   });
 });
 

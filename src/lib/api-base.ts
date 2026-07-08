@@ -27,6 +27,10 @@ declare global {
       TURNSTILE_SITE_KEY?: string;
       /** '1' when the API has GitHub OAuth configured — shows the button (#218). */
       GITHUB_LOGIN?: string;
+      /** '1' when the API has a BYO OIDC provider configured (#218). */
+      OIDC_LOGIN?: string;
+      /** Label for the OIDC sign-in button (e.g. "Authentik"); default "SSO". */
+      OIDC_PROVIDER_NAME?: string;
     };
   }
 }
