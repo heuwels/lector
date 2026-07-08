@@ -5,7 +5,8 @@ import path from 'path';
 /**
  * Cloud-mode auth flows (#218), end to end in a real browser: register →
  * verification email → verify → sign in → tenant-scoped app → sign out →
- * password reset via emailed link → sign in with the new password.
+ * password reset via emailed link → sign in with the new password →
+ * personal API token minted in Settings and used as a Bearer credential.
  *
  * The UI is the shared :3456 next dev server; window.__ENV__ is stubbed per
  * page to point the browser at the cloud-mode API on :3462 (its own
@@ -140,5 +141,48 @@ test.describe.serial('cloud auth lifecycle', () => {
     await page.getByTestId('login-submit').click();
     await page.waitForURL((url) => url.pathname === '/');
     await expect(page.getByTestId('account-email')).toHaveText(EMAIL);
+  });
+
+  test('personal API token: mint in Settings → Bearer authenticates cookie-free → revoke kills it', async ({
+    page,
+    request,
+  }) => {
+    await useCloudEnv(page);
+    await page.goto('/login');
+    await page.getByTestId('login-email').fill(EMAIL);
+    await page.getByTestId('login-password').fill(NEW_PASSWORD);
+    await page.getByTestId('login-submit').click();
+    await page.waitForURL((url) => url.pathname === '/');
+
+    // Mint a token in the Settings UI (session-authenticated — reachable in
+    // cloud now that api_tokens is tenanted, #218).
+    await page.goto('/settings');
+    await page.getByRole('button', { name: 'Generate Token' }).click();
+    await page.getByPlaceholder(/e\.g\. CLI/).fill('e2e-cloud-pat');
+    await page.getByRole('button', { name: 'Create Token', exact: true }).click();
+    const token = (await page.locator('code', { hasText: /^ltr_/ }).textContent()) ?? '';
+    expect(token).toMatch(/^ltr_/);
+
+    // The `request` fixture shares no browser state: the Bearer token is the
+    // only credential, and it resolves this user's tenant.
+    const withToken = (t: string) => ({ headers: { Authorization: `Bearer ${t}` } });
+    const ok = await request.get(`${CLOUD_API}/api/collections`, withToken(token));
+    expect(ok.status()).toBe(200);
+
+    // An unknown token is refused — Bearer requests never fall through.
+    const bad = await request.get(`${CLOUD_API}/api/collections`, withToken('ltr_bogus'));
+    expect(bad.status()).toBe(401);
+
+    // A token cannot manage tokens (no minting successors from a leaked key).
+    const mgmt = await request.get(`${CLOUD_API}/api/tokens`, withToken(token));
+    expect(mgmt.status()).toBe(403);
+
+    // Revoke in the UI → the token stops authenticating.
+    page.on('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: "I've saved this token" }).click();
+    await page.getByRole('button', { name: 'Revoke' }).click();
+    await expect(page.getByText('No tokens created yet', { exact: false })).toBeVisible();
+    const dead = await request.get(`${CLOUD_API}/api/collections`, withToken(token));
+    expect(dead.status()).toBe(401);
   });
 });

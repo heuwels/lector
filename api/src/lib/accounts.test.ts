@@ -1,7 +1,8 @@
 /**
  * Accounts & sessions (#218), exercised over HTTP against a composed app —
- * the same engine factory, session middleware, and identity seam cloud runs,
- * on an in-memory DB. No lector.db involvement: row-level tenancy is the
+ * the same engine factory, session middleware, PAT middleware, and identity
+ * seam cloud runs. The auth engine lives on an in-memory DB; PAT rows go
+ * through the regular test DB (api_tokens). Row-level tenancy stays the
  * user-scoping ratchet's job (routes/user-scoping.test.ts); this suite pins
  * the credential layer that feeds it a userId.
  */
@@ -9,12 +10,27 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { Database } from 'bun:sqlite';
+import { randomBytes, randomUUID } from 'crypto';
+import { db } from '../db';
 import { createAuthEngine, runAuthMigrations, type AuthEngine } from './accounts';
+import { makePatMiddleware } from './auth';
+import { hashToken } from './crypto';
 import { makeSessionMiddleware } from './session';
 import { resolveUserId, LOCAL_USER_ID } from './user';
 import { setEmailTransport, type EmailMessage } from './email';
 
 const BASE = 'http://localhost:9999';
+
+/** Mint a PAT row directly (the tokens ROUTE is config-bound to selfhost in
+ * tests — its tenancy is pinned in routes/user-scoping.test.ts). */
+function insertPat(userId: string, scopes: string[] = ['*']): string {
+  const token = `ltr_${randomBytes(32).toString('base64url')}`;
+  db.prepare(
+    `INSERT INTO api_tokens (id, name, tokenHash, scopes, createdAt, userId)
+     VALUES (?, 'accounts-test-pat', ?, ?, ?, ?)`,
+  ).run(randomUUID(), hashToken(token), JSON.stringify(scopes), new Date().toISOString(), userId);
+  return token;
+}
 
 const emails: EmailMessage[] = [];
 let engine: AuthEngine;
@@ -78,13 +94,19 @@ beforeAll(async () => {
   });
   await runAuthMigrations(engine);
 
-  // Mirror the prod wiring in index.ts: session middleware → auth handler →
-  // a probe route standing in for the user-data routes, → the same onError
-  // passthrough for the identity seam's fail-closed HTTPException.
+  // Mirror the prod wiring in index.ts: session middleware → PAT middleware →
+  // auth handler → a probe route standing in for the user-data routes, → the
+  // same onError passthrough for the identity seam's fail-closed HTTPException.
+  // The whoami probe reads through resolveUserId, so it answers for BOTH
+  // credentials: a session cookie and a Bearer PAT must feed the same seam.
   app = new Hono();
   app.use('/api/*', makeSessionMiddleware(true, () => engine));
+  app.use('/api/*', makePatMiddleware(true));
   app.on(['POST', 'GET'], '/api/auth/*', (c) => engine.handler(c.req.raw));
   app.get('/api/whoami', (c) => c.json({ userId: resolveUserId(true, c) }));
+  // Same probe under a SCOPE_MAP-listed resource: whoami isn't token-
+  // accessible (default-deny, SECURITY-07), so PAT tests read the seam here.
+  app.get('/api/stats', (c) => c.json({ userId: resolveUserId(true, c) }));
   app.get('/api/tokens', (c) => c.json({ tokens: [] }));
   app.onError((err, c) => {
     if (err instanceof HTTPException) return err.getResponse();
@@ -94,6 +116,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   setEmailTransport(null);
+  db.prepare("DELETE FROM api_tokens WHERE name = 'accounts-test-pat'").run();
 });
 
 describe('cloud mode rejects unauthenticated access', () => {
@@ -102,13 +125,13 @@ describe('cloud mode rejects unauthenticated access', () => {
     expect(res.status).toBe(401);
   });
 
-  test('Bearer tokens are rejected, not silently ignored — PATs carry no tenant yet', async () => {
+  test('an unknown Bearer token is rejected by the PAT middleware, not silently ignored', async () => {
     const res = await app.request(`${BASE}/api/whoami`, {
       headers: { Authorization: 'Bearer some-pat' },
     });
     expect(res.status).toBe(401);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toContain('cloud mode');
+    expect(body.error).toBe('Invalid token');
   });
 
   test('/api/auth/* stays reachable unauthenticated (signup/login must work logged-out)', async () => {
@@ -181,12 +204,63 @@ describe('signup → verify → sign in → session resolves the tenant', () => 
     expect(userA).not.toBe(userB);
   });
 
-  test('PAT management stays unreachable in cloud even with a session (table is untenanted)', async () => {
+  test('PAT management is reachable with a session — the table is tenanted now (#218)', async () => {
     const signin = await signIn(EMAIL, PASSWORD);
     const res = await app.request(`${BASE}/api/tokens`, {
       headers: { Cookie: cookiesFrom(signin) },
     });
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('per-user PATs (#218): a token is a first-class cloud credential', () => {
+  const EMAIL = 'automator@example.com';
+  const PASSWORD = 'scripts-need-love-too';
+
+  async function tenantOf(headers: Record<string, string>): Promise<{ status: number; userId?: string }> {
+    const res = await app.request(`${BASE}/api/stats`, { headers });
+    if (!res.ok) return { status: res.status };
+    return { status: res.status, userId: ((await res.json()) as { userId: string }).userId };
+  }
+
+  test("a PAT resolves its owner's tenant through the same seam a session does", async () => {
+    await signUp(EMAIL, PASSWORD);
+    await verifyLatestEmail();
+    const session = await signIn(EMAIL, PASSWORD);
+    const viaSession = await tenantOf({ Cookie: cookiesFrom(session) });
+
+    const pat = insertPat(viaSession.userId!);
+    const viaPat = await tenantOf({ Authorization: `Bearer ${pat}` });
+
+    expect(viaPat.status).toBe(200);
+    expect(viaPat.userId).toBe(viaSession.userId);
+  });
+
+  test("a pre-accounts token (userId 'local') is refused in cloud", async () => {
+    const stale = insertPat(LOCAL_USER_ID);
+    const res = await app.request(`${BASE}/api/whoami`, {
+      headers: { Authorization: `Bearer ${stale}` },
+    });
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('predates accounts');
+  });
+
+  test('a PAT cannot reach token management — no minting successors from a leaked key', async () => {
+    const session = await signIn(EMAIL, PASSWORD);
+    const { userId } = await tenantOf({ Cookie: cookiesFrom(session) });
+    const pat = insertPat(userId!);
+    const res = await app.request(`${BASE}/api/tokens`, {
+      headers: { Authorization: `Bearer ${pat}` },
+    });
     expect(res.status).toBe(403);
+  });
+
+  test('a non-Bearer Authorization header still 401s (nothing falls through the session handoff)', async () => {
+    const res = await app.request(`${BASE}/api/whoami`, {
+      headers: { Authorization: 'Basic dXNlcjpwYXNz' },
+    });
+    expect(res.status).toBe(401);
   });
 });
 

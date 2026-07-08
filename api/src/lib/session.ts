@@ -14,12 +14,13 @@
  *   - `/api/auth/*` skips the check — signup/login/verify/reset/OAuth
  *     callbacks must be reachable unauthenticated (Better Auth guards its
  *     own endpoints).
- *   - Bearer tokens are REJECTED, not ignored: api_tokens has no userId yet,
- *     so a PAT cannot resolve a tenant. Fail loudly rather than let a token
- *     grant ambient access to nothing in particular. (Per-user PATs are a
- *     follow-up — see #218.)
- *   - `/api/tokens` (PAT management) is blocked even with a session: the
- *     table is untenanted, so listing would show every row to every user.
+ *   - A Bearer header hands the request to the PAT middleware instead
+ *     (#218): api_tokens rows are tenanted, so a per-user token is a first-
+ *     class credential — lib/auth.ts validates it and resolves its userId
+ *     into context exactly like a session would. Every Bearer-carrying
+ *     request is authenticated THERE; nothing falls through unchecked
+ *     (invalid, expired, pre-accounts and out-of-scope tokens are all
+ *     rejected by that middleware).
  */
 import { createMiddleware } from 'hono/factory';
 import { config } from './config';
@@ -38,20 +39,13 @@ export function makeSessionMiddleware(authRequired: boolean, engine: () => AuthE
 
     if (c.req.path.startsWith('/api/auth/')) return next();
 
-    if (c.req.header('Authorization')) {
-      return c.json(
-        { error: 'API tokens are not available in cloud mode yet — authenticate with a session' },
-        401,
-      );
-    }
+    // Per-user PAT (#218): defer to the PAT middleware mounted right after
+    // this one — it authenticates the token and resolves its tenant.
+    if (c.req.header('Authorization')) return next();
 
     const session = await engine().api.getSession({ headers: c.req.raw.headers });
     if (!session) {
       return c.json({ error: 'Authentication required' }, 401);
-    }
-
-    if (c.req.path.startsWith('/api/tokens')) {
-      return c.json({ error: 'API token management is not available in cloud mode yet' }, 403);
     }
 
     c.set('userId', session.user.id);

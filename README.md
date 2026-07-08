@@ -61,6 +61,8 @@ Cloud mode env:
 - `EMAIL_FILE` — append outbound emails as JSON lines to this file instead of sending (a local outbox; the e2e suites read verification links from it — takes precedence over Resend)
 - `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` — optional; puts [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) bot protection on sign-up, sign-in, and password-reset (set both or neither)
 
+Signed-in cloud users can mint **personal API tokens** in Settings — the same scoped `Bearer` tokens self-host has, tenanted per account, for CLI/script access without a browser session ([#218](https://github.com/heuwels/lector/issues/218)).
+
 The **cloud canary** exception is unchanged: `LECTOR_CLOUD_GATE=external` declares that an authenticating gateway (e.g. Cloudflare Access) fronts every request, letting cloud mode boot with app-level auth delegated to the gate (built-in accounts are not mounted). The full canary deployment (AWS CDK + Cloudflare Tunnel) lives in [`deploy/cloud/`](deploy/cloud/).
 
 ### AnkiConnect
