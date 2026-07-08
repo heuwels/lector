@@ -4,6 +4,10 @@
  *
  *   - `RESEND_API_KEY` set → Resend's HTTP API (plain fetch, no SDK).
  *     `EMAIL_FROM` overrides the sender.
+ *   - `EMAIL_FILE` set → append each message as a JSON line to that file.
+ *     Exists for out-of-process tests (the two-user e2e reads verification
+ *     links from it — a console log isn't reachable across the HTTP
+ *     boundary) and doubles as a local outbox for debugging.
  *   - otherwise → the server log. The self-host/dev default: the link lands
  *     in the console, which is enough to complete signup/reset on your own
  *     box without wiring up an email service.
@@ -11,6 +15,7 @@
  * Callers that must not fail the surrounding request (Better Auth's send
  * hooks) catch errors themselves; sendEmail always propagates failures.
  */
+import { appendFileSync } from 'node:fs';
 
 export interface EmailMessage {
   to: string;
@@ -23,6 +28,12 @@ export type EmailTransport = (message: EmailMessage) => Promise<void>;
 const consoleTransport: EmailTransport = async ({ to, subject, text }) => {
   console.log(`[email → console] to=${to} subject="${subject}"\n${text}`);
 };
+
+function fileTransport(path: string): EmailTransport {
+  return async (message) => {
+    appendFileSync(path, JSON.stringify(message) + '\n');
+  };
+}
 
 function resendTransport(apiKey: string): EmailTransport {
   const from = process.env.EMAIL_FROM || 'Lector <no-reply@lector.dev>';
@@ -51,7 +62,8 @@ export function setEmailTransport(t: EmailTransport | null): void {
 export async function sendEmail(message: EmailMessage): Promise<void> {
   if (!transport) {
     const apiKey = process.env.RESEND_API_KEY;
-    transport = apiKey ? resendTransport(apiKey) : consoleTransport;
+    const filePath = process.env.EMAIL_FILE;
+    transport = apiKey ? resendTransport(apiKey) : filePath ? fileTransport(filePath) : consoleTransport;
   }
   await transport(message);
 }

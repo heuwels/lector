@@ -7,6 +7,9 @@ import { db } from '../db';
 // test doesn't seed the full ~11k-row bank.
 const TATOEBA_IDS = [9001, 9002];
 const MINED_ID = 'afm-test-001';
+// Mined rows are stored under a per-tenant namespaced id (#220) — these tests
+// run in selfhost mode, so the stored PK is the 'local' user's namespace.
+const STORED_MINED_ID = `mined:local:${MINED_ID}`;
 const DE_TATOEBA_IDS = [7001, 7002];
 const FR_TATOEBA_IDS = [6001, 6002];
 
@@ -109,8 +112,8 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...FR_TATOEBA_IDS].join(',')}) OR id = ?`,
-  ).run(MINED_ID);
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...FR_TATOEBA_IDS].join(',')}) OR id IN (?, ?)`,
+  ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
 
@@ -138,7 +141,7 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
 
     const mined = db
       .prepare('SELECT id, language, source, collection FROM clozeSentences WHERE id = ?')
-      .get(MINED_ID) as { id: string; language: string; source: string; collection: string };
+      .get(STORED_MINED_ID) as { id: string; language: string; source: string; collection: string };
     expect(mined).toBeTruthy();
     expect(mined.source).toBe('mined');
     expect(mined.language).toBe('af');
@@ -160,7 +163,7 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       .prepare(
         `SELECT COUNT(*) AS c FROM clozeSentences WHERE tatoebaSentenceId IN (${TATOEBA_IDS.join(',')}) OR id = ?`,
       )
-      .get(MINED_ID) as { c: number };
+      .get(STORED_MINED_ID) as { c: number };
     expect(count.c).toBe(0);
   });
 
@@ -221,7 +224,25 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
 
     const count = db
       .prepare('SELECT COUNT(*) AS c FROM clozeSentences WHERE id = ?')
-      .get(MINED_ID) as { c: number };
+      .get(STORED_MINED_ID) as { c: number };
+    expect(count.c).toBe(1);
+  });
+
+  test('a mined row seeded before id namespacing is not duplicated on re-seed', async () => {
+    setActiveLanguage('af');
+    // Legacy row: the raw bank id, as pre-#220 seeds stored it.
+    db.prepare(
+      `INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, nextReview, language, userId)
+       VALUES (?, 'Ou saad-ry.', 'saad', 0, 'x', 'mined', 'top1000', ?, 'af', 'local')`,
+    ).run(MINED_ID, new Date().toISOString());
+
+    const body = (await (await app.request('/seed', { method: 'POST' })).json()) as { mined: number };
+    // The legacy raw-id row is recognized as already-seeded — no namespaced duplicate.
+    expect(body.mined).toBe(0);
+
+    const count = db
+      .prepare('SELECT COUNT(*) AS c FROM clozeSentences WHERE id IN (?, ?)')
+      .get(MINED_ID, STORED_MINED_ID) as { c: number };
     expect(count.c).toBe(1);
   });
 });

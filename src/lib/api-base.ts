@@ -66,7 +66,13 @@ export function apiUrl(path: string): string {
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(apiUrl(path), init);
+    // Cloud sessions are cookies (#218/#220). Same-origin (the prod path-split
+    // deploy) sends them regardless; cross-origin (dev: UI :3456 → API :3467)
+    // only sends them with explicit credentials, paired with the API's
+    // pinned-origin CORS. Selfhost keeps fetch defaults — its wide-open CORS
+    // is credential-less by design.
+    const credentials = init?.credentials ?? (lectorMode() === 'cloud' ? 'include' : undefined);
+    return await fetch(apiUrl(path), { ...init, credentials });
   } catch {
     return new Response(
       JSON.stringify({ error: 'The API is currently unavailable. Please try again in a moment.' }),
