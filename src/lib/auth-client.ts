@@ -24,4 +24,4 @@ export const authClient = createAuthClient({
 
 // Route helpers live in api-base (this module imports it; the reverse would
 // cycle). Re-exported here since consumers reach for them alongside the client.
-export { AUTH_ROUTES, isAuthRoute } from './api-base';
+export { AUTH_ROUTES, BILLING_ROUTE, isAuthRoute, isBareRoute } from './api-base';

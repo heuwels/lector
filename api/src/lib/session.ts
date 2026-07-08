@@ -39,6 +39,11 @@ export function makeSessionMiddleware(authRequired: boolean, engine: () => AuthE
 
     if (c.req.path.startsWith('/api/auth/')) return next();
 
+    // Paddle webhook (#224): server-to-server, so it carries no session or
+    // PAT — the HMAC signature over the raw body is its credential, verified
+    // in routes/billing.ts before anything is touched.
+    if (c.req.path === '/api/billing/webhook') return next();
+
     // Per-user PAT (#218): defer to the PAT middleware mounted right after
     // this one — it authenticates the token and resolves its tenant.
     if (c.req.header('Authorization')) return next();

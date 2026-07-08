@@ -66,6 +66,19 @@ export function isAuthRoute(pathname: string): boolean {
   return AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
 }
 
+/** Where a cloud account without an active subscription lands (#224). */
+export const BILLING_ROUTE = '/subscribe';
+
+/**
+ * Chrome-free routes: the pre-session auth pages plus /subscribe. NavHeader,
+ * SetupGuard, and ChatWidget key off this (a locked account must see nothing
+ * app-shaped); AuthGuard deliberately keeps isAuthRoute — /subscribe still
+ * requires a session.
+ */
+export function isBareRoute(pathname: string): boolean {
+  return isAuthRoute(pathname) || pathname === BILLING_ROUTE;
+}
+
 let bouncedToLogin = false;
 
 /**
@@ -81,6 +94,21 @@ export function bounceToLogin(): void {
   if (isAuthRoute(window.location.pathname)) return;
   bouncedToLogin = true;
   window.location.replace('/login');
+}
+
+let bouncedToSubscribe = false;
+
+/**
+ * bounceToLogin's billing twin (#224): the idempotent hard redirect for
+ * 402 `subscription_required`. BillingGuard and the apiFetch handler below
+ * both funnel through it; already being on /subscribe no-ops (that page's
+ * own status fetch is billing-exempt, so it can never loop).
+ */
+export function bounceToSubscribe(): void {
+  if (bouncedToSubscribe || typeof window === 'undefined') return;
+  if (window.location.pathname === BILLING_ROUTE || isAuthRoute(window.location.pathname)) return;
+  bouncedToSubscribe = true;
+  window.location.replace(BILLING_ROUTE);
 }
 
 /** Absolute URL for an API path (e.g. `apiUrl('/api/vocab')`). */
@@ -117,6 +145,11 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     const res = await fetch(apiUrl(path), { ...init, credentials });
     if (cloud && res.status === 401) {
       bounceToLogin();
+    }
+    // 402 = authenticated but not subscribed (#224) — the billing gate's
+    // signal. Same hard-navigation reasoning as the 401 bounce.
+    if (cloud && res.status === 402) {
+      bounceToSubscribe();
     }
     return res;
   } catch {

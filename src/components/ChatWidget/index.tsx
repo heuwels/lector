@@ -1,9 +1,10 @@
 'use client';
 
 import { MessageCircle, X, SendHorizonal } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useActiveLanguage } from '@/utils/hooks';
-import { apiFetch } from '@/lib/api-base';
+import { apiFetch, isBareRoute } from '@/lib/api-base';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { EXAMPLE_PROMPTS } from './constants';
 
@@ -27,6 +28,7 @@ export default function ChatWidget() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const initialLoadDone = useRef(false);
   const activeLang = useActiveLanguage();
+  const pathname = usePathname();
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -183,6 +185,10 @@ export default function ChatWidget() {
   const toggleOpen = () => {
     setIsOpen(!isOpen);
   };
+
+  // Chrome-free routes (#218/#224): the widget sits outside the layout
+  // guards, so hide it itself — chat could only 401/402 there.
+  if (isBareRoute(pathname)) return null;
 
   return (
     <>

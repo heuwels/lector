@@ -115,5 +115,28 @@ export default defineConfig({
         EMAIL_FILE: "../tmp/e2e-cloud-data/outbox.jsonl",
       },
     },
+    {
+      // A FOURTH cloud-mode API with the Paddle billing gate armed (#224) for
+      // billing-cloud.spec.ts: no free tier, so a fresh verified account must
+      // land locked on /subscribe until the spec plays Paddle and posts signed
+      // webhooks at it. No PADDLE_CLIENT_TOKEN on purpose — e2e asserts OUR
+      // gate + webhook + unlock, never Paddle's hosted overlay.
+      command: "rm -rf ../tmp/e2e-billing-data && mkdir -p ../tmp/e2e-billing-data && bun run src/index.ts",
+      cwd: "./api",
+      url: "http://localhost:3469/health",
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        DATA_DIR: "../tmp/e2e-billing-data",
+        PORT: "3469",
+        LECTOR_MODE: "cloud",
+        BETTER_AUTH_SECRET: "e2e-only-secret-1111111111111111",
+        BETTER_AUTH_URL: "http://localhost:3469",
+        LECTOR_TRUSTED_ORIGINS: "http://localhost:3456",
+        EMAIL_FILE: "../tmp/e2e-billing-data/emails.jsonl",
+        LECTOR_BILLING: "paddle",
+        PADDLE_WEBHOOK_SECRET: "e2e-paddle-webhook-secret",
+      },
+    },
   ],
 });

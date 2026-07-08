@@ -201,6 +201,33 @@ function getDb(): Database {
       FOREIGN KEY (word) REFERENCES cached_entries(word) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_cached_related_word ON cached_related_forms(word);
+
+    -- Paddle billing mirror (#224). Written ONLY by the signature-verified
+    -- webhook (routes/billing.ts); read by the billing gate (lib/billing.ts).
+    -- Subscriptions link to an account by custom_data.lectorUserId (checkout
+    -- opened in-app) or by customer email (checkout on lector.dev before the
+    -- account existed) — hence the customers table: Paddle subscription
+    -- events carry customer_id but never the email.
+    CREATE TABLE IF NOT EXISTS billing_customers (
+      paddleCustomerId TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      occurredAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_billing_customers_email ON billing_customers(email);
+
+    CREATE TABLE IF NOT EXISTS billing_subscriptions (
+      paddleSubscriptionId TEXT PRIMARY KEY,
+      paddleCustomerId TEXT NOT NULL,
+      userId TEXT,
+      status TEXT NOT NULL,
+      priceId TEXT,
+      currentPeriodEnd TEXT,
+      occurredAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_userId ON billing_subscriptions(userId);
+    CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_customer ON billing_subscriptions(paddleCustomerId);
   `);
 
   // Migrations for existing databases
