@@ -231,6 +231,34 @@ describe('password reset', () => {
   });
 });
 
+describe('turnstile captcha (when configured)', () => {
+  test('sign-up without an x-captcha-response token is rejected before touching the user store', async () => {
+    const guarded = createAuthEngine({
+      database: new Database(':memory:'),
+      baseURL: BASE,
+      secret: 'test-secret-000000000000000000000000',
+      trustedOrigins: [BASE],
+      turnstileSecretKey: 'turnstile-test-secret',
+    });
+    await runAuthMigrations(guarded);
+    const guardedApp = new Hono();
+    guardedApp.on(['POST', 'GET'], '/api/auth/*', (c) => guarded.handler(c.req.raw));
+
+    const res = await guardedApp.request(`${BASE}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'bot@example.com', password: 'password-123456', name: 'bot' }),
+    });
+    expect(res.ok).toBe(false);
+    // Fails closed locally (MISSING_RESPONSE) — no siteverify network call.
+    expect(res.status).toBeLessThan(500);
+  });
+
+  test('the engine without a turnstile key loads no captcha plugin (selfhost/dev default)', () => {
+    expect(engine.options.plugins ?? []).toHaveLength(0);
+  });
+});
+
 describe('selfhost stays auth-off single-user', () => {
   test('the passthrough middleware never consults the engine and the seam resolves "local"', async () => {
     const selfhost = new Hono();

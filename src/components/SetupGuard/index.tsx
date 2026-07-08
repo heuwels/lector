@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { getSetting } from '@/lib/data-layer';
+import { isAuthRoute } from '@/lib/auth-client';
 
 export default function SetupGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -11,12 +12,14 @@ export default function SetupGuard({ children }: { children: React.ReactNode }) 
   // The first render must be identical on the server and the client, so we must
   // not read localStorage here — doing so rendered the spinner on the server but
   // the children on the client, which was the hydration mismatch. /setup is
-  // always allowed through; every other route resolves in the effect below.
-  const [checked, setChecked] = useState(pathname === '/setup');
+  // always allowed through, as are the auth pages (#218) — they render
+  // pre-session, when the settings probe below could only 401; every other
+  // route resolves in the effect below.
+  const [checked, setChecked] = useState(pathname === '/setup' || isAuthRoute(pathname));
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (checked || pathname === '/setup') return;
+    if (checked || pathname === '/setup' || isAuthRoute(pathname)) return;
 
     let cancelled = false;
 
@@ -71,7 +74,7 @@ export default function SetupGuard({ children }: { children: React.ReactNode }) 
   // check, arriving at /setup via the router.replace() below (rather than a
   // hard load) re-renders with checked still false — the effect bails out
   // before ever setting it — and the spinner never clears.
-  if (!checked && pathname !== '/setup') {
+  if (!checked && pathname !== '/setup' && !isAuthRoute(pathname)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />

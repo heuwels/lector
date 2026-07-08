@@ -43,7 +43,7 @@ DATA_DIR=/app/data DICT_DIR=${DICT_DIR:-/app/dict} PORT=3457 bun run src/index.t
 # of the script context (SECURITY-06). Empty API_URL → the client falls back to
 # http://localhost:3457 (only correct when browsing from this host).
 cd /app
-node -e 'require("fs").writeFileSync("public/__env.js", "window.__ENV__ = " + JSON.stringify({ API_URL: process.env.API_URL || "", LECTOR_MODE: process.env.LECTOR_MODE || "selfhost" }) + ";\n")'
+node -e 'require("fs").writeFileSync("public/__env.js", "window.__ENV__ = " + JSON.stringify({ API_URL: process.env.API_URL || "", LECTOR_MODE: process.env.LECTOR_MODE || "selfhost", TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY || "", GITHUB_LOGIN: process.env.GITHUB_CLIENT_ID ? "1" : "" }) + ";\n")'
 
 # Start Next.js in foreground
 node server.js

@@ -20,7 +20,14 @@
 
 declare global {
   interface Window {
-    __ENV__?: { API_URL?: string; LECTOR_MODE?: string };
+    __ENV__?: {
+      API_URL?: string;
+      LECTOR_MODE?: string;
+      /** Cloudflare Turnstile site key — presence turns the widget on (#218). */
+      TURNSTILE_SITE_KEY?: string;
+      /** '1' when the API has GitHub OAuth configured — shows the button (#218). */
+      GITHUB_LOGIN?: string;
+    };
   }
 }
 
@@ -48,6 +55,30 @@ export function apiBase(): string {
   return (configured || DEFAULT_API_URL).replace(/\/+$/, '');
 }
 
+/** Routes that must render without a session (and without app chrome). #218 */
+export const AUTH_ROUTES = ['/login', '/register', '/reset-password'] as const;
+
+export function isAuthRoute(pathname: string): boolean {
+  return AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
+}
+
+let bouncedToLogin = false;
+
+/**
+ * Idempotent hard redirect to /login (#218). Both the 401 handler below and
+ * AuthGuard funnel through this ONE mechanism: mixing a hard
+ * `location.assign` with a concurrent soft `router.replace` aborts whichever
+ * navigation loses the race (net::ERR_ABORTED), and several components can
+ * observe "no session" in the same tick. First caller wins; the rest no-op.
+ * Hard (not soft) so every in-memory state and cache resets with the session.
+ */
+export function bounceToLogin(): void {
+  if (bouncedToLogin || typeof window === 'undefined') return;
+  if (isAuthRoute(window.location.pathname)) return;
+  bouncedToLogin = true;
+  window.location.replace('/login');
+}
+
 /** Absolute URL for an API path (e.g. `apiUrl('/api/vocab')`). */
 export function apiUrl(path: string): string {
   const suffix = path.startsWith('/') ? path : `/${path}`;
@@ -63,16 +94,27 @@ export function apiUrl(path: string): string {
  * that contract here — catch the rejection and return the same synthetic 502 —
  * so removing the proxy doesn't turn a transient API outage into unhandled
  * promise rejections across the (largely try/catch-free) data layer.
+ *
+ * Cloud mode (#218): session cookies must ride every call, so credentials are
+ * included — but ONLY in cloud. Selfhost CORS answers `*`, which the browser
+ * rejects for credentialed requests; forcing `include` there would break every
+ * cross-origin selfhost deployment. A 401 in cloud means no/expired session:
+ * bounce to /login (hard navigation, so all in-flight state resets).
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const cloud = lectorMode() === 'cloud';
   try {
     // Cloud sessions are cookies (#218/#220). Same-origin (the prod path-split
     // deploy) sends them regardless; cross-origin (dev: UI :3456 → API :3467)
     // only sends them with explicit credentials, paired with the API's
     // pinned-origin CORS. Selfhost keeps fetch defaults — its wide-open CORS
     // is credential-less by design.
-    const credentials = init?.credentials ?? (lectorMode() === 'cloud' ? 'include' : undefined);
-    return await fetch(apiUrl(path), { ...init, credentials });
+    const credentials = init?.credentials ?? (cloud ? 'include' : undefined);
+    const res = await fetch(apiUrl(path), { ...init, credentials });
+    if (cloud && res.status === 401) {
+      bounceToLogin();
+    }
+    return res;
   } catch {
     return new Response(
       JSON.stringify({ error: 'The API is currently unavailable. Please try again in a moment.' }),

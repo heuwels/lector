@@ -7,6 +7,7 @@
  * it. Session → userId: lib/session.ts; route-side reads: lib/user.ts.
  */
 import { betterAuth } from 'better-auth';
+import { captcha } from 'better-auth/plugins';
 import { getMigrations } from 'better-auth/db/migration';
 import type { Database } from 'bun:sqlite';
 import { config } from './config';
@@ -22,6 +23,13 @@ export interface AuthEngineOptions {
   /** Browser origins allowed to hit auth endpoints cross-origin (dev UI). */
   trustedOrigins: string[];
   github?: { clientId: string; clientSecret: string };
+  /**
+   * Cloudflare Turnstile secret. When set, sign-up, sign-in, and
+   * password-reset requests must carry an `x-captcha-response` token
+   * (the plugin fails closed on a missing/invalid one). The matching site
+   * key reaches the browser via window.__ENV__ (docker-entrypoint.sh).
+   */
+  turnstileSecretKey?: string;
 }
 
 /** Factory shared by the prod singleton and tests (in-memory DB aside). */
@@ -70,6 +78,9 @@ export function createAuthEngine(opts: AuthEngineOptions) {
       },
     },
     socialProviders: opts.github ? { github: opts.github } : {},
+    plugins: opts.turnstileSecretKey
+      ? [captcha({ provider: 'cloudflare-turnstile', secretKey: opts.turnstileSecretKey })]
+      : [],
   });
 }
 
@@ -116,6 +127,7 @@ export function getAuthEngine(): AuthEngine {
     secret: config.authSecret,
     trustedOrigins: resolveTrustedOrigins(),
     github: githubFromEnv(),
+    turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY || undefined,
   });
   return _engine;
 }

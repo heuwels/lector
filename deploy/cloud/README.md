@@ -65,6 +65,8 @@ Design notes:
    | `openai-compat-model`          | String       | `OPENAI_COMPAT_MODEL`                                         |
    | `resend-api-key`               | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — dormant under the external gate; staged for cloud proper) |
    | `better-auth-secret`           | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — dormant under the external gate; **required** to flip to cloud proper. Generate: `openssl rand -base64 32`) |
+   | `turnstile-site-key`           | String       | `TURNSTILE_SITE_KEY` (Cloudflare Turnstile widget on the auth forms, #218 — public key, rides `window.__ENV__`) |
+   | `turnstile-secret`             | SecureString | `TURNSTILE_SECRET_KEY` (server-side captcha verification; set both or neither) |
    | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
 
    ```bash
