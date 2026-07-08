@@ -24,3 +24,20 @@ export function useGithubLogin(): boolean {
     () => false,
   );
 }
+
+export function useOidcLogin(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => window.__ENV__?.OIDC_LOGIN === '1',
+    () => false,
+  );
+}
+
+/** Button label for the BYO OIDC provider; a lone snapshot per render. */
+export function useOidcProviderName(): string {
+  return useSyncExternalStore(
+    subscribe,
+    () => window.__ENV__?.OIDC_PROVIDER_NAME || 'SSO',
+    () => 'SSO',
+  );
+}

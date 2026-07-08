@@ -9,12 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import TurnstileWidget, { turnstileSiteKey } from '@/components/TurnstileWidget';
 import { authClient } from '@/lib/auth-client';
-import { useGithubLogin } from '@/lib/use-env';
+import { useGithubLogin, useOidcLogin, useOidcProviderName } from '@/lib/use-env';
 
 export default function LoginPage() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const githubEnabled = useGithubLogin();
+  const oidcEnabled = useOidcLogin();
+  const oidcName = useOidcProviderName();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -76,6 +78,14 @@ export default function LoginPage() {
   async function handleGithub() {
     await authClient.signIn.social({
       provider: 'github',
+      callbackURL: `${window.location.origin}/`,
+    });
+  }
+
+  async function handleOidc() {
+    // BYO OIDC (#218) — providerId 'oidc' is fixed server-side (accounts.ts).
+    await authClient.signIn.oauth2({
+      providerId: 'oidc',
       callbackURL: `${window.location.origin}/`,
     });
   }
@@ -154,6 +164,18 @@ export default function LoginPage() {
           data-testid="login-github"
         >
           Continue with GitHub
+        </Button>
+      )}
+
+      {oidcEnabled && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={handleOidc}
+          data-testid="login-oidc"
+        >
+          Continue with {oidcName}
         </Button>
       )}
 

@@ -47,6 +47,10 @@ import { Construct } from 'constructs';
  *   /lector/canary/better-auth-secret  SecureString  optional — BETTER_AUTH_SECRET (session signing, #218; required to flip off the external gate)
  *   /lector/canary/turnstile-site-key  String        optional — TURNSTILE_SITE_KEY (bot protection on auth forms, #218)
  *   /lector/canary/turnstile-secret    SecureString  optional — TURNSTILE_SECRET_KEY (server-side captcha verification, #218)
+ *   /lector/canary/oidc-issuer         String        optional — OIDC_ISSUER (BYO OIDC, #218; needs all three oidc-* credentials)
+ *   /lector/canary/oidc-client-id      String        optional — OIDC_CLIENT_ID
+ *   /lector/canary/oidc-client-secret  SecureString  optional — OIDC_CLIENT_SECRET
+ *   /lector/canary/oidc-provider-name  String        optional — OIDC_PROVIDER_NAME (login-button label)
  *   /lector/canary/ghcr-token          SecureString  optional — only if the ghcr package goes private again
  */
 
@@ -257,6 +261,10 @@ put RESEND_API_KEY        resend-api-key
 put BETTER_AUTH_SECRET    better-auth-secret
 put TURNSTILE_SITE_KEY    turnstile-site-key
 put TURNSTILE_SECRET_KEY  turnstile-secret
+put OIDC_ISSUER           oidc-issuer
+put OIDC_CLIENT_ID        oidc-client-id
+put OIDC_CLIENT_SECRET    oidc-client-secret
+put OIDC_PROVIDER_NAME    oidc-provider-name
 mv "$TMP" "$ENVFILE"
 if ! grep -q "^TUNNEL_TOKEN=" "$ENVFILE"; then
   echo "WARNING: __PARAM_PREFIX__/tunnel-token is missing - cloudflared will crash-loop until it exists (put the parameter, then run /srv/lector/update.sh)" >&2

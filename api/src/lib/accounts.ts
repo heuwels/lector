@@ -7,12 +7,21 @@
  * it. Session → userId: lib/session.ts; route-side reads: lib/user.ts.
  */
 import { betterAuth } from 'better-auth';
-import { captcha } from 'better-auth/plugins';
+import { captcha, genericOAuth } from 'better-auth/plugins';
 import { getMigrations } from 'better-auth/db/migration';
 import type { Database } from 'bun:sqlite';
 import { config } from './config';
 import { sendEmail } from './email';
 import { getDatabaseInstance } from '../db';
+
+export interface OidcOptions {
+  /** Issuer origin (or a full discovery URL) — see oidcDiscoveryUrl(). */
+  issuer: string;
+  clientId: string;
+  clientSecret: string;
+  /** Defaults to the OIDC basics: openid profile email. */
+  scopes?: string[];
+}
 
 export interface AuthEngineOptions {
   database: Database;
@@ -24,6 +33,15 @@ export interface AuthEngineOptions {
   trustedOrigins: string[];
   github?: { clientId: string; clientSecret: string };
   /**
+   * BYO OIDC (#218): any OpenID Connect provider — Authentik, Keycloak,
+   * Auth0, Entra, … — via its discovery document. This is the multi-user
+   * self-host SSO opt-in as much as a cloud feature: run cloud mode on your
+   * own box and point these at your own IdP. Registered under the fixed
+   * providerId 'oidc', so the redirect URI to allowlist on the IdP is
+   * `<baseURL>/api/auth/oauth2/callback/oidc`.
+   */
+  oidc?: OidcOptions;
+  /**
    * Cloudflare Turnstile secret. When set, sign-up, sign-in, and
    * password-reset requests must carry an `x-captcha-response` token
    * (the plugin fails closed on a missing/invalid one). The matching site
@@ -32,8 +50,38 @@ export interface AuthEngineOptions {
   turnstileSecretKey?: string;
 }
 
+/**
+ * Accepts either an issuer origin (https://auth.example.com — with or
+ * without a trailing slash) or a full discovery URL pasted straight from
+ * IdP docs; both resolve to the discovery document.
+ */
+export function oidcDiscoveryUrl(issuer: string): string {
+  if (issuer.includes('/.well-known/')) return issuer;
+  return `${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`;
+}
+
 /** Factory shared by the prod singleton and tests (in-memory DB aside). */
 export function createAuthEngine(opts: AuthEngineOptions) {
+  const plugins = [];
+  if (opts.turnstileSecretKey) {
+    plugins.push(captcha({ provider: 'cloudflare-turnstile', secretKey: opts.turnstileSecretKey }));
+  }
+  if (opts.oidc) {
+    plugins.push(
+      genericOAuth({
+        config: [
+          {
+            providerId: 'oidc',
+            discoveryUrl: oidcDiscoveryUrl(opts.oidc.issuer),
+            clientId: opts.oidc.clientId,
+            clientSecret: opts.oidc.clientSecret,
+            scopes: opts.oidc.scopes ?? ['openid', 'profile', 'email'],
+            pkce: true,
+          },
+        ],
+      }),
+    );
+  }
   return betterAuth({
     database: opts.database,
     baseURL: opts.baseURL,
@@ -78,9 +126,7 @@ export function createAuthEngine(opts: AuthEngineOptions) {
       },
     },
     socialProviders: opts.github ? { github: opts.github } : {},
-    plugins: opts.turnstileSecretKey
-      ? [captcha({ provider: 'cloudflare-turnstile', secretKey: opts.turnstileSecretKey })]
-      : [],
+    plugins,
   });
 }
 
@@ -115,6 +161,32 @@ function githubFromEnv(): AuthEngineOptions['github'] {
   return clientId && clientSecret ? { clientId, clientSecret } : undefined;
 }
 
+/**
+ * BYO OIDC env (#218): OIDC_ISSUER + OIDC_CLIENT_ID + OIDC_CLIENT_SECRET
+ * activate it (all three, else off — a partial set is warned about since
+ * it's almost certainly a deploy typo, unlike the deliberate keyless
+ * default). OIDC_SCOPES optionally overrides the requested scopes
+ * (space- or comma-separated).
+ */
+function oidcFromEnv(): AuthEngineOptions['oidc'] {
+  const issuer = process.env.OIDC_ISSUER;
+  const clientId = process.env.OIDC_CLIENT_ID;
+  const clientSecret = process.env.OIDC_CLIENT_SECRET;
+  const set = [issuer, clientId, clientSecret].filter(Boolean).length;
+  if (set === 0) return undefined;
+  if (!issuer || !clientId || !clientSecret) {
+    console.warn(
+      '[accounts] OIDC env is partially set — need OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET; BYO OIDC stays off',
+    );
+    return undefined;
+  }
+  const scopes = (process.env.OIDC_SCOPES || '')
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return { issuer, clientId, clientSecret, scopes: scopes.length > 0 ? scopes : undefined };
+}
+
 let _engine: AuthEngine | null = null;
 
 /** The prod engine, lazily built from env — never called in selfhost mode. */
@@ -127,6 +199,7 @@ export function getAuthEngine(): AuthEngine {
     secret: config.authSecret,
     trustedOrigins: resolveTrustedOrigins(),
     github: githubFromEnv(),
+    oidc: oidcFromEnv(),
     turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY || undefined,
   });
   return _engine;

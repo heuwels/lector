@@ -30,7 +30,7 @@ const EMAIL = `reader+${Date.now()}@e2e.test`;
 const PASSWORD = 'first-password-123';
 const NEW_PASSWORD = 'second-password-456';
 
-async function useCloudEnv(page: Page) {
+async function useCloudEnv(page: Page, extraEnv: Record<string, string> = {}) {
   // Fulfil /__env.js instead of stubbing window.__ENV__ from an init script:
   // the checked-in public/__env.js dev stub executes after init scripts and
   // would clobber the stub. This drives the exact runtime-config rail
@@ -38,7 +38,7 @@ async function useCloudEnv(page: Page) {
   await page.route('**/__env.js', (route) =>
     route.fulfill({
       contentType: 'application/javascript',
-      body: `window.__ENV__ = ${JSON.stringify({ API_URL: CLOUD_API, LECTOR_MODE: 'cloud' })};`,
+      body: `window.__ENV__ = ${JSON.stringify({ API_URL: CLOUD_API, LECTOR_MODE: 'cloud', ...extraEnv })};`,
     }),
   );
 }
@@ -184,5 +184,22 @@ test.describe.serial('cloud auth lifecycle', () => {
     await expect(page.getByText('No tokens created yet', { exact: false })).toBeVisible();
     const dead = await request.get(`${CLOUD_API}/api/collections`, withToken(token));
     expect(dead.status()).toBe(401);
+  });
+});
+
+// The BYO OIDC button is driven purely by the runtime flag rail (#218):
+// docker-entrypoint.sh writes OIDC_LOGIN/OIDC_PROVIDER_NAME into __env.js when
+// the API has a provider configured. Render-only — the OAuth dance needs a
+// live IdP; the engine tests cover config down to the plugin boundary.
+test.describe('BYO OIDC login button', () => {
+  test('renders with the provider name when the flag is set, absent otherwise', async ({ page }) => {
+    await useCloudEnv(page, { OIDC_LOGIN: '1', OIDC_PROVIDER_NAME: 'Authentik' });
+    await page.goto('/login');
+    await expect(page.getByTestId('login-oidc')).toHaveText('Continue with Authentik');
+
+    await useCloudEnv(page); // back to the flagless cloud env
+    await page.goto('/login');
+    await expect(page.getByTestId('login-submit')).toBeVisible();
+    await expect(page.getByTestId('login-oidc')).toHaveCount(0);
   });
 });

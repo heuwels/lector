@@ -57,6 +57,7 @@ Cloud mode env:
 - `BETTER_AUTH_URL` — the public origin auth links are minted against (e.g. `https://app.example.com`)
 - `LECTOR_TRUSTED_ORIGINS` — comma-separated browser origins allowed to send credentialed cross-origin requests (only needed when the UI is served from a different origin than the API)
 - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — optional; enables "Sign in with GitHub"
+- `OIDC_ISSUER` + `OIDC_CLIENT_ID` + `OIDC_CLIENT_SECRET` — optional (all three); **BYO OIDC**: "Continue with …" against any OpenID Connect provider — Authentik, Keycloak, Auth0, Entra, Pocket ID, … `OIDC_ISSUER` is the issuer origin (or a pasted discovery URL); allowlist `<origin>/api/auth/oauth2/callback/oidc` as the redirect URI on the IdP. Optional extras: `OIDC_PROVIDER_NAME` labels the login button (default "SSO"); `OIDC_SCOPES` overrides the requested scopes (default `openid profile email`). Made for multi-user self-hosting behind your own IdP as much as for cloud.
 - `RESEND_API_KEY` (+ optional `EMAIL_FROM`) — verification and password-reset email delivery; without it, emails land in the server log (fine for trying it out on your own box)
 - `EMAIL_FILE` — append outbound emails as JSON lines to this file instead of sending (a local outbox; the e2e suites read verification links from it — takes precedence over Resend)
 - `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` — optional; puts [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) bot protection on sign-up, sign-in, and password-reset (set both or neither)
