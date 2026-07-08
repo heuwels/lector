@@ -1,5 +1,6 @@
 import { SETTINGS_KEYS } from '@/app/settings/constants';
 import { LANGUAGE_CHANGE_EVENT } from '@/constants/storage';
+import { readLanguageCache, writeLanguageCache } from '@/lib/language-cache';
 import { DEFAULT_LANGUAGE, isValidLanguageCode, LANGUAGES } from '@/lib/languages';
 import { LanguageConfig } from '@/types/language';
 import { Theme } from '@/types/theme';
@@ -15,12 +16,12 @@ export function subscribeToStorage(callback: () => void) {
 }
 
 export function setLanguageInStorage(code: string) {
-  localStorage.setItem('lector-target-language', code);
+  writeLanguageCache(code);
   window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT));
 }
 
 export function getLanguageSnapshot(): LanguageConfig {
-  const stored = localStorage.getItem('lector-target-language') as keyof typeof LANGUAGES | null;
+  const stored = readLanguageCache() as keyof typeof LANGUAGES | null;
   if (stored && isValidLanguageCode(stored)) return LANGUAGES[stored];
   return LANGUAGES[DEFAULT_LANGUAGE];
 }

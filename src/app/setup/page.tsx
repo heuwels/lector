@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setSetting } from '@/lib/data-layer';
 import { LANGUAGES, type LanguageCode } from '@/lib/languages';
+import { setLanguageInStorage } from '@/utils/storage';
 
 const languageCards: { code: LanguageCode; flag: string; native: string; name: string }[] = [
   { code: 'af', flag: LANGUAGES.af.flag, native: LANGUAGES.af.native, name: LANGUAGES.af.name },
@@ -22,7 +23,7 @@ export default function SetupPage() {
     setPending(code);
     try {
       await setSetting('targetLanguage', code);
-      localStorage.setItem('lector-target-language', code);
+      setLanguageInStorage(code);
       router.replace('/');
     } catch {
       setPending(null);

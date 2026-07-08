@@ -27,7 +27,10 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3456",
     trace: "on-first-retry",
-    // Set language in localStorage so SetupGuard doesn't redirect tests to /setup
+    // Set language in localStorage so SetupGuard doesn't redirect tests to
+    // /setup. Selfhost only: the app migrates this legacy key onto the
+    // tenant-keyed cache (#281); cloud-mode specs ignore it by design — their
+    // accounts onboard via /setup (or seed the server setting) per test.
     storageState: {
       cookies: [],
       origins: [
