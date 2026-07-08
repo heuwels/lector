@@ -170,11 +170,8 @@ export default function SubscribePage() {
 
       {phase === 'unavailable' && (
         <p className="rounded-lg border border-border bg-[var(--primary-soft)] p-3 text-sm text-foreground">
-          Checkout isn&apos;t available right now. Please try again shortly, or subscribe at{' '}
-          <a href="https://lector.dev" className="font-medium text-primary hover:underline">
-            lector.dev
-          </a>{' '}
-          with this account&apos;s email address.
+          Checkout isn&apos;t available right now — please try again in a little while. Your
+          account and data are unaffected.
         </p>
       )}
 
