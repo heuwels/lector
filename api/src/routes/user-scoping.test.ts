@@ -15,6 +15,7 @@ const { default: chatApp } = await import('../routes/chat');
 const { default: groupsApp } = await import('../routes/groups');
 const { default: dataApp } = await import('../routes/data');
 const { default: importApp } = await import('../routes/import');
+const { default: tokensApp } = await import('../routes/tokens');
 
 // The userId-scoping ratchet (#217, plan 010 piece 2) — the multi-tenant twin
 // of language-scoping.test.ts. Rows are seeded for a different user directly
@@ -51,6 +52,7 @@ function reset() {
   db.prepare('DELETE FROM chat_messages').run();
   db.prepare('DELETE FROM dailyStats').run();
   db.prepare("DELETE FROM settings WHERE key LIKE 'ratchet_%'").run();
+  db.prepare('DELETE FROM api_tokens WHERE userId = ?').run(INTRUDER);
 }
 
 function seedIntruderCollection(id: string) {
@@ -181,6 +183,22 @@ describe('userId scoping ratchet', () => {
     const counts = (await res.json()) as Record<string, { total: number }>;
     const total = Object.values(counts).reduce((s, c) => s + c.total, 0);
     expect(total).toBe(0);
+  });
+
+  test("API tokens are per-user — lists exclude, revokes 404 on another user's token (#218)", async () => {
+    db.prepare(
+      `INSERT INTO api_tokens (id, name, tokenHash, scopes, createdAt, userId)
+       VALUES ('t_intruder', 'intruder-pat', 'hash_t_intruder', '["*"]', ?, ?)`,
+    ).run(TS, INTRUDER);
+
+    const list = await tokensApp.request('/');
+    const rows = (await list.json()) as { id: string }[];
+    expect(rows.find((r) => r.id === 't_intruder')).toBeUndefined();
+
+    const del = await tokensApp.request('/t_intruder', { method: 'DELETE' });
+    expect(del.status).toBe(404);
+    const survives = db.prepare("SELECT COUNT(*) AS n FROM api_tokens WHERE id = 't_intruder'").get() as { n: number };
+    expect(survives.n).toBe(1);
   });
 });
 
