@@ -52,6 +52,7 @@ try {
     billingConfig.mode,
     deploymentConfig.authRequired,
     Boolean(billingConfig.webhookSecret),
+    Boolean(billingConfig.apiKey),
   );
 } catch (err) {
   console.error(`FATAL: ${(err as Error).message}`);

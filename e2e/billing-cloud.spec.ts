@@ -10,10 +10,11 @@ import path from 'path';
  * account active and the app opens, and a later cancellation locks it again.
  *
  * The UI is the shared :3456 next dev server pointed (via the __env.js rail)
- * at the billing-armed cloud API on :3468. Webhooks are signed here with the
- * same secret the server holds — Paddle's overlay itself never appears (no
- * PADDLE_CLIENT_TOKEN), which is the boundary on purpose: their checkout is
- * theirs to test, the enforcement around it is ours.
+ * at the billing-armed cloud API on :3469. Webhooks are signed here with the
+ * same secret the server holds — Paddle never appears: checkout is created
+ * server-side and opens on lector.dev's approved domain, out of this suite's
+ * reach, so the redirect is exercised against a mocked /api/billing/checkout
+ * (the 'starting checkout redirects…' test). The enforcement around it is ours.
  */
 
 const CLOUD_API = 'http://localhost:3469';
@@ -98,7 +99,7 @@ test.describe.serial('billing gate lifecycle', () => {
     await page.goto(lastVerifyLink(EMAIL));
     await page.waitForURL('**/subscribe');
     await expect(page.getByTestId('subscribe-panel')).toBeVisible();
-    // Keyless deployment (no PADDLE_CLIENT_TOKEN) → the graceful fallback.
+    // No prices / CHECKOUT_URL on the e2e server → the graceful fallback.
     await expect(page.getByText(/Checkout isn't available/)).toBeVisible();
     // Chrome-free: no nav for a locked account.
     await expect(page.locator('aside')).toHaveCount(0);
@@ -169,5 +170,52 @@ test.describe.serial('billing gate lifecycle', () => {
     await expect(page.getByTestId('subscribe-export')).toBeVisible();
     expect((await page.request.get(`${CLOUD_API}/api/data`)).status()).toBe(200);
     expect((await page.request.get(`${CLOUD_API}/api/collections`)).status()).toBe(402);
+  });
+
+  test('starting checkout redirects to the site with the transaction id', async ({ page }) => {
+    const CHECKOUT = 'https://lector.test/checkout';
+    // Runtime env: point the browser at the billing API and give it a
+    // marketing checkout URL (the real e2e server ships neither prices nor
+    // CHECKOUT_URL, so the screen would otherwise show its fallback).
+    await page.route('**/__env.js', (route) =>
+      route.fulfill({
+        contentType: 'application/javascript',
+        body: `window.__ENV__ = ${JSON.stringify({
+          API_URL: CLOUD_API,
+          LECTOR_MODE: 'cloud',
+          CHECKOUT_URL: CHECKOUT,
+        })};`,
+      }),
+    );
+    // Inject a plan so the locked screen renders a tile, and stub the API's
+    // Paddle transaction creation — the overlay itself lives on lector.dev.
+    await page.route(`${CLOUD_API}/api/billing/status`, (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          enforced: true,
+          active: false,
+          exempt: false,
+          status: 'none',
+          checkout: { prices: [{ id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' }] },
+        }),
+      }),
+    );
+    await page.route(`${CLOUD_API}/api/billing/checkout`, (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ txnId: 'txn_e2e_redirect' }),
+      }),
+    );
+    // Absorb the cross-site navigation so it resolves without a real network hit.
+    await page.route('https://lector.test/**', (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>checkout</title>' }),
+    );
+
+    await signIn(page);
+    await page.waitForURL('**/subscribe');
+    await page.getByTestId('subscribe-price-cloud-month').click();
+    await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_redirect/);
+    expect(page.url()).toContain('_ptxn=txn_e2e_redirect');
   });
 });

@@ -71,9 +71,10 @@ Design notes:
    | `oidc-client-id`               | String       | `OIDC_CLIENT_ID` |
    | `oidc-client-secret`           | SecureString | `OIDC_CLIENT_SECRET` (redirect URI to allowlist on the IdP: `https://app.lector.dev/api/auth/oauth2/callback/oidc`) |
    | `oidc-provider-name`           | String       | `OIDC_PROVIDER_NAME` (optional login-button label, default "SSO" — rides `window.__ENV__`) |
-   | `lector-billing`               | String       | `LECTOR_BILLING` (#224 — `paddle` arms the subscription gate; unset = billing off. Requires `paddle-webhook-secret`, or the container refuses to boot) |
+   | `lector-billing`               | String       | `LECTOR_BILLING` (#224 — `paddle` arms the subscription gate; unset = billing off. Requires `paddle-webhook-secret` and `paddle-api-key`, or the container refuses to boot) |
    | `paddle-webhook-secret`        | SecureString | `PADDLE_WEBHOOK_SECRET` (the notification destination's secret key, Paddle → Developer tools → Notifications) |
-   | `paddle-client-token`          | String       | `PADDLE_CLIENT_TOKEN` (public client-side token for the in-app checkout overlay — Paddle → Developer tools → Authentication → Client-side tokens) |
+   | `paddle-api-key`               | SecureString | `PADDLE_API_KEY` (server-side key that creates checkout transactions — Paddle → Developer tools → Authentication → API keys; required once billing is armed. The checkout overlay itself opens on lector.dev, whose client-side token lives in the lector-site repo) |
+   | `checkout-url`                 | String       | `CHECKOUT_URL` (the approved-domain checkout page the app redirects to, e.g. `https://lector.dev/checkout`; unset → the subscribe screen shows its "checkout unavailable" fallback) |
    | `paddle-price-monthly`         | String       | `PADDLE_PRICE_MONTHLY` (`pri_…` — Cloud monthly; a plan card renders for each configured price) |
    | `paddle-price-annual`          | String       | `PADDLE_PRICE_ANNUAL` (`pri_…` — Cloud annual) |
    | `paddle-price-plus-monthly`    | String       | `PADDLE_PRICE_PLUS_MONTHLY` (`pri_…` — Plus monthly) |

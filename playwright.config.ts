@@ -122,8 +122,10 @@ export default defineConfig({
       // A FOURTH cloud-mode API with the Paddle billing gate armed (#224) for
       // billing-cloud.spec.ts: no free tier, so a fresh verified account must
       // land locked on /subscribe until the spec plays Paddle and posts signed
-      // webhooks at it. No PADDLE_CLIENT_TOKEN on purpose — e2e asserts OUR
-      // gate + webhook + unlock, never Paddle's hosted overlay.
+      // webhooks at it. No prices / CHECKOUT_URL, so the screen shows its
+      // graceful fallback — e2e asserts OUR gate + webhook + unlock, never
+      // Paddle itself (checkout is created server-side and opens on lector.dev,
+      // driven here via a mocked /api/billing/checkout).
       command: "rm -rf ../tmp/e2e-billing-data && mkdir -p ../tmp/e2e-billing-data && bun run src/index.ts",
       cwd: "./api",
       url: "http://localhost:3469/health",
@@ -139,6 +141,10 @@ export default defineConfig({
         EMAIL_FILE: "../tmp/e2e-billing-data/emails.jsonl",
         LECTOR_BILLING: "paddle",
         PADDLE_WEBHOOK_SECRET: "e2e-paddle-webhook-secret",
+        // Required at boot when billing is armed (a real key creates checkout
+        // transactions). The suite never clicks through to Paddle — the
+        // checkout redirect is exercised against a mocked /api/billing/checkout.
+        PADDLE_API_KEY: "pdl_e2e_dummy",
       },
     },
   ],

@@ -1,8 +1,10 @@
 /**
  * Client half of the billing gate (#224). The Hono API owns all state
- * (api/src/lib/billing.ts — the Paddle webhook mirror); this module just
- * fetches /api/billing/status, which BillingGuard gates the app on and the
- * /subscribe page renders checkout from.
+ * (api/src/lib/billing.ts — the Paddle webhook mirror); this module fetches
+ * /api/billing/status (which BillingGuard gates the app on and the /subscribe
+ * screen renders its tiers from) and starts checkout, which the API creates as
+ * a Paddle transaction so the overlay can open on the approved lector.dev
+ * domain.
  */
 import { apiFetch } from './api-base';
 
@@ -14,11 +16,7 @@ export interface BillingPrice {
 }
 
 export interface BillingCheckout {
-  clientToken: string | null;
-  environment: 'production' | 'sandbox';
   prices: BillingPrice[];
-  email: string | null;
-  userId: string;
 }
 
 export type BillingStatus =
@@ -42,6 +40,29 @@ export async function fetchBillingStatus(): Promise<BillingStatus | null> {
     const res = await apiFetch('/api/billing/status');
     if (!res.ok) return null;
     return (await res.json()) as BillingStatus;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create a Paddle checkout transaction for `priceId` and return its id
+ * (`txn_…`), or null if checkout can't be started right now (API down,
+ * billing not configured, unknown price). The caller redirects the browser to
+ * `${checkoutUrl()}?_ptxn=<id>` on lector.dev, where the overlay opens on the
+ * approved domain; the account is stamped into the transaction server-side
+ * (custom_data.lectorUserId), so nothing identifying rides the URL.
+ */
+export async function startCheckout(priceId: string): Promise<string | null> {
+  try {
+    const res = await apiFetch('/api/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId }),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { txnId?: string };
+    return body.txnId ?? null;
   } catch {
     return null;
   }
