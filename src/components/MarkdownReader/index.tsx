@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 export default function MarkdownReader({
     lesson,
     onWordClick,
+    wordPanelOpen = false,
     onClose,
     onSaveText,
     onEditingChange,
@@ -238,6 +239,16 @@ export default function MarkdownReader({
     const clearPhraseHighlight = useCallback(() => {
         setHighlightedPhrase([]);
     }, []);
+
+    // Drop the word/phrase highlight when the drawer closes (Esc, the X, or a
+    // click away), so a dismissed lookup doesn't leave the reader marked up.
+    // Only acts on close — opening/re-targeting keeps whatever was just set.
+    useEffect(() => {
+        if (!wordPanelOpen) {
+            setActiveWord(null);
+            setHighlightedPhrase([]);
+        }
+    }, [wordPanelOpen]);
 
     // Handle text selection for phrases
     const handleMouseUp = useCallback(() => {

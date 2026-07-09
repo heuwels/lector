@@ -116,6 +116,41 @@ test.describe('Reader word/phrase copy + active highlight', () => {
     expect(clip).toBe('hardloop');
   });
 
+  test('Escape closes the drawer and clears the clicked-word highlight', async ({ page }) => {
+    const wordSpans = page.locator('article span.cursor-pointer');
+    await wordSpans.nth(1).click();
+
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
+    await expect(page.locator('[data-active-word]')).toHaveCount(1);
+
+    await page.keyboard.press('Escape');
+
+    await expect(drawer).toHaveClass(/translate-x-full/, { timeout: 5000 });
+    await expect(page.locator('[data-active-word]')).toHaveCount(0);
+  });
+
+  test('Escape clears a selected-phrase highlight', async ({ page }) => {
+    const wordSpans = page.locator('article span.cursor-pointer');
+    const first = await wordSpans.nth(0).boundingBox();
+    const third = await wordSpans.nth(2).boundingBox();
+    if (!first || !third) throw new Error('missing word bounding boxes');
+
+    await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(third.x + third.width / 2, third.y + third.height / 2);
+    await page.mouse.up();
+
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
+    expect(await page.locator('[data-phrase-highlighted]').count()).toBeGreaterThanOrEqual(2);
+
+    await page.keyboard.press('Escape');
+
+    await expect(drawer).toHaveClass(/translate-x-full/, { timeout: 5000 });
+    await expect(page.locator('[data-phrase-highlighted]')).toHaveCount(0);
+  });
+
   test('Cmd/Ctrl+C copies a selected phrase WITH spaces', async ({ page }) => {
     const wordSpans = page.locator('article span.cursor-pointer');
     const first = await wordSpans.nth(0).boundingBox(); // "Die"

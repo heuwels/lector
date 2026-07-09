@@ -789,6 +789,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         <MarkdownReader
           lesson={lesson}
           onWordClick={handleWordClick}
+          wordPanelOpen={wordPanel.isOpen}
           onClose={handleClose}
           onSaveText={handleSaveText}
           onEditingChange={handleEditingChange}
