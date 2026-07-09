@@ -46,6 +46,7 @@ export const nl = {
     // 'n (een) is a token of its own, like the Afrikaans article — zo'n →
     // zo + 'n, m'n → m + 'n. Other clitics keep splitting bare ('t → t,
     // foto's → foto + s), which the avoidWords fragments above rely on.
-    extraTokenPatterns: ["['‘’ʼ`]n\\b"],
+    // Unicode-aware boundary, not \b — see the af manifest ("‘Ná" bug).
+    extraTokenPatterns: ["['‘’ʼ`]n(?![\\p{L}\\p{M}0-9_])"],
   },
 };

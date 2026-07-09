@@ -23,7 +23,7 @@ import {
 import { createTrailingThrottle } from './throttle';
 import type { WordState } from '@/types';
 import { snapToWordBoundaries, splitWords, collectWords, computePhraseHighlightSet } from './utils';
-import { foldWord, splitSentences } from '@/lib/languages';
+import { foldWord, getLanguageConfig, isValidLanguageCode, splitSentences } from '@/lib/languages';
 import { useActiveLanguage } from '@/utils/hooks';
 import { stateClasses } from './theme';
 import { MarkdownReaderProps } from './types';
@@ -40,7 +40,16 @@ export default function MarkdownReader({
     nextLesson,
 }: MarkdownReaderProps) {
     const router = useRouter();
-    const pack = useActiveLanguage();
+    const activeLang = useActiveLanguage();
+    // Tokenize by the LESSON's language, not the active UI language: content
+    // keeps its own script rules (e.g. the Afrikaans 'n article) even when it
+    // renders while another language is active — reachable when the client and
+    // server language settings disagree. Pre-#289 the word pattern was global,
+    // which masked the difference.
+    const pack =
+        lesson.language && isValidLanguageCode(lesson.language)
+            ? getLanguageConfig(lesson.language)
+            : activeLang;
     const containerRef = useRef<HTMLDivElement>(null);
     const [knownWordsMap, setKnownWordsMap] = useState<Map<string, WordState>>(new Map());
     const [highlightedPhrase, setHighlightedPhrase] = useState<string[]>([]);

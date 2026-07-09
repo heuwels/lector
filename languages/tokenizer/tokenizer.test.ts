@@ -93,6 +93,51 @@ describe('tokenize — byte-identical with the legacy reader for shipped languag
     expect(tokenizeWords('COVID-19 Fälle', de).map((t) => t.text)).toEqual(['COVID-19', 'Fälle']);
   });
 
+  it("does not mistake a quote + capital N + accented letter for the 'n article (master bug)", () => {
+    // Legacy \b was ASCII-only: in "‘Ná" it saw a word edge between N and á,
+    // so the opening quote + N matched the article alternative and the á was
+    // orphaned — ['‘N']['á']. The Unicode-aware boundary keeps "Ná" whole.
+    const af = LANGUAGES.af;
+    expect(tokenizeWords("‘Ná my kom 'n Man wat sterker is.'", af).map((t) => t.text)).toEqual([
+      'Ná',
+      'my',
+      'kom',
+      "'n",
+      'Man',
+      'wat',
+      'sterker',
+      'is',
+    ]);
+    // The article still matches before spaces/end (all-caps headings included).
+    expect(tokenizeWords("'N NUWE DAG", af).map((t) => t.text)).toEqual(["'N", 'NUWE', 'DAG']);
+    expect(tokenizeWords("dit is 'n", af).map((t) => t.text)).toEqual(['dit', 'is', "'n"]);
+    // Quote + n + ASCII letter never matched (word chars follow) — unchanged.
+    expect(tokenizeWords('‘nog een keer’', LANGUAGES.nl).map((t) => t.text)).toEqual([
+      'nog',
+      'een',
+      'keer',
+    ]);
+  });
+
+  it("scopes the 'n article to the packs that have it (de splits it)", () => {
+    // Deliberate per-pack behavior: German has no 'n article, so de tokenizes
+    // the apostrophe as a boundary. This is why the READER must tokenize by
+    // the lesson's language, not the active UI language (MarkdownReader) —
+    // af content viewed under an active de client split its 'n before that.
+    expect(tokenizeWords("dit is 'n dag", LANGUAGES.de).map((t) => t.text)).toEqual([
+      'dit',
+      'is',
+      'n',
+      'dag',
+    ]);
+    expect(tokenizeWords("dit is 'n dag", LANGUAGES.af).map((t) => t.text)).toEqual([
+      'dit',
+      'is',
+      "'n",
+      'dag',
+    ]);
+  });
+
   it('joins true-hyphen codepoints U+2010/U+2011 like ASCII hyphens (upgrade over legacy)', () => {
     // Legacy split these; real hyphen codepoints inside compounds are the
     // same word, so the engine now keeps them whole (#289).
