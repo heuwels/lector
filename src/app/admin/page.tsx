@@ -10,6 +10,8 @@ import {
   getAdminUsers,
   suspendUser,
   restoreUser,
+  compUser,
+  uncompUser,
   exportUser,
   type AdminSummary,
   type AdminUserRow,
@@ -33,6 +35,12 @@ function planBadge(row: AdminUserRow): { label: string; className: string } {
   if (row.entitled)
     return {
       label: row.plan === 'plus' ? 'Plus' : 'Cloud',
+      className: 'bg-primary/15 text-primary',
+    };
+  // Comped without a paid subscription: that tier on the house.
+  if (row.compedPlan)
+    return {
+      label: `comped · ${row.compedPlan === 'plus' ? 'Plus' : 'Cloud'}`,
       className: 'bg-primary/15 text-primary',
     };
   return { label: row.status, className: 'bg-muted text-muted-foreground' };
@@ -125,6 +133,45 @@ export default function AdminPage() {
       setBusyId(null);
     }
   }, []);
+
+  const onToggleComp = useCallback(
+    async (row: AdminUserRow) => {
+      if (row.compedPlan) {
+        setBusyId(row.id);
+        try {
+          await uncompUser(row.id);
+          toast.success(`Revoked comp for ${row.email}`);
+          await load();
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Comp change failed');
+        } finally {
+          setBusyId(null);
+        }
+        return;
+      }
+      // Not comped → pick a tier. cloud (base) or plus (premium allowances).
+      const answer = window
+        .prompt(`Comp ${row.email} a membership — type "cloud" or "plus":`, 'plus')
+        ?.trim()
+        .toLowerCase();
+      if (!answer) return;
+      if (answer !== 'cloud' && answer !== 'plus') {
+        toast.error('Enter "cloud" or "plus".');
+        return;
+      }
+      setBusyId(row.id);
+      try {
+        await compUser(row.id, answer, 'tester');
+        toast.success(`Comped ${row.email} → ${answer === 'plus' ? 'Plus' : 'Cloud'}`);
+        await load();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Comp change failed');
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [load],
+  );
 
   if (state === 'loading') {
     return (
@@ -244,6 +291,18 @@ export default function AdminPage() {
                         className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
                       >
                         Export
+                      </button>
+                      <button
+                        onClick={() => onToggleComp(u)}
+                        disabled={busy}
+                        className={`rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-50 ${
+                          u.compedPlan
+                            ? 'border-border text-muted-foreground hover:bg-accent'
+                            : 'border-primary/40 text-primary hover:bg-primary/10'
+                        }`}
+                        title="Comp a Cloud/Plus membership (bypasses billing)"
+                      >
+                        {u.compedPlan ? 'Un-comp' : 'Comp'}
                       </button>
                       {u.suspended ? (
                         <button

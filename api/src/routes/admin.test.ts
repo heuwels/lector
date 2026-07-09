@@ -250,6 +250,83 @@ describe('suspend / restore', () => {
   });
 });
 
+describe('comp / uncomp (complimentary membership for testers)', () => {
+  async function comp(id: string, plan: 'cloud' | 'plus', reason = 'beta tester') {
+    return buildApp().request(`/api/admin/users/${id}/comp`, {
+      method: 'POST',
+      headers: { 'X-Test-User': ADMIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan, reason }),
+    });
+  }
+  async function fetchRow(id: string) {
+    return (await (await buildApp().request(`/api/admin/users/${id}`, asUser(ADMIN))).json()) as {
+      compedPlan: 'cloud' | 'plus' | null;
+      suspended: boolean;
+    };
+  }
+
+  test('comps a user to a chosen tier, then un-comps', async () => {
+    const res = await comp(ALICE, 'plus');
+    expect(res.status).toBe(200);
+    expect((await res.json()).compedPlan).toBe('plus');
+    expect((await fetchRow(ALICE)).compedPlan).toBe('plus');
+
+    // Re-comp to a different tier overwrites.
+    await comp(ALICE, 'cloud');
+    expect((await fetchRow(ALICE)).compedPlan).toBe('cloud');
+
+    const uncomp = await buildApp().request(`/api/admin/users/${ALICE}/uncomp`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
+    expect(uncomp.status).toBe(200);
+    expect((await fetchRow(ALICE)).compedPlan).toBeNull();
+  });
+
+  test('rejects a bad or missing plan', async () => {
+    const bad = await buildApp().request(`/api/admin/users/${ALICE}/comp`, {
+      method: 'POST',
+      headers: { 'X-Test-User': ADMIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan: 'gold' }),
+    });
+    expect(bad.status).toBe(400);
+    const none = await buildApp().request(`/api/admin/users/${ALICE}/comp`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
+    expect(none.status).toBe(400);
+  });
+
+  test('comp and suspend are independent flags on the same row', async () => {
+    await comp(ALICE, 'plus');
+    await buildApp().request(`/api/admin/users/${ALICE}/suspend`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
+    let row = await fetchRow(ALICE);
+    expect(row.compedPlan).toBe('plus');
+    expect(row.suspended).toBe(true);
+
+    // Lifting suspension leaves the comp intact.
+    await buildApp().request(`/api/admin/users/${ALICE}/restore`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
+    row = await fetchRow(ALICE);
+    expect(row.compedPlan).toBe('plus');
+    expect(row.suspended).toBe(false);
+  });
+
+  test('comping an unknown user → 404', async () => {
+    const res = await buildApp().request('/api/admin/users/nobody/comp', {
+      method: 'POST',
+      headers: { 'X-Test-User': ADMIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan: 'cloud' }),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('account-status middleware (suspension enforcement)', () => {
   function statusApp() {
     const app = new Hono();

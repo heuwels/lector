@@ -15,6 +15,7 @@ export interface AdminUserRow {
   plan: 'cloud' | 'plus' | null;
   status: string;
   entitled: boolean;
+  compedPlan: 'cloud' | 'plus' | null;
   currentPeriodEnd: string | null;
   suspended: boolean;
   suspendedReason: string | null;
@@ -80,6 +81,27 @@ export async function suspendUser(id: string, reason: string): Promise<void> {
 export async function restoreUser(id: string): Promise<void> {
   const res = await apiFetch(`/api/admin/users/${id}/restore`, { method: 'POST' });
   if (!res.ok) throw new Error(`restore failed (${res.status})`);
+}
+
+/** Grant a complimentary membership at a tier — the account bypasses the
+ *  subscription gate and (once #222 lands) gets that plan's limits/models. */
+export async function compUser(
+  id: string,
+  plan: 'cloud' | 'plus',
+  reason: string,
+): Promise<void> {
+  const res = await apiFetch(`/api/admin/users/${id}/comp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plan, reason }),
+  });
+  if (!res.ok) throw new Error(`comp failed (${res.status})`);
+}
+
+/** Revoke complimentary access — the account is billed normally again. */
+export async function uncompUser(id: string): Promise<void> {
+  const res = await apiFetch(`/api/admin/users/${id}/uncomp`, { method: 'POST' });
+  if (!res.ok) throw new Error(`uncomp failed (${res.status})`);
 }
 
 /** Fetch a user's full export and trigger a JSON file download in the browser. */

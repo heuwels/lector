@@ -237,12 +237,19 @@ function getDb(): Database {
     CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_customer ON billing_subscriptions(paddleCustomerId);
 
     -- Admin support flags (#221): manual per-account state the operator sets
-    -- from the admin dashboard. Today just suspension ("suspend an abuser");
-    -- a lapse-style lock enforced by lib/admin.ts. Distinct from the Paddle
-    -- billing mirror (that reflects Paddle; this is our own operator action).
+    -- from the admin dashboard. Distinct from the Paddle billing mirror (that
+    -- reflects Paddle; these are our own operator actions):
+    --   - suspended: a lapse-style lock ("suspend an abuser"), enforced by
+    --     accountStatusMiddleware (lib/admin.ts).
+    --   - compedPlan: complimentary access at a specific tier ("comp a tester
+    --     a Cloud/Plus membership") — NULL means not comped; 'cloud' | 'plus'
+    --     grants that plan on the house. It bypasses the Paddle subscription
+    --     gate (lib/billing.ts) and, once the entitlements engine (#222) lands,
+    --     resolves the account to the comped tier's limits/models.
     CREATE TABLE IF NOT EXISTS admin_account_flags (
       userId TEXT PRIMARY KEY,
       suspended INTEGER NOT NULL DEFAULT 0,
+      compedPlan TEXT,
       reason TEXT,
       updatedAt TEXT NOT NULL
     );

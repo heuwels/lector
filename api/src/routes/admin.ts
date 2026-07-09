@@ -19,9 +19,12 @@ import {
   makeRequireAdmin,
   setSuspended,
   suspendedMap,
+  setCompedPlan,
+  compedPlanMap,
   isAdmin,
   adminConfig,
   type AdminGateOptions,
+  type CompPlan,
 } from '../lib/admin';
 import { billingConfig } from '../lib/billing';
 import { buildUserExport } from '../lib/user-export';
@@ -189,6 +192,7 @@ export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
     const tts = usageForMonth('ttsCharsPerMonth', period);
     const journalWords = usageForMonth('journalWordsPerMonth', period);
     const suspended = suspendedMap();
+    const comped = compedPlanMap();
 
     return users.map((u) => {
       const sub = resolveSub(u, subsByUser, subsByCustomer, customerIdsByEmail);
@@ -202,6 +206,7 @@ export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
         plan: entitled ? (priceToPlan(sub!.priceId) ?? 'cloud') : null,
         status: sub?.status ?? 'none',
         entitled,
+        compedPlan: comped.get(u.id) ?? null,
         currentPeriodEnd: sub?.currentPeriodEnd ?? null,
         suspended: suspended.has(u.id),
         suspendedReason: suspended.get(u.id) ?? null,
@@ -315,6 +320,45 @@ export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
     if (!exists) return c.json({ error: 'User not found' }, 404);
     setSuspended(id, false, null);
     return c.json({ id, suspended: false });
+  });
+
+  // POST /api/admin/users/:id/comp { plan: 'cloud'|'plus', reason? } — grant a
+  // complimentary membership at a tier: the account bypasses the Paddle
+  // subscription gate (#224) like a BILLING_EXEMPT_EMAILS address, but set here
+  // for a specific tester without an env change/redeploy, and tagged with the
+  // tier it's comped to. Once the entitlements engine (#222) lands, the comped
+  // tier drives that account's limits/models. Enforcement of the gate bypass
+  // is the billing middleware reading this flag.
+  app.post('/users/:id/comp', async (c) => {
+    const id = c.req.param('id');
+    const exists = db.prepare('SELECT 1 FROM user WHERE id = ?').get(id);
+    if (!exists) return c.json({ error: 'User not found' }, 404);
+
+    let plan: CompPlan = 'cloud';
+    let reason: string | null = null;
+    try {
+      const body = (await c.req.json()) as { plan?: unknown; reason?: unknown };
+      if (body.plan !== 'cloud' && body.plan !== 'plus') {
+        return c.json({ error: "plan must be 'cloud' or 'plus'" }, 400);
+      }
+      plan = body.plan;
+      if (typeof body.reason === 'string' && body.reason.trim()) reason = body.reason.trim();
+    } catch {
+      return c.json({ error: "plan must be 'cloud' or 'plus'" }, 400);
+    }
+    setCompedPlan(id, plan, reason);
+    return c.json({ id, compedPlan: plan, reason });
+  });
+
+  // POST /api/admin/users/:id/uncomp — revoke the complimentary membership.
+  // The account is billed normally again (locked to /subscribe if it has no
+  // entitled subscription).
+  app.post('/users/:id/uncomp', (c) => {
+    const id = c.req.param('id');
+    const exists = db.prepare('SELECT 1 FROM user WHERE id = ?').get(id);
+    if (!exists) return c.json({ error: 'User not found' }, 404);
+    setCompedPlan(id, null, null);
+    return c.json({ id, compedPlan: null });
   });
 
   return app;

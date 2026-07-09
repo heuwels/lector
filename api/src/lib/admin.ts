@@ -19,9 +19,9 @@
  * area, which is correct: there are no per-user accounts to administer.
  */
 import { createMiddleware } from 'hono/factory';
-import { db } from '../db';
 import { config } from './config';
 import { getUserEmail } from './billing';
+import { isSuspended } from './account-flags';
 
 /** Comma-separated LECTOR_ADMIN_EMAILS → lowercased set (mirrors parseExemptEmails). */
 export function parseAdminEmails(raw: string | undefined): Set<string> {
@@ -95,42 +95,19 @@ export const requireAdmin = makeRequireAdmin(adminConfig);
 //
 // A suspended account is locked to the same escape hatches as a billing-lapsed
 // one (#224): auth, billing, data-takeout, and the admin surface stay
-// reachable; everything else 403s. Enforcement lives in the account-status
-// middleware below; this is just the flag store + helpers.
-
-export interface SuspensionRow {
-  userId: string;
-  suspended: number;
-  reason: string | null;
-  updatedAt: string;
-}
-
-export function isSuspended(userId: string): boolean {
-  const row = db
-    .prepare('SELECT suspended FROM admin_account_flags WHERE userId = ?')
-    .get(userId) as { suspended: number } | undefined;
-  return row?.suspended === 1;
-}
-
-/** Set (or clear) an account's suspension. Records who/why for the audit trail. */
-export function setSuspended(userId: string, suspended: boolean, reason: string | null): void {
-  db.prepare(
-    `INSERT INTO admin_account_flags (userId, suspended, reason, updatedAt)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(userId) DO UPDATE SET
-       suspended = excluded.suspended,
-       reason = excluded.reason,
-       updatedAt = excluded.updatedAt`,
-  ).run(userId, suspended ? 1 : 0, reason, new Date().toISOString());
-}
-
-/** All suspended userIds → reason, for decorating the admin user list. */
-export function suspendedMap(): Map<string, string | null> {
-  const rows = db
-    .prepare('SELECT userId, reason FROM admin_account_flags WHERE suspended = 1')
-    .all() as { userId: string; reason: string | null }[];
-  return new Map(rows.map((r) => [r.userId, r.reason]));
-}
+// reachable; everything else 403s. The flag store lives in lib/account-flags.ts
+// (shared with the billing gate without an import cycle); enforcement is the
+// account-status middleware below.
+export {
+  isSuspended,
+  setSuspended,
+  suspendedMap,
+  isBillingExempt,
+  getCompedPlan,
+  setCompedPlan,
+  compedPlanMap,
+  type CompPlan,
+} from './account-flags';
 
 export interface AccountStatusOptions {
   /** Cloud proper — the only mode with accounts to suspend. */
