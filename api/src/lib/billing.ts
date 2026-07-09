@@ -469,6 +469,10 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
     const path = c.req.path;
     if (path.startsWith('/api/auth/')) return next();
     if (path === '/api/billing' || path.startsWith('/api/billing/')) return next();
+    // Admin surface (#221): the operator runs the service regardless of their
+    // own subscription. requireAdmin still guards it — a non-admin gets 403
+    // there, never a free pass around billing for ordinary accounts.
+    if (path === '/api/admin' || path.startsWith('/api/admin/')) return next();
     const method = c.req.method;
     if (path === '/api/data' && (method === 'GET' || method === 'HEAD')) return next();
 

@@ -8,6 +8,7 @@ import { navLinks } from './constants';
 import NavLink from './components/NavLink';
 import AppName from './components/AppName';
 import AccountMenu from './components/AccountMenu';
+import AdminNavLink from './components/AdminNavLink';
 
 export default function NavHeader() {
   const pathname = usePathname();
@@ -42,6 +43,7 @@ export default function NavHeader() {
           {navLinks.map((link) => {
             return <NavLink key={link.href} link={link} isMobile={false} />;
           })}
+          <AdminNavLink isMobile={false} />
         </nav>
 
         <AccountMenu />
@@ -57,6 +59,7 @@ export default function NavHeader() {
           {navLinks.map((link) => {
             return <NavLink key={link.href} link={link} isMobile />;
           })}
+          <AdminNavLink isMobile />
         </div>
       </nav>
     </>

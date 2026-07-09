@@ -28,9 +28,11 @@ import tokens from './routes/tokens';
 import chat from './routes/chat';
 import llmOpenai from './routes/llm-openai';
 import billing from './routes/billing';
+import admin from './routes/admin';
 import { authMiddleware } from './lib/auth';
 import { sessionMiddleware } from './lib/session';
 import { assertBillingBootable, billingConfig, billingMiddleware } from './lib/billing';
+import { accountStatusMiddleware } from './lib/admin';
 import { getAuthEngine, runAuthMigrations, resolveTrustedOrigins } from './lib/accounts';
 import { HTTPException } from 'hono/http-exception';
 import { startClassifyWorker } from './lib/classify-worker';
@@ -115,6 +117,11 @@ if (deploymentConfig.authRequired) {
 app.use('*', logger());
 app.use('/api/*', sessionMiddleware);
 app.use('/api/*', authMiddleware);
+// Account-status gate (#221) — after session/PAT (tenant resolved), before
+// billing. A no-op unless cloud proper; there it locks a manually-suspended
+// account to the same escape hatches as a billing lapse (auth/billing/admin/
+// data-takeout).
+app.use('/api/*', accountStatusMiddleware);
 // Billing gate (#224) — after session/PAT so the tenant is resolved. A no-op
 // unless LECTOR_BILLING=paddle (cloud proper only, boot-guarded above).
 app.use('/api/*', billingMiddleware);
@@ -157,6 +164,7 @@ app.route('/api/tokens', tokens);
 app.route('/api/chat', chat);
 app.route('/api/llm/openai', llmOpenai);
 app.route('/api/billing', billing);
+app.route('/api/admin', admin);
 
 // Capture unhandled errors to Sentry/GlitchTip. Deliberate HTTP errors
 // (e.g. the identity seam's fail-closed 401, lib/user.ts) pass through with

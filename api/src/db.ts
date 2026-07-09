@@ -235,6 +235,17 @@ function getDb(): Database {
     );
     CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_userId ON billing_subscriptions(userId);
     CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_customer ON billing_subscriptions(paddleCustomerId);
+
+    -- Admin support flags (#221): manual per-account state the operator sets
+    -- from the admin dashboard. Today just suspension ("suspend an abuser");
+    -- a lapse-style lock enforced by lib/admin.ts. Distinct from the Paddle
+    -- billing mirror (that reflects Paddle; this is our own operator action).
+    CREATE TABLE IF NOT EXISTS admin_account_flags (
+      userId TEXT PRIMARY KEY,
+      suspended INTEGER NOT NULL DEFAULT 0,
+      reason TEXT,
+      updatedAt TEXT NOT NULL
+    );
   `);
 
   // Migrations for existing databases
