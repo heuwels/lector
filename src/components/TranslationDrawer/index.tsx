@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { WordState } from '@/types';
 import { sentenceContainsWord } from '@/lib/words';
+import { useActiveLanguage } from '@/utils/hooks';
 import { TranslationDrawerProps } from './types';
 import { wordStateColors, wordStateLabels } from './constants';
 import { ChevronRight, RefreshCw, Sparkles, Volume2, X, Zap } from 'lucide-react';
@@ -41,6 +42,7 @@ export default function TranslationDrawer({
   onAddToAnki,
   onAddCloze,
 }: TranslationDrawerProps) {
+  const pack = useActiveLanguage();
   const drawerRef = useRef<HTMLDivElement>(null);
   const [relatedExpanded, setRelatedExpanded] = useState(false);
   // Anki push status for single-word cards
@@ -87,7 +89,7 @@ export default function TranslationDrawer({
   // for the current word unless it actually occurs in it ("sien" is not in
   // "Ek het die katte gesien"). Only offer the in-context AI translation
   // when it does.
-  const wordOccursInSentence = !!sentence && sentenceContainsWord(sentence, word);
+  const wordOccursInSentence = !!sentence && sentenceContainsWord(sentence, word, pack);
 
   const senses = entry?.senses ?? [];
   const hasRichEntry = senses.length > 0;

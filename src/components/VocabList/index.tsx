@@ -9,6 +9,7 @@ import VocabRow from './components/VocabRow';
 import PaginationControls from './components/PaginationControls';
 import { stateFilters, stateOrder, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from './constants';
 import { AnkiCardType, SortDirection, SortField, VocabListProps } from './types';
+import { useActiveLanguage } from '@/utils/hooks';
 import { Button } from '../ui/button';
 
 export default function VocabList({
@@ -69,6 +70,11 @@ export default function VocabList({
     return map;
   }, [collections]);
 
+  // Locale-aware sort for the active language (#289): bare localeCompare uses
+  // the browser UI locale, which mis-collates ä/é/å and non-Latin scripts.
+  const pack = useActiveLanguage();
+  const collator = useMemo(() => new Intl.Collator(pack.script.bcp47), [pack]);
+
   // Filter and sort entries
   const filteredEntries = useMemo(() => {
     let result = [...entries];
@@ -105,7 +111,7 @@ export default function VocabList({
 
       switch (sortField) {
         case 'text':
-          comparison = a.text.localeCompare(b.text);
+          comparison = collator.compare(a.text, b.text);
           break;
         case 'createdAt':
           comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -116,7 +122,7 @@ export default function VocabList({
         case 'bookId':
           const titleA = a.bookId ? bookTitleMap.get(a.bookId) || '' : '';
           const titleB = b.bookId ? bookTitleMap.get(b.bookId) || '' : '';
-          comparison = titleA.localeCompare(titleB);
+          comparison = collator.compare(titleA, titleB);
           break;
       }
 
@@ -124,7 +130,7 @@ export default function VocabList({
     });
 
     return result;
-  }, [entries, stateFilter, bookFilter, searchQuery, sortField, sortDirection, bookTitleMap]);
+  }, [entries, stateFilter, bookFilter, searchQuery, sortField, sortDirection, bookTitleMap, collator]);
 
   // Pagination derivation: the visible slice of the filtered/sorted set.
   const pageCount = getPageCount(filteredEntries.length, pageSize);

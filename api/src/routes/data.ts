@@ -3,9 +3,26 @@ import { db, SettingRow } from '../db';
 import { getCurrentUserId } from '../lib/user';
 import { SENSITIVE_KEYS, REDACTION_SENTINEL } from '../lib/settings-keys';
 import { countWords } from '../lib/html-to-markdown';
+import {
+  DEFAULT_LANGUAGE,
+  foldWord,
+  getLanguageConfig,
+  isValidLanguageCode,
+  normalizeText,
+  type LanguageConfig,
+} from '../lib/languages';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
+
+// Restores must uphold the folded-key invariant (#289): a backup made before
+// NFC/fold keying (or hand-edited) may carry unnormalized words, and the boot
+// migration won't run again until the next restart.
+function packFor(language: string | undefined | null): LanguageConfig {
+  return getLanguageConfig(
+    language && isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE,
+  );
+}
 
 // GET /api/data — full backup. SELECT * dumps every column (incl. `language`)
 // for every language, which is correct for a whole-DB backup. collection_groups
@@ -129,15 +146,16 @@ app.post('/', async (c) => {
         language = excluded.language, createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt
     `);
       for (const l of data.lessons) {
+        const textContent = normalizeText(l.textContent || '');
         stmt.run(
           l.id,
           l.collectionId || null,
           l.title,
           l.sortOrder || 0,
-          l.textContent || '',
+          textContent,
           l.progress_scrollPosition || 0,
           l.progress_percentComplete || 0,
-          l.wordCount || countWords(l.textContent || ''),
+          l.wordCount || countWords(textContent),
           l.language || 'af',
           l.createdAt || new Date().toISOString(),
           l.lastReadAt || new Date().toISOString(),
@@ -182,7 +200,7 @@ app.post('/', async (c) => {
         );
         results.collections++;
 
-        const textContent = book.textContent || '';
+        const textContent = normalizeText(book.textContent || '');
         insertLesson.run(
           randomUUID(),
           collectionId,
@@ -215,7 +233,7 @@ app.post('/', async (c) => {
       for (const v of data.vocab) {
         stmt.run(
           v.id,
-          v.text,
+          normalizeText(v.text ?? ''),
           v.type || 'word',
           v.sentence || '',
           v.translation || '',
@@ -239,7 +257,7 @@ app.post('/', async (c) => {
         'INSERT OR REPLACE INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)',
       );
       for (const w of data.knownWords) {
-        stmt.run(userId, w.word, w.language || 'af', w.state);
+        stmt.run(userId, foldWord(w.word ?? '', packFor(w.language)), w.language || 'af', w.state);
         results.knownWords++;
       }
     }

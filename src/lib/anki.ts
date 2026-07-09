@@ -7,6 +7,8 @@
 // remote Anki install (e.g. over Tailscale) can point at http://100.x.x.x:8765.
 
 import { splitTrailingPunctuation } from './words';
+import { foldWord } from './languages';
+import { getActivePack } from './data-layer';
 import type { WordState } from '@/types';
 import { apiFetch } from './api-base';
 
@@ -225,12 +227,16 @@ export async function addBasicCard(
   await ensureDeckExists(deckName);
 
   // Bank words can carry trailing punctuation ("haar.") which would make the
-  // \b…\b pattern unmatchable — match and display the clean form (#68, #108).
+  // word-boundary pattern unmatchable — match and display the clean form
+  // (#68, #108).
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
 
-  // Highlight the target word in the sentence
+  // Highlight the target word in the sentence. Unicode-aware boundaries
+  // (#289): \b is ASCII-only, so it saw a boundary inside "Häuser" at the ä
+  // and happily highlighted embedded fragments; the lookarounds treat any
+  // letter/digit neighbor as word-internal, in every script.
   const highlightedSentence = sentence.replace(
-    new RegExp(`\\b(${escapeRegex(cleanTarget)})\\b`, "gi"),
+    new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(cleanTarget)})(?![\\p{L}\\p{N}_])`, "giu"),
     "<b>$1</b>"
   );
 
@@ -297,14 +303,15 @@ export async function addWordCard(
 /**
  * Build the cloze-deletion text for a sentence. Strips trailing punctuation
  * from the target first — bank words can carry it ("haar."), which would make
- * the \b…\b pattern unmatchable and produce a cloze-less note that
+ * the word-boundary pattern unmatchable and produce a cloze-less note that
  * AnkiConnect rejects (#68, #108). Punctuation stays outside the blank.
- * Exported for tests.
+ * Unicode-aware boundaries (#289): ASCII \b mismatched every non-Latin script
+ * and false-matched inside diacritic words. Exported for tests.
  */
 export function buildClozeText(sentence: string, targetWord: string): string {
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
   return sentence.replace(
-    new RegExp(`\\b(${escapeRegex(cleanTarget)})\\b`, "gi"),
+    new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(cleanTarget)})(?![\\p{L}\\p{N}_])`, "giu"),
     "{{c1::$1}}"
   );
 }
@@ -474,7 +481,9 @@ export async function syncWordStates(): Promise<
     }
 
     if (word) {
-      word = word.toLowerCase().trim();
+      // Anki card text is an external ingress (#289): fold like every other
+      // vocab key so decomposed input still matches lector entries.
+      word = foldWord(word.trim(), getActivePack());
       const cardState = ankiCardToState(card.type, card.interval);
       // Skip New cards — they carry no learning signal and must not occupy a
       // word slot, so a word whose only cards are New stays out of the sync.

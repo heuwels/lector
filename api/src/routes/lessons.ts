@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, LessonRow } from '../db';
 import { countWords } from '../lib/html-to-markdown';
+import { normalizeText } from '../lib/languages';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 
@@ -33,12 +34,14 @@ app.put('/:id', async (c) => {
   const updates: string[] = [];
   const values: unknown[] = [];
 
-  if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
+  // Text ingress (#289): lesson edits get NFC'd like every other import path.
+  if (body.title !== undefined) { updates.push('title = ?'); values.push(normalizeText(body.title)); }
   if (body.textContent !== undefined) {
+    const textContent = normalizeText(body.textContent);
     updates.push('textContent = ?');
-    values.push(body.textContent);
+    values.push(textContent);
     updates.push('wordCount = ?');
-    values.push(countWords(body.textContent));
+    values.push(countWords(textContent));
   }
   if (body.sortOrder !== undefined) { updates.push('sortOrder = ?'); values.push(body.sortOrder); }
   if (body.collectionId !== undefined) { updates.push('collectionId = ?'); values.push(body.collectionId); }

@@ -6,7 +6,8 @@
  * Returns the rich entry shape on a hit, or null on a miss — callers should
  * fall back to the AI translate API when null.
  */
-import { getActiveLanguage } from './data-layer';
+import { getActiveLanguage, getActivePack } from './data-layer';
+import { foldWord } from './languages';
 import { apiFetch } from './api-base';
 
 export interface ExpandedDictionaryEntry {
@@ -31,7 +32,7 @@ const sessionCache = new Map<string, ExpandedDictionaryEntry | null>();
 
 export async function lookupWordRemote(word: string): Promise<ExpandedDictionaryEntry | null> {
   const language = getActiveLanguage();
-  const key = `${language}:${word.toLowerCase()}`;
+  const key = `${language}:${foldWord(word, getActivePack())}`;
   if (sessionCache.has(key)) {
     return sessionCache.get(key) ?? null;
   }
@@ -55,7 +56,7 @@ export function invalidateLookupCache(word?: string): void {
     sessionCache.clear();
     return;
   }
-  const suffix = `:${word.toLowerCase()}`;
+  const suffix = `:${foldWord(word, getActivePack())}`;
   for (const key of sessionCache.keys()) {
     if (key.endsWith(suffix)) sessionCache.delete(key);
   }

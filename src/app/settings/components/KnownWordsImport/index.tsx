@@ -1,11 +1,13 @@
 import { Button } from '@/components/ui/button';
 import {
   bulkUpdateWordStates,
+  getActivePack,
   getVocabByText,
   saveVocab,
   updateVocabState,
   WordState,
 } from '@/lib/data-layer';
+import { foldWord } from '@/lib/languages';
 import { useRef, useState } from 'react';
 import { lingqStatusToState, parseCSVLine } from './utils';
 import { toast } from 'sonner';
@@ -25,9 +27,11 @@ export default function KnownWordsImport() {
 
   // Handle paste text area import
   const handleTextImport = async () => {
+    // Pasted word lists are a text ingress (#289): fold like every other
+    // vocab key (NFC + case fold; the API folds again server-side).
     const words = importText
       .split(/[\r\n]+/)
-      .map((word) => word.trim().toLowerCase())
+      .map((word) => foldWord(word.trim(), getActivePack()))
       .filter((word) => word.length > 0);
 
     if (words.length === 0) {
@@ -122,7 +126,8 @@ export default function KnownWordsImport() {
 
         for (let i = 1; i < lines.length; i++) {
           const fields = parseCSVLine(lines[i]);
-          const word = fields[termIdx]?.toLowerCase().trim();
+          const rawTerm = fields[termIdx]?.trim();
+          const word = rawTerm ? foldWord(rawTerm, getActivePack()) : rawTerm;
           if (!word) continue;
 
           const status = statusIdx >= 0 ? fields[statusIdx] : 'K';
@@ -147,7 +152,7 @@ export default function KnownWordsImport() {
         const words = lines
           .map((line) => {
             const parts = line.split(',');
-            return parts[0].trim().toLowerCase();
+            return foldWord(parts[0].trim(), getActivePack());
           })
           .filter((w) => w.length > 0);
 

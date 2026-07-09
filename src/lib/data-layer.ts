@@ -6,7 +6,7 @@
  * src/types.
  */
 
-import { DEFAULT_LANGUAGE } from './languages';
+import { DEFAULT_LANGUAGE, foldWord, getLanguageConfig, isValidLanguageCode } from './languages';
 import { apiFetch } from './api-base';
 import { readLanguageCache } from './language-cache';
 
@@ -14,6 +14,12 @@ import { readLanguageCache } from './language-cache';
 // to the default (SSR, cloud pre-session, or simply nothing cached yet).
 export function getActiveLanguage(): string {
   return readLanguageCache() || DEFAULT_LANGUAGE;
+}
+
+/** The active language's full pack (non-hook twin of useActiveLanguage). */
+export function getActivePack() {
+  const code = getActiveLanguage();
+  return getLanguageConfig(isValidLanguageCode(code) ? code : DEFAULT_LANGUAGE);
 }
 
 function langParam(prefix: '?' | '&' = '?'): string {
@@ -348,7 +354,7 @@ export async function deleteVocabEntry(id: string): Promise<void> {
 
 export async function getWordState(word: string): Promise<WordState | undefined> {
   const map = await getKnownWordsMap();
-  return map.get(word.toLowerCase());
+  return map.get(foldWord(word, getActivePack()));
 }
 
 export async function updateWordState(word: string, state: WordState): Promise<boolean> {
@@ -359,7 +365,7 @@ export async function updateWordState(word: string, state: WordState): Promise<b
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      updates: [{ word: word.toLowerCase(), state }],
+      updates: [{ word: foldWord(word, getActivePack()), state }],
       language: getActiveLanguage(),
     }),
   });

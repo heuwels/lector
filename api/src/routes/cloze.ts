@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, ClozeSentenceRow, ClozeMasteryLevel } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { foldWord, getLanguageConfig } from '../lib/languages';
 import { getCurrentUserId } from '../lib/user';
 import { randomUUID } from 'crypto';
 
@@ -148,16 +149,29 @@ app.get('/due', (c) => {
 
   if (collection) { query += ' AND collection = ?'; params.push(collection); }
 
-  if (excludeWords.length > 0) {
-    const placeholders = excludeWords.map(() => '?').join(',');
-    query += ` AND LOWER(clozeWord) NOT IN (${placeholders})`;
-    params.push(...excludeWords.map(w => w.toLowerCase()));
+  // Exclusion compares folded word keys in app code, not SQL (#289): SQLite's
+  // LOWER() is ASCII-only, so 'Étais.' never matched an excluded 'étais.'.
+  // The SQL NOT IN on the folded forms is just an index-friendly prefilter
+  // (exact matches drop early; case variants are caught by the fold filter
+  // below) — overfetch to keep the round full when the prefilter lets
+  // variants through.
+  const pack = getLanguageConfig(lang);
+  const excludeFolded = new Set(excludeWords.map((w) => foldWord(w, pack)));
+  if (excludeFolded.size > 0) {
+    const placeholders = [...excludeFolded].map(() => '?').join(',');
+    query += ` AND clozeWord NOT IN (${placeholders})`;
+    params.push(...excludeFolded);
   }
 
   query += ' ORDER BY RANDOM() LIMIT ?';
-  params.push(limit);
+  params.push(limit + excludeFolded.size * 3);
 
-  const sentences = db.prepare(query).all(...params) as ClozeSentenceRow[];
+  let sentences = db.prepare(query).all(...params) as ClozeSentenceRow[];
+  if (excludeFolded.size > 0) {
+    sentences = sentences
+      .filter((s) => !excludeFolded.has(foldWord(s.clozeWord, pack)))
+      .slice(0, limit);
+  }
 
   return c.json(sentences.map(s => ({
     ...s,

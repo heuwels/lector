@@ -25,4 +25,13 @@ export const fr = {
   fallbackTts: ['fr', 'fr-FR', 'fr-CA'],
   avoidWords: AVOID_WORDS,
   testPhrase: 'Bonjour ! Comment ça va ?',
+  script: {
+    bcp47: 'fr',
+    direction: 'ltr' as const,
+    kind: 'alpha-spaced' as const,
+    hasCase: true,
+    // No extraWordChars for the elision apostrophe: the reader deliberately
+    // splits l'eau → l + eau (sentenceContainsWord matches either side, and
+    // the avoidWords clitic fragments above depend on the split).
+  },
 };

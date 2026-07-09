@@ -1,6 +1,7 @@
 import AdmZip from 'adm-zip';
 import path from 'path';
 import { htmlToMarkdown, countWords } from './html-to-markdown';
+import { normalizeText } from './languages';
 
 export interface EpubChapter {
   title: string;
@@ -45,8 +46,10 @@ export function parseEpub(buffer: Buffer): ParsedEpub {
 
   const opfXml = zip.readAsText(opfPath);
 
-  const title = extractTag(opfXml, 'dc:title') || extractTag(opfXml, 'title') || 'Untitled';
-  const author = extractTag(opfXml, 'dc:creator') || extractTag(opfXml, 'creator') || 'Unknown';
+  // Text ingress (#289): chapter markdown is normalized inside htmlToMarkdown;
+  // metadata and TOC titles come straight from the XML, so normalize here.
+  const title = normalizeText(extractTag(opfXml, 'dc:title') || extractTag(opfXml, 'title') || 'Untitled');
+  const author = normalizeText(extractTag(opfXml, 'dc:creator') || extractTag(opfXml, 'creator') || 'Unknown');
 
   const manifest = new Map<string, string>();
   const manifestRegex = /<item\s+[^>]*id="([^"]+)"[^>]*href="([^"]+)"[^>]*(?:media-type="([^"]+)")?[^>]*\/?>/g;
@@ -89,7 +92,9 @@ export function parseEpub(buffer: Buffer): ParsedEpub {
 
     const headingMatch = markdown.match(/^#+\s+(.+)$/m);
     const tocTitle = tocTitles.get(href);
-    const chapterTitle = tocTitle || headingMatch?.[1] || `Chapter ${chapters.length + 1}`;
+    const chapterTitle = normalizeText(
+      tocTitle || headingMatch?.[1] || `Chapter ${chapters.length + 1}`,
+    );
 
     chapters.push({ title: chapterTitle, markdown, wordCount: countWords(markdown) });
   }
