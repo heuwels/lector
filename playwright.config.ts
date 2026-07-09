@@ -72,7 +72,15 @@ export default defineConfig({
       url: `${API_BASE}/health`,
       reuseExistingServer: false,
       timeout: 60_000,
-      env: { DATA_DIR: "../tmp/e2e-data", PORT: apiPort },
+      env: {
+        DATA_DIR: "../tmp/e2e-data",
+        PORT: apiPort,
+        // Fixture starter pack for the seeding specs (#315) — a relative path
+        // resolved against this server's cwd (./api). Real packs ship none yet;
+        // starter-content.spec.ts skips its fixture-dependent tests under
+        // E2E_EXTERNAL_SERVER, where this env (and the fixture) is absent.
+        STARTER_CONTENT_ROOT: "../e2e/fixtures/starter-content",
+      },
     },
     {
       // A SECOND Hono API in CLOUD mode (#218) for the auth-cloud specs. Own

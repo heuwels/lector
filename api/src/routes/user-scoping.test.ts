@@ -1,6 +1,7 @@
 import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import AdmZip from 'adm-zip';
+import path from 'path';
 import { db } from '../db';
 
 const { default: vocabApp } = await import('../routes/vocab');
@@ -16,6 +17,7 @@ const { default: groupsApp } = await import('../routes/groups');
 const { default: dataApp } = await import('../routes/data');
 const { default: importApp } = await import('../routes/import');
 const { default: tokensApp } = await import('../routes/tokens');
+const { default: starterApp } = await import('../routes/starter');
 
 // The userId-scoping ratchet (#217, plan 010 piece 2) — the multi-tenant twin
 // of language-scoping.test.ts. Rows are seeded for a different user directly
@@ -52,6 +54,7 @@ function reset() {
   db.prepare('DELETE FROM chat_messages').run();
   db.prepare('DELETE FROM dailyStats').run();
   db.prepare("DELETE FROM settings WHERE key LIKE 'ratchet_%'").run();
+  db.prepare("DELETE FROM settings WHERE key LIKE 'starterSeeded:%'").run();
   db.prepare('DELETE FROM api_tokens WHERE userId = ?').run(INTRUDER);
 }
 
@@ -209,6 +212,52 @@ describe('userId scoping ratchet', () => {
 describe('per-user library ratchet (#220)', () => {
   beforeEach(reset);
   afterEach(reset);
+
+  test("starter seeding is per-user — another user's flag and rows neither block nor leak (#315)", async () => {
+    const prevRoot = process.env.STARTER_CONTENT_ROOT;
+    process.env.STARTER_CONTENT_ROOT = path.resolve(
+      import.meta.dir,
+      '../test-fixtures/starter-content',
+    );
+    try {
+      // The intruder has already been seeded: their flag AND their copy of the
+      // deterministic starter-es id (two rows under one id = composite PK #279).
+      db.prepare(
+        "INSERT INTO settings (userId, key, value) VALUES (?, 'starterSeeded:es', 'true')",
+      ).run(INTRUDER);
+      db.prepare(
+        `INSERT INTO collections (id, title, author, language, createdAt, lastReadAt, userId)
+         VALUES ('starter-es', 'Geheime Starter', 'Indringer', 'es', ?, ?, ?)`,
+      ).run(TS, TS, INTRUDER);
+
+      // Their flag doesn't read as ours…
+      const status = await (await starterApp.request('/status?language=es')).json();
+      expect(status).toEqual({ available: true, seeded: false });
+
+      // …their collection doesn't trip the not-empty guard, and our seed lands
+      // under the same id for our own tenant.
+      const res = await starterApp.request('/seed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: 'es' }),
+      });
+      expect(await res.json()).toEqual({
+        seeded: true,
+        collectionId: 'starter-es',
+        lessonCount: 2,
+      });
+
+      const owners = db
+        .prepare("SELECT userId, title FROM collections WHERE id = 'starter-es' ORDER BY userId")
+        .all() as { userId: string; title: string }[];
+      expect(owners.map((o) => o.userId)).toEqual([INTRUDER, 'local']);
+      // The intruder's copy is untouched by our seed.
+      expect(owners[0].title).toBe('Geheime Starter');
+    } finally {
+      if (prevRoot === undefined) delete process.env.STARTER_CONTENT_ROOT;
+      else process.env.STARTER_CONTENT_ROOT = prevRoot;
+    }
+  });
 
   test("collection lists and by-id reads exclude another user's collections", async () => {
     seedIntruderCollection('col_intruder');

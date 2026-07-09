@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { setSetting } from '@/lib/data-layer';
+import { seedStarterContent, setSetting } from '@/lib/data-layer';
 import { LANGUAGES, type LanguageCode } from '@/lib/languages';
 import { setLanguageInStorage } from '@/utils/storage';
 
@@ -24,6 +24,9 @@ export default function SetupPage() {
     try {
       await setSetting('targetLanguage', code);
       setLanguageInStorage(code);
+      // Await before navigating so the first library paint includes the
+      // starter collection; seedStarterContent never throws (#315).
+      await seedStarterContent(code);
       router.replace('/');
     } catch {
       setPending(null);

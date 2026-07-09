@@ -26,8 +26,10 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import {
+  getActiveLanguage,
   getAllCollections,
   getAllGroups,
+  getStarterStatus,
   createCollection,
   createGroup,
   updateGroup,
@@ -35,6 +37,7 @@ import {
   reorderCollections,
   createStandaloneLesson,
   importEpub,
+  seedStarterContent,
   type Collection,
   type CollectionGroup,
 } from '@/lib/data-layer';
@@ -53,6 +56,8 @@ export default function Home() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
   const [newCollectionTitle, setNewCollectionTitle] = useState('');
+  const [starterAvailable, setStarterAvailable] = useState(false);
+  const [isAddingStarter, setIsAddingStarter] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
@@ -97,10 +102,33 @@ export default function Home() {
 
       setCollections(collectionsData);
       setGroups(groupsData);
+
+      // Empty-library CTA (#315): offer the starter pack to users who selected
+      // this language before seeding existed. Seeded-once users (flag set)
+      // don't get it re-offered after deleting the collection.
+      if (collectionsData.length === 0) {
+        const status = await getStarterStatus(getActiveLanguage());
+        setStarterAvailable(status.available && !status.seeded);
+      } else {
+        setStarterAvailable(false);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleAddStarter() {
+    setIsAddingStarter(true);
+    try {
+      const { seeded } = await seedStarterContent(getActiveLanguage());
+      if (seeded) {
+        setStarterAvailable(false);
+        setCollections(await getAllCollections());
+      }
+    } finally {
+      setIsAddingStarter(false);
     }
   }
 
@@ -428,7 +456,11 @@ export default function Home() {
               )}
             </div>
           ) : (
-            <EmptyState onImport={handleImportClick} />
+            <EmptyState
+              onImport={handleImportClick}
+              onAddStarter={starterAvailable ? handleAddStarter : undefined}
+              isAddingStarter={isAddingStarter}
+            />
           )}
         </section>
       )}
