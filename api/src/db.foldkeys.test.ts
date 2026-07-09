@@ -38,6 +38,7 @@ function createSchema(db: Database) {
 let db: Database;
 
 beforeEach(() => {
+  fs.mkdirSync(process.env.DATA_DIR!, { recursive: true });
   fs.rmSync(DB_FILE, { force: true });
   db = new Database(DB_FILE);
   createSchema(db);
