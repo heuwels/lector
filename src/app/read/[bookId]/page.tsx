@@ -679,6 +679,22 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     if (!wordPanel.isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+C copies the word or phrase the drawer is showing. Word spans
+      // keep the whitespace between them in the DOM, so this — like a native
+      // copy — preserves spaces (readers that drop inter-word gaps copy e.g.
+      // "diegroothond"). If the user has made a real text selection, defer to
+      // the browser so an ordinary copy still works.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'c') {
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed && selection.toString().trim()) return;
+        if (!wordPanel.word) return;
+        e.preventDefault();
+        void navigator.clipboard?.writeText(wordPanel.word).then(
+          () => toast.success('Copied', { duration: 1200 }),
+          () => {},
+        );
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const key = e.key.toLowerCase();
       if (key === 'escape') {
@@ -708,6 +724,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [
     wordPanel.isOpen,
+    wordPanel.word,
     wordPanel.existingEntry,
     wordPanel.translation,
     closeWordPanel,
@@ -772,6 +789,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         <MarkdownReader
           lesson={lesson}
           onWordClick={handleWordClick}
+          wordPanelOpen={wordPanel.isOpen}
           onClose={handleClose}
           onSaveText={handleSaveText}
           onEditingChange={handleEditingChange}
