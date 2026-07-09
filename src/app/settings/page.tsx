@@ -4,6 +4,7 @@ import DataManagement from './components/DataManagement';
 import Export from './components/Export';
 import KnownWordsImport from './components/KnownWordsImport';
 import APITokens from './components/APITokens';
+import TwoFactorSettings from './components/TwoFactorSettings';
 import Timezone from './components/Timezone';
 import ThemeSettings from './components/ThemeSettings';
 import AnkiSettings from './components/AnkiSettings';
@@ -24,6 +25,7 @@ export default function SettingsPage() {
         <TTSSettings />
         <ThemeSettings />
         <Timezone />
+        <TwoFactorSettings />
         <APITokens />
         <KnownWordsImport />
         <Export />

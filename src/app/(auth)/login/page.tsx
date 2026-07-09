@@ -42,14 +42,20 @@ export default function LoginPage() {
     setSubmitting(true);
     setUnverifiedEmail(null);
 
-    const { error } = await authClient.signIn.email({
+    const { data, error } = await authClient.signIn.email({
       email,
       password,
       fetchOptions: { headers: captchaHeaders() },
     });
 
     if (!error) {
-      router.replace('/');
+      // A 2FA-enrolled account answers with a challenge instead of a session —
+      // the TOTP code on /two-factor completes the sign-in.
+      if (data && 'twoFactorRedirect' in data && data.twoFactorRedirect) {
+        router.replace('/two-factor');
+      } else {
+        router.replace('/');
+      }
       return;
     }
 
