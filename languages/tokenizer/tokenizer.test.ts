@@ -119,6 +119,25 @@ describe('tokenize — byte-identical with the legacy reader for shipped languag
     ]);
   });
 
+  it("scopes the 'n article to the packs that have it (de splits it)", () => {
+    // Deliberate per-pack behavior: German has no 'n article, so de tokenizes
+    // the apostrophe as a boundary. This is why the READER must tokenize by
+    // the lesson's language, not the active UI language (MarkdownReader) —
+    // af content viewed under an active de client split its 'n before that.
+    expect(tokenizeWords("dit is 'n dag", LANGUAGES.de).map((t) => t.text)).toEqual([
+      'dit',
+      'is',
+      'n',
+      'dag',
+    ]);
+    expect(tokenizeWords("dit is 'n dag", LANGUAGES.af).map((t) => t.text)).toEqual([
+      'dit',
+      'is',
+      "'n",
+      'dag',
+    ]);
+  });
+
   it('joins true-hyphen codepoints U+2010/U+2011 like ASCII hyphens (upgrade over legacy)', () => {
     // Legacy split these; real hyphen codepoints inside compounds are the
     // same word, so the engine now keeps them whole (#289).
