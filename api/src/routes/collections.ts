@@ -5,6 +5,7 @@ import { getCurrentUserId } from '../lib/user';
 import { randomUUID } from 'crypto';
 import { countWords } from '../lib/html-to-markdown';
 import { normalizeText } from '../lib/languages';
+import { entitlements, planLimitResponse } from '../lib/entitlements';
 
 const app = new Hono();
 
@@ -30,6 +31,11 @@ app.get('/', (c) => {
 // POST /api/collections
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
+
+  // Library size (#222): total collections across languages.
+  const verdict = entitlements.checkLimit(userId, 'maxCollections');
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
+
   const body = await c.req.json();
   const id = body.id || randomUUID();
   const now = new Date().toISOString();
@@ -149,6 +155,11 @@ app.get('/:id/lessons', (c) => {
 // POST /api/collections/:id/lessons
 app.post('/:id/lessons', async (c) => {
   const userId = getCurrentUserId(c);
+
+  // Library size (#222): total lessons across languages.
+  const verdict = entitlements.checkLimit(userId, 'maxLessons');
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
+
   const collectionId = c.req.param('id');
   const body = await c.req.json();
   const id = body.id || randomUUID();

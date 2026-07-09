@@ -4,6 +4,7 @@ import { db } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { parseEpub } from '../lib/epub-parser';
+import { entitlements, planLimitResponse } from '../lib/entitlements';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
@@ -35,6 +36,14 @@ app.post(
 
       const buffer = Buffer.from(await file.arrayBuffer());
       const parsed = parseEpub(buffer);
+
+      // Library size (#222): an EPUB adds one collection + all its chapters
+      // at once — check the whole batch before inserting anything.
+      const collVerdict = entitlements.checkLimit(userId, 'maxCollections');
+      if (!collVerdict.allowed) return planLimitResponse(c, collVerdict);
+      const lessonVerdict = entitlements.checkLimit(userId, 'maxLessons', parsed.chapters.length);
+      if (!lessonVerdict.allowed) return planLimitResponse(c, lessonVerdict);
+
       const collectionId = randomUUID();
       const now = new Date().toISOString();
 

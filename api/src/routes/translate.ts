@@ -7,6 +7,7 @@ import { getCurrentUserId } from '../lib/user';
 import { getLanguageConfig } from '../lib/languages';
 import { buildGlossPrompt, buildWordEntryPrompt, buildPhrasePrompt } from '../lib/translate-prompts';
 import { recordStudySessionPing } from '../lib/study-session';
+import { entitlements, planLimitResponse } from '../lib/entitlements';
 
 // Parse a rich word-entry response and stitch the legacy translation/partOfSpeech
 // fields so existing call sites that only read those don't have to change.
@@ -59,6 +60,12 @@ app.post('/gloss', async (c) => {
   }
 
   const lang = resolveLanguage(language, userId);
+
+  // Managed-key metering (#222): checked before the provider call, recorded
+  // only after it succeeds — a failed call never burns allowance.
+  const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+  if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+
   recordStudySessionPing(userId, lang);
 
   const langName = getLanguageConfig(lang).name;
@@ -78,6 +85,7 @@ app.post('/gloss', async (c) => {
       })) {
         await stream.write(delta);
       }
+      entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
     } catch (err) {
       console.error('Gloss stream error:', err);
     }
@@ -93,9 +101,15 @@ app.post('/enrich', async (c) => {
     if (!word) {
       return c.json({ error: 'Word is required' }, 400);
     }
-    const lang = resolveLanguage(language, getCurrentUserId(c));
+    const userId = getCurrentUserId(c);
+    const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+    if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+
+    const lang = resolveLanguage(language, userId);
     const langName = getLanguageConfig(lang).name;
-    return c.json(await buildWordEntryResponse(langName, word, sentence || ''));
+    const entry = await buildWordEntryResponse(langName, word, sentence || '');
+    entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
+    return c.json(entry);
   } catch (error) {
     console.error('Enrich error:', error);
     return c.json({ error: error instanceof Error ? error.message : 'Enrich failed' }, 500);
@@ -115,12 +129,24 @@ app.post('/', async (c) => {
 
     const userId = getCurrentUserId(c);
     const lang = resolveLanguage(language, userId);
+
+    const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+    if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+
     recordStudySessionPing(userId, lang);
 
     const langConfig = getLanguageConfig(lang);
     const langName = langConfig.name;
 
     if (type === 'phrase') {
+      // Reader multi-word selection cap (#222) — enforced here (never trust
+      // the client's reflect), counted the same way the selection is built:
+      // whitespace tokens. Also a cost lever: phrase-translation token cost
+      // scales with selection length.
+      const phraseWords = String(word).trim().split(/\s+/).filter(Boolean).length;
+      const phraseVerdict = entitlements.checkLimit(userId, 'phraseSelectionWords', phraseWords);
+      if (!phraseVerdict.allowed) return planLimitResponse(c, phraseVerdict);
+
       const spelreels = lang === 'af' ? getSpelreelsContext() : '';
       const spelreelsSection = spelreels
         ? `Use the following official spelling rules to inform your understanding of the ${langName} input:\n\n${spelreels}\n\n---\n\n`
@@ -134,10 +160,13 @@ app.post('/', async (c) => {
         responseFormat: 'json',
       });
 
+      entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
       return c.json(parseLooseJson<Record<string, unknown>>(text));
     }
 
-    return c.json(await buildWordEntryResponse(langName, word, sentence || ''));
+    const entry = await buildWordEntryResponse(langName, word, sentence || '');
+    entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
+    return c.json(entry);
   } catch (error) {
     console.error('Translation error:', error);
     return c.json(

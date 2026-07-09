@@ -3,6 +3,7 @@ import { getProvider } from '../lib/llm';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { getLanguageConfig } from '../lib/languages';
+import { entitlements, planLimitResponse } from '../lib/entitlements';
 
 const app = new Hono();
 
@@ -15,7 +16,11 @@ app.post('/', async (c) => {
       return c.json({ error: 'sentence and translation are required' }, 400);
     }
 
-    const lang = resolveLanguage(language, getCurrentUserId(c));
+    const userId = getCurrentUserId(c);
+    const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+    if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+
+    const lang = resolveLanguage(language, userId);
     const langName = getLanguageConfig(lang).name;
 
     const provider = getProvider();
@@ -33,6 +38,7 @@ Study word: "${clozeWord}"`,
       maxTokens: 1024,
     });
 
+    entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
     return c.json({ explanation: text });
   } catch (error) {
     console.error('Error generating explanation:', error);

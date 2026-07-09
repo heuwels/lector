@@ -9,6 +9,7 @@ import {
   type Lesson,
   type LessonSummary,
   type VocabEntry,
+  getEntitlements,
   getLesson,
   getLessonsForCollection,
   saveVocab,
@@ -18,6 +19,7 @@ import {
   incrementDailyStat,
   markVocabPushedToAnki,
 } from '@/lib/data-layer';
+import { showPlanLimitToast } from '@/lib/plan-limits';
 import { addWordCard, addClozeCard } from '@/lib/anki';
 import { translateWord, translatePhrase, streamWordGloss, enrichWord } from '@/lib/claude';
 import {
@@ -98,6 +100,28 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   // Handle word click from reader
   const handleWordClick = useCallback(async (word: string, sentence: string) => {
     const isPhrase = word.includes(' ');
+
+    // Reflect the plan's phrase-selection cap before calling the API (#222).
+    // The server enforces it regardless; this just turns the over-cap case
+    // into an immediate upsell prompt instead of a doomed request.
+    if (isPhrase) {
+      const phraseWords = word.trim().split(/\s+/).filter(Boolean).length;
+      const ent = await getEntitlements();
+      const cap = ent?.limits?.phraseSelectionWords;
+      if (ent && typeof cap === 'number' && phraseWords > cap) {
+        showPlanLimitToast({
+          error: 'plan_limit',
+          metric: 'phraseSelectionWords',
+          limit: cap,
+          used: 0,
+          requested: phraseWords,
+          plan: ent.plan,
+          upgrade: ent.plan === 'cloud' ? 'plus' : null,
+        });
+        return;
+      }
+    }
+
     const requestId = ++translationRequestId.current;
 
     const wordsToSpeak = word.split(/\s+/).slice(0, 15).join(' ');

@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { getLanguageConfig } from '../lib/languages';
+import { entitlements, planLimitResponse } from '../lib/entitlements';
 
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 
@@ -36,7 +37,14 @@ app.post('/', async (c) => {
       return c.json({ error: 'Google Cloud API key not configured', fallback: true }, 503);
     }
 
-    const lang = resolveLanguage(language, getCurrentUserId(c));
+    const userId = getCurrentUserId(c);
+    // Managed-key TTS metering (#222), by synthesized characters — checked
+    // before the Google call, recorded only on success. The client's browser
+    // TTS fallback remains free, so over-limit still speaks.
+    const ttsVerdict = entitlements.checkLimit(userId, 'ttsCharsPerMonth', text.length);
+    if (!ttsVerdict.allowed) return planLimitResponse(c, ttsVerdict);
+
+    const lang = resolveLanguage(language, userId);
     const langConfig = getLanguageConfig(lang);
 
     const synthesizeRequest: SynthesizeRequest = {
@@ -74,6 +82,7 @@ app.post('/', async (c) => {
       return c.json({ error: 'No audio content returned', fallback: true }, 500);
     }
 
+    entitlements.recordUsage(userId, 'ttsCharsPerMonth', text.length);
     return c.json({ audioContent: data.audioContent, contentType: 'audio/mp3' });
   } catch (error) {
     console.error('TTS route error:', error);

@@ -378,6 +378,37 @@ export async function getKnownWordsMap(): Promise<Map<string, WordState>> {
   return new Map(Object.entries(data) as [string, WordState][]);
 }
 
+// ============================================================================
+// Plan entitlements (#222) — informational; enforcement is server-side
+// ============================================================================
+
+export interface ClientEntitlements {
+  plan: string;
+  byok: boolean;
+  limits: Record<string, number | null>;
+  usage: Record<string, number>;
+  period: string;
+}
+
+let entitlementsCache: { value: ClientEntitlements; at: number } | null = null;
+
+/**
+ * The account's plan limits + this month's usage, cached for five minutes —
+ * surfaces read it to REFLECT limits (reader selection cap, journal meter);
+ * the API enforces them regardless. Null when the endpoint is unavailable
+ * (network hiccup) — callers must treat null as "don't reflect anything".
+ */
+export async function getEntitlements(): Promise<ClientEntitlements | null> {
+  if (entitlementsCache && Date.now() - entitlementsCache.at < 5 * 60_000) {
+    return entitlementsCache.value;
+  }
+  const res = await apiFetch('/api/billing/entitlements');
+  if (!res.ok) return null;
+  const value = (await res.json()) as ClientEntitlements;
+  entitlementsCache = { value, at: Date.now() };
+  return value;
+}
+
 export async function getAllKnownWords(): Promise<KnownWord[]> {
   const res = await apiFetch(`/api/known-words${langParam()}`);
   const data = await res.json();

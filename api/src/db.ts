@@ -244,8 +244,8 @@ function getDb(): Database {
     --   - compedPlan: complimentary access at a specific tier ("comp a tester
     --     a Cloud/Plus membership") — NULL means not comped; 'cloud' | 'plus'
     --     grants that plan on the house. It bypasses the Paddle subscription
-    --     gate (lib/billing.ts) and, once the entitlements engine (#222) lands,
-    --     resolves the account to the comped tier's limits/models.
+    --     gate (lib/billing.ts) and resolves the account to the comped tier's
+    --     limits/models in the entitlements engine (lib/entitlements.ts).
     CREATE TABLE IF NOT EXISTS admin_account_flags (
       userId TEXT PRIMARY KEY,
       suspended INTEGER NOT NULL DEFAULT 0,
@@ -270,6 +270,19 @@ function getDb(): Database {
       createdAt TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_admin_audit_createdAt ON admin_audit_log(createdAt);
+
+    -- Per-user monthly usage counters for the plan-limits engine (#222).
+    -- period is a UTC calendar month ('2026-07'): the "monthly reset" is the
+    -- period key rolling over — no cron, and history stays queryable for the
+    -- admin dashboard (#221). Written via lib/entitlements.ts only.
+    CREATE TABLE IF NOT EXISTS usage_counters (
+      userId TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      period TEXT NOT NULL,
+      value INTEGER NOT NULL DEFAULT 0,
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, metric, period)
+    );
   `);
 
   // Migrations for existing databases

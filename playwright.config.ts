@@ -159,6 +159,13 @@ export default defineConfig({
         // transactions). The suite never clicks through to Paddle — the
         // checkout redirect is exercised against a mocked /api/billing/checkout.
         PADDLE_API_KEY: "pdl_e2e_dummy",
+        // The webhook fixtures subscribe with this price, mapping entitled
+        // accounts to the 'cloud' plan for plan-limits-cloud.spec.ts (#222).
+        PADDLE_PRICE_MONTHLY: "pri_e2e_monthly",
+        // Strict-but-surgical limit: only a deliberate 26-word journal entry
+        // crosses it, so the billing lifecycle specs sharing this server
+        // never trip a plan limit.
+        LECTOR_PLAN_LIMITS: '{"cloud":{"journalWordsPerMonth":25}}',
       },
     },
     {

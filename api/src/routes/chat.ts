@@ -4,6 +4,7 @@ import { getProvider } from '../lib/llm';
 import { getCurrentUserId } from '../lib/user';
 import { resolveLanguage } from '../lib/active-language';
 import { getLanguageConfig } from '../lib/languages';
+import { entitlements, planLimitResponse } from '../lib/entitlements';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
@@ -58,6 +59,9 @@ app.post('/', async (c) => {
       return c.json({ error: 'message is required' }, 400);
     }
 
+    const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+    if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+
     const lang = resolveLanguage(language, userId);
     const langName = getLanguageConfig(lang).name;
     const SYSTEM_PROMPT = getSystemPrompt(langName);
@@ -102,6 +106,7 @@ app.post('/', async (c) => {
       maxTokens: 1024,
       task: 'chat',
     });
+    entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
 
     const assistantMsg: ChatMessageRow = {
       id: randomUUID(),

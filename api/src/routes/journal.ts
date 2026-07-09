@@ -3,6 +3,7 @@ import { db, JournalEntryRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { correctJournalText } from '../lib/journal-correct';
+import { entitlements, planLimitResponse } from '../lib/entitlements';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
@@ -43,11 +44,18 @@ app.post('/', async (c) => {
   const now = new Date().toISOString();
   const wordCount = (body || '').trim().split(/\s+/).filter(Boolean).length;
 
+  // Journal words / month (#222): metered on save, by the words the save adds.
+  if (wordCount > 0) {
+    const verdict = entitlements.checkLimit(userId, 'journalWordsPerMonth', wordCount);
+    if (!verdict.allowed) return planLimitResponse(c, verdict);
+  }
+
   const id = randomUUID();
   db.prepare(
     `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
      VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
   ).run(id, body || '', wordCount, date, lang, now, now, userId);
+  entitlements.recordUsage(userId, 'journalWordsPerMonth', wordCount);
 
   return c.json({ id, entryDate: date });
 });
@@ -91,6 +99,14 @@ app.put('/:id', async (c) => {
   if (body.body !== undefined) {
     updates.push('body = ?', 'wordCount = ?');
     const wordCount = body.body.trim().split(/\s+/).filter(Boolean).length;
+    // Meter only GROWTH (#222): editing down and re-typing must not
+    // double-charge the month's allowance.
+    const grown = wordCount - existing.wordCount;
+    if (grown > 0) {
+      const verdict = entitlements.checkLimit(userId, 'journalWordsPerMonth', grown);
+      if (!verdict.allowed) return planLimitResponse(c, verdict);
+      entitlements.recordUsage(userId, 'journalWordsPerMonth', grown);
+    }
     values.push(body.body, wordCount);
   }
 
@@ -128,11 +144,15 @@ app.post('/:id/correct', async (c) => {
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
   if (!entry.body.trim()) return c.json({ error: 'Entry body is empty' }, 400);
 
+  const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+  if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+
   try {
     const data = (await correctJournalText(userId, entry.body, entry.language)) as {
       correctedBody?: string;
       corrections?: unknown;
     };
+    entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
 
     const now = new Date().toISOString();
     db.prepare(

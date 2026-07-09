@@ -33,6 +33,7 @@ function createSchema(db: Database): void {
     CREATE TABLE knownWords       (userId TEXT NOT NULL DEFAULT 'local', word TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af', PRIMARY KEY (userId, word, language));
     CREATE TABLE dailyStats       (userId TEXT NOT NULL DEFAULT 'local', date TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af', PRIMARY KEY (userId, date, language));
     CREATE TABLE settings         (userId TEXT NOT NULL DEFAULT 'local', key TEXT NOT NULL, value TEXT, PRIMARY KEY (userId, key));
+    CREATE TABLE usage_counters   (userId TEXT NOT NULL, metric TEXT NOT NULL, period TEXT NOT NULL, value INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (userId, metric, period));
     CREATE TABLE "user"           (id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT);
   `);
 }
@@ -64,9 +65,12 @@ function seedLocal(db: Database): void {
   for (let i = 0; i < 3; i++) {
     db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(LOCAL_USER_ID, `k${i}`, 'v');
   }
+  for (let i = 0; i < 2; i++) {
+    db.prepare('INSERT INTO usage_counters (userId, metric, period, value) VALUES (?, ?, ?, ?)').run(LOCAL_USER_ID, `m${i}`, '2026-01', 10);
+  }
 }
 
-const LOCAL_TOTAL = 28;
+const LOCAL_TOTAL = 30;
 
 describe('adoptLocalData', () => {
   let db: Database;

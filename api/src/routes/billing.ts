@@ -12,6 +12,7 @@ import {
   type CreateTransaction,
 } from '../lib/billing';
 import { isBillingExempt } from '../lib/account-flags';
+import { currentPeriod, entitlements, type EntitlementsEngine } from '../lib/entitlements';
 
 /**
  * Route factory (mirrors makeSessionMiddleware/makePatMiddleware): the prod
@@ -23,8 +24,30 @@ export function makeBillingRoutes(
   cfg: typeof billingConfig,
   resolveEmail: (userId: string) => string | null = getUserEmail,
   createTransaction: CreateTransaction = makePaddleTransactionCreator(cfg),
+  engine: EntitlementsEngine = entitlements,
 ) {
   const app = new Hono();
+
+  // GET /api/billing/entitlements — the client's read of the plan-limits
+  // engine (#222): which plan, its limit values, and this month's usage.
+  // Informational only — enforcement stays in the routes. Gate-exempt like
+  // the rest of /api/billing (an unsubscribed account just sees the base
+  // plan's numbers; it can't use any limited route anyway).
+  app.get('/entitlements', (c) => {
+    const userId = getCurrentUserId(c);
+    const resolved = engine.resolveEntitlements(userId);
+    return c.json({
+      plan: resolved.plan,
+      byok: resolved.byok,
+      limits: resolved.limits,
+      usage: {
+        journalWordsPerMonth: engine.getUsage(userId, 'journalWordsPerMonth'),
+        llmRequestsPerMonth: engine.getUsage(userId, 'llmRequestsPerMonth'),
+        ttsCharsPerMonth: engine.getUsage(userId, 'ttsCharsPerMonth'),
+      },
+      period: currentPeriod(),
+    });
+  });
 
   // GET /api/billing/status — what the UI gates on (#224). Session-authed
   // like every /api route (and deliberately absent from the PAT SCOPE_MAP:
