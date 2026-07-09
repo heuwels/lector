@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, KnownWordRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { foldWord, getLanguageConfig } from '../lib/languages';
 import { getCurrentUserId } from '../lib/user';
 
 const app = new Hono();
@@ -28,11 +29,14 @@ app.post('/', async (c) => {
   }
 
   const lang = resolveLanguage(body.language, userId);
+  const pack = getLanguageConfig(lang);
 
   const stmt = db.prepare('INSERT OR REPLACE INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)');
   db.transaction((updates: Array<{ word: string; state: string }>) => {
     for (const u of updates) {
-      stmt.run(userId, u.word.toLowerCase(), lang, u.state);
+      // Keys are folded (#289): NFC + per-script case fold, enforced
+      // server-side so every client (UI, PAT, CLI) lands on the same key.
+      stmt.run(userId, foldWord(u.word, pack), lang, u.state);
     }
   })(body.updates);
 

@@ -4,7 +4,14 @@ import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { parseEpub } from './lib/epub-parser';
 import { countWords } from './lib/html-to-markdown';
-import { LanguageCode } from './lib/languages';
+import {
+  DEFAULT_LANGUAGE,
+  foldWord,
+  getLanguageConfig,
+  isValidLanguageCode,
+  normalizeText,
+  LanguageCode,
+} from './lib/languages';
 
 const DATA_DIR = process.env.DATA_DIR || '../data';
 const OLD_DB_PATH = path.join(DATA_DIR, 'afrikaans.db');
@@ -314,7 +321,96 @@ function getDb(): Database {
 
   ensurePartitionIndexes(_db);
 
+  // Runs every boot (idempotent, write-free when clean); after the schema
+  // migrations so userId/language/domain all exist.
+  migrateFoldWordKeys(_db);
+
   return _db;
+}
+
+// Merge-priority when two knownWords rows fold onto the same key: the most
+// deliberate signal wins ('ignored' and 'known' are explicit user choices;
+// levels rank by progress).
+const FOLD_MERGE_PRIORITY: Record<string, number> = {
+  ignored: 6,
+  known: 5,
+  level4: 4,
+  level3: 3,
+  level2: 2,
+  level1: 1,
+  new: 0,
+};
+
+/**
+ * Re-key stored words through foldWord (#289 Phase 0, item 0.9): vocab keys
+ * predating NFC normalization (decomposed macOS input, soft hyphens, odd
+ * case) would no longer be hit by folded lookups. Runs every boot — cheap
+ * scan, and only writes when it finds an unnormalized key. Rows whose keys
+ * collide after folding are merged (highest FOLD_MERGE_PRIORITY state wins;
+ * a classified domain survives a null one). vocab.text is display data, so
+ * it is NFC-normalized in place without deduping (its PK is the id).
+ * Exported for tests.
+ */
+export function migrateFoldWordKeys(database: Database) {
+  const packFor = (language: string) =>
+    getLanguageConfig(isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE);
+
+  const knownRows = database
+    .prepare('SELECT userId, word, language, state, domain FROM knownWords')
+    .all() as Array<{ userId: string; word: string; language: string; state: string; domain: string | null }>;
+  const knownChanges = knownRows
+    .map((row) => ({ row, folded: foldWord(row.word, packFor(row.language)) }))
+    .filter(({ row, folded }) => folded !== row.word);
+
+  const vocabRows = database
+    .prepare('SELECT userId, id, text FROM vocab')
+    .all() as Array<{ userId: string; id: string; text: string }>;
+  const vocabChanges = vocabRows
+    .map((row) => ({ row, normalized: normalizeText(row.text) }))
+    .filter(({ row, normalized }) => normalized !== row.text);
+
+  if (knownChanges.length === 0 && vocabChanges.length === 0) return;
+
+  const selectTarget = database.prepare(
+    'SELECT state, domain FROM knownWords WHERE userId = ? AND word = ? AND language = ?',
+  );
+  const rekey = database.prepare(
+    'UPDATE knownWords SET word = ? WHERE userId = ? AND word = ? AND language = ?',
+  );
+  const mergeTarget = database.prepare(
+    'UPDATE knownWords SET state = ?, domain = ? WHERE userId = ? AND word = ? AND language = ?',
+  );
+  const dropLoser = database.prepare(
+    'DELETE FROM knownWords WHERE userId = ? AND word = ? AND language = ?',
+  );
+  const retext = database.prepare('UPDATE vocab SET text = ? WHERE userId = ? AND id = ?');
+
+  database.transaction(() => {
+    for (const { row, folded } of knownChanges) {
+      // Look up the live table each time: an earlier iteration may have
+      // re-keyed another variant onto this row's folded key already.
+      const target = selectTarget.get(row.userId, folded, row.language) as
+        | { state: string; domain: string | null }
+        | undefined;
+      if (!target) {
+        rekey.run(folded, row.userId, row.word, row.language);
+        continue;
+      }
+      const winnerState =
+        (FOLD_MERGE_PRIORITY[row.state] ?? 0) > (FOLD_MERGE_PRIORITY[target.state] ?? 0)
+          ? row.state
+          : target.state;
+      mergeTarget.run(winnerState, target.domain ?? row.domain, row.userId, folded, row.language);
+      dropLoser.run(row.userId, row.word, row.language);
+    }
+    for (const { row, normalized } of vocabChanges) {
+      retext.run(normalized, row.userId, row.id);
+    }
+  })();
+
+  console.log(
+    `[db] fold-key migration: re-keyed ${knownChanges.length} known word(s), normalized ${vocabChanges.length} vocab text(s)`,
+  );
 }
 
 /**

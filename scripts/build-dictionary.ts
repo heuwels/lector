@@ -281,9 +281,15 @@ function pickIpa(sounds: KaikkiSound[] | undefined): string | undefined {
   return undefined;
 }
 
+// Dictionary keys are NFC + lowercase (#289): must match the runtime foldWord
+// (languages/text.ts) or decomposed dump data would never be hit by lookups.
+function foldKey(s: string): string {
+  return s.normalize('NFC').toLowerCase().trim();
+}
+
 function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
   if (!raw.word) return null;
-  const word = raw.word.toLowerCase().trim();
+  const word = foldKey(raw.word);
   if (!word) return null;
 
   const senses: Array<{ pos: string; gloss: string }> = [];
@@ -297,7 +303,7 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
   const inflections: Array<{ inflected: string; type: string }> = [];
   for (const f of raw.forms || []) {
     if (!f.form) continue;
-    const inflected = f.form.toLowerCase().trim();
+    const inflected = foldKey(f.form);
     if (!inflected || inflected === word) continue;
     // Skip non-Afrikaans-form rows (table headers, no-form rows)
     if (inflected.includes(' ') || inflected.length < 2) continue;
@@ -307,10 +313,10 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
 
   const relatedForms: Array<{ form: string; relation: string }> = [];
   for (const r of raw.derived || []) {
-    if (r.word) relatedForms.push({ form: r.word.toLowerCase().trim(), relation: 'derived' });
+    if (r.word) relatedForms.push({ form: foldKey(r.word), relation: 'derived' });
   }
   for (const r of raw.related || []) {
-    if (r.word) relatedForms.push({ form: r.word.toLowerCase().trim(), relation: 'related' });
+    if (r.word) relatedForms.push({ form: foldKey(r.word), relation: 'related' });
   }
 
   return {

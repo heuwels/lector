@@ -23,6 +23,8 @@ import {
 import { createTrailingThrottle } from './throttle';
 import type { WordState } from '@/types';
 import { snapToWordBoundaries, splitWords, collectWords, computePhraseHighlightSet } from './utils';
+import { foldWord, splitSentences } from '@/lib/languages';
+import { useActiveLanguage } from '@/utils/hooks';
 import { stateClasses } from './theme';
 import { MarkdownReaderProps } from './types';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,7 @@ export default function MarkdownReader({
     nextLesson,
 }: MarkdownReaderProps) {
     const router = useRouter();
+    const pack = useActiveLanguage();
     const containerRef = useRef<HTMLDivElement>(null);
     const [knownWordsMap, setKnownWordsMap] = useState<Map<string, WordState>>(new Map());
     const [highlightedPhrase, setHighlightedPhrase] = useState<string[]>([]);
@@ -119,7 +122,7 @@ export default function MarkdownReader({
     }, [progressWriter]);
 
     const getWordState = (word: string): WordState | undefined => {
-        return knownWordsMap.get(word.toLowerCase());
+        return knownWordsMap.get(foldWord(word, pack));
     };
 
     const findSentence = (element: HTMLElement): string => {
@@ -127,7 +130,7 @@ export default function MarkdownReader({
         const text = block?.textContent || '';
         const wordText = element.textContent || '';
 
-        const sentences = text.split(/(?<=[.!?])\s+/);
+        const sentences = splitSentences(text, pack);
         for (const sentence of sentences) {
             if (sentence.includes(wordText)) {
                 return sentence.trim();
@@ -146,7 +149,7 @@ export default function MarkdownReader({
         keyPrefix = 'r',
     ): ReactNode => {
         if (typeof children === 'string') {
-            return splitWords(children).map((part, k) => {
+            return splitWords(children, pack).map((part, k) => {
                 if (!part.isWord) return <span key={`${keyPrefix}-${k}`} data-leaf="">{part.text}</span>;
                 const currentWordIndex = ctx.i++;
                 const state = getWordState(part.text);
@@ -194,7 +197,11 @@ export default function MarkdownReader({
     // set is computed over the block's full word list first so indices line up
     // with the spans renderChildren emits (incl. words inside bold/italic).
     const renderBlock = (children: ReactNode): ReactNode => {
-        const phraseSet = computePhraseHighlightSet(collectWords(children), highlightedPhrase);
+        const phraseSet = computePhraseHighlightSet(
+            collectWords(children, pack),
+            highlightedPhrase,
+            pack,
+        );
         return renderChildren(children, { i: 0, phraseSet });
     };
 
@@ -206,8 +213,8 @@ export default function MarkdownReader({
             setHighlightedPhrase([]);
             return;
         }
-        setHighlightedPhrase(text.toLowerCase().split(/\s+/));
-    }, []);
+        setHighlightedPhrase(text.split(/\s+/).map((w) => foldWord(w, pack)));
+    }, [pack]);
 
     const clearPhraseHighlight = useCallback(() => {
         setHighlightedPhrase([]);
@@ -222,7 +229,7 @@ export default function MarkdownReader({
         if (!rawText || !rawText.includes(' ')) return;
 
         // Snap to word boundaries
-        const snappedText = snapToWordBoundaries(selection);
+        const snappedText = snapToWordBoundaries(selection, pack);
         if (!snappedText || !snappedText.includes(' ')) return;
 
         const sentence = findSentence(selection.anchorNode?.parentElement as HTMLElement);
@@ -232,7 +239,7 @@ export default function MarkdownReader({
         highlightPhrase(snappedText);
 
         onWordClick(snappedText, sentence);
-    }, [onWordClick, highlightPhrase]);
+    }, [onWordClick, highlightPhrase, pack]);
 
     return (
         <div className="flex flex-col h-full bg-card print:block print:h-auto">

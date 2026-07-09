@@ -26,6 +26,7 @@ import {
   type ExpandedDictionaryEntry,
 } from '@/lib/dictionary-client';
 import { speak } from '@/lib/tts';
+import { foldWord } from '@/lib/languages';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
@@ -125,7 +126,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
 
     incrementDailyStat('dictionaryLookups');
 
-    const lookupPromise = getVocabByText(word.toLowerCase());
+    const lookupPromise = getVocabByText(foldWord(word, activeLang));
     existingEntryLookup.current = lookupPromise;
     const existingEntry = await lookupPromise;
     if (requestId !== translationRequestId.current) return;
@@ -379,7 +380,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     const isPhrase = wordPanel.word.includes(' ');
     const entry: VocabEntry = {
       id: existing?.id || uuidv4(),
-      text: wordPanel.word.toLowerCase(),
+      text: foldWord(wordPanel.word, activeLang),
       type: isPhrase ? 'phrase' : 'word',
       sentence: wordPanel.sentence,
       translation: wordPanel.translation,
@@ -413,7 +414,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     if (!existing) {
       const entry: VocabEntry = {
         id: uuidv4(),
-        text: wordPanel.word.toLowerCase(),
+        text: foldWord(wordPanel.word, activeLang),
         type: 'word',
         sentence: wordPanel.sentence,
         translation: wordPanel.translation || '',
@@ -447,7 +448,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     if (!existing) {
       const entry: VocabEntry = {
         id: uuidv4(),
-        text: wordPanel.word.toLowerCase(),
+        text: foldWord(wordPanel.word, activeLang),
         type: 'word',
         sentence: wordPanel.sentence,
         translation: wordPanel.translation || '',
@@ -483,7 +484,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       if (!existing) {
         const entry: VocabEntry = {
           id: uuidv4(),
-          text: wordPanel.word.toLowerCase(),
+          text: foldWord(wordPanel.word, activeLang),
           type: wordPanel.word.includes(' ') ? 'phrase' : 'word',
           sentence: wordPanel.sentence,
           translation: wordPanel.translation,
@@ -543,7 +544,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     const isPhrase = wordPanel.word.includes(' ');
     const entry: VocabEntry = {
       id: uuidv4(),
-      text: wordPanel.word.toLowerCase(),
+      text: foldWord(wordPanel.word, activeLang),
       type: isPhrase ? 'phrase' : 'word',
       sentence: wordPanel.sentence,
       translation: wordPanel.translation || '',

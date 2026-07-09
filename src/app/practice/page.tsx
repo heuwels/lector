@@ -20,6 +20,7 @@ import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
 import { translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 import { splitTrailingPunctuation } from '@/lib/words';
+import { graphemeLength, graphemeSplit } from '@/lib/languages';
 import {
   createBlankedSentence,
   calculateDictationPoints,
@@ -373,11 +374,13 @@ export default function PracticePage() {
     startRoundWith(selectedCollection, roundType, originalRoundSize);
   }, [selectedCollection, roundType, roundSize, startRoundWith, originalRoundSize]);
 
-  // Handle hint - reveal next letter
+  // Handle hint - reveal next letter. Grapheme-wise (#289): revealing "the
+  // next character" must never split a base letter from its combining marks
+  // or tear a surrogate pair.
   const handleHint = useCallback(() => {
     if (!current) return;
-    const correctWord = normalize(current.sentence.clozeWord);
-    const currentInput = normalize(userAnswer);
+    const correctWord = graphemeSplit(normalize(current.sentence.clozeWord));
+    const currentInput = graphemeSplit(normalize(userAnswer));
 
     // Find how many leading characters are already correct
     let correctPrefix = 0;
@@ -392,7 +395,7 @@ export default function PracticePage() {
     // Reveal one more letter beyond the correct prefix
     const revealCount = Math.min(Math.max(correctPrefix + 1, hintLetters + 1), correctWord.length);
     setHintLetters(hintLetters + 1);
-    setUserAnswer(correctWord.slice(0, revealCount));
+    setUserAnswer(correctWord.slice(0, revealCount).join(''));
     inputRef.current?.focus();
   }, [current, hintLetters, userAnswer]);
 
@@ -466,7 +469,7 @@ export default function PracticePage() {
           ? calculatePoints(
               newMastery,
               hintLetters,
-              normalize(current.sentence.clozeWord).length,
+              graphemeLength(normalize(current.sentence.clozeWord)),
               mode,
             )
           : 0;
@@ -1022,12 +1025,12 @@ export default function PracticePage() {
                                     spellCheck={false}
                                     placeholder="..."
                                     className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium transition-all outline-none focus:ring-2 focus:ring-offset-1 ${inputColorClass} ${fuzzyStatus === 'match' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'partial' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'wrong' ? 'text-destructive focus:ring-destructive' : ''} ${fuzzyStatus === 'empty' ? 'text-foreground focus:ring-ring' : ''} `}
-                                    style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
+                                    style={{ minWidth: `${Math.max(graphemeLength(clozeBase) * 0.7, 4)}ch` }}
                                   />
                                 ) : (
                                   <span
                                     className="inline-block rounded-lg border-2 border-[var(--clay)] bg-[color-mix(in_srgb,var(--clay)_14%,var(--card))] px-3 py-1 text-center text-xl font-bold text-foreground"
-                                    style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
+                                    style={{ minWidth: `${Math.max(graphemeLength(clozeBase) * 0.7, 4)}ch` }}
                                   >
                                     _____
                                   </span>

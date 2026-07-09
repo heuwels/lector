@@ -16,4 +16,13 @@ export const af = {
   fallbackTts: ['af', 'nl-NL', 'nl'],
   avoidWords: AVOID_WORDS,
   testPhrase: 'Hallo, hoe gaan dit met jou?',
+  script: {
+    bcp47: 'af',
+    direction: 'ltr' as const,
+    kind: 'alpha-spaced' as const,
+    hasCase: true,
+    // The 'n indefinite article is a word of its own, apostrophe included —
+    // matched ahead of the engine's letter-run pattern (any apostrophe variant).
+    extraTokenPatterns: ["['‘’ʼ`]n\\b"],
+  },
 };

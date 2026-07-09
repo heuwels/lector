@@ -4,6 +4,7 @@ import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { randomUUID } from 'crypto';
 import { countWords } from '../lib/html-to-markdown';
+import { normalizeText } from '../lib/languages';
 
 const app = new Hono();
 
@@ -165,12 +166,14 @@ app.post('/:id/lessons', async (c) => {
     | undefined;
   const language = parent?.language ?? resolveLanguage(c.req.query('language'), userId);
 
-  const textContent = body.textContent || '';
+  // Text ingress (#289): pasted lesson text gets NFC'd like every other
+  // import path, so reader tokens match dictionary and vocab keys.
+  const textContent = normalizeText(body.textContent || '');
 
   db.prepare(`
     INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, collectionId, body.title, maxOrder.maxOrder + 1, textContent, countWords(textContent), language, now, now, userId);
+  `).run(id, collectionId, normalizeText(body.title || ''), maxOrder.maxOrder + 1, textContent, countWords(textContent), language, now, now, userId);
 
   db.prepare('UPDATE collections SET lastReadAt = ? WHERE id = ? AND userId = ?').run(now, collectionId, userId);
 

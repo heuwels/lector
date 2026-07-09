@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { splitTrailingPunctuation, sentenceContainsWord } from '../words';
 import { buildClozeText } from '../anki';
+import { LANGUAGES } from '../languages';
+
+const af = LANGUAGES.af;
+const fr = LANGUAGES.fr;
+const nl = LANGUAGES.nl;
 
 describe('splitTrailingPunctuation', () => {
   it('splits a single trailing mark', () => {
@@ -50,56 +55,67 @@ describe('splitTrailingPunctuation', () => {
 
 describe('sentenceContainsWord', () => {
   it('finds a word that appears as a token', () => {
-    expect(sentenceContainsWord('Die vrugte is baie lekker.', 'vrugte')).toBe(true);
+    expect(sentenceContainsWord('Die vrugte is baie lekker.', 'vrugte', af)).toBe(true);
   });
 
   it('is case-insensitive both ways', () => {
-    expect(sentenceContainsWord('Vrugte is lekker.', 'vrugte')).toBe(true);
-    expect(sentenceContainsWord('die vrugte is lekker', 'Vrugte')).toBe(true);
+    expect(sentenceContainsWord('Vrugte is lekker.', 'vrugte', af)).toBe(true);
+    expect(sentenceContainsWord('die vrugte is lekker', 'Vrugte', af)).toBe(true);
   });
 
   it('rejects substring hits — sien is not in gesien (issue #106)', () => {
-    expect(sentenceContainsWord('Ek het die katte gesien.', 'sien')).toBe(false);
-    expect(sentenceContainsWord('Die vrugte is baie lekker.', 'vrug')).toBe(false);
+    expect(sentenceContainsWord('Ek het die katte gesien.', 'sien', af)).toBe(false);
+    expect(sentenceContainsWord('Die vrugte is baie lekker.', 'vrug', af)).toBe(false);
   });
 
   it('matches through surrounding punctuation', () => {
-    expect(sentenceContainsWord('Hy sê: "vrugte!"', 'vrugte')).toBe(true);
-    expect(sentenceContainsWord('Die kat, die hond en die vis.', 'hond')).toBe(true);
+    expect(sentenceContainsWord('Hy sê: "vrugte!"', 'vrugte', af)).toBe(true);
+    expect(sentenceContainsWord('Die kat, die hond en die vis.', 'hond', af)).toBe(true);
   });
 
   it('keeps hyphenated words and diacritics intact', () => {
-    expect(sentenceContainsWord('Ons gaan na die Klein-Karoo toe.', 'Klein-Karoo')).toBe(true);
-    expect(sentenceContainsWord('Ons gaan na die Klein-Karoo toe.', 'Karoo')).toBe(false);
-    expect(sentenceContainsWord('Wat sê jy?', 'sê')).toBe(true);
+    expect(sentenceContainsWord('Ons gaan na die Klein-Karoo toe.', 'Klein-Karoo', af)).toBe(true);
+    expect(sentenceContainsWord('Ons gaan na die Klein-Karoo toe.', 'Karoo', af)).toBe(false);
+    expect(sentenceContainsWord('Wat sê jy?', 'sê', af)).toBe(true);
   });
 
   it('handles curly-quote wrapping', () => {
-    expect(sentenceContainsWord('Hy skryf ‘vrug’ neer.', 'vrug')).toBe(true);
+    expect(sentenceContainsWord('Hy skryf ‘vrug’ neer.', 'vrug', af)).toBe(true);
   });
 
   it('handles empty inputs', () => {
-    expect(sentenceContainsWord('', 'vrug')).toBe(false);
-    expect(sentenceContainsWord('Die vrugte is lekker.', '')).toBe(false);
+    expect(sentenceContainsWord('', 'vrug', af)).toBe(false);
+    expect(sentenceContainsWord('Die vrugte is lekker.', '', af)).toBe(false);
+  });
+
+  it("matches the Afrikaans 'n article as its own token", () => {
+    expect(sentenceContainsWord("Dit is 'n mooi dag.", "'n", af)).toBe(true);
+    expect(sentenceContainsWord('Die nag is donker.', "'n", af)).toBe(false);
+  });
+
+  it('matches decomposed input against precomposed text (NFC folding)', () => {
+    const decomposed = 's' + 'e' + String.fromCharCode(0x0302); // \u0302 = combining circumflex
+    expect(decomposed).not.toBe('s\u00EA');
+    expect(sentenceContainsWord('Wat s\u00EA jy?', decomposed, af)).toBe(true);
   });
 
   it('finds the content word after a French elision (l\'eau → eau)', () => {
-    expect(sentenceContainsWord("L'eau est claire.", 'eau')).toBe(true);
-    expect(sentenceContainsWord("Je pense qu'il dort.", 'il')).toBe(true);
-    expect(sentenceContainsWord("J'aime le café.", 'aime')).toBe(true);
-    // still a whole-token match — the clitic side stays addressable too
-    expect(sentenceContainsWord("L'eau est claire.", 'eau')).toBe(true);
+    expect(sentenceContainsWord("L'eau est claire.", 'eau', fr)).toBe(true);
+    expect(sentenceContainsWord("Je pense qu'il dort.", 'il', fr)).toBe(true);
+    expect(sentenceContainsWord("J'aime le café.", 'aime', fr)).toBe(true);
+    // a legacy multi-token target still matches as a consecutive token run
+    expect(sentenceContainsWord("L'eau est claire.", "l'eau", fr)).toBe(true);
     // and a genuine substring is still rejected
-    expect(sentenceContainsWord("L'eau est claire.", 'clair')).toBe(false);
+    expect(sentenceContainsWord("L'eau est claire.", 'clair', fr)).toBe(false);
   });
 
   it('matches Dutch tokens: apostrophe plurals split, diacritics + ij intact', () => {
     // auto's → auto + s: the content stem is addressable as a whole token
-    expect(sentenceContainsWord("Ik heb twee auto's.", 'auto')).toBe(true);
-    expect(sentenceContainsWord('De coördinatie is lastig.', 'coördinatie')).toBe(true);
-    expect(sentenceContainsWord('Het is een mooie ijsbeer.', 'ijsbeer')).toBe(true);
+    expect(sentenceContainsWord("Ik heb twee auto's.", 'auto', nl)).toBe(true);
+    expect(sentenceContainsWord('De coördinatie is lastig.', 'coördinatie', nl)).toBe(true);
+    expect(sentenceContainsWord('Het is een mooie ijsbeer.', 'ijsbeer', nl)).toBe(true);
     // a genuine substring is still rejected
-    expect(sentenceContainsWord("Ik heb twee auto's.", 'aut')).toBe(false);
+    expect(sentenceContainsWord("Ik heb twee auto's.", 'aut', nl)).toBe(false);
   });
 });
 

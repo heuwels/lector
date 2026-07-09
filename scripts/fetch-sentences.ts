@@ -188,7 +188,9 @@ async function main() {
     if (!line.trim()) continue;
     const parts = line.split('\t');
     if (parts.length >= 3) {
-      afrSentences.set(parseInt(parts[0]), parts[2]);
+      // Bank text is a matching surface (#289): NFC at ingress like every
+      // other import path, so cloze answers compare equal to typed input.
+      afrSentences.set(parseInt(parts[0]), parts[2].normalize('NFC'));
     }
   }
   console.log(`  Loaded ${afrSentences.size} Afrikaans sentences`);

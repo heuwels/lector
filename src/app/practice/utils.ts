@@ -1,4 +1,5 @@
 import { splitTrailingPunctuation } from '@/lib/words';
+import { graphemeLength, normalizeText } from '@/lib/languages';
 import { ClozeMasteryLevel, ClozeSentence } from '@/types';
 import { DictationDiff, DictationWord, FuzzyStatus, PracticeMode } from './types';
 import { DICTATION_PASS_THRESHOLD, DICTATION_POINTS_BASE } from './constants';
@@ -11,9 +12,11 @@ export function createBlankedSentence(sentence: string, wordIndex: number): stri
   return words.join(' ');
 }
 
-// Helper export function to normalize text for comparison
+// Helper export function to normalize text for comparison. NFC first (#289):
+// decomposed typed input (macOS dead keys, some IMEs) must compare equal to
+// the bank's precomposed text.
 export function normalize(s: string): string {
-  return s
+  return normalizeText(s)
     .toLowerCase()
     .replace(/[.,!?¿¡;:'"„“”‚‘’«»‹›()[\]{}…]/gu, '')
     .trim();
@@ -72,7 +75,9 @@ export function calculatePoints(
 // Generate distractors from the queue/pool of cloze words
 export function generateDistractors(correctWord: string, pool: ClozeSentence[]): string[] {
   const correctNorm = normalize(correctWord);
-  const correctLen = correctNorm.length;
+  // Grapheme count, not code units (#289): combining marks and surrogate
+  // pairs would otherwise skew the length-similarity sort.
+  const correctLen = graphemeLength(correctNorm);
 
   const candidates: string[] = [];
   const seen = new Set<string>();
@@ -86,10 +91,10 @@ export function generateDistractors(correctWord: string, pool: ClozeSentence[]):
     }
   }
 
-  // Sort by length similarity to the correct word
+  // Sort by length similarity to the correct word (in graphemes)
   candidates.sort((a, b) => {
-    const diffA = Math.abs(normalize(a).length - correctLen);
-    const diffB = Math.abs(normalize(b).length - correctLen);
+    const diffA = Math.abs(graphemeLength(normalize(a)) - correctLen);
+    const diffB = Math.abs(graphemeLength(normalize(b)) - correctLen);
     return diffA - diffB;
   });
 

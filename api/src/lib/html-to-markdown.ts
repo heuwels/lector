@@ -1,3 +1,5 @@
+import { countWords as countWordsForPack, normalizeText, type LanguageConfig } from './languages';
+
 /**
  * Simple HTML to Markdown converter for Readability output.
  * Handles common HTML elements that Readability produces.
@@ -62,7 +64,9 @@ export function htmlToMarkdown(html: string): string {
   markdown = markdown.replace(/[ \t]+/g, ' ');
   markdown = markdown.replace(/ \n/g, '\n');
 
-  return markdown;
+  // Text ingress (#289): NFC + invisible-char stripping so imported content
+  // matches the dictionary and vocab keys byte-for-byte.
+  return normalizeText(markdown);
 }
 
 function decodeHtmlEntities(text: string): string {
@@ -90,9 +94,9 @@ function decodeHtmlEntities(text: string): string {
   return result;
 }
 
-export function countWords(text: string): number {
-  return text
-    .replace(/[#*`\[\]()]/g, '')
-    .split(/\s+/)
-    .filter((word) => word.length > 0).length;
+// Delegates to the per-pack seam in languages/tokenizer (#289): spaced
+// scripts keep the historical whitespace count; unspaced CJK swaps in a real
+// token count in Phase 4 without touching the callers here.
+export function countWords(text: string, pack?: LanguageConfig): number {
+  return countWordsForPack(text, pack);
 }

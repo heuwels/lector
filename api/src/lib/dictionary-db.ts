@@ -2,6 +2,21 @@ import { Database, type Statement } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
 import { db as userDb } from '../db';
+import {
+  DEFAULT_LANGUAGE,
+  foldWord,
+  getLanguageConfig,
+  isValidLanguageCode,
+} from './languages';
+
+// Dictionary keys are folded via the language pack (#289): NFC + case fold,
+// matching how the reader folds words before lookups.
+function foldKey(word: string, language: string): string {
+  const pack = getLanguageConfig(
+    isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE,
+  );
+  return foldWord(word, pack);
+}
 
 /**
  * Read-only SQLite-backed bilingual dictionary, selected by the active language.
@@ -257,9 +272,9 @@ export interface CacheAcceptedInput {
  *  word (upsert replaces senses + related forms). Returns the cached word. */
 export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
   if (!input.word || !input.senses || input.senses.length === 0) return null;
-  const word = input.word.toLowerCase();
-  const now = new Date().toISOString();
   const language = input.language || 'af';
+  const word = foldKey(input.word, language);
+  const now = new Date().toISOString();
 
   const upsertEntry = userDb.prepare(`
     INSERT INTO cached_entries (word, language, ipa, etymology, sourceSentence, createdAt, updatedAt)
@@ -311,7 +326,7 @@ export function lookupWord(
   word: string,
   language: string,
 ): ExpandedDictionaryEntry | undefined {
-  const lower = word.toLowerCase();
+  const lower = foldKey(word, language);
   const stmts = getStmts(language);
 
   if (stmts) {
