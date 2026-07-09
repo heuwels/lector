@@ -53,6 +53,11 @@ export default function MarkdownReader({
     const containerRef = useRef<HTMLDivElement>(null);
     const [knownWordsMap, setKnownWordsMap] = useState<Map<string, WordState>>(new Map());
     const [highlightedPhrase, setHighlightedPhrase] = useState<string[]>([]);
+    // The single word the user last clicked (drawer target). Identified by its
+    // block's source offset + word index within the block so we highlight the
+    // exact instance clicked, not every occurrence of that spelling. Cleared
+    // when a phrase is selected instead.
+    const [activeWord, setActiveWord] = useState<{ blockId: number; wordIndex: number } | null>(null);
     const [scrollPercentage, setScrollPercentage] = useState(0);
     const [isEditing, setIsEditing] = useState(false);
     const [draftContent, setDraftContent] = useState('');
@@ -154,7 +159,7 @@ export default function MarkdownReader({
     // even across bold/italic boundaries.
     const renderChildren = (
         children: ReactNode,
-        ctx: { i: number; phraseSet: Set<number> },
+        ctx: { i: number; phraseSet: Set<number>; blockId: number },
         keyPrefix = 'r',
     ): ReactNode => {
         if (typeof children === 'string') {
@@ -164,18 +169,23 @@ export default function MarkdownReader({
                 const state = getWordState(part.text);
                 const colorClass = state ? stateClasses[state] : stateClasses.new;
                 const isPhraseHighlighted = ctx.phraseSet.has(currentWordIndex);
+                const isActiveWord =
+                    activeWord?.blockId === ctx.blockId && activeWord?.wordIndex === currentWordIndex;
+                const isHighlighted = isPhraseHighlighted || isActiveWord;
                 return (
                     <span
                         key={`${keyPrefix}-${k}`}
                         data-leaf=""
                         onClick={(e) => {
                             clearPhraseHighlight();
+                            setActiveWord({ blockId: ctx.blockId, wordIndex: currentWordIndex });
                             const sentence = findSentence(e.currentTarget);
                             onWordClick(part.text, sentence);
                         }}
                         data-phrase-highlighted={isPhraseHighlighted || undefined}
-                        className={`cursor-pointer rounded-[7px] px-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${colorClass}`}
-                        style={isPhraseHighlighted ? { backgroundColor: 'color-mix(in srgb, var(--clay) 22%, transparent)' } : undefined}
+                        data-active-word={isActiveWord || undefined}
+                        className={`cursor-pointer rounded-[7px] px-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${colorClass} ${isActiveWord ? 'ring-2 ring-[var(--clay)]' : ''}`}
+                        style={isHighlighted ? { backgroundColor: 'color-mix(in srgb, var(--clay) 22%, transparent)' } : undefined}
                     >
                         {part.text}
                     </span>
@@ -205,13 +215,13 @@ export default function MarkdownReader({
     // Render a markdown block's children with per-word highlighting. The phrase
     // set is computed over the block's full word list first so indices line up
     // with the spans renderChildren emits (incl. words inside bold/italic).
-    const renderBlock = (children: ReactNode): ReactNode => {
+    const renderBlock = (children: ReactNode, blockId: number): ReactNode => {
         const phraseSet = computePhraseHighlightSet(
             collectWords(children, pack),
             highlightedPhrase,
             pack,
         );
-        return renderChildren(children, { i: 0, phraseSet });
+        return renderChildren(children, { i: 0, phraseSet, blockId });
     };
 
     const content = lesson.textContent;
@@ -243,8 +253,10 @@ export default function MarkdownReader({
 
         const sentence = findSentence(selection.anchorNode?.parentElement as HTMLElement);
 
-        // Clear browser selection but apply our own visual highlight
+        // Clear browser selection but apply our own visual highlight. The
+        // single-word active highlight gives way to the phrase highlight.
         selection.removeAllRanges();
+        setActiveWord(null);
         highlightPhrase(snappedText);
 
         onWordClick(snappedText, sentence);
@@ -371,10 +383,10 @@ export default function MarkdownReader({
                                 h1: ({ children }) => <h1 className="mt-8 mb-4 font-sans text-3xl font-extrabold first:mt-0">{children}</h1>,
                                 h2: ({ children }) => <h2 className="mt-8 mb-3 font-sans text-2xl font-bold first:mt-0">{children}</h2>,
                                 h3: ({ children }) => <h3 className="mt-6 mb-2 font-sans text-xl font-bold first:mt-0">{children}</h3>,
-                                p: ({ children }) => <p className="my-5 text-lg leading-[1.9] sm:text-xl">{renderBlock(children)}</p>,
+                                p: ({ node, children }) => <p className="my-5 text-lg leading-[1.9] sm:text-xl">{renderBlock(children, node?.position?.start?.offset ?? 0)}</p>,
                                 ul: ({ children }) => <ul className="my-5 list-disc space-y-2 pl-6 text-lg sm:text-xl">{children}</ul>,
                                 ol: ({ children }) => <ol className="my-5 list-decimal space-y-2 pl-6 text-lg sm:text-xl">{children}</ol>,
-                                li: ({ children }) => <li className="leading-relaxed">{renderBlock(children)}</li>,
+                                li: ({ node, children }) => <li className="leading-relaxed">{renderBlock(children, node?.position?.start?.offset ?? 0)}</li>,
                                 blockquote: ({ children }) => <blockquote className="my-6 border-l-4 border-border pl-4 italic text-foreground/75">{children}</blockquote>,
                                 strong: ({ children }) => <strong className="font-bold">{children}</strong>,
                                 em: ({ children }) => <em className="italic">{children}</em>,
