@@ -1,0 +1,9 @@
+{
+  "title": "Sample: dos lecciones (es)",
+  "author": "Lector",
+  "allow": ["Ana"],
+  "lessons": [
+    { "file": "01-mi-casa.md", "title": "Mi casa", "maxRank": 250 },
+    { "file": "02-el-amigo.md", "title": "El amigo de Ana", "maxRank": 500 }
+  ]
+}
