@@ -44,8 +44,11 @@ export const TENANT_TABLES = [
   'knownWords',
   'dailyStats',
   'settings',
-  // Plan-limit usage counters (#222): adopted so a migrating self-hoster's
-  // current-month metering carries over instead of resetting to zero.
+  // Plan-limit usage counters (#222): re-keyed with every other tenant table.
+  // Inert unless this deployment also enforces billing (LECTOR_BILLING=paddle) —
+  // a self-host→cloud switch for auth alone does not, so the carried-over
+  // counters are never read there. They only bite if the operator also runs a
+  // paid tier on this box. Self-hosted operator quotas without billing: #346.
   'usage_counters',
 ] as const;
 
