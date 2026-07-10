@@ -283,6 +283,26 @@ function getDb(): Database {
       updatedAt TEXT NOT NULL,
       PRIMARY KEY (userId, metric, period)
     );
+
+    -- Anki export queue (#241): cards the app wants created in Anki, pulled by
+    -- the Lector addon (GET /api/anki/pending) and confirmed back (POST
+    -- /api/anki/ack), which flips vocab.pushedToAnki. Rows reference vocab by
+    -- (userId, id) without an FK: the pending read JOINs vocab, so a row whose
+    -- entry was deleted simply never surfaces (and ack/queue clean up).
+    -- word/sentence/translation/meaning override the vocab row's values when
+    -- set — the reader's phrase-cloze and practice queue card content that
+    -- differs from the stored entry (chosen blank, practice sentence).
+    CREATE TABLE IF NOT EXISTS anki_pending (
+      userId TEXT NOT NULL DEFAULT 'local',
+      vocabId TEXT NOT NULL,
+      cardType TEXT NOT NULL CHECK (cardType IN ('basic', 'word', 'cloze')),
+      word TEXT,
+      sentence TEXT,
+      translation TEXT,
+      meaning TEXT,
+      queuedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, vocabId, cardType)
+    );
   `);
 
   // Migrations for existing databases
@@ -1252,6 +1272,19 @@ export interface KnownWordRow {
   word: string;
   language: string;
   state: WordState;
+}
+
+export type AnkiCardType = 'basic' | 'word' | 'cloze';
+
+export interface AnkiPendingRow {
+  userId: string;
+  vocabId: string;
+  cardType: AnkiCardType;
+  word: string | null;
+  sentence: string | null;
+  translation: string | null;
+  meaning: string | null;
+  queuedAt: string;
 }
 
 export interface ClozeSentenceRow {

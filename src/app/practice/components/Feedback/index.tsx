@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/button';
 import ClozeFeedback from '@/components/ClozeFeedback';
 import { splitTrailingPunctuation } from '@/lib/words';
 import { addClozeCard } from '@/lib/anki';
+import { queueForAnki } from '@/lib/anki-queue';
+import { lectorMode } from '@/lib/api-base';
+import { foldWord } from '@/lib/languages';
+import { getVocabByText, saveVocab } from '@/lib/data-layer';
 import { ANKI_CLOZE_DECK_SETTING_KEY } from '../../constants';
 import { CurrentSentence, IFeedbackData } from '../../types';
 import { isTTSAvailable, speak } from '@/lib/tts';
@@ -43,6 +47,46 @@ export default function Feedback({
         localStorage.getItem(ANKI_CLOZE_DECK_SETTING_KEY) || `${activeLang.native}::Cloze`;
 
       const cleanWord = splitTrailingPunctuation(current.sentence.clozeWord)[0];
+
+      // Cloud (#241): the queue is keyed on vocab entries, so resolve the
+      // practiced word to one (creating a level1 entry when it's a bank word
+      // that was never saved — it's being studied, so it belongs in vocab)
+      // and queue the cloze with THIS sentence as a per-item override.
+      if (lectorMode() === 'cloud') {
+        let entry = await getVocabByText(foldWord(cleanWord, activeLang));
+        if (!entry) {
+          const now = new Date();
+          entry = {
+            id: crypto.randomUUID(),
+            text: foldWord(cleanWord, activeLang),
+            type: 'word',
+            sentence: current.sentence.sentence,
+            translation: current.sentence.translation,
+            state: 'level1',
+            stateUpdatedAt: now,
+            reviewCount: 0,
+            createdAt: now,
+            pushedToAnki: false,
+          };
+          if ((await saveVocab(entry)) === null) {
+            throw new Error('Could not save the word to vocabulary');
+          }
+        }
+        const result = await queueForAnki([
+          {
+            id: entry.id,
+            cardType: 'cloze',
+            word: cleanWord,
+            sentence: current.sentence.sentence,
+            translation: current.sentence.translation,
+            meaning: cleanWord,
+          },
+        ]);
+        if (result.failed.length > 0) throw new Error(result.failed[0].error);
+        setAnkiAdded(true);
+        return;
+      }
+
       await addClozeCard(
         deckName,
         current.sentence.sentence,

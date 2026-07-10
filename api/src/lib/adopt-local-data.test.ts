@@ -34,6 +34,7 @@ function createSchema(db: Database): void {
     CREATE TABLE dailyStats       (userId TEXT NOT NULL DEFAULT 'local', date TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af', PRIMARY KEY (userId, date, language));
     CREATE TABLE settings         (userId TEXT NOT NULL DEFAULT 'local', key TEXT NOT NULL, value TEXT, PRIMARY KEY (userId, key));
     CREATE TABLE usage_counters   (userId TEXT NOT NULL, metric TEXT NOT NULL, period TEXT NOT NULL, value INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (userId, metric, period));
+    CREATE TABLE anki_pending     (userId TEXT NOT NULL DEFAULT 'local', vocabId TEXT NOT NULL, cardType TEXT NOT NULL DEFAULT 'basic', queuedAt TEXT NOT NULL DEFAULT '', PRIMARY KEY (userId, vocabId, cardType));
     CREATE TABLE "user"           (id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT);
   `);
 }
@@ -68,9 +69,12 @@ function seedLocal(db: Database): void {
   for (let i = 0; i < 2; i++) {
     db.prepare('INSERT INTO usage_counters (userId, metric, period, value) VALUES (?, ?, ?, ?)').run(LOCAL_USER_ID, `m${i}`, '2026-01', 10);
   }
+  for (let i = 0; i < 2; i++) {
+    db.prepare('INSERT INTO anki_pending (userId, vocabId, cardType, queuedAt) VALUES (?, ?, ?, ?)').run(LOCAL_USER_ID, `vocab-${i}`, 'basic', '2026-01-01');
+  }
 }
 
-const LOCAL_TOTAL = 30;
+const LOCAL_TOTAL = 32;
 
 describe('adoptLocalData', () => {
   let db: Database;

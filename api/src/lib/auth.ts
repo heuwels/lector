@@ -18,7 +18,10 @@ const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   tts:             { read: 'vocab:read',       write: 'vocab:read' },
   tatoeba:         { read: 'vocab:read',       write: 'vocab:read' },
   dictionary:      { read: 'vocab:read',       write: 'vocab:read' },
-  anki:            { read: 'settings:read',    write: 'settings:write' },
+  // Own category (#241): the addon's PAT should reach Anki sync and nothing
+  // else. (Pre-#241 this mapped onto settings:* — tokens minted for that use
+  // predate the addon endpoints, which are the only thing worth calling here.)
+  anki:            { read: 'anki:read',        write: 'anki:write' },
   'study-ping':    { read: 'stats:read',       write: 'stats:write' },
   data:            { read: 'data:export',      write: 'data:import' },
   'extract-url':   { read: 'collections:write', write: 'collections:write' },

@@ -21,6 +21,8 @@ import {
 } from '@/lib/data-layer';
 import { showPlanLimitToast } from '@/lib/plan-limits';
 import { addWordCard, addClozeCard } from '@/lib/anki';
+import { queueForAnki } from '@/lib/anki-queue';
+import { lectorMode } from '@/lib/api-base';
 import { translateWord, translatePhrase, streamWordGloss, enrichWord } from '@/lib/claude';
 import {
   lookupWordRemote,
@@ -597,6 +599,25 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
 
     const entry = await ensureVocabEntry();
+
+    // Cloud (#241): browser→AnkiConnect is blocked (Local Network Access) —
+    // queue server-side instead; the Lector addon creates the note and its
+    // ack flips pushedToAnki in the DB. The panel state flips optimistically
+    // so the button reads "added" like the direct path.
+    if (lectorMode() === 'cloud') {
+      const result = await queueForAnki([
+        { id: entry.id, cardType: 'word', translation, meaning: wordMeaning },
+      ]);
+      if (result.failed.length > 0) throw new Error(result.failed[0].error);
+      setWordPanel((prev) => ({
+        ...prev,
+        existingEntry: prev.existingEntry
+          ? { ...prev.existingEntry, pushedToAnki: true }
+          : { ...entry, pushedToAnki: true },
+      }));
+      return;
+    }
+
     const noteId = await addWordCard(deckName, wordPanel.word, translation, wordMeaning);
     await markVocabPushedToAnki(entry.id, noteId);
     setWordPanel((prev) => ({
@@ -613,6 +634,31 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
 
       const entry = await ensureVocabEntry();
+
+      // Cloud (#241): same queue transport as addWordToAnki. The selected
+      // phrase is the card's sentence and blankWord the cloze target — sent
+      // as per-item overrides since they differ from the stored entry.
+      if (lectorMode() === 'cloud') {
+        const result = await queueForAnki([
+          {
+            id: entry.id,
+            cardType: 'cloze',
+            word: blankWord,
+            sentence: wordPanel.word,
+            translation,
+            meaning: translation,
+          },
+        ]);
+        if (result.failed.length > 0) throw new Error(result.failed[0].error);
+        setWordPanel((prev) => ({
+          ...prev,
+          existingEntry: prev.existingEntry
+            ? { ...prev.existingEntry, pushedToAnki: true }
+            : { ...entry, pushedToAnki: true },
+        }));
+        return;
+      }
+
       const noteId = await addClozeCard(
         clozeDeck,
         wordPanel.word,

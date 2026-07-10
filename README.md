@@ -66,16 +66,18 @@ Signed-in cloud users can mint **personal API tokens** in Settings — the same 
 
 The **cloud canary** exception is unchanged: `LECTOR_CLOUD_GATE=external` declares that an authenticating gateway (e.g. Cloudflare Access) fronts every request, letting cloud mode boot with app-level auth delegated to the gate (built-in accounts are not mounted). The full canary deployment (AWS CDK + Cloudflare Tunnel) lives in [`deploy/cloud/`](deploy/cloud/).
 
-### AnkiConnect
+### Anki
 
-The app connects directly to AnkiConnect on `localhost:8765` from your browser. Install the [AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159) in Anki Desktop.
+Two integrations, by deployment shape ([#241](https://github.com/heuwels/lector/issues/241)):
 
-In AnkiConnect's config, ensure your app origin is allowed:
+**Self-host — AnkiConnect (browser-direct).** The app connects directly to AnkiConnect on `localhost:8765` from your browser. Install the [AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159) in Anki Desktop, and in its config ensure your app origin is allowed:
 ```json
 {
   "webCorsOriginList": ["http://localhost:3000"]
 }
 ```
+
+**Cloud (and HTTPS/remote self-host) — the Lector Sync add-on.** A hosted HTTPS page can't call your machine's `localhost:8765` (Chrome's Local Network Access blocks it), so cloud syncs through [`anki-addon/`](anki-addon/): it runs inside Anki Desktop, pulls the cards you queue in Lector onto structured `Lector` note types (upserted by `LectorId` — no duplicates), and pushes your review states back so word states upgrade automatically. Setup instructions live in Settings → Anki Integration when running in cloud mode.
 
 ## Docker Deployment
 

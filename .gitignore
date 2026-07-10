@@ -61,3 +61,6 @@ next-env.d.ts
 *.db-shm
 *.db-wal
 *.sqlite
+
+# Python bytecode (anki-addon/)
+__pycache__/

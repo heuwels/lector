@@ -240,6 +240,7 @@ export default function VocabList({
   };
 
   const handleSyncWithAnki = async () => {
+    if (!onSyncWithAnki) return;
     setIsSyncing(true);
     try {
       await onSyncWithAnki();
@@ -327,19 +328,21 @@ export default function VocabList({
 
         <div className="flex-1" />
 
-        <Button onClick={handleSyncWithAnki} disabled={isSyncing}>
-          {isSyncing ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Syncing...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-4 w-4" />
-              Sync with Anki
-            </>
-          )}
-        </Button>
+        {onSyncWithAnki && (
+          <Button onClick={handleSyncWithAnki} disabled={isSyncing}>
+            {isSyncing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Syncing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                Sync with Anki
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Results count — the filtered total (the page footer shows the visible

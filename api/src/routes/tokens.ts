@@ -12,6 +12,9 @@ const VALID_SCOPES = new Set([
   'settings:read', 'settings:write', 'settings:*',
   'data:export', 'data:import', 'data:*',
   'chat:read', 'chat:write', 'chat:*',
+  // Dedicated category for the Anki addon (#241): its token lives in a config
+  // file on the user's machine, so it should grant Anki sync and nothing else.
+  'anki:read', 'anki:write', 'anki:*',
 ]);
 
 const app = new Hono();

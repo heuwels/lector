@@ -22,6 +22,8 @@ import {
   isAnkiConnected,
   getDeckNames,
 } from '@/lib/anki';
+import { queueForAnki } from '@/lib/anki-queue';
+import { useLectorMode } from '@/lib/use-env';
 import VocabStats from './components/VocabStats';
 import VocabDetailModal from './components/VocabDetailModal';
 import { toast } from 'sonner';
@@ -30,6 +32,7 @@ import { useActiveLanguage } from '@/utils/hooks';
 
 export default function VocabPage() {
   const activeLang = useActiveLanguage();
+  const mode = useLectorMode();
   const [entries, setEntries] = useState<VocabEntry[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [stats, setStats] = useState<{
@@ -44,6 +47,13 @@ export default function VocabPage() {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    // Browser→AnkiConnect is selfhost-only (#241): in cloud the probe is
+    // blocked by Chrome's Local Network Access and export goes through the
+    // server-side queue instead, so there is no connection to check.
+    if (mode !== 'selfhost') return;
     checkAnkiConnection();
     // Load deck names from settings — match the keys the settings page writes
     const savedDeck = localStorage.getItem('lector-anki-deck');
@@ -54,7 +64,8 @@ export default function VocabPage() {
     if (savedClozeDeck) {
       setAnkiClozeDeck(savedClozeDeck);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -162,16 +173,43 @@ export default function VocabPage() {
   // (ankiClozeDeck). The choice is made via the toggle in VocabList.
   const handleExportToAnki = useCallback(
     async (ids: string[], cardType: 'basic' | 'cloze') => {
-      if (!ankiConnected) {
-        toast.error('Anki is not connected. Make sure Anki is running with AnkiConnect.', {
+      const entriesToExport = entries.filter((e) => ids.includes(e.id) && !e.pushedToAnki);
+      if (entriesToExport.length === 0) {
+        toast.error('All selected entries have already been synced to Anki.', {
           duration: 5000,
         });
         return;
       }
 
-      const entriesToExport = entries.filter((e) => ids.includes(e.id) && !e.pushedToAnki);
-      if (entriesToExport.length === 0) {
-        toast.error('All selected entries have already been synced to Anki.', {
+      // Cloud (#241): no browser→AnkiConnect — queue server-side; the Lector
+      // addon creates the notes on Anki's next sync and acks them (which is
+      // what flips pushedToAnki, so entries stay exportable until then).
+      if (mode === 'cloud') {
+        try {
+          const result = await queueForAnki(
+            entriesToExport.map((e) => ({ id: e.id, cardType })),
+          );
+          if (result.failed.length > 0) {
+            toast.error(
+              `Queued ${result.queued} card${result.queued === 1 ? '' : 's'}, ${result.failed.length} failed (${result.failed[0].error})`,
+              { duration: 5000 },
+            );
+          } else {
+            toast.success(
+              `Queued ${result.queued} ${cardType} card${result.queued === 1 ? '' : 's'} — they'll appear next time Anki syncs`,
+              { duration: 5000 },
+            );
+          }
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Failed to queue cards for Anki', {
+            duration: 5000,
+          });
+        }
+        return;
+      }
+
+      if (!ankiConnected) {
+        toast.error('Anki is not connected. Make sure Anki is running with AnkiConnect.', {
           duration: 5000,
         });
         return;
@@ -216,7 +254,7 @@ export default function VocabPage() {
         });
       }
     },
-    [entries, ankiConnected, ankiDeck, ankiClozeDeck],
+    [entries, mode, ankiConnected, ankiDeck, ankiClozeDeck],
   );
 
   // Mark selected entries as known
@@ -304,7 +342,15 @@ export default function VocabPage() {
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <PageHeader title="Vocabulary">
         <div className="flex items-center gap-2">
-          {ankiConnected === null ? (
+          {mode === 'cloud' ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] px-3 py-1 text-sm font-medium text-primary"
+              data-testid="anki-addon-pill"
+            >
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              Anki syncs via add-on
+            </span>
+          ) : ankiConnected === null ? (
             <span className="text-sm text-muted-foreground">Checking Anki connection...</span>
           ) : ankiConnected ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] px-3 py-1 text-sm font-medium text-primary">
@@ -330,7 +376,9 @@ export default function VocabPage() {
         onEntryClick={handleEntryClick}
         onExportToAnki={handleExportToAnki}
         onMarkAsKnown={handleMarkAsKnown}
-        onSyncWithAnki={handleSyncWithAnki}
+        // Pull-sync is the browser→AnkiConnect path; in cloud the addon
+        // pushes review state itself, so the button would be a dead end.
+        onSyncWithAnki={mode === 'cloud' ? undefined : handleSyncWithAnki}
         isLoading={isLoading}
       />
       {selectedEntry && (

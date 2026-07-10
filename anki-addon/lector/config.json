@@ -1,0 +1,6 @@
+{
+  "api_url": "https://app.lector.dev",
+  "api_token": "",
+  "deck": "Lector::{lang}",
+  "sync_on_profile_open": true
+}
