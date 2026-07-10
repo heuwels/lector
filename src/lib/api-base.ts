@@ -27,6 +27,8 @@ declare global {
        *  image can be pointed at a project without a rebuild; read by
        *  src/instrumentation-client.ts. */
       SENTRY_DSN?: string;
+      /** Deployment label shared by browser/API/server Sentry events. */
+      SENTRY_ENVIRONMENT?: string;
       LECTOR_MODE?: string;
       /** Where a locked cloud account is sent to check out (#224): the
        *  marketing site's approved-domain checkout page, e.g.
@@ -58,14 +60,12 @@ export type LectorMode = 'selfhost' | 'cloud';
  * (strict validation lives server-side in api/src/lib/config.ts).
  */
 export function lectorMode(): LectorMode {
-  const raw =
-    typeof window === 'undefined' ? process.env.LECTOR_MODE : window.__ENV__?.LECTOR_MODE;
+  const raw = typeof window === 'undefined' ? process.env.LECTOR_MODE : window.__ENV__?.LECTOR_MODE;
   return raw === 'cloud' ? 'cloud' : 'selfhost';
 }
 
 export function apiBase(): string {
-  const configured =
-    typeof window === 'undefined' ? process.env.API_URL : window.__ENV__?.API_URL;
+  const configured = typeof window === 'undefined' ? process.env.API_URL : window.__ENV__?.API_URL;
   return (configured || DEFAULT_API_URL).replace(/\/+$/, '');
 }
 
