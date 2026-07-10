@@ -718,15 +718,31 @@ export async function createJournalEntry(body: string): Promise<{ id: string }> 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body, entryDate, language: getActiveLanguage() }),
   });
+  if (!res.ok) {
+    const error = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(
+      error?.error === 'plan_limit'
+        ? 'This entry exceeds your monthly journal allowance.'
+        : error?.error || 'Failed to save journal entry',
+    );
+  }
   return res.json();
 }
 
 export async function updateJournalDraft(id: string, body: string): Promise<void> {
-  await apiFetch(`/api/journal/${id}`, {
+  const res = await apiFetch(`/api/journal/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body }),
   });
+  if (!res.ok) {
+    const error = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(
+      error?.error === 'plan_limit'
+        ? 'This edit exceeds your monthly journal allowance.'
+        : error?.error || 'Failed to update journal entry',
+    );
+  }
 }
 
 export async function submitJournalForCorrection(
