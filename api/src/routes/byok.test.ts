@@ -120,11 +120,11 @@ describe('BYOK settings route', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         provider: 'openrouter',
-        model: 'deepseek/deepseek-chat-v3-0324',
+        model: 'deepseek/deepseek-v3.2',
       }),
     });
     expect(update.status).toBe(200);
-    expect((await update.json()).model).toBe('deepseek/deepseek-chat-v3-0324');
+    expect((await update.json()).model).toBe('deepseek/deepseek-v3.2');
   });
 
   test('rejects oversized keys before contacting a provider', async () => {

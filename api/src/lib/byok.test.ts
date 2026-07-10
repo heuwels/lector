@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomBytes } from 'crypto';
 import { db } from '../db';
 import {
+  BYOK_CATALOG,
   decryptCredential,
   deleteByokCredential,
   encryptCredential,
@@ -43,6 +44,25 @@ describe('BYOK encryption', () => {
 });
 
 describe('per-user credential storage and routing', () => {
+  test('OpenRouter catalog carries the evaluated models in leaderboard order', () => {
+    expect(BYOK_CATALOG.openrouter.models.slice(1).map((model) => model.id)).toEqual([
+      'openai/gpt-5',
+      'google/gemini-2.5-pro',
+      'anthropic/claude-opus-4.8',
+      'anthropic/claude-sonnet-4.6',
+      'openai/gpt-4o-mini',
+      'openai/gpt-4o',
+      'mistralai/mistral-large',
+      'meta-llama/llama-3.3-70b-instruct',
+      'google/gemini-2.5-flash',
+      'deepseek/deepseek-v3.2',
+      'google/gemma-2-27b-it',
+      'google/gemma-3-27b-it',
+      'anthropic/claude-haiku-4.5',
+      'mistralai/mistral-small-3.2-24b-instruct',
+    ]);
+  });
+
   test('stores no plaintext and isolates accounts', () => {
     saveByokCredential('byok-test-a', 'openrouter', 'sk-user-a', 'model-a');
     const stored = db

@@ -125,6 +125,21 @@ export default function BYOKSettings() {
                 </option>
               ))}
             </select>
+            {provider === 'openrouter' && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Evaluated models are ordered by Afrikaans COMET score in Lector&apos;s{' '}
+                <a
+                  href="https://lector.dev/blog/local-llm-translation-eval/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  reproducible translation eval
+                </a>
+                . Gaps below roughly 1.5 points are statistical ties; Flash Lite is the unevaluated
+                low-cost default.
+              </p>
+            )}
           </div>
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground" htmlFor="byok-model">
