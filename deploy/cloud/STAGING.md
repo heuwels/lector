@@ -103,6 +103,9 @@ produce a new staging candidate.
 
 ## Emergency operations
 
+- On the first production promotion, `deploy-cloud.sh` resolves the currently
+  running legacy `latest` image to its immutable registry digest before pulling.
+  If it cannot establish that rollback anchor, it refuses to deploy.
 - A failed deployment automatically restores the prior image tag.
 - To redeploy the current candidate, rerun the failed GitHub job; it remains pinned to
   the workflow run's `head_sha`.

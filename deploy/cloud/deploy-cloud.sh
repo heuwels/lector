@@ -26,6 +26,22 @@ if [ -z "$PREVIOUS_IMAGE" ]; then
   exit 2
 fi
 
+# The pre-gate production box still names its running image `latest`. Resolve
+# that running container to its registry digest before pulling anything, so the
+# first gated promotion has a real rollback target even after `latest` moves.
+if [[ ! "$PREVIOUS_IMAGE" =~ ^ghcr\.io/heuwels/lector:(sha-[0-9a-f]{40})$ ]]; then
+  RUNNING_IMAGE_ID=$(docker inspect --format '{{.Image}}' lector 2>/dev/null || true)
+  PREVIOUS_DIGEST=$(docker image inspect "$RUNNING_IMAGE_ID" \
+    --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null \
+    | awk '/^ghcr\.io\/heuwels\/lector@sha256:[0-9a-f]{64}$/{print; exit}' || true)
+  if [ -z "$PREVIOUS_DIGEST" ]; then
+    echo "refusing deployment: mutable previous image has no immutable rollback digest" >&2
+    exit 2
+  fi
+  PREVIOUS_IMAGE=$PREVIOUS_DIGEST
+  echo "anchored first-promotion rollback to $PREVIOUS_IMAGE"
+fi
+
 set_image() {
   local image=$1
   local tmp
@@ -45,6 +61,31 @@ set_image() {
   mv "$tmp" "$COMPOSE"
 }
 
+ensure_sentry_environment() {
+  local environment=$1
+  local tmp
+  tmp=$(mktemp "${COMPOSE}.XXXXXX")
+  if ! awk -v environment="$environment" '
+    /^[[:space:]]+- SENTRY_ENVIRONMENT=/ {
+      sub(/SENTRY_ENVIRONMENT=[^[:space:]]+/, "SENTRY_ENVIRONMENT=" environment)
+      found = 1
+    }
+    { print }
+    /^[[:space:]]+- LECTOR_MODE=cloud[[:space:]]*$/ && !found {
+      match($0, /^[[:space:]]*/)
+      print substr($0, RSTART, RLENGTH) "- SENTRY_ENVIRONMENT=" environment
+      found = 1
+    }
+    END { if (!found) exit 1 }
+  ' "$COMPOSE" > "$tmp"; then
+    rm -f "$tmp"
+    echo "could not set SENTRY_ENVIRONMENT in $COMPOSE" >&2
+    return 1
+  fi
+  chmod --reference="$COMPOSE" "$tmp" 2>/dev/null || chmod 600 "$tmp"
+  mv "$tmp" "$COMPOSE"
+}
+
 healthy() {
   for _ in $(seq 1 30); do
     if docker exec lector node -e 'fetch("http://localhost:3457/health").then(r=>r.json()).then(j=>process.exit(j.ok?0:1)).catch(()=>process.exit(1))' 2>/dev/null; then
@@ -56,7 +97,13 @@ healthy() {
 }
 
 echo "deploying $DESIRED_IMAGE to $LECTOR_DEPLOYMENT"
-set_image "$DESIRED_IMAGE"
+if ! ensure_sentry_environment "$LECTOR_DEPLOYMENT"; then
+  exit 2
+fi
+if ! set_image "$DESIRED_IMAGE"; then
+  echo "could not pin $DESIRED_IMAGE in $COMPOSE" >&2
+  exit 2
+fi
 if "$LECTOR_ROOT/update.sh" && healthy; then
   ACTUAL_IMAGE=$(docker inspect --format '{{.Config.Image}}' lector)
   if [ "$ACTUAL_IMAGE" != "$DESIRED_IMAGE" ]; then
