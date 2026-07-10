@@ -220,8 +220,8 @@ export default function BYOKSettings() {
                 exports, or logs upstream credential details.
               </p>
               <p>
-                Lector is open source, and published container images include build provenance and a
-                software bill of materials.{' '}
+                Lector is open source, so you can verify how credentials are encrypted, stored, and
+                selected at request time.{' '}
                 <a
                   href="https://github.com/heuwels/lector"
                   target="_blank"
