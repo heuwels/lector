@@ -5,17 +5,25 @@ import { apiFetch } from '@/lib/api-base';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
+type ByokProvider = 'openrouter' | 'anthropic';
+interface ProviderConfig {
+  label: string;
+  keyPlaceholder: string;
+  defaultModel: string;
+  models: Array<{ id: string; label: string }>;
+}
 interface ByokStatus {
   available: boolean;
   enabled: boolean;
-  provider: 'openrouter';
+  provider: ByokProvider;
   model: string;
-  models: Array<{ id: string; label: string }>;
+  providers: Record<ByokProvider, ProviderConfig>;
 }
 
 export default function BYOKSettings() {
   const [status, setStatus] = useState<ByokStatus | null>(null);
   const [apiKey, setApiKey] = useState('');
+  const [provider, setProvider] = useState<ByokProvider>('openrouter');
   const [model, setModel] = useState('');
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -25,6 +33,7 @@ export default function BYOKSettings() {
     if (!res.ok) throw new Error('Could not load BYOK settings');
     const next = (await res.json()) as ByokStatus;
     setStatus(next);
+    setProvider(next.provider);
     setModel(next.model);
   };
 
@@ -38,14 +47,14 @@ export default function BYOKSettings() {
       const res = await apiFetch('/api/byok', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey, model }),
+        body: JSON.stringify({ provider, apiKey, model }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Could not enable BYOK');
       setApiKey('');
       setEditing(false);
       await load();
-      toast.success('Your OpenRouter key is active');
+      toast.success(`Your ${status?.providers[provider].label ?? provider} key is active`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not enable BYOK');
     } finally {
@@ -61,7 +70,7 @@ export default function BYOKSettings() {
       setApiKey('');
       setEditing(false);
       await load();
-      toast.success('Managed AI is active again');
+      toast.success('Reverted to Lector managed AI');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not disable BYOK');
     } finally {
@@ -80,8 +89,9 @@ export default function BYOKSettings() {
         )}
       </div>
       <p className="mb-4 text-sm text-muted-foreground">
-        Use your own OpenRouter account for translations, explanations, journal corrections, and
-        chat. Your key is encrypted at rest, never shown again, and removes managed-AI usage caps.
+        Use your own OpenRouter or Anthropic account for translations, explanations, journal
+        corrections, and chat. Your key is encrypted at rest, never shown again, and removes
+        managed-AI usage caps.
       </p>
 
       {status && !status.available ? (
@@ -90,6 +100,32 @@ export default function BYOKSettings() {
         </p>
       ) : status ? (
         <div className="space-y-4">
+          <div>
+            <label
+              className="mb-2 block text-sm font-medium text-foreground"
+              htmlFor="byok-provider"
+            >
+              Provider
+            </label>
+            <select
+              id="byok-provider"
+              value={provider}
+              onChange={(event) => {
+                const next = event.target.value as ByokProvider;
+                setProvider(next);
+                setModel(status.providers[next].defaultModel);
+                setApiKey('');
+              }}
+              disabled={status.enabled && !editing}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:opacity-60"
+            >
+              {Object.entries(status.providers).map(([id, config]) => (
+                <option key={id} value={id}>
+                  {config.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground" htmlFor="byok-model">
               Model
@@ -101,7 +137,7 @@ export default function BYOKSettings() {
               disabled={status.enabled && !editing}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground disabled:opacity-60"
             >
-              {status.models.map((item) => (
+              {status.providers[provider].models.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
                 </option>
@@ -115,13 +151,18 @@ export default function BYOKSettings() {
                 Replace key or model
               </Button>
               <Button variant="destructive" onClick={disable} disabled={saving}>
-                Disable
+                Revert to managed AI
               </Button>
             </div>
           ) : (
             <div className="space-y-2">
               <label className="block text-sm font-medium text-foreground" htmlFor="byok-key">
-                OpenRouter API key
+                {status.providers[provider].label} API key{' '}
+                {status.enabled && provider === status.provider && (
+                  <span className="font-normal text-muted-foreground">
+                    (leave blank to keep it)
+                  </span>
+                )}
               </label>
               <input
                 id="byok-key"
@@ -129,12 +170,19 @@ export default function BYOKSettings() {
                 autoComplete="off"
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
-                placeholder="sk-or-v1-…"
+                placeholder={status.providers[provider].keyPlaceholder}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
               />
               <div className="flex gap-2">
-                <Button onClick={save} disabled={saving || !apiKey.trim() || !model}>
-                  {saving ? 'Validating…' : 'Validate and enable'}
+                <Button
+                  onClick={save}
+                  disabled={
+                    saving ||
+                    !model ||
+                    (!apiKey.trim() && (!status.enabled || provider !== status.provider))
+                  }
+                >
+                  {saving ? 'Saving…' : status.enabled ? 'Save changes' : 'Validate and enable'}
                 </Button>
                 {status.enabled && (
                   <Button
@@ -142,6 +190,7 @@ export default function BYOKSettings() {
                     onClick={() => {
                       setEditing(false);
                       setApiKey('');
+                      setProvider(status.provider);
                       setModel(status.model);
                     }}
                   >
@@ -152,9 +201,39 @@ export default function BYOKSettings() {
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            Lector validates the key with OpenRouter before saving it. Provider errors never include
-            your key.
+            Lector validates the key with {status.providers[provider].label} before saving it.
+            Provider errors never include your key.
           </p>
+          <details className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">
+              How your API key is protected
+            </summary>
+            <div className="mt-2 space-y-2">
+              <p>
+                Keys are encrypted before they reach the database using AES-256-GCM with a fresh
+                random nonce. Authentication data binds each ciphertext to your account and chosen
+                provider, so an encrypted row cannot be moved to another account.
+              </p>
+              <p>
+                The deployment encryption key is held separately in AWS Parameter Store. Your API
+                key is write-only: Lector never sends it back to the browser, includes it in
+                exports, or logs upstream credential details.
+              </p>
+              <p>
+                Lector is open source, and published container images include build provenance and a
+                software bill of materials.{' '}
+                <a
+                  href="https://github.com/heuwels/lector"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Inspect the implementation
+                </a>
+                .
+              </p>
+            </div>
+          </details>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">Loading…</p>

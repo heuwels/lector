@@ -46,7 +46,11 @@ describe('BYOK settings route', () => {
     expect(JSON.stringify(status)).not.toContain('sk-or-v1-secret');
 
     expect((await app.request('/', { method: 'DELETE' })).status).toBe(200);
-    expect((await (await app.request('/')).json()).enabled).toBe(false);
+    const reverted = await (await app.request('/')).json();
+    expect(reverted.enabled).toBe(false);
+    expect(
+      db.prepare("SELECT 1 FROM user_provider_credentials WHERE userId = 'local'").get(),
+    ).toBeNull();
   });
 
   test('does not persist a key rejected by OpenRouter', async () => {
@@ -68,6 +72,66 @@ describe('BYOK settings route', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey: 'secret', model: 'attacker/model' }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  test('validates and stores an Anthropic key through the native API', async () => {
+    let validationRequest: Request | null = null;
+    globalThis.fetch = (async (input, init) => {
+      validationRequest = new Request(input, init);
+      return Response.json({ data: [], has_more: false, first_id: null, last_id: null });
+    }) as typeof fetch;
+    const response = await app.request('/', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'anthropic',
+        apiKey: 'sk-ant-secret',
+        model: 'claude-haiku-4-5',
+      }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      enabled: true,
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5',
+    });
+    expect(validationRequest?.url).toContain('api.anthropic.com/v1/models');
+    expect(validationRequest?.headers.get('x-api-key')).toBe('sk-ant-secret');
+  });
+
+  test('updates the model without requiring the write-only key again', async () => {
+    const first = await app.request('/', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'openrouter',
+        apiKey: 'sk-or-v1-secret',
+        model: 'google/gemini-2.5-flash-lite',
+      }),
+    });
+    expect(first.status).toBe(200);
+    globalThis.fetch = (async () => {
+      throw new Error('model-only updates must not call the provider');
+    }) as typeof fetch;
+    const update = await app.request('/', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'openrouter',
+        model: 'deepseek/deepseek-chat-v3-0324',
+      }),
+    });
+    expect(update.status).toBe(200);
+    expect((await update.json()).model).toBe('deepseek/deepseek-chat-v3-0324');
+  });
+
+  test('rejects oversized keys before contacting a provider', async () => {
+    const response = await app.request('/', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: 'x'.repeat(513) }),
     });
     expect(response.status).toBe(400);
   });

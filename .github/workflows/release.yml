@@ -91,6 +91,9 @@ jobs:
         with:
           context: .
           push: true
+          # Supply-chain evidence for an image trusted with encrypted user keys.
+          provenance: mode=max
+          sbom: true
           tags: ghcr.io/heuwels/lector:sha-${{ github.sha }}-amd64
           platforms: linux/amd64
           # Build context has no .git (see .dockerignore); on a release the tag
@@ -120,6 +123,8 @@ jobs:
         with:
           context: .
           push: true
+          provenance: mode=max
+          sbom: true
           tags: ghcr.io/heuwels/lector:sha-${{ github.sha }}-arm64
           platforms: linux/arm64
           # Build context has no .git (see .dockerignore); on a release the tag

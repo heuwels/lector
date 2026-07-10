@@ -33,6 +33,9 @@ export function getProvider(userId: string = LOCAL_USER_ID): LLMProvider {
   if (byok) {
     // Never put user credentials in the process-global provider cache: an
     // account-specific instance prevents cross-tenant key/model bleed.
+    if (byok.provider === 'anthropic') {
+      return new AnthropicProvider({ apiKey: byok.apiKey, model: byok.model });
+    }
     return new OpenAICompatibleProvider({
       baseUrl: OPENROUTER_URL,
       apiKey: byok.apiKey,

@@ -167,6 +167,27 @@ describe('adoptLocalData', () => {
     expect(() => adoptLocalData(db, '')).toThrow();
     expect(() => adoptLocalData(db, LOCAL_USER_ID)).toThrow();
   });
+
+  test('drops an unreadable BYOK credential without blocking library adoption', () => {
+    const previousKey = process.env.BYOK_ENCRYPTION_KEY;
+    process.env.BYOK_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
+    try {
+      db.prepare(
+        'INSERT INTO user_provider_credentials (userId, provider, ciphertext, model) VALUES (?, ?, ?, ?)',
+      ).run(LOCAL_USER_ID, 'openrouter', 'v1.invalid.invalid.invalid', 'model-a');
+
+      expect(() => adoptLocalData(db, TARGET)).not.toThrow();
+      expect(countRowsByUser(db, TARGET).vocab).toBe(5);
+      expect(
+        db
+          .prepare('SELECT 1 FROM user_provider_credentials WHERE userId IN (?, ?)')
+          .get(LOCAL_USER_ID, TARGET),
+      ).toBeNull();
+    } finally {
+      if (previousKey === undefined) delete process.env.BYOK_ENCRYPTION_KEY;
+      else process.env.BYOK_ENCRYPTION_KEY = previousKey;
+    }
+  });
 });
 
 describe('TENANT_TABLES ratchet', () => {

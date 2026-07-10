@@ -19,7 +19,7 @@
  */
 import type { Database } from 'bun:sqlite';
 import { LOCAL_USER_ID } from './user';
-import { BYOK_PROVIDER, decryptCredential, encryptCredential } from './byok';
+import { BYOK_PROVIDERS, decryptCredential, encryptCredential } from './byok';
 
 /**
  * Every table whose rows belong to a tenant (carry `userId`). Exactly the set
@@ -152,12 +152,22 @@ export function adoptLocalData(
             .prepare('SELECT provider, ciphertext FROM user_provider_credentials WHERE userId = ?')
             .all(LOCAL_USER_ID) as Array<{ provider: string; ciphertext: string }>;
           for (const credential of credentials) {
-            if (credential.provider !== BYOK_PROVIDER) continue;
-            const secret = decryptCredential(
-              LOCAL_USER_ID,
-              credential.provider,
-              credential.ciphertext,
-            );
+            if (!BYOK_PROVIDERS.includes(credential.provider as (typeof BYOK_PROVIDERS)[number]))
+              continue;
+            let secret: string;
+            try {
+              secret = decryptCredential(LOCAL_USER_ID, credential.provider, credential.ciphertext);
+            } catch {
+              // A stale credential must not block adoption of the user's entire
+              // library. Drop it; the user can safely re-enter it after login.
+              console.warn(
+                `[adopt-local-data] skipped unreadable ${credential.provider} BYOK credential`,
+              );
+              db.prepare(
+                'DELETE FROM user_provider_credentials WHERE userId = ? AND provider = ?',
+              ).run(LOCAL_USER_ID, credential.provider);
+              continue;
+            }
             const ciphertext = encryptCredential(targetUserId, credential.provider, secret);
             db.prepare(
               'UPDATE user_provider_credentials SET userId = ?, ciphertext = ? WHERE userId = ? AND provider = ?',

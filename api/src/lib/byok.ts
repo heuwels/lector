@@ -1,19 +1,45 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db';
 
-export const BYOK_PROVIDER = 'openrouter' as const;
+export const BYOK_PROVIDERS = ['openrouter', 'anthropic'] as const;
+export type ByokProvider = (typeof BYOK_PROVIDERS)[number];
+export const DEFAULT_BYOK_PROVIDER: ByokProvider = 'openrouter';
 export const OPENROUTER_URL = 'https://openrouter.ai/api';
-export const DEFAULT_BYOK_MODEL = 'google/gemini-2.5-flash-lite';
-
-export const BYOK_MODELS = [
-  { id: DEFAULT_BYOK_MODEL, label: 'Gemini 2.5 Flash Lite' },
-  { id: 'deepseek/deepseek-chat-v3-0324', label: 'DeepSeek V3' },
-  { id: 'anthropic/claude-3.5-haiku', label: 'Claude Haiku' },
-  { id: 'anthropic/claude-sonnet-4', label: 'Claude Sonnet' },
-] as const;
+export const BYOK_CATALOG = {
+  openrouter: {
+    label: 'OpenRouter',
+    keyPlaceholder: 'sk-or-v1-…',
+    defaultModel: 'google/gemini-2.5-flash-lite',
+    models: [
+      { id: 'google/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+      { id: 'deepseek/deepseek-chat-v3-0324', label: 'DeepSeek V3' },
+      { id: 'anthropic/claude-3.5-haiku', label: 'Claude Haiku' },
+      { id: 'anthropic/claude-sonnet-4', label: 'Claude Sonnet' },
+    ],
+  },
+  anthropic: {
+    label: 'Anthropic',
+    keyPlaceholder: 'sk-ant-api03-…',
+    defaultModel: 'claude-haiku-4-5',
+    models: [
+      { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+      { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+      { id: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
+    ],
+  },
+} satisfies Record<
+  ByokProvider,
+  {
+    label: string;
+    keyPlaceholder: string;
+    defaultModel: string;
+    models: Array<{ id: string; label: string }>;
+  }
+>;
 
 interface CredentialRow {
-  provider: typeof BYOK_PROVIDER;
+  provider: ByokProvider;
   ciphertext: string;
   model: string;
   updatedAt: string;
@@ -64,40 +90,56 @@ export function decryptCredential(userId: string, provider: string, value: strin
 }
 
 export function getByokCredential(userId: string): (CredentialRow & { apiKey: string }) | null {
+  if (!isByokAvailable()) return null;
   const row = db
     .prepare(
-      'SELECT provider, ciphertext, model, updatedAt FROM user_provider_credentials WHERE userId = ? AND provider = ?',
+      'SELECT provider, ciphertext, model, updatedAt FROM user_provider_credentials WHERE userId = ? ORDER BY updatedAt DESC LIMIT 1',
     )
-    .get(userId, BYOK_PROVIDER) as CredentialRow | undefined;
+    .get(userId) as CredentialRow | undefined;
   if (!row) return null;
-  return { ...row, apiKey: decryptCredential(userId, row.provider, row.ciphertext) };
+  try {
+    return { ...row, apiKey: decryptCredential(userId, row.provider, row.ciphertext) };
+  } catch {
+    // A missing/rotated master key degrades to managed AI. Never leave the
+    // account entitled as BYOK while every LLM request fails to decrypt.
+    return null;
+  }
 }
 
 export function hasByokCredential(userId: string): boolean {
-  if (!isByokAvailable()) return false;
-  const row = db
-    .prepare('SELECT 1 FROM user_provider_credentials WHERE userId = ? AND provider = ?')
-    .get(userId, BYOK_PROVIDER);
-  return Boolean(row);
+  return getByokCredential(userId) !== null;
 }
 
-export function saveByokCredential(userId: string, apiKey: string, model: string): void {
+export function saveByokCredential(
+  userId: string,
+  provider: ByokProvider,
+  apiKey: string,
+  model: string,
+): void {
   const now = new Date().toISOString();
-  db.prepare(
-    `
-    INSERT INTO user_provider_credentials (userId, provider, ciphertext, model, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(userId, provider) DO UPDATE SET
-      ciphertext = excluded.ciphertext, model = excluded.model, updatedAt = excluded.updatedAt
-  `,
-  ).run(userId, BYOK_PROVIDER, encryptCredential(userId, BYOK_PROVIDER, apiKey), model, now, now);
+  db.transaction(() => {
+    // Exactly one active provider per account keeps routing deterministic.
+    db.prepare('DELETE FROM user_provider_credentials WHERE userId = ?').run(userId);
+    db.prepare(
+      `INSERT INTO user_provider_credentials
+        (userId, provider, ciphertext, model, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(userId, provider, encryptCredential(userId, provider, apiKey), model, now, now);
+  })();
 }
 
 export function deleteByokCredential(userId: string): void {
-  db.prepare('DELETE FROM user_provider_credentials WHERE userId = ? AND provider = ?').run(
-    userId,
-    BYOK_PROVIDER,
-  );
+  db.prepare('DELETE FROM user_provider_credentials WHERE userId = ?').run(userId);
+}
+
+/** Validate through the official Anthropic SDK's authenticated Models API. */
+export async function validateAnthropicKey(apiKey: string): Promise<boolean> {
+  try {
+    await new Anthropic({ apiKey, timeout: 15_000 }).models.list({ limit: 1 });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Validate against OpenRouter's authenticated key-introspection endpoint.

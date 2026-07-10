@@ -3,7 +3,6 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomBytes } from 'crypto';
 import { db } from '../db';
 import {
-  BYOK_PROVIDER,
   decryptCredential,
   deleteByokCredential,
   encryptCredential,
@@ -28,16 +27,16 @@ afterAll(() => {
 
 describe('BYOK encryption', () => {
   test('round-trips with tenant/provider-bound authenticated encryption', () => {
-    const encrypted = encryptCredential('byok-test-a', BYOK_PROVIDER, 'sk-secret');
+    const encrypted = encryptCredential('byok-test-a', 'openrouter', 'sk-secret');
     expect(encrypted).not.toContain('sk-secret');
-    expect(decryptCredential('byok-test-a', BYOK_PROVIDER, encrypted)).toBe('sk-secret');
-    expect(() => decryptCredential('byok-test-b', BYOK_PROVIDER, encrypted)).toThrow();
+    expect(decryptCredential('byok-test-a', 'openrouter', encrypted)).toBe('sk-secret');
+    expect(() => decryptCredential('byok-test-b', 'openrouter', encrypted)).toThrow();
   });
 
   test('rejects absent and malformed encryption keys', () => {
     delete process.env.BYOK_ENCRYPTION_KEY;
     expect(isByokAvailable()).toBe(false);
-    expect(() => encryptCredential('byok-test-a', BYOK_PROVIDER, 'secret')).toThrow();
+    expect(() => encryptCredential('byok-test-a', 'openrouter', 'secret')).toThrow();
     process.env.BYOK_ENCRYPTION_KEY = Buffer.from('short').toString('base64');
     expect(isByokAvailable()).toBe(false);
   });
@@ -45,10 +44,10 @@ describe('BYOK encryption', () => {
 
 describe('per-user credential storage and routing', () => {
   test('stores no plaintext and isolates accounts', () => {
-    saveByokCredential('byok-test-a', 'sk-user-a', 'model-a');
+    saveByokCredential('byok-test-a', 'openrouter', 'sk-user-a', 'model-a');
     const stored = db
       .prepare('SELECT ciphertext FROM user_provider_credentials WHERE userId = ? AND provider = ?')
-      .get('byok-test-a', BYOK_PROVIDER) as { ciphertext: string };
+      .get('byok-test-a', 'openrouter') as { ciphertext: string };
 
     expect(stored.ciphertext).not.toContain('sk-user-a');
     expect(getByokCredential('byok-test-a')?.apiKey).toBe('sk-user-a');
@@ -58,9 +57,36 @@ describe('per-user credential storage and routing', () => {
   });
 
   test('selects the account model and falls back after disable', () => {
-    saveByokCredential('byok-test-a', 'sk-user-a', 'model-a');
+    saveByokCredential('byok-test-a', 'openrouter', 'sk-user-a', 'model-a');
     expect(getProvider('byok-test-a').model).toBe('model-a');
     deleteByokCredential('byok-test-a');
     expect(hasByokCredential('byok-test-a')).toBe(false);
+    expect(getByokCredential('byok-test-a')).toBeNull();
+    expect(getProvider('byok-test-a').model).not.toBe('model-a');
+  });
+
+  test('routes an Anthropic key through the native Anthropic provider', () => {
+    saveByokCredential('byok-test-a', 'anthropic', 'sk-ant-test', 'claude-haiku-4-5');
+    const credential = getByokCredential('byok-test-a');
+    expect(credential?.provider).toBe('anthropic');
+    expect(getProvider('byok-test-a').name).toBe('anthropic');
+    expect(getProvider('byok-test-a').model).toBe('claude-haiku-4-5');
+  });
+
+  test('switching providers removes the previous active credential', () => {
+    saveByokCredential('byok-test-a', 'openrouter', 'sk-or-test', 'model-a');
+    saveByokCredential('byok-test-a', 'anthropic', 'sk-ant-test', 'claude-haiku-4-5');
+    const rows = db
+      .prepare('SELECT provider FROM user_provider_credentials WHERE userId = ?')
+      .all('byok-test-a') as Array<{ provider: string }>;
+    expect(rows).toEqual([{ provider: 'anthropic' }]);
+  });
+
+  test('an unreadable credential falls back to managed AI and removes BYOK entitlement', () => {
+    saveByokCredential('byok-test-a', 'openrouter', 'sk-user-a', 'model-a');
+    process.env.BYOK_ENCRYPTION_KEY = randomBytes(32).toString('base64');
+    expect(getByokCredential('byok-test-a')).toBeNull();
+    expect(hasByokCredential('byok-test-a')).toBe(false);
+    expect(() => getProvider('byok-test-a')).not.toThrow();
   });
 });
