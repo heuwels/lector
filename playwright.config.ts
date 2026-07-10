@@ -136,9 +136,10 @@ export default defineConfig({
       // A FOURTH cloud-mode API with the Paddle billing gate armed (#224) for
       // billing-cloud.spec.ts: no free tier, so a fresh verified account must
       // land locked on /subscribe until the spec plays Paddle and posts signed
-      // webhooks at it. No prices / CHECKOUT_URL, so the screen shows its
-      // graceful fallback — e2e asserts OUR gate + webhook + unlock, never
-      // Paddle itself (checkout is created server-side and opens on lector.dev,
+      // webhooks at it. No CHECKOUT_URL, so the screen shows its graceful
+      // fallback (the monthly price below only maps webhooks → the 'cloud'
+      // plan, per the note there) — e2e asserts OUR gate + webhook + unlock,
+      // never Paddle itself (checkout is created server-side, opens on lector.dev,
       // driven here via a mocked /api/billing/checkout).
       command: "rm -rf ../tmp/e2e-billing-data && mkdir -p ../tmp/e2e-billing-data && bun run src/index.ts",
       cwd: "./api",

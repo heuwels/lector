@@ -35,6 +35,7 @@ function strictEngine(overrides: Partial<EntitlementsDeps> = {}) {
     planLimits: { cloud: STRICT, plus: STRICT },
     resolveEmail: () => null,
     isByok: () => false,
+    compedPlan: () => null,
     now: () => new Date('2026-07-15T12:00:00Z'),
     ...overrides,
   });

@@ -46,6 +46,7 @@ function makeDeps(overrides: Partial<EntitlementsDeps> = {}): EntitlementsDeps {
     planLimits: LIMITS,
     resolveEmail: () => null,
     isByok: () => false,
+    compedPlan: () => null,
     now: () => new Date('2026-07-15T12:00:00Z'),
     ...overrides,
   };
@@ -162,6 +163,28 @@ describe('plan resolution', () => {
     expect(resolved.limits.phraseSelectionWords).toBeNull();
     expect(resolved.limits.journalWordsPerMonth).toBeNull();
     expect(resolved.limits.llmRequestsPerMonth).not.toBeNull();
+  });
+
+  test('a comped account resolves to its comped tier, ahead of any subscription (#221)', () => {
+    // No subscription at all, comped to Plus → Plus limits (not the base plan).
+    const plusEngine = makeEntitlements(makeDeps({ compedPlan: (id) => (id === 'ent-comp' ? 'plus' : null) }));
+    expect(plusEngine.resolveEntitlements('ent-comp').plan).toBe('plus');
+    expect(plusEngine.resolveEntitlements('ent-comp').limits.phraseSelectionWords).toBe(
+      LIMITS.plus.phraseSelectionWords,
+    );
+
+    // Comp overrides a real subscription too (deliberate operator grant).
+    seedSubscription('ent-comp2', 'active', CLOUD_PRICE);
+    const bumpEngine = makeEntitlements(
+      makeDeps({ compedPlan: (id) => (id === 'ent-comp2' ? 'plus' : null) }),
+    );
+    expect(bumpEngine.resolveEntitlements('ent-comp2').plan).toBe('plus');
+
+    // byok still lifts caps on top of a comped tier.
+    const byokComp = makeEntitlements(
+      makeDeps({ compedPlan: () => 'cloud', isByok: () => true }),
+    );
+    expect(byokComp.resolveEntitlements('ent-comp3').limits.journalWordsPerMonth).toBeNull();
   });
 });
 

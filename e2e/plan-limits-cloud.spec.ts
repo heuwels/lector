@@ -35,18 +35,27 @@ async function useBillingEnv(page: Page) {
   );
 }
 
-function lastVerifyLink(address: string): string {
-  const mail = readFileSync(EMAILS, 'utf8')
-    .trim()
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as { to: string; subject: string; text: string })
-    .reverse()
-    .find((m) => m.to === address && /verify/i.test(m.subject));
-  if (!mail) throw new Error(`no verification email to ${address}`);
-  const url = mail.text.match(/https?:\/\/\S+/)?.[0];
-  if (!url) throw new Error(`no URL in email: ${mail.text}`);
-  return url;
+async function lastVerifyLink(address: string): Promise<string> {
+  // The email write can lag the register response — poll the outbox briefly.
+  for (let i = 0; i < 40; i++) {
+    let contents = '';
+    try {
+      contents = readFileSync(EMAILS, 'utf8');
+    } catch {
+      /* not created yet */
+    }
+    const mail = contents
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { to: string; subject: string; text: string })
+      .reverse()
+      .find((m) => m.to === address && /verify/i.test(m.subject));
+    const url = mail?.text.match(/https?:\/\/\S+/)?.[0];
+    if (url) return url;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(`no verification email to ${address}`);
 }
 
 function paddleSignature(body: string): string {
@@ -77,7 +86,7 @@ test.describe.serial('plan limits (#222)', () => {
     await page.getByTestId('register-password').fill(PASSWORD);
     await page.getByTestId('register-submit').click();
     await expect(page.getByTestId('register-check-email')).toBeVisible();
-    await page.goto(lastVerifyLink(EMAIL));
+    await page.goto(await lastVerifyLink(EMAIL));
     await page.waitForURL('**/subscribe');
 
     // Entitle via signed Paddle webhooks: the customer links the email, the
@@ -125,9 +134,16 @@ test.describe.serial('plan limits (#222)', () => {
       })
       .toBe(true);
 
-    // Into the app — the verify link auto-signed this page in.
-    await page.goto('/');
-    await page.waitForURL((url) => url.pathname === '/');
+    // Seed the account's language so SetupGuard doesn't bounce later UI
+    // navigations (the /journal editor in the last test) to /setup. Persists
+    // server-side, so subsequent sign-ins in this serial block pass the guard.
+    const seed = await page.request.put(`${CLOUD_API}/api/settings`, {
+      data: { targetLanguage: 'af' },
+    });
+    expect(seed.ok()).toBeTruthy();
+
+    // Entitlements read straight from the API (the verify link already
+    // established this context's session cookie) — no fragile UI navigation.
     const ent = await page.request.get(`${CLOUD_API}/api/billing/entitlements`);
     expect(ent.status()).toBe(200);
     const body = (await ent.json()) as {

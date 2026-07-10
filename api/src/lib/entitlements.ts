@@ -34,6 +34,7 @@ import { createMiddleware } from 'hono/factory';
 import type { Context } from 'hono';
 import { db } from '../db';
 import { billingConfig, getUserEmail, isEntitledStatus } from './billing';
+import { getCompedPlan } from './account-flags';
 
 export type PlanId = 'cloud' | 'plus';
 export type ResolvedPlan = PlanId | 'unlimited';
@@ -200,6 +201,12 @@ export interface EntitlementsDeps {
   resolveEmail: (userId: string) => string | null;
   /** BYOK bolt-on flag — a seam until #223 lands per-user key storage. */
   isByok: (userId: string) => boolean;
+  /**
+   * Operator-granted complimentary tier (#221 comp), or null. A comped account
+   * resolves to that tier's limits/models — the counterpart to the billing
+   * gate bypassing it. Seam over lib/account-flags.getCompedPlan.
+   */
+  compedPlan: (userId: string) => PlanId | null;
   now: () => Date;
 }
 
@@ -231,6 +238,11 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
     if (!deps.enforced) return 'unlimited';
     const email = deps.resolveEmail(userId);
     if (email && deps.exemptEmails.has(email.toLowerCase())) return 'unlimited';
+
+    // Operator-comped account (#221): its granted tier drives limits/models,
+    // ahead of any real subscription (comp is deliberate, on the house).
+    const comped = deps.compedPlan(userId);
+    if (comped) return comped;
 
     // Same match rule as the billing gate: by tenant id (in-app checkout
     // stamps custom_data.lectorUserId) or by Paddle customer email.
@@ -339,6 +351,7 @@ let active: EntitlementsEngine = makeEntitlements({
   // BYOK is not purchasable until #223 lands per-user key storage; the
   // engine honors the flag so #223 only has to flip this seam.
   isByok: () => false,
+  compedPlan: getCompedPlan,
   now: () => new Date(),
 });
 
