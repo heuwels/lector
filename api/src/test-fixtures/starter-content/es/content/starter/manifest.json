@@ -1,0 +1,8 @@
+{
+  "title": "Starter Fixture ES",
+  "author": "Lector",
+  "lessons": [
+    { "file": "01-hola.md", "title": "Hola" },
+    { "file": "02-la-casa.md", "title": "La casa" }
+  ]
+}

@@ -810,6 +810,38 @@ export async function getAllSettings(): Promise<Record<string, unknown>> {
 }
 
 // ============================================================================
+// Helper Functions - Starter Content (#315)
+// ============================================================================
+
+export async function getStarterStatus(
+  language: string,
+): Promise<{ available: boolean; seeded: boolean }> {
+  const res = await apiFetch(`/api/starter/status?language=${language}`);
+  if (!res.ok) return { available: false, seeded: false };
+  return res.json();
+}
+
+/**
+ * Copy the language pack's starter collection into the user's library.
+ * Idempotent server-side (once per user+language); resolves { seeded: false }
+ * rather than throwing when there's nothing to seed or the API errored —
+ * language selection must never break on a missing starter pack.
+ */
+export async function seedStarterContent(language: string): Promise<{ seeded: boolean }> {
+  try {
+    const res = await apiFetch('/api/starter/seed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language }),
+    });
+    if (!res.ok) return { seeded: false };
+    return await res.json();
+  } catch {
+    return { seeded: false };
+  }
+}
+
+// ============================================================================
 // Helper Functions - API Tokens
 // ============================================================================
 

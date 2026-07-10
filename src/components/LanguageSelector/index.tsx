@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { getFluencyStats, setSetting } from '@/lib/data-layer';
+import { getFluencyStats, seedStarterContent, setSetting } from '@/lib/data-layer';
 import { LANGUAGES } from '@/lib/languages';
 import { LanguageCode } from '@/types/language';
 import { useActiveLanguage } from '@/utils/hooks';
@@ -35,6 +35,9 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
   async function handleSwitch(code: LanguageCode) {
     await setSetting('targetLanguage', code);
     setLanguageInStorage(code);
+    // First-ever switch to a language seeds its starter content before the
+    // reload lands wherever the user was; never throws (#315).
+    await seedStarterContent(code);
     window.location.reload();
   }
 
