@@ -60,6 +60,7 @@ import { Construct } from 'constructs';
  *   /lector/canary/paddle-price-plus-monthly String  optional — PADDLE_PRICE_PLUS_MONTHLY (pri_… Plus monthly)
  *   /lector/canary/paddle-price-plus-annual String   optional — PADDLE_PRICE_PLUS_ANNUAL (pri_… Plus annual)
  *   /lector/canary/billing-exempt-emails String      optional — BILLING_EXEMPT_EMAILS (comma-separated operator/test accounts)
+ *   /lector/canary/admin-emails        String        optional — LECTOR_ADMIN_EMAILS (comma-separated admin-dashboard operators, #221)
  *   /lector/canary/sentry-dsn          String        optional — SENTRY_DSN (error tracking + tracing, API + browser; public DSN; unset = off)
  *   /lector/canary/sentry-traces-sample-rate String  optional — SENTRY_TRACES_SAMPLE_RATE (0–1, server/API only; 0 = errors only)
  *   /lector/canary/ghcr-token          SecureString  optional — only if the ghcr package goes private again
@@ -285,6 +286,7 @@ put PADDLE_PRICE_ANNUAL   paddle-price-annual
 put PADDLE_PRICE_PLUS_MONTHLY paddle-price-plus-monthly
 put PADDLE_PRICE_PLUS_ANNUAL  paddle-price-plus-annual
 put BILLING_EXEMPT_EMAILS billing-exempt-emails
+put LECTOR_ADMIN_EMAILS   admin-emails
 put SENTRY_DSN            sentry-dsn
 put SENTRY_TRACES_SAMPLE_RATE sentry-traces-sample-rate
 mv "$TMP" "$ENVFILE"
