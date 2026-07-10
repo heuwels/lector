@@ -253,6 +253,23 @@ function getDb(): Database {
       reason TEXT,
       updatedAt TEXT NOT NULL
     );
+
+    -- Admin audit log (#221 follow-up): append-only record of every operator
+    -- action on an account (suspend/comp/reset-mfa/password-reset/…). The one
+    -- accountability trail — actorUserId is the admin who acted, targetUserId
+    -- the account acted on; detail carries a short human note (reason, tier).
+    -- Named actor/target columns (not a plain userId) keep it off the tenant axis.
+    CREATE TABLE IF NOT EXISTS admin_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actorUserId TEXT NOT NULL,
+      actorEmail TEXT,
+      action TEXT NOT NULL,
+      targetUserId TEXT,
+      targetEmail TEXT,
+      detail TEXT,
+      createdAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_createdAt ON admin_audit_log(createdAt);
   `);
 
   // Migrations for existing databases

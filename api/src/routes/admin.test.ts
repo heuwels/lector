@@ -25,11 +25,15 @@ function ensureAuthTables() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS user (
       id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT,
-      emailVerified INTEGER DEFAULT 0, createdAt TEXT, updatedAt TEXT
+      emailVerified INTEGER DEFAULT 0, twoFactorEnabled INTEGER DEFAULT 0,
+      createdAt TEXT, updatedAt TEXT
     );
     CREATE TABLE IF NOT EXISTS session (
       id TEXT PRIMARY KEY, userId TEXT NOT NULL, expiresAt TEXT,
       token TEXT, createdAt TEXT, updatedAt TEXT
+    );
+    CREATE TABLE IF NOT EXISTS twoFactor (
+      id TEXT PRIMARY KEY, secret TEXT, backupCodes TEXT, userId TEXT NOT NULL
     );
   `);
 }
@@ -39,9 +43,11 @@ function reset() {
   for (const t of [
     'user',
     'session',
+    'twoFactor',
     'billing_subscriptions',
     'billing_customers',
     'admin_account_flags',
+    'admin_audit_log',
     'collections',
     'lessons',
     'vocab',
@@ -75,6 +81,18 @@ const gate: AdminGateOptions = {
   resolveEmail: (id) => EMAILS[id] ?? null,
 };
 
+// Records the auth-engine actions the support endpoints trigger, so tests can
+// assert an email was sent without driving Better Auth's real flow.
+let authCalls: Array<{ fn: string; email: string }> = [];
+const authStub = {
+  requestPasswordReset: async (email: string) => {
+    authCalls.push({ fn: 'requestPasswordReset', email });
+  },
+  sendVerificationEmail: async (email: string) => {
+    authCalls.push({ fn: 'sendVerificationEmail', email });
+  },
+};
+
 /** App with the admin routes behind a stand-in tenant resolver. */
 function buildApp(g: AdminGateOptions = gate) {
   const app = new Hono();
@@ -83,7 +101,7 @@ function buildApp(g: AdminGateOptions = gate) {
     if (u) c.set('userId', u);
     return next();
   });
-  app.route('/api/admin', makeAdminRoutes(g));
+  app.route('/api/admin', makeAdminRoutes(g, authStub));
   return app;
 }
 
@@ -91,6 +109,7 @@ const asUser = (u: string) => ({ headers: { 'X-Test-User': u } });
 
 beforeEach(() => {
   reset();
+  authCalls = [];
   seedUser(ADMIN, { verified: true });
   seedUser(ALICE, { verified: true });
   seedUser(BOB, { verified: false });
@@ -324,6 +343,87 @@ describe('comp / uncomp (complimentary membership for testers)', () => {
       body: JSON.stringify({ plan: 'cloud' }),
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('auth support actions', () => {
+  const post = (path: string) =>
+    buildApp().request(`/api/admin/users/${path}`, { method: 'POST', ...asUser(ADMIN) });
+
+  test('reset-mfa clears twoFactorEnabled and the stored secret', async () => {
+    db.prepare('UPDATE user SET twoFactorEnabled = 1 WHERE id = ?').run(ALICE);
+    db.prepare('INSERT INTO twoFactor (id, secret, backupCodes, userId) VALUES (?, ?, ?, ?)').run(
+      'tf1',
+      'SECRET',
+      'codes',
+      ALICE,
+    );
+    const res = await post(`${ALICE}/reset-mfa`);
+    expect(res.status).toBe(200);
+    expect((db.prepare('SELECT twoFactorEnabled FROM user WHERE id = ?').get(ALICE) as { twoFactorEnabled: number }).twoFactorEnabled).toBe(0);
+    expect((db.prepare('SELECT COUNT(*) n FROM twoFactor WHERE userId = ?').get(ALICE) as { n: number }).n).toBe(0);
+  });
+
+  test('password-reset triggers the reset email for the account', async () => {
+    const res = await post(`${ALICE}/password-reset`);
+    expect(res.status).toBe(200);
+    expect(authCalls).toEqual([{ fn: 'requestPasswordReset', email: EMAILS[ALICE] }]);
+  });
+
+  test('resend-verification sends for an unverified account, 400 for a verified one', async () => {
+    const ok = await post(`${BOB}/resend-verification`); // Bob is unverified
+    expect(ok.status).toBe(200);
+    expect(authCalls).toEqual([{ fn: 'sendVerificationEmail', email: EMAILS[BOB] }]);
+
+    const already = await post(`${ALICE}/resend-verification`); // Alice is verified
+    expect(already.status).toBe(400);
+  });
+
+  test('force verify flips emailVerified', async () => {
+    const res = await post(`${BOB}/verify`);
+    expect(res.status).toBe(200);
+    expect((db.prepare('SELECT emailVerified FROM user WHERE id = ?').get(BOB) as { emailVerified: number }).emailVerified).toBe(1);
+  });
+
+  test('revoke-sessions deletes all the account’s sessions and reports the count', async () => {
+    const ins = db.prepare('INSERT INTO session (id, userId, token) VALUES (?, ?, ?)');
+    ins.run('s1', ALICE, 't1');
+    ins.run('s2', ALICE, 't2');
+    ins.run('s3', BOB, 't3'); // another user's session is untouched
+    const res = await post(`${ALICE}/revoke-sessions`);
+    expect(res.status).toBe(200);
+    expect((await res.json()).revoked).toBe(2);
+    expect((db.prepare('SELECT COUNT(*) n FROM session WHERE userId = ?').get(ALICE) as { n: number }).n).toBe(0);
+    expect((db.prepare('SELECT COUNT(*) n FROM session WHERE userId = ?').get(BOB) as { n: number }).n).toBe(1);
+  });
+
+  test('each action 404s for an unknown user', async () => {
+    for (const action of ['reset-mfa', 'password-reset', 'resend-verification', 'verify', 'revoke-sessions']) {
+      expect((await post(`nobody/${action}`)).status).toBe(404);
+    }
+  });
+});
+
+describe('audit log', () => {
+  test('records who did what to whom, newest first', async () => {
+    await buildApp().request(`/api/admin/users/${ALICE}/suspend`, {
+      method: 'POST',
+      headers: { 'X-Test-User': ADMIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'spam' }),
+    });
+    await buildApp().request(`/api/admin/users/${ALICE}/reset-mfa`, { method: 'POST', ...asUser(ADMIN) });
+
+    const res = await buildApp().request('/api/admin/audit', asUser(ADMIN));
+    expect(res.status).toBe(200);
+    const { entries } = (await res.json()) as {
+      entries: Array<{ action: string; actorEmail: string; targetEmail: string; detail: string | null }>;
+    };
+    // Newest first: reset_mfa then suspend.
+    expect(entries[0].action).toBe('reset_mfa');
+    expect(entries[1].action).toBe('suspend');
+    expect(entries[1].detail).toBe('spam');
+    expect(entries[0].actorEmail).toBe(EMAILS[ADMIN]);
+    expect(entries[0].targetEmail).toBe(EMAILS[ALICE]);
   });
 });
 

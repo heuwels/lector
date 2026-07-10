@@ -3,17 +3,15 @@
  * Mounted at /api/admin behind `requireAdmin` (index.ts), so every handler
  * here can assume the caller is an admin in cloud proper.
  *
- * Scope of this first cut (issue #221):
- *   - user list + per-user detail: signup, plan, status, last-active,
- *     library size, storage, this-month usage,
- *   - aggregate summary (accounts, subscriptions by plan/status, month usage),
- *   - support actions: export a user's data, suspend / restore an account.
- * Deliberately deferred (need other workstreams): plan overrides / comp
- * (the entitlements engine #222 must consult them to mean anything) and the
- * aggregate $-cost dashboard (per-call cost coefficients are #226). Usage
- * counts are shown now; cost conversion lands with W9.
+ * Visibility: user list + detail (signup, plan, status, last-active, library
+ * size, storage, month usage) + aggregate summary.
+ * Support actions (each audit-logged): export, suspend/restore, comp/uncomp
+ * (Cloud/Plus billing bypass), reset MFA, trigger password reset, resend /
+ * force email verification, revoke sessions.
+ * Deferred (own issues): impersonate (#320), hard-delete/GDPR (#321),
+ * resync-from-Paddle (#322), $-cost dashboard (#226).
  */
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { db } from '../db';
 import {
   makeRequireAdmin,
@@ -26,8 +24,29 @@ import {
   type AdminGateOptions,
   type CompPlan,
 } from '../lib/admin';
-import { billingConfig } from '../lib/billing';
+import { billingConfig, getUserEmail } from '../lib/billing';
 import { buildUserExport } from '../lib/user-export';
+import { recordAdminAction, recentAuditLog, type AdminAction } from '../lib/admin-audit';
+import { getAuthEngine } from '../lib/accounts';
+
+/**
+ * Auth-engine actions the support endpoints trigger. A seam so route tests
+ * inject stubs instead of driving Better Auth's real email flow; prod binds
+ * to the engine (built only in cloud, where these routes run).
+ */
+export interface AdminAuthActions {
+  requestPasswordReset: (email: string) => Promise<void>;
+  sendVerificationEmail: (email: string) => Promise<void>;
+}
+
+const realAuthActions: AdminAuthActions = {
+  requestPasswordReset: async (email) => {
+    await getAuthEngine().api.requestPasswordReset({ body: { email } });
+  },
+  sendVerificationEmail: async (email) => {
+    await getAuthEngine().api.sendVerificationEmail({ body: { email } });
+  },
+};
 
 // The plan a priceId maps to, from billing config — kept local so this route
 // does not depend on the entitlements engine (#222), which may or may not be
@@ -121,10 +140,41 @@ function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {
   else map.set(key, [value]);
 }
 
-export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
+export function makeAdminRoutes(
+  gate: AdminGateOptions = adminConfig,
+  authActions: AdminAuthActions = realAuthActions,
+) {
   const app = new Hono();
+  const resolveEmail = gate.resolveEmail ?? getUserEmail;
 
   app.use('*', makeRequireAdmin(gate));
+
+  // Write an audit entry for a mutating action, resolving the actor's email.
+  function audit(
+    c: Context,
+    action: AdminAction,
+    targetUserId: string,
+    targetEmail: string | null,
+    detail?: string | null,
+  ): void {
+    const actorUserId = c.get('userId') as string;
+    recordAdminAction({
+      actorUserId,
+      actorEmail: resolveEmail(actorUserId),
+      action,
+      targetUserId,
+      targetEmail,
+      detail,
+    });
+  }
+
+  // A user's email (for audit + guards), or null if the id is unknown.
+  function targetEmail(id: string): string | null {
+    const row = db.prepare('SELECT email FROM user WHERE id = ?').get(id) as
+      | { email: string }
+      | undefined;
+    return row?.email ?? null;
+  }
 
   // Shared assembly: every account with its plan/status/usage/library facts.
   function buildUserRows() {
@@ -283,8 +333,9 @@ export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
   // user (support action). Same builder as self-service GET /api/data.
   app.get('/users/:id/export', (c) => {
     const id = c.req.param('id');
-    const exists = db.prepare('SELECT 1 FROM user WHERE id = ?').get(id);
-    if (!exists) return c.json({ error: 'User not found' }, 404);
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
+    audit(c, 'export', id, email);
     return c.json(buildUserExport(id));
   });
 
@@ -292,8 +343,8 @@ export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
   // against self-suspension (an admin can't lock themselves out).
   app.post('/users/:id/suspend', async (c) => {
     const id = c.req.param('id');
-    const exists = db.prepare('SELECT 1 FROM user WHERE id = ?').get(id);
-    if (!exists) return c.json({ error: 'User not found' }, 404);
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
 
     const caller = c.get('userId');
     if (id === caller) return c.json({ error: 'You cannot suspend your own account' }, 400);
@@ -310,15 +361,17 @@ export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
       /* no body is fine */
     }
     setSuspended(id, true, reason);
+    audit(c, 'suspend', id, email, reason);
     return c.json({ id, suspended: true, reason });
   });
 
   // POST /api/admin/users/:id/restore — lift a suspension.
   app.post('/users/:id/restore', (c) => {
     const id = c.req.param('id');
-    const exists = db.prepare('SELECT 1 FROM user WHERE id = ?').get(id);
-    if (!exists) return c.json({ error: 'User not found' }, 404);
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
     setSuspended(id, false, null);
+    audit(c, 'restore', id, email);
     return c.json({ id, suspended: false });
   });
 
@@ -331,8 +384,8 @@ export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
   // is the billing middleware reading this flag.
   app.post('/users/:id/comp', async (c) => {
     const id = c.req.param('id');
-    const exists = db.prepare('SELECT 1 FROM user WHERE id = ?').get(id);
-    if (!exists) return c.json({ error: 'User not found' }, 404);
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
 
     let plan: CompPlan = 'cloud';
     let reason: string | null = null;
@@ -347,6 +400,7 @@ export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
       return c.json({ error: "plan must be 'cloud' or 'plus'" }, 400);
     }
     setCompedPlan(id, plan, reason);
+    audit(c, 'comp', id, email, reason ? `${plan}: ${reason}` : plan);
     return c.json({ id, compedPlan: plan, reason });
   });
 
@@ -355,11 +409,75 @@ export function makeAdminRoutes(gate: AdminGateOptions = adminConfig) {
   // entitled subscription).
   app.post('/users/:id/uncomp', (c) => {
     const id = c.req.param('id');
-    const exists = db.prepare('SELECT 1 FROM user WHERE id = ?').get(id);
-    if (!exists) return c.json({ error: 'User not found' }, 404);
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
     setCompedPlan(id, null, null);
+    audit(c, 'uncomp', id, email);
     return c.json({ id, compedPlan: null });
   });
+
+  // POST /api/admin/users/:id/reset-mfa — clear the account's two-factor auth
+  // (#310) so a user who lost their authenticator can sign in and re-enrol.
+  // Drops the enrolled flag + the stored secret/backup codes.
+  app.post('/users/:id/reset-mfa', (c) => {
+    const id = c.req.param('id');
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
+    db.prepare('UPDATE user SET twoFactorEnabled = 0 WHERE id = ?').run(id);
+    db.prepare('DELETE FROM twoFactor WHERE userId = ?').run(id);
+    audit(c, 'reset_mfa', id, email);
+    return c.json({ id, mfaReset: true });
+  });
+
+  // POST /api/admin/users/:id/password-reset — send the account a password-reset
+  // email (the same flow the user's own "forgot password" triggers).
+  app.post('/users/:id/password-reset', async (c) => {
+    const id = c.req.param('id');
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
+    await authActions.requestPasswordReset(email);
+    audit(c, 'password_reset', id, email);
+    return c.json({ id, passwordResetSent: true });
+  });
+
+  // POST /api/admin/users/:id/resend-verification — re-send the verification
+  // email to an account that hasn't confirmed its address yet.
+  app.post('/users/:id/resend-verification', async (c) => {
+    const id = c.req.param('id');
+    const row = db.prepare('SELECT email, emailVerified FROM user WHERE id = ?').get(id) as
+      | { email: string; emailVerified: number }
+      | undefined;
+    if (!row) return c.json({ error: 'User not found' }, 404);
+    if (row.emailVerified === 1) return c.json({ error: 'Email already verified' }, 400);
+    await authActions.sendVerificationEmail(row.email);
+    audit(c, 'resend_verification', id, row.email);
+    return c.json({ id, verificationSent: true });
+  });
+
+  // POST /api/admin/users/:id/verify — force-mark an account's email verified
+  // (operator override when a user can't receive the email at all).
+  app.post('/users/:id/verify', (c) => {
+    const id = c.req.param('id');
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
+    db.prepare('UPDATE user SET emailVerified = 1 WHERE id = ?').run(id);
+    audit(c, 'force_verify', id, email);
+    return c.json({ id, emailVerified: true });
+  });
+
+  // POST /api/admin/users/:id/revoke-sessions — sign the account out
+  // everywhere (compromised/shared account). Deletes all its sessions.
+  app.post('/users/:id/revoke-sessions', (c) => {
+    const id = c.req.param('id');
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
+    const revoked = db.prepare('DELETE FROM session WHERE userId = ?').run(id).changes;
+    audit(c, 'revoke_sessions', id, email, `${revoked} session(s)`);
+    return c.json({ id, revoked });
+  });
+
+  // GET /api/admin/audit — the operator action trail, newest first.
+  app.get('/audit', (c) => c.json({ entries: recentAuditLog(100) }));
 
   return app;
 }
