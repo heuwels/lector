@@ -4,6 +4,7 @@ import { db } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { parseEpub } from '../lib/epub-parser';
+import { entitlements, planLimitResponse } from '../lib/entitlements';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
@@ -35,6 +36,7 @@ app.post(
 
       const buffer = Buffer.from(await file.arrayBuffer());
       const parsed = parseEpub(buffer);
+
       const collectionId = randomUUID();
       const now = new Date().toISOString();
 
@@ -47,25 +49,37 @@ app.post(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      db.transaction(() => {
-        insertCollection.run(collectionId, parsed.title, parsed.author, null, lang, now, now, userId);
+      // Library size (#222): an EPUB adds one collection + all its chapters at
+      // once — check the whole batch AND insert in one transaction so nothing
+      // lands if the cap is hit, and the count can't race a concurrent import
+      // (#222 review).
+      const verdict = entitlements.reserveCount(
+        userId,
+        [
+          { metric: 'maxCollections' },
+          { metric: 'maxLessons', requested: parsed.chapters.length },
+        ],
+        () => {
+          insertCollection.run(collectionId, parsed.title, parsed.author, null, lang, now, now, userId);
 
-        for (let i = 0; i < parsed.chapters.length; i++) {
-          const chapter = parsed.chapters[i];
-          insertLesson.run(
-            randomUUID(),
-            collectionId,
-            chapter.title,
-            i,
-            chapter.markdown,
-            chapter.wordCount,
-            lang,
-            now,
-            now,
-            userId,
-          );
-        }
-      })();
+          for (let i = 0; i < parsed.chapters.length; i++) {
+            const chapter = parsed.chapters[i];
+            insertLesson.run(
+              randomUUID(),
+              collectionId,
+              chapter.title,
+              i,
+              chapter.markdown,
+              chapter.wordCount,
+              lang,
+              now,
+              now,
+              userId,
+            );
+          }
+        },
+      );
+      if (!verdict.allowed) return planLimitResponse(c, verdict);
 
       return c.json({
         collectionId,

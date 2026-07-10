@@ -18,6 +18,8 @@
  * user's own localhost and fail.
  */
 
+import { interceptPlanLimit } from './plan-limits';
+
 declare global {
   interface Window {
     __ENV__?: {
@@ -174,6 +176,13 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     // signal. Same hard-navigation reasoning as the 401 bounce.
     if (cloud && res.status === 402) {
       bounceToSubscribe();
+    }
+    // 429 plan_limit (#222) = subscribed but over a plan allowance — a soft
+    // upsell prompt, never a redirect. Centralized here so every surface
+    // (reader, journal, practice, imports) gets the graceful UX for free;
+    // the response still flows to the caller.
+    if (res.status === 429) {
+      interceptPlanLimit(res);
     }
     return res;
   } catch {

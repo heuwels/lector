@@ -44,6 +44,9 @@ export const TENANT_TABLES = [
   'knownWords',
   'dailyStats',
   'settings',
+  // Plan-limit usage counters (#222): adopted so a migrating self-hoster's
+  // current-month metering carries over instead of resetting to zero.
+  'usage_counters',
 ] as const;
 
 export type TenantTable = (typeof TENANT_TABLES)[number];
