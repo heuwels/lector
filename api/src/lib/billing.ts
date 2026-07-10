@@ -25,6 +25,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { createMiddleware } from 'hono/factory';
 import { db } from '../db';
+import { isBillingExempt } from './account-flags';
 
 export type BillingMode = 'off' | 'paddle';
 export type PaddleEnvironment = 'production' | 'sandbox';
@@ -443,6 +444,12 @@ export interface BillingGateOptions {
   exemptEmails: Set<string>;
   /** Test seam; prod uses the `user`-table lookup. */
   resolveEmail?: (userId: string) => string | null;
+  /**
+   * Dynamic per-account billing exemption set from the admin dashboard
+   * (#221 "comp a tester") — the DB-backed twin of exemptEmails. Test seam;
+   * prod reads admin_account_flags via lib/account-flags.
+   */
+  isBillingExempt?: (userId: string) => boolean;
 }
 
 /**
@@ -459,16 +466,22 @@ export interface BillingGateOptions {
  *     can always export everything and walk away. (POST /api/data — import —
  *     stays locked.)
  *
- * BILLING_EXEMPT_EMAILS bypasses the check (operator + test accounts).
+ * BILLING_EXEMPT_EMAILS (env) and a per-account comp flag (#221, admin
+ * dashboard) both bypass the check — operator + test/comped accounts.
  */
 export function makeBillingMiddleware(opts: BillingGateOptions) {
   const resolveEmail = opts.resolveEmail ?? getUserEmail;
+  const checkBillingExempt = opts.isBillingExempt ?? isBillingExempt;
   return createMiddleware(async (c, next) => {
     if (!opts.enforced) return next();
 
     const path = c.req.path;
     if (path.startsWith('/api/auth/')) return next();
     if (path === '/api/billing' || path.startsWith('/api/billing/')) return next();
+    // Admin surface (#221): the operator runs the service regardless of their
+    // own subscription. requireAdmin still guards it — a non-admin gets 403
+    // there, never a free pass around billing for ordinary accounts.
+    if (path === '/api/admin' || path.startsWith('/api/admin/')) return next();
     const method = c.req.method;
     if (path === '/api/data' && (method === 'GET' || method === 'HEAD')) return next();
 
@@ -478,6 +491,10 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
     if (typeof userId !== 'string' || userId.length === 0) {
       return c.json({ error: 'Authentication required' }, 401);
     }
+
+    // Comped tester (#221): dynamic per-account exemption, checked before the
+    // subscription so it works even with no Paddle row at all.
+    if (checkBillingExempt(userId)) return next();
 
     const email = resolveEmail(userId);
     if (email && opts.exemptEmails.has(email.toLowerCase())) return next();

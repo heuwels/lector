@@ -16,6 +16,12 @@ const externalServer = !!process.env.E2E_EXTERNAL_SERVER;
 // whole suite is driven by one knob (E2E_API_URL; default http://localhost:3457).
 const apiPort = new URL(API_BASE).port || "3457";
 
+// UI port knob (E2E_UI_PORT, default 3456) so the suite can run from a
+// parallel clone while another lector dev server holds 3456. Specs navigate
+// baseURL-relative, so this one constant carries the whole UI origin.
+const uiPort = process.env.E2E_UI_PORT || "3456";
+const uiOrigin = `http://localhost:${uiPort}`;
+
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
@@ -25,7 +31,7 @@ export default defineConfig({
   workers: 1,
   reporter: "html",
   use: {
-    baseURL: "http://localhost:3456",
+    baseURL: uiOrigin,
     trace: "on-first-retry",
     // Set language in localStorage so SetupGuard doesn't redirect tests to
     // /setup. Selfhost only: the app migrates this legacy key onto the
@@ -35,7 +41,7 @@ export default defineConfig({
       cookies: [],
       origins: [
         {
-          origin: "http://localhost:3456",
+          origin: uiOrigin,
           localStorage: [{ name: "lector-target-language", value: "af" }],
         },
       ],
@@ -57,8 +63,8 @@ export default defineConfig({
       // it's read-only test input. The Bun API opens the DB lazily, so there
       // is no startup race with this wipe.
       command:
-        "rm -rf tmp/e2e-data && mkdir -p tmp/e2e-data && (cp data/dictionary-*.db tmp/e2e-data/ 2>/dev/null || true) && npm run dev",
-      url: "http://localhost:3456",
+        `rm -rf tmp/e2e-data && mkdir -p tmp/e2e-data && (cp data/dictionary-*.db tmp/e2e-data/ 2>/dev/null || true) && npx next dev --port ${uiPort}`,
+      url: uiOrigin,
       reuseExistingServer: false,
       env: { DATA_DIR: "tmp/e2e-data" },
     },
@@ -92,7 +98,7 @@ export default defineConfig({
         LECTOR_MODE: "cloud",
         BETTER_AUTH_SECRET: "e2e-only-secret-0123456789abcdef",
         BETTER_AUTH_URL: "http://localhost:3462",
-        LECTOR_TRUSTED_ORIGINS: "http://localhost:3456",
+        LECTOR_TRUSTED_ORIGINS: uiOrigin,
         EMAIL_FILE: "../tmp/e2e-data-cloud/emails.jsonl",
       },
     },
@@ -137,7 +143,7 @@ export default defineConfig({
         LECTOR_MODE: "cloud",
         BETTER_AUTH_SECRET: "e2e-only-secret-1111111111111111",
         BETTER_AUTH_URL: "http://localhost:3469",
-        LECTOR_TRUSTED_ORIGINS: "http://localhost:3456",
+        LECTOR_TRUSTED_ORIGINS: uiOrigin,
         EMAIL_FILE: "../tmp/e2e-billing-data/emails.jsonl",
         LECTOR_BILLING: "paddle",
         PADDLE_WEBHOOK_SECRET: "e2e-paddle-webhook-secret",
@@ -145,6 +151,28 @@ export default defineConfig({
         // transactions). The suite never clicks through to Paddle — the
         // checkout redirect is exercised against a mocked /api/billing/checkout.
         PADDLE_API_KEY: "pdl_e2e_dummy",
+      },
+    },
+    {
+      // A FIFTH cloud-mode API for the admin dashboard spec (#221). Its own
+      // fresh DATA_DIR + email outbox. LECTOR_ADMIN_EMAILS marks one fixed
+      // address as the operator; the spec registers that account (admin) plus
+      // an ordinary one and asserts gating, visibility, and suspension. No
+      // billing armed — admin is orthogonal to subscription state.
+      command: "rm -rf ../tmp/e2e-admin-data && mkdir -p ../tmp/e2e-admin-data && bun run src/index.ts",
+      cwd: "./api",
+      url: "http://localhost:3471/health",
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        DATA_DIR: "../tmp/e2e-admin-data",
+        PORT: "3471",
+        LECTOR_MODE: "cloud",
+        BETTER_AUTH_SECRET: "e2e-only-secret-2222222222222222",
+        BETTER_AUTH_URL: "http://localhost:3471",
+        LECTOR_TRUSTED_ORIGINS: uiOrigin,
+        EMAIL_FILE: "../tmp/e2e-admin-data/emails.jsonl",
+        LECTOR_ADMIN_EMAILS: "operator@e2e.test",
       },
     },
   ],

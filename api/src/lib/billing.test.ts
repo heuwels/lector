@@ -327,6 +327,30 @@ describe('billing middleware', () => {
     expect(res.status).toBe(200);
   });
 
+  test('a comped account (DB billing-exempt flag) bypasses the gate (#221)', async () => {
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const user = c.req.header('X-Test-User');
+      if (user) c.set('userId', user);
+      return next();
+    });
+    app.use(
+      '/api/*',
+      makeBillingMiddleware({
+        enforced: true,
+        exemptEmails: new Set(),
+        resolveEmail: (id) => emails[id] ?? null,
+        // u1 has no subscription and is not an exempt email, but is comped.
+        isBillingExempt: (id) => id === 'u1',
+      }),
+    );
+    app.get('/api/collections', (c) => c.json({ ok: true }));
+
+    expect((await app.request('/api/collections', asUser('u1'))).status).toBe(200);
+    // A different, non-comped account with no subscription still 402s.
+    expect((await app.request('/api/collections', asUser('boss'))).status).toBe(402);
+  });
+
   test('locked accounts keep data takeout (GET /api/data) but not import', async () => {
     const app = buildApp();
     const exportRes = await app.request('/api/data', asUser('u1'));

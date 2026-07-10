@@ -11,6 +11,7 @@ import {
   verifyPaddleSignature,
   type CreateTransaction,
 } from '../lib/billing';
+import { isBillingExempt } from '../lib/account-flags';
 
 /**
  * Route factory (mirrors makeSessionMiddleware/makePatMiddleware): the prod
@@ -40,7 +41,10 @@ export function makeBillingRoutes(
 
     const userId = getCurrentUserId(c);
     const email = resolveEmail(userId);
-    const exempt = email !== null && cfg.exemptEmails.has(email.toLowerCase());
+    // Exempt via env allowlist OR a per-account comp flag (#221) — either way
+    // the account is "active" so the UI renders the app, not /subscribe.
+    const exempt =
+      (email !== null && cfg.exemptEmails.has(email.toLowerCase())) || isBillingExempt(userId);
     const status = resolveBillingStatus(userId, email);
 
     return c.json({

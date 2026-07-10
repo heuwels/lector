@@ -30,13 +30,19 @@ const PARTITIONED = [
 // work lands — it's exempt from the stale-entry check so concurrent branches
 // don't trip each other.
 const ALLOWLIST: { file: string; match: string; why: string; transient?: boolean }[] = [
-  // Whole-DB backup: export dumps every language; the import side threads language per row.
-  { file: 'routes/data.ts', match: 'SELECT * FROM collections', why: 'full-DB backup export' },
-  { file: 'routes/data.ts', match: 'SELECT * FROM lessons', why: 'full-DB backup export' },
-  { file: 'routes/data.ts', match: 'SELECT * FROM vocab', why: 'full-DB backup export' },
-  { file: 'routes/data.ts', match: 'SELECT * FROM knownWords', why: 'full-DB backup export' },
-  { file: 'routes/data.ts', match: 'SELECT * FROM clozeSentences', why: 'full-DB backup export' },
-  { file: 'routes/data.ts', match: 'SELECT * FROM dailyStats', why: 'full-DB backup export' },
+  // Whole-DB backup: export dumps every language; the import side threads language
+  // per row. The builder is shared by self-service GET /api/data and the admin
+  // export (#221), so the queries live in lib/user-export.ts.
+  { file: 'lib/user-export.ts', match: 'SELECT * FROM collections', why: 'full-DB backup export' },
+  { file: 'lib/user-export.ts', match: 'SELECT * FROM lessons', why: 'full-DB backup export' },
+  { file: 'lib/user-export.ts', match: 'SELECT * FROM vocab', why: 'full-DB backup export' },
+  { file: 'lib/user-export.ts', match: 'SELECT * FROM knownWords', why: 'full-DB backup export' },
+  { file: 'lib/user-export.ts', match: 'SELECT * FROM clozeSentences', why: 'full-DB backup export' },
+  { file: 'lib/user-export.ts', match: 'SELECT * FROM dailyStats', why: 'full-DB backup export' },
+  // Admin dashboard (#221): service-wide aggregates that intentionally span
+  // every language — per-user storage (lesson-text bytes) and last-active day.
+  { file: 'routes/admin.ts', match: 'SUM(LENGTH(textContent))', why: 'admin: per-user storage across languages' },
+  { file: 'routes/admin.ts', match: 'MAX(date) AS d FROM dailyStats', why: 'admin: last-active across languages' },
   // One streak across all languages (CLAUDE.md / issue #108): aggregates every day row.
   { file: 'routes/stats.ts', match: 'dictionaryLookups, clozePracticed, minutesRead, ankiReviews', why: 'app-wide streak' },
   // The heatmap must agree with that app-wide streak (#238): same unscoped stance,
@@ -58,7 +64,7 @@ function scannedFiles(): string[] {
     .readdirSync(path.join(SRC, 'routes'))
     .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
     .map((f) => `routes/${f}`);
-  return [...routes, 'lib/dictionary-db.ts', 'lib/study-session.ts'];
+  return [...routes, 'lib/dictionary-db.ts', 'lib/study-session.ts', 'lib/user-export.ts'];
 }
 
 // Strip comments first so backticks/apostrophes inside them can't break literal

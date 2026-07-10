@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
-import { db, SettingRow } from '../db';
+import { db } from '../db';
 import { getCurrentUserId } from '../lib/user';
-import { SENSITIVE_KEYS, REDACTION_SENTINEL } from '../lib/settings-keys';
+import { REDACTION_SENTINEL } from '../lib/settings-keys';
+import { buildUserExport } from '../lib/user-export';
 import { countWords } from '../lib/html-to-markdown';
 import {
   DEFAULT_LANGUAGE,
@@ -24,38 +25,11 @@ function packFor(language: string | undefined | null): LanguageConfig {
   );
 }
 
-// GET /api/data — full backup. SELECT * dumps every column (incl. `language`)
-// for every language, which is correct for a whole-DB backup. collection_groups
-// is included so collections' groupId survives a restore.
+// GET /api/data — full backup for the requesting user. The builder
+// (lib/user-export.ts) is shared with the admin export (#221) so both paths
+// emit the same restore-ready shape.
 app.get('/', (c) => {
-  const userId = getCurrentUserId(c);
-  const collections = db.prepare('SELECT * FROM collections WHERE userId = ?').all(userId);
-  const collectionGroups = db
-    .prepare('SELECT * FROM collection_groups WHERE userId = ?')
-    .all(userId);
-  const lessons = db.prepare('SELECT * FROM lessons WHERE userId = ?').all(userId);
-  const vocab = db.prepare('SELECT * FROM vocab WHERE userId = ?').all(userId);
-  const knownWords = db.prepare('SELECT * FROM knownWords WHERE userId = ?').all(userId);
-  const clozeSentences = db.prepare('SELECT * FROM clozeSentences WHERE userId = ?').all(userId);
-  const dailyStats = db.prepare('SELECT * FROM dailyStats WHERE userId = ?').all(userId);
-  // Never export credentials: GET /api/settings masks them as `true`, so the
-  // backup must not hand out the same keys in cleartext (#233). The sentinel
-  // keeps the key visible in the backup; restore skips it (below).
-  const settings = (
-    db.prepare('SELECT * FROM settings WHERE userId = ?').all(userId) as SettingRow[]
-  ).map((s) => (SENSITIVE_KEYS.has(s.key) ? { ...s, value: REDACTION_SENTINEL } : s));
-
-  return c.json({
-    exportedAt: new Date().toISOString(),
-    collections,
-    collectionGroups,
-    lessons,
-    vocab,
-    knownWords,
-    clozeSentences,
-    dailyStats,
-    settings,
-  });
+  return c.json(buildUserExport(getCurrentUserId(c)));
 });
 
 // POST /api/data — restore a backup.

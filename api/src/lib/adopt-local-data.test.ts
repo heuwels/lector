@@ -150,9 +150,17 @@ describe('TENANT_TABLES ratchet', () => {
   //   - billing_subscriptions: Paddle-managed cloud state whose (nullable)
   //     userId links a subscription to an account and is set by webhook
   //     matching — never 'local', so there is nothing for adoption to move.
+  //   - admin_account_flags: operator-set support state (#221) keyed by the
+  //     account userId; a migrating self-hoster's 'local' user has none, and
+  //     suspension must not travel with adopted data.
   // Subtracted here so the assertion stays meaningful even on a DB that has
   // them (a fresh getDb() schema omits Better Auth's, but not billing's).
-  const NON_TENANT_USERID_TABLES = new Set(['session', 'account', 'billing_subscriptions']);
+  const NON_TENANT_USERID_TABLES = new Set([
+    'session',
+    'account',
+    'billing_subscriptions',
+    'admin_account_flags',
+  ]);
 
   test('every table with a userId column is covered by adoption', () => {
     const db = getDatabaseInstance(); // real, fully-migrated schema (.test-data)
