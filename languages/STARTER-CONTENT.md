@@ -46,11 +46,15 @@ Two semantics worth knowing:
 
 ## 2. Draft lessons (the recipe)
 
-Shape (from epic #314): ~20 lessons × 150–400 running words, four cumulative
-bands (ranks 1–250 / 500 / 750 / 1000, five lessons each), ~50 new target
-lemmas per lesson, every introduced word recycled ≥3 times across the series.
-Connected mini-stories with recurring characters — comprehensible-input prose,
-not vocabulary showcases.
+Shape (from epic #314, as shipped for es in #317): 20 lessons × roughly
+250–550 running words (the closing review lesson runs longer), four cumulative
+bands (ranks 1–250 / 500 / 750 / 1000, five lessons each), up to ~60 new
+target lemmas per lesson (`maxNewLemmas` relaxes single lessons — the opener
+legitimately floods function words). Recycling (≥3 uses per introduced word)
+is REPORTED by the verifier and worth maximizing, but v1 gates on coverage
+only — full ≥3 recycling of 900+ words needs 3× the running text of a
+20-lesson series. Connected mini-stories with recurring characters —
+comprehensible-input prose, not vocabulary showcases.
 
 Working LLM constraints for each lesson draft:
 
@@ -83,8 +87,9 @@ npx tsx scripts/verify-starter-content.ts --lang es \
 
 ```bash
 npx tsx scripts/verify-starter-content.ts --lang es
-# CI-grade bar for a shipped series:
-npx tsx scripts/verify-starter-content.ts --lang es --require-coverage 90 --require-recycles 3
+# CI-grade bar for a shipped series (wired into ci.yml for every pack
+# that ships a starter manifest):
+npx tsx scripts/verify-starter-content.ts --lang es --require-coverage 90
 ```
 
 Uses the app's own machinery — the shared tokenizer (`languages/tokenizer`),
@@ -120,7 +125,12 @@ only `wordlist.json` seeds nothing.
 ## Per-language notes
 
 - **es** — wordfreq; the only single-letter targets are y/a/o/e/u (letter-name
-  entries are filtered by POS+gloss).
+  entries are filtered by POS+gloss). The shipped series (#317) is written in
+  "listed-form Spanish": the wordlist is form-level, so drafting can only use
+  surface forms that resolve to listed keys — most 3rd-person conjugations and
+  many feminine/plural forms have their own (unlisted) dictionary entries and
+  are unavailable. First-person narration fits band 1 naturally; the verifier
+  is the arbiter of what fits.
 - **af** — no wordfreq; use the woordeboek blend CSV (`--freq-csv`) and
   `--alias "n='n"` (the CSV counts the article `'n` as bare `n`; the app
   tokenizes `'n` whole).

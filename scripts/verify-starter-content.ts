@@ -44,6 +44,7 @@ interface ManifestLesson {
   title: string;
   maxRank?: number;
   allow?: string[];
+  maxNewLemmas?: number;
 }
 interface Manifest {
   title: string;
@@ -103,6 +104,7 @@ const lessons: LessonTokens[] = manifest.lessons.map((lesson, i) => {
     maxRank: lesson.maxRank ?? caps[i],
     allow: foldAll(lesson.allow),
     tokens,
+    ...(lesson.maxNewLemmas !== undefined && { maxNewLemmas: lesson.maxNewLemmas }),
   };
 });
 

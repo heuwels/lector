@@ -58,6 +58,17 @@ jobs:
             echo "${!sha}  data/dictionary-${L}.db" | sha256sum -c -
           done
       - run: npm test
+      - name: Verify starter content
+        # Packs that ship a starter series (#317) must stay verifier-clean:
+        # band discipline, every token dictionary-resolvable, and ≥90% of the
+        # top-1,000 introduced. Skips languages without a starter manifest.
+        run: |
+          set -a; . ./dict.env; set +a
+          for L in $DICT_LANGS; do
+            if [ -f "languages/$L/content/starter/manifest.json" ]; then
+              npx tsx scripts/verify-starter-content.ts --lang "$L" --require-coverage 90
+            fi
+          done
 
   api-tests:
     runs-on: ubuntu-latest
