@@ -104,6 +104,40 @@ export async function uncompUser(id: string): Promise<void> {
   if (!res.ok) throw new Error(`uncomp failed (${res.status})`);
 }
 
+async function action(id: string, verb: string, label: string): Promise<void> {
+  const res = await apiFetch(`/api/admin/users/${id}/${verb}`, { method: 'POST' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `${label} failed (${res.status})`);
+  }
+}
+
+/** Clear the account's two-factor auth so it can re-enrol. */
+export const resetMfa = (id: string) => action(id, 'reset-mfa', 'MFA reset');
+/** Send the account a password-reset email. */
+export const sendPasswordReset = (id: string) => action(id, 'password-reset', 'Password reset');
+/** Re-send the verification email to an unverified account. */
+export const resendVerification = (id: string) => action(id, 'resend-verification', 'Resend verification');
+/** Force-mark the account's email verified. */
+export const forceVerify = (id: string) => action(id, 'verify', 'Verify');
+/** Sign the account out of every session. */
+export const revokeSessions = (id: string) => action(id, 'revoke-sessions', 'Revoke sessions');
+
+export interface AdminAuditEntry {
+  id: number;
+  actorEmail: string | null;
+  action: string;
+  targetEmail: string | null;
+  detail: string | null;
+  createdAt: string;
+}
+
+export async function getAuditLog(): Promise<AdminAuditEntry[]> {
+  const res = await apiFetch('/api/admin/audit');
+  if (!res.ok) throw new Error(`audit log failed (${res.status})`);
+  return (await res.json()).entries as AdminAuditEntry[];
+}
+
 /** Fetch a user's full export and trigger a JSON file download in the browser. */
 export async function exportUser(id: string, email: string): Promise<void> {
   const res = await apiFetch(`/api/admin/users/${id}/export`);

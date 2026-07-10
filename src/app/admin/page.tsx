@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
@@ -8,13 +8,20 @@ import { useLectorMode } from '@/lib/use-env';
 import {
   getAdminSummary,
   getAdminUsers,
+  getAuditLog,
   suspendUser,
   restoreUser,
   compUser,
   uncompUser,
   exportUser,
+  resetMfa,
+  sendPasswordReset,
+  resendVerification,
+  forceVerify,
+  revokeSessions,
   type AdminSummary,
   type AdminUserRow,
+  type AdminAuditEntry,
 } from '@/lib/admin-client';
 
 function formatBytes(n: number): string {
@@ -28,6 +35,12 @@ function formatDate(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function planBadge(row: AdminUserRow): { label: string; className: string } {
@@ -61,11 +74,14 @@ export default function AdminPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'error'>('loading');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [audit, setAudit] = useState<AdminAuditEntry[]>([]);
+  const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [menuId, setMenuId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [s, u] = await Promise.all([getAdminSummary(), getAdminUsers()]);
+      const [s, u, a] = await Promise.all([getAdminSummary(), getAdminUsers(), getAuditLog()]);
       setSummary(s);
       // Most recent signups first; suspended float to the top for attention.
       setUsers(
@@ -74,6 +90,7 @@ export default function AdminPage() {
           return (b.createdAt ?? '').localeCompare(a.createdAt ?? '');
         }),
       );
+      setAudit(a);
       setState('ready');
     } catch (err) {
       // The gated endpoints 403 for a non-admin; apiFetch surfaces that as a
@@ -173,6 +190,43 @@ export default function AdminPage() {
     [load],
   );
 
+  // Auth/support actions that just POST and reload. `confirm` gates the
+  // destructive ones behind a browser confirm; the menu closes either way.
+  const runAction = useCallback(
+    async (
+      row: AdminUserRow,
+      fn: (id: string) => Promise<void>,
+      label: string,
+      confirmMsg?: string,
+    ) => {
+      setMenuId(null);
+      if (confirmMsg && !window.confirm(confirmMsg)) return;
+      setBusyId(row.id);
+      try {
+        await fn(row.id);
+        toast.success(`${label} — ${row.email}`);
+        await load();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : `${label} failed`);
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [load],
+  );
+
+  const filtered = users.filter((u) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      u.email.toLowerCase().includes(q) ||
+      (u.name ?? '').toLowerCase().includes(q) ||
+      (u.plan ?? '').includes(q) ||
+      u.status.includes(q) ||
+      (u.compedPlan ?? '').includes(q)
+    );
+  });
+
   if (state === 'loading') {
     return (
       <main className="mx-auto max-w-7xl px-6 py-8">
@@ -235,6 +289,19 @@ export default function AdminPage() {
         </div>
       )}
 
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search email, name, plan, status…"
+          className="w-72 max-w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+        />
+        <span className="text-xs text-muted-foreground">
+          {filtered.length} of {users.length}
+        </span>
+      </div>
+
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full min-w-[820px] text-sm">
           <thead>
@@ -249,7 +316,7 @@ export default function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => {
+            {filtered.map((u) => {
               const badge = planBadge(u);
               const busy = busyId === u.id;
               return (
@@ -321,6 +388,42 @@ export default function AdminPage() {
                           Suspend
                         </button>
                       )}
+                      <div className="relative">
+                        <button
+                          onClick={() => setMenuId(menuId === u.id ? null : u.id)}
+                          disabled={busy}
+                          aria-label="More actions"
+                          className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
+                        >
+                          ⋯
+                        </button>
+                        {menuId === u.id && (
+                          <div className="absolute right-0 z-10 mt-1 w-52 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                            <MenuItem onClick={() => runAction(u, resetMfa, 'MFA reset', `Reset 2FA for ${u.email}? They'll sign in without it and can re-enrol.`)}>
+                              Reset MFA
+                            </MenuItem>
+                            <MenuItem onClick={() => runAction(u, sendPasswordReset, 'Password reset sent')}>
+                              Send password reset
+                            </MenuItem>
+                            {!u.emailVerified && (
+                              <>
+                                <MenuItem onClick={() => runAction(u, resendVerification, 'Verification sent')}>
+                                  Resend verification
+                                </MenuItem>
+                                <MenuItem onClick={() => runAction(u, forceVerify, 'Marked verified')}>
+                                  Mark verified
+                                </MenuItem>
+                              </>
+                            )}
+                            <MenuItem
+                              destructive
+                              onClick={() => runAction(u, revokeSessions, 'Sessions revoked', `Sign ${u.email} out of all sessions?`)}
+                            >
+                              Revoke sessions
+                            </MenuItem>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -329,6 +432,50 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+          Recent admin activity
+        </h2>
+        {audit.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No admin actions yet.</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {audit.map((e) => (
+              <li key={e.id} className="flex flex-wrap items-baseline gap-x-2 px-4 py-2 text-sm">
+                <span className="text-muted-foreground">{formatDateTime(e.createdAt)}</span>
+                <span className="font-medium text-foreground">{e.actorEmail ?? 'operator'}</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                  {e.action}
+                </span>
+                {e.targetEmail && <span className="text-muted-foreground">→ {e.targetEmail}</span>}
+                {e.detail && <span className="text-xs text-muted-foreground">({e.detail})</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </main>
+  );
+}
+
+function MenuItem({
+  children,
+  onClick,
+  destructive,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`block w-full px-3 py-2 text-left text-xs font-medium hover:bg-accent ${
+        destructive ? 'text-destructive' : 'text-foreground'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
