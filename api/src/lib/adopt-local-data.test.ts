@@ -34,6 +34,7 @@ function createSchema(db: Database): void {
     CREATE TABLE dailyStats       (userId TEXT NOT NULL DEFAULT 'local', date TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af', PRIMARY KEY (userId, date, language));
     CREATE TABLE settings         (userId TEXT NOT NULL DEFAULT 'local', key TEXT NOT NULL, value TEXT, PRIMARY KEY (userId, key));
     CREATE TABLE usage_counters   (userId TEXT NOT NULL, metric TEXT NOT NULL, period TEXT NOT NULL, value INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (userId, metric, period));
+    CREATE TABLE user_provider_credentials (userId TEXT NOT NULL, provider TEXT NOT NULL, ciphertext TEXT NOT NULL, model TEXT NOT NULL, PRIMARY KEY (userId, provider));
     CREATE TABLE "user"           (id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT);
   `);
 }
@@ -53,20 +54,37 @@ function seedLocal(db: Database): void {
   ];
   for (const [table, n] of idRows) {
     for (let i = 0; i < n; i++) {
-      db.prepare(`INSERT INTO ${table} (id, userId) VALUES (?, ?)`).run(`${table}-${i}`, LOCAL_USER_ID);
+      db.prepare(`INSERT INTO ${table} (id, userId) VALUES (?, ?)`).run(
+        `${table}-${i}`,
+        LOCAL_USER_ID,
+      );
     }
   }
   for (let i = 0; i < 6; i++) {
-    db.prepare('INSERT INTO knownWords (userId, word, language) VALUES (?, ?, ?)').run(LOCAL_USER_ID, `w${i}`, 'af');
+    db.prepare('INSERT INTO knownWords (userId, word, language) VALUES (?, ?, ?)').run(
+      LOCAL_USER_ID,
+      `w${i}`,
+      'af',
+    );
   }
   for (let i = 0; i < 2; i++) {
-    db.prepare('INSERT INTO dailyStats (userId, date, language) VALUES (?, ?, ?)').run(LOCAL_USER_ID, `2026-01-0${i + 1}`, 'af');
+    db.prepare('INSERT INTO dailyStats (userId, date, language) VALUES (?, ?, ?)').run(
+      LOCAL_USER_ID,
+      `2026-01-0${i + 1}`,
+      'af',
+    );
   }
   for (let i = 0; i < 3; i++) {
-    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(LOCAL_USER_ID, `k${i}`, 'v');
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      LOCAL_USER_ID,
+      `k${i}`,
+      'v',
+    );
   }
   for (let i = 0; i < 2; i++) {
-    db.prepare('INSERT INTO usage_counters (userId, metric, period, value) VALUES (?, ?, ?, ?)').run(LOCAL_USER_ID, `m${i}`, '2026-01', 10);
+    db.prepare(
+      'INSERT INTO usage_counters (userId, metric, period, value) VALUES (?, ?, ?, ?)',
+    ).run(LOCAL_USER_ID, `m${i}`, '2026-01', 10);
   }
 }
 
@@ -79,7 +97,11 @@ describe('adoptLocalData', () => {
     db = new Database(':memory:');
     createSchema(db);
     seedLocal(db);
-    db.prepare('INSERT INTO "user" (id, email, name) VALUES (?, ?, ?)').run(TARGET, 'Luke@Example.com', 'Luke');
+    db.prepare('INSERT INTO "user" (id, email, name) VALUES (?, ?, ?)').run(
+      TARGET,
+      'Luke@Example.com',
+      'Luke',
+    );
   });
 
   test('resolves the target user by email, case-insensitively', () => {
@@ -164,13 +186,14 @@ describe('TENANT_TABLES ratchet', () => {
     'account',
     'billing_subscriptions',
     'admin_account_flags',
+    'twoFactor',
   ]);
 
   test('every table with a userId column is covered by adoption', () => {
     const db = getDatabaseInstance(); // real, fully-migrated schema (.test-data)
-    const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-      .all() as { name: string }[];
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as {
+      name: string;
+    }[];
 
     const withUserId = tables
       .map((t) => t.name)

@@ -19,6 +19,7 @@
  */
 import type { Database } from 'bun:sqlite';
 import { LOCAL_USER_ID } from './user';
+import { BYOK_PROVIDER, decryptCredential, encryptCredential } from './byok';
 
 /**
  * Every table whose rows belong to a tenant (carry `userId`). Exactly the set
@@ -44,6 +45,9 @@ export const TENANT_TABLES = [
   'knownWords',
   'dailyStats',
   'settings',
+  // BYOK credentials are not part of user-facing exports, but they are still
+  // tenant-owned rows and must follow an explicit selfhost→cloud adoption.
+  'user_provider_credentials',
   // Plan-limit usage counters (#222): adopted so a migrating self-hoster's
   // current-month metering carries over instead of resetting to zero.
   'usage_counters',
@@ -139,6 +143,28 @@ export function adoptLocalData(
 
     if (!dryRun) {
       for (const table of TENANT_TABLES) {
+        if (table === 'user_provider_credentials') {
+          // The AES-GCM additional authenticated data includes userId to stop
+          // ciphertext being swapped between tenants. Re-encrypt while the
+          // explicit adoption changes ownership, rather than merely updating
+          // the bound identifier and leaving an undecryptable credential.
+          const credentials = db
+            .prepare('SELECT provider, ciphertext FROM user_provider_credentials WHERE userId = ?')
+            .all(LOCAL_USER_ID) as Array<{ provider: string; ciphertext: string }>;
+          for (const credential of credentials) {
+            if (credential.provider !== BYOK_PROVIDER) continue;
+            const secret = decryptCredential(
+              LOCAL_USER_ID,
+              credential.provider,
+              credential.ciphertext,
+            );
+            const ciphertext = encryptCredential(targetUserId, credential.provider, secret);
+            db.prepare(
+              'UPDATE user_provider_credentials SET userId = ?, ciphertext = ? WHERE userId = ? AND provider = ?',
+            ).run(targetUserId, ciphertext, LOCAL_USER_ID, credential.provider);
+          }
+          continue;
+        }
         db.prepare(`UPDATE ${table} SET userId = ? WHERE userId = ?`).run(
           targetUserId,
           LOCAL_USER_ID,
@@ -161,9 +187,7 @@ export interface AuthUser {
 
 /** True once this DB has run cloud mode (Better Auth created its `user` table). */
 export function hasAuthTables(db: Database): boolean {
-  const row = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user'")
-    .get();
+  const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user'").get();
   return row != null;
 }
 

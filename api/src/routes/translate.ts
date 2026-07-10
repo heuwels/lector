@@ -5,7 +5,11 @@ import { getSpelreelsContext } from '../lib/spelreels';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { getLanguageConfig } from '../lib/languages';
-import { buildGlossPrompt, buildWordEntryPrompt, buildPhrasePrompt } from '../lib/translate-prompts';
+import {
+  buildGlossPrompt,
+  buildWordEntryPrompt,
+  buildPhrasePrompt,
+} from '../lib/translate-prompts';
 import { recordStudySessionPing } from '../lib/study-session';
 import { entitlements, planLimitResponse } from '../lib/entitlements';
 
@@ -20,8 +24,13 @@ function stitchWordEntry(text: string, fallbackWord: string) {
     relatedForms?: Array<{ form: string; relation: string }>;
   };
 
-  const senses: Array<{ partOfSpeech: string; gloss: string }> = Array.isArray(entry.senses) ? entry.senses : [];
-  const stitchedTranslation = senses.map((s) => s.gloss).filter(Boolean).join('; ');
+  const senses: Array<{ partOfSpeech: string; gloss: string }> = Array.isArray(entry.senses)
+    ? entry.senses
+    : [];
+  const stitchedTranslation = senses
+    .map((s) => s.gloss)
+    .filter(Boolean)
+    .join('; ');
 
   return {
     translation: stitchedTranslation,
@@ -36,8 +45,13 @@ function stitchWordEntry(text: string, fallbackWord: string) {
 
 // Shared handler for the structured word entry — used by POST / (type=word) and
 // POST /enrich. Throws on provider/JSON failure; callers wrap in try/catch.
-async function buildWordEntryResponse(langName: string, word: string, sentence: string) {
-  const provider = getProvider();
+async function buildWordEntryResponse(
+  userId: string,
+  langName: string,
+  word: string,
+  sentence: string,
+) {
+  const provider = getProvider(userId);
   const text = await provider.complete({
     messages: [{ role: 'user', content: buildWordEntryPrompt(langName, word, sentence) }],
     maxTokens: 1500,
@@ -71,7 +85,7 @@ app.post('/gloss', async (c) => {
 
   const langName = getLanguageConfig(lang).name;
   const prompt = buildGlossPrompt(langName, word, sentence || '');
-  const provider = getProvider();
+  const provider = getProvider(userId);
 
   // streamText commits a 200 the moment it starts, so a provider failure before
   // the first delta can't become a non-200. We refund the reservation, log, and
@@ -112,7 +126,7 @@ app.post('/enrich', async (c) => {
 
     const lang = resolveLanguage(language, userId);
     const langName = getLanguageConfig(lang).name;
-    const entry = await buildWordEntryResponse(langName, word, sentence || '');
+    const entry = await buildWordEntryResponse(userId, langName, word, sentence || '');
     reservedLlm = false; // the managed call happened — the usage is earned
     return c.json(entry);
   } catch (error) {
@@ -163,9 +177,14 @@ app.post('/', async (c) => {
         ? `Use the following official spelling rules to inform your understanding of the ${langName} input:\n\n${spelreels}\n\n---\n\n`
         : '';
 
-      const provider = getProvider();
+      const provider = getProvider(userId);
       const text = await provider.complete({
-        messages: [{ role: 'user', content: buildPhrasePrompt(langName, spelreelsSection, word, sentence || '') }],
+        messages: [
+          {
+            role: 'user',
+            content: buildPhrasePrompt(langName, spelreelsSection, word, sentence || ''),
+          },
+        ],
         maxTokens: 1500,
         task: 'phrase-translation',
         responseFormat: 'json',
@@ -179,16 +198,13 @@ app.post('/', async (c) => {
     if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
     reservedLlm = true;
 
-    const entry = await buildWordEntryResponse(langName, word, sentence || '');
+    const entry = await buildWordEntryResponse(userId, langName, word, sentence || '');
     reservedLlm = false; // the managed call happened — the usage is earned
     return c.json(entry);
   } catch (error) {
     if (reservedLlm) entitlements.refund(userId, 'llmRequestsPerMonth', 1);
     console.error('Translation error:', error);
-    return c.json(
-      { error: error instanceof Error ? error.message : 'Translation failed' },
-      500
-    );
+    return c.json({ error: error instanceof Error ? error.message : 'Translation failed' }, 500);
   }
 });
 
