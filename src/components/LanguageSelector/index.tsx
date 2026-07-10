@@ -19,18 +19,26 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
   const [knownWordsCount, setKnownWordsCount] = useState<number | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const init = async () => {
       try {
-        const fluency = await getFluencyStats();
+        // Pass the selected language explicitly. The badge belongs to this
+        // selector state; relying on the ambient cache can show the previous
+        // language's count while a cloud language change is propagating.
+        const fluency = await getFluencyStats(activeLang.code);
 
-        setKnownWordsCount(fluency.totalKnownWords);
+        if (!cancelled) setKnownWordsCount(fluency.totalKnownWords);
       } catch (error) {
         console.error('Error loading data:', error);
       }
     };
 
     init();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeLang.code]);
 
   async function handleSwitch(code: LanguageCode) {
     await setSetting('targetLanguage', code);

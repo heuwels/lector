@@ -621,8 +621,9 @@ export interface FluencyStats {
   pending: number;
 }
 
-export async function getFluencyStats(): Promise<FluencyStats> {
-  const res = await apiFetch(`/api/stats/fluency${langParam()}`);
+export async function getFluencyStats(language: string = getActiveLanguage()): Promise<FluencyStats> {
+  const params = new URLSearchParams({ language });
+  const res = await apiFetch(`/api/stats/fluency?${params}`);
   return res.json();
 }
 
