@@ -18,6 +18,9 @@ export interface LessonTokens {
   allow: Set<string>;
   /** Folded word tokens, in reading order (pure-digit tokens pre-filtered). */
   tokens: string[];
+  /** Per-lesson override of options.maxNewLemmasPerLesson — a series' first
+   * lesson legitimately floods in far more function words than later ones. */
+  maxNewLemmas?: number;
 }
 
 /** Resolve a folded token to its dictionary lemma, or null when the
@@ -179,13 +182,14 @@ export function verify(
       }
     }
 
-    if (newTargetLemmas.length > opts.maxNewLemmasPerLesson) {
+    const newLemmaCap = lesson.maxNewLemmas ?? opts.maxNewLemmasPerLesson;
+    if (newTargetLemmas.length > newLemmaCap) {
       violations.push({
         lessonIndex,
         lesson: lesson.title,
         kind: 'new-lemma-cap',
         token: '',
-        detail: `${newTargetLemmas.length} new target lemmas exceeds the per-lesson cap of ${opts.maxNewLemmasPerLesson}`,
+        detail: `${newTargetLemmas.length} new target lemmas exceeds the per-lesson cap of ${newLemmaCap}`,
       });
     }
 

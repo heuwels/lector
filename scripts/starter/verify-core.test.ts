@@ -107,6 +107,16 @@ describe('verify', () => {
     expect(summary.violations[0]).toMatchObject({ kind: 'new-lemma-cap' });
   });
 
+  test('a lesson-level maxNewLemmas overrides the series cap', () => {
+    const summary = verify(
+      [lesson({ tokens: ['el', 'gato', 'come'], maxNewLemmas: 3 })],
+      WORDLIST,
+      resolve,
+      { maxNewLemmasPerLesson: 2 },
+    );
+    expect(summary.violations).toEqual([]);
+  });
+
   test('coverage counts only lemmas reachable under the final cap', () => {
     const summary = verify(
       [lesson({ maxRank: 3, tokens: ['el', 'gato'] })],
