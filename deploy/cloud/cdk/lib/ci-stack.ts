@@ -18,7 +18,8 @@ import { Construct } from 'constructs';
 
 const GITHUB_REPO = 'heuwels/lector';
 // Stable, human-typed name: .github/workflows/docker.yml references this ARN.
-const DEPLOY_ROLE_NAME = 'lector-canary-github-deploy';
+const PRODUCTION_DEPLOY_ROLE_NAME = 'lector-canary-github-deploy';
+const STAGING_DEPLOY_ROLE_NAME = 'lector-staging-github-deploy';
 
 export class LectorCanaryCiStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -31,57 +32,83 @@ export class LectorCanaryCiStack extends Stack {
       clientIds: ['sts.amazonaws.com'],
     });
 
-    const deployRole = new iam.Role(this, 'GithubDeployRole', {
-      roleName: DEPLOY_ROLE_NAME,
-      description: 'GitHub Actions (heuwels/lector master) - update the canary via SSM',
-      assumedBy: new iam.WebIdentityPrincipal(githubOidc.openIdConnectProviderArn, {
-        StringEquals: {
-          'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          // Master-branch runs only — a workflow on any other ref (PRs
-          // included) cannot assume this role.
-          'token.actions.githubusercontent.com:sub': `repo:${GITHUB_REPO}:ref:refs/heads/master`,
-        },
-      }),
-    });
-
-    deployRole.addToPolicy(
-      new iam.PolicyStatement({
-        // Target by tag (canary-stack.ts applies these), not instance id, so
-        // instance replacement (new AMI, resize) never strands CI on a stale id.
-        sid: 'SendCommandToCanaryByTag',
-        actions: ['ssm:SendCommand'],
-        resources: [`arn:${this.partition}:ec2:${this.region}:${this.account}:instance/*`],
-        conditions: {
+    const createDeployRole = (
+      constructId: string,
+      roleName: string,
+      environment: 'staging' | 'production',
+      targetStack: 'cloud-staging' | 'cloud-canary',
+    ) => {
+      const role = new iam.Role(this, constructId, {
+        roleName,
+        description: `GitHub Actions (${GITHUB_REPO}, ${environment}) - deploy via SSM`,
+        assumedBy: new iam.WebIdentityPrincipal(githubOidc.openIdConnectProviderArn, {
           StringEquals: {
-            'ssm:resourceTag/project': 'lector',
-            'ssm:resourceTag/stack': 'cloud-canary',
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+            // Jobs that reference a GitHub Environment receive an environment-
+            // scoped OIDC subject. The production environment supplies the human
+            // approval gate; neither role can be assumed by a plain branch job.
+            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_REPO}:environment:${environment}`,
           },
-        },
-      }),
+        }),
+      });
+
+      role.addToPolicy(
+        new iam.PolicyStatement({
+          // Target by tag, not instance id, so
+          // instance replacement (new AMI, resize) never strands CI on a stale id.
+          sid: 'SendCommandToEnvironmentByTag',
+          actions: ['ssm:SendCommand'],
+          resources: [`arn:${this.partition}:ec2:${this.region}:${this.account}:instance/*`],
+          conditions: {
+            StringEquals: {
+              'ssm:resourceTag/project': 'lector',
+              'ssm:resourceTag/stack': targetStack,
+            },
+          },
+        }),
+      );
+      role.addToPolicy(
+        new iam.PolicyStatement({
+          // SendCommand authorizes against the document AND the target.
+          sid: 'SendCommandRunShellScript',
+          actions: ['ssm:SendCommand'],
+          resources: [`arn:${this.partition}:ssm:${this.region}::document/AWS-RunShellScript`],
+        }),
+      );
+      role.addToPolicy(
+        new iam.PolicyStatement({
+          // Neither action supports resource-level scoping.
+          sid: 'ResolveInstanceAndPollResult',
+          actions: ['ssm:GetCommandInvocation', 'ec2:DescribeInstances'],
+          resources: ['*'],
+        }),
+      );
+      return role;
+    };
+
+    const productionDeployRole = createDeployRole(
+      'GithubDeployRole',
+      PRODUCTION_DEPLOY_ROLE_NAME,
+      'production',
+      'cloud-canary',
     );
-    deployRole.addToPolicy(
-      new iam.PolicyStatement({
-        // SendCommand authorizes against the document AND the target.
-        sid: 'SendCommandRunShellScript',
-        actions: ['ssm:SendCommand'],
-        resources: [`arn:${this.partition}:ssm:${this.region}::document/AWS-RunShellScript`],
-      }),
-    );
-    deployRole.addToPolicy(
-      new iam.PolicyStatement({
-        // Neither action supports resource-level scoping.
-        sid: 'ResolveInstanceAndPollResult',
-        actions: ['ssm:GetCommandInvocation', 'ec2:DescribeInstances'],
-        resources: ['*'],
-      }),
+    const stagingDeployRole = createDeployRole(
+      'GithubStagingDeployRole',
+      STAGING_DEPLOY_ROLE_NAME,
+      'staging',
+      'cloud-staging',
     );
 
     Tags.of(this).add('project', 'lector');
     Tags.of(this).add('stack', 'canary-ci');
 
     new CfnOutput(this, 'GithubDeployRoleArn', {
-      value: deployRole.roleArn,
-      description: 'role-to-assume for the deploy-canary job in .github/workflows/docker.yml',
+      value: productionDeployRole.roleArn,
+      description: 'role-to-assume for the production approval job in docker.yml',
+    });
+    new CfnOutput(this, 'GithubStagingDeployRoleArn', {
+      value: stagingDeployRole.roleArn,
+      description: 'role-to-assume for the automatic staging deploy job in docker.yml',
     });
   }
 }

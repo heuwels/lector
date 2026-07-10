@@ -1,4 +1,8 @@
-# Lector cloud canary — `app.lector.dev`
+# Lector cloud production — `app.lector.dev`
+
+For the trunk-based staging → human approval → production promotion pipeline, see
+[`STAGING.md`](./STAGING.md). Production is still named `canary` in AWS stack/tag
+identifiers for compatibility with the live infrastructure.
 
 The first **cloud-mode** deployment (#242): the published image running with
 `LECTOR_MODE=cloud` + `LECTOR_CLOUD_GATE=external`, fronted by **Cloudflare
@@ -53,26 +57,26 @@ Design notes:
    for every secret and LLM setting; the box re-reads all of them on every
    `update.sh` (see _Rotate a secret_ below). Only `tunnel-token` is required:
 
-   | Parameter (`/lector/canary/…`) | Type         | Becomes                                                      |
-   | ------------------------------ | ------------ | ------------------------------------------------------------ |
-   | `tunnel-token` **(required)**  | SecureString | cloudflared `TUNNEL_TOKEN`                                    |
-   | `claude-oauth-token`           | SecureString | `CLAUDE_OAUTH_TOKEN` (plan credits — preferred over API key)  |
-   | `anthropic-api-key`            | SecureString | `ANTHROPIC_API_KEY`                                           |
-   | `openrouter-api-key`           | SecureString | `OPENAI_COMPAT_API_KEY`                                       |
-   | `google-api-key`               | SecureString | `GOOGLE_CLOUD_API_KEY` (TTS)                                  |
-   | `llm-provider`                 | String       | `LLM_PROVIDER` (`anthropic` default, or `openai`)             |
-   | `openai-compat-url`            | String       | `OPENAI_COMPAT_URL`                                           |
-   | `openai-compat-model`          | String       | `OPENAI_COMPAT_MODEL`                                         |
-   | `resend-api-key`               | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — the sending domain must be verified at resend.com/domains or sends 403) |
-   | `better-auth-secret`           | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — **required**: cloud proper refuses to boot without it. Generate: `openssl rand -base64 32`) |
-   | `turnstile-site-key`           | String       | `TURNSTILE_SITE_KEY` (Cloudflare Turnstile widget on the auth forms, #218 — public key, rides `window.__ENV__`) |
-   | `turnstile-secret`             | SecureString | `TURNSTILE_SECRET_KEY` (server-side captcha verification; set both or neither) |
-   | `oidc-issuer`                  | String       | `OIDC_ISSUER` (BYO OIDC, #218 — issuer origin or pasted discovery URL; needs all three `oidc-*` credentials) |
-   | `oidc-client-id`               | String       | `OIDC_CLIENT_ID` |
-   | `oidc-client-secret`           | SecureString | `OIDC_CLIENT_SECRET` (redirect URI to allowlist on the IdP: `https://app.lector.dev/api/auth/oauth2/callback/oidc`) |
-   | `oidc-provider-name`           | String       | `OIDC_PROVIDER_NAME` (optional login-button label, default "SSO" — rides `window.__ENV__`) |
-   | `lector-billing`               | String       | `LECTOR_BILLING` (#224 — `paddle` arms the subscription gate; unset = billing off. Requires `paddle-webhook-secret` and `paddle-api-key`, or the container refuses to boot) |
-   | `paddle-webhook-secret`        | SecureString | `PADDLE_WEBHOOK_SECRET` (the notification destination's secret key, Paddle → Developer tools → Notifications) |
+   | Parameter (`/lector/canary/…`) | Type         | Becomes                                                                                                                                                                                                                                                              |
+   | ------------------------------ | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `tunnel-token` **(required)**  | SecureString | cloudflared `TUNNEL_TOKEN`                                                                                                                                                                                                                                           |
+   | `claude-oauth-token`           | SecureString | `CLAUDE_OAUTH_TOKEN` (plan credits — preferred over API key)                                                                                                                                                                                                         |
+   | `anthropic-api-key`            | SecureString | `ANTHROPIC_API_KEY`                                                                                                                                                                                                                                                  |
+   | `openrouter-api-key`           | SecureString | `OPENAI_COMPAT_API_KEY`                                                                                                                                                                                                                                              |
+   | `google-api-key`               | SecureString | `GOOGLE_CLOUD_API_KEY` (TTS)                                                                                                                                                                                                                                         |
+   | `llm-provider`                 | String       | `LLM_PROVIDER` (`anthropic` default, or `openai`)                                                                                                                                                                                                                    |
+   | `openai-compat-url`            | String       | `OPENAI_COMPAT_URL`                                                                                                                                                                                                                                                  |
+   | `openai-compat-model`          | String       | `OPENAI_COMPAT_MODEL`                                                                                                                                                                                                                                                |
+   | `resend-api-key`               | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — the sending domain must be verified at resend.com/domains or sends 403)                                                                                                                                  |
+   | `better-auth-secret`           | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — **required**: cloud proper refuses to boot without it. Generate: `openssl rand -base64 32`)                                                                                                                            |
+   | `turnstile-site-key`           | String       | `TURNSTILE_SITE_KEY` (Cloudflare Turnstile widget on the auth forms, #218 — public key, rides `window.__ENV__`)                                                                                                                                                      |
+   | `turnstile-secret`             | SecureString | `TURNSTILE_SECRET_KEY` (server-side captcha verification; set both or neither)                                                                                                                                                                                       |
+   | `oidc-issuer`                  | String       | `OIDC_ISSUER` (BYO OIDC, #218 — issuer origin or pasted discovery URL; needs all three `oidc-*` credentials)                                                                                                                                                         |
+   | `oidc-client-id`               | String       | `OIDC_CLIENT_ID`                                                                                                                                                                                                                                                     |
+   | `oidc-client-secret`           | SecureString | `OIDC_CLIENT_SECRET` (redirect URI to allowlist on the IdP: `https://app.lector.dev/api/auth/oauth2/callback/oidc`)                                                                                                                                                  |
+   | `oidc-provider-name`           | String       | `OIDC_PROVIDER_NAME` (optional login-button label, default "SSO" — rides `window.__ENV__`)                                                                                                                                                                           |
+   | `lector-billing`               | String       | `LECTOR_BILLING` (#224 — `paddle` arms the subscription gate; unset = billing off. Requires `paddle-webhook-secret` and `paddle-api-key`, or the container refuses to boot)                                                                                          |
+   | `paddle-webhook-secret`        | SecureString | `PADDLE_WEBHOOK_SECRET` (the notification destination's secret key, Paddle → Developer tools → Notifications)                                                                                                                                                        |
    | `paddle-api-key`               | SecureString | `PADDLE_API_KEY` (server-side key that creates checkout transactions — Paddle → Developer tools → Authentication → API keys; required once billing is armed. The checkout overlay itself opens on lector.dev, whose client-side token lives in the lector-site repo) |
    | `checkout-url`                 | String       | `CHECKOUT_URL` (the approved-domain checkout page the app redirects to, e.g. `https://lector.dev/checkout`; unset → the subscribe screen shows its "checkout unavailable" fallback) |
    | `paddle-price-monthly`         | String       | `PADDLE_PRICE_MONTHLY` (`pri_…` — Cloud monthly; a plan card renders for each configured price) |
@@ -127,10 +131,10 @@ Design notes:
 4. **Route the hostname** (Cloudflare → the tunnel → _Public Hostname_) — two
    rules, API rule first (first match wins):
 
-   | #   | Hostname         | Path             | Service              |
-   | --- | ---------------- | ---------------- | -------------------- |
+   | #   | Hostname         | Path              | Service              |
+   | --- | ---------------- | ----------------- | -------------------- |
    | 1   | `app.lector.dev` | `^/(api\|health)` | `http://lector:3457` |
-   | 2   | `app.lector.dev` | _(empty)_        | `http://lector:3000` |
+   | 2   | `app.lector.dev` | _(empty)_         | `http://lector:3000` |
 
    The path field is a regex. Use the **service names** (`lector`), never
    `localhost` — cloudflared runs in its own container, so its `localhost` is
@@ -146,11 +150,12 @@ Design notes:
 
 ## Operate
 
-- **Update to the latest image:** automatic. Every merge to `master` publishes
-  `:latest` (docker.yml), whose `deploy-canary` job then assumes the
-  `LectorCanaryCi` stack's GitHub-OIDC role (no AWS keys in repo secrets) and
-  runs `/srv/lector/update.sh` on the box over SSM, health-gated by
-  [`deploy-canary.sh`](./deploy-canary.sh). Manual fallback — same effect:
+- **Promote an immutable image:** automatic to staging after a successful master CI
+  run, then manual approval through the GitHub `production` Environment. Production
+  receives the exact `sha-<commit>` image tested in staging—never a rebuilt or moving
+  tag. `LectorCanaryCi` supplies environment-scoped OIDC roles; the SSM wrapper is
+  [`deploy-cloud.sh`](./deploy-cloud.sh) and rolls back on failed health. See
+  [`STAGING.md`](./STAGING.md). Manual fallback:
   `aws ssm start-session --target <instance-id>` → `sudo /srv/lector/update.sh`
   (refreshes all secrets from SSM + pull + recreate; the data volume is untouched).
 - **Redeploying `LectorCloudCanary`:** a boot-script (UserData) change
@@ -165,7 +170,7 @@ Design notes:
 - **Adding a NEW parameter** (a mapping that isn't in the table yet) needs a
   matching `put <ENV_KEY> <param-suffix>` line in `/srv/lector/refresh-env.sh`.
   That script is baked into UserData at first boot, so a stack edit only covers
-  *future* instances — patch the live box over SSM (append the line, run
+  _future_ instances — patch the live box over SSM (append the line, run
   `update.sh`); do **not** redeploy the stack for this, a UserData change
   replaces the instance.
 - **Logs:** `sudo docker logs lector` / `sudo docker logs cloudflared`;
@@ -207,13 +212,16 @@ Design notes:
 
   **Restore drill** (run it now, and again before real users — an unrestored
   backup is a hope, not a backup):
+
   ```bash
   docker run --rm -v /tmp:/out -v /srv/lector/litestream.yml:/etc/litestream.yml:ro \
     litestream/litestream restore -o /out/restored.db /data/lector.db
   sqlite3 /tmp/restored.db 'PRAGMA integrity_check; SELECT COUNT(*) FROM lessons;'
   ```
+
   Full recovery = restore onto a fresh box's data volume, then
   `docker compose up -d`.
+
 - **Teardown:** `bunx cdk destroy`. The data volume is retained — delete it
   manually (and the SSM parameters + tunnel + Access app) for a full cleanup.
 
@@ -242,7 +250,7 @@ that isn't subscribed or exempt the moment it's on):
    public launch removes the need.
 3. **Parameters** (the boot script maps them via `refresh-env.sh`; a box
    provisioned before #224 needs the new `put` lines appended first — see
-   *Adding a NEW parameter* above):
+   _Adding a NEW parameter_ above):
    ```bash
    aws ssm put-parameter --name /lector/canary/paddle-webhook-secret \
      --type SecureString --value 'pdl_ntfset_…'

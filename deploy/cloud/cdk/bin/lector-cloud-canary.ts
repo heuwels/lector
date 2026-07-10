@@ -20,6 +20,19 @@ new LectorCloudCanaryStack(app, 'LectorCloudCanary', {
     'Lector cloud canary - app.lector.dev behind Cloudflare Access via a Cloudflare Tunnel (heuwels/lector#242)',
 });
 
+// Disposable pre-production target. It tracks successful master builds and
+// receives the exact immutable image later promoted to production.
+new LectorCloudCanaryStack(app, 'LectorCloudStaging', {
+  env,
+  deploymentName: 'staging',
+  hostname: 'staging.lector.dev',
+  paramPrefix: '/lector/staging',
+  retainData: false,
+  enableLitestream: false,
+  description:
+    'Lector cloud staging - staging.lector.dev with Paddle sandbox and disposable data (#304)',
+});
+
 // Separate stack on purpose: deploying CI credentials must never risk
 // replacing the canary instance (see ci-stack.ts).
 new LectorCanaryCiStack(app, 'LectorCanaryCi', {
@@ -31,6 +44,5 @@ new LectorCanaryCiStack(app, 'LectorCanaryCi', {
 // Also compute-free and always safe to deploy (see backup-stack.ts).
 new LectorCanaryBackupStack(app, 'LectorCanaryBackup', {
   env,
-  description:
-    'Nightly DLM snapshots of the lector canary data volume - keep last 30',
+  description: 'Nightly DLM snapshots of the lector canary data volume - keep last 30',
 });

@@ -54,6 +54,7 @@ import { Construct } from 'constructs';
  *   /lector/canary/lector-billing      String        optional — LECTOR_BILLING ("paddle" arms the subscription gate, #224)
  *   /lector/canary/paddle-webhook-secret SecureString optional — PADDLE_WEBHOOK_SECRET (required once billing is armed)
  *   /lector/canary/paddle-api-key      SecureString  optional — PADDLE_API_KEY (server key that creates checkout transactions; required once billing is armed)
+ *   /lector/canary/paddle-env          String        optional — PADDLE_ENV (staging sets "sandbox"; production leaves unset)
  *   /lector/canary/checkout-url        String        optional — CHECKOUT_URL (approved-domain checkout page, e.g. https://lector.dev/checkout; unset → subscribe shows its unavailable fallback)
  *   /lector/canary/paddle-price-monthly String       optional — PADDLE_PRICE_MONTHLY (pri_… Cloud monthly)
  *   /lector/canary/paddle-price-annual String        optional — PADDLE_PRICE_ANNUAL (pri_… Cloud annual)
@@ -66,13 +67,44 @@ import { Construct } from 'constructs';
  *   /lector/canary/ghcr-token          SecureString  optional — only if the ghcr package goes private again
  */
 
-const HOSTNAME = 'app.lector.dev';
-const PARAM_PREFIX = '/lector/canary';
-const IMAGE = 'ghcr.io/heuwels/lector:latest';
+export interface LectorCloudInstanceStackProps extends StackProps {
+  /** Stable deployment name used in tags, logs, and SSM parameter paths. */
+  deploymentName?: 'canary' | 'staging';
+  hostname?: string;
+  paramPrefix?: string;
+  /** Staging is disposable; production retains its data volume. */
+  retainData?: boolean;
+  /** Production replicates continuously; staging deliberately does not. */
+  enableLitestream?: boolean;
+  /** First boot only. CI pins every subsequent deploy to an immutable SHA tag. */
+  initialImage?: string;
+}
 
 export class LectorCloudCanaryStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
-    super(scope, id, props);
+  private readonly deploymentName: 'canary' | 'staging';
+  private readonly hostname: string;
+  private readonly paramPrefix: string;
+  private readonly retainData: boolean;
+  private readonly enableLitestream: boolean;
+  private readonly initialImage: string;
+
+  constructor(scope: Construct, id: string, props: LectorCloudInstanceStackProps = {}) {
+    const {
+      deploymentName = 'canary',
+      hostname = 'app.lector.dev',
+      paramPrefix = '/lector/canary',
+      retainData = true,
+      enableLitestream = true,
+      initialImage = 'ghcr.io/heuwels/lector:latest',
+      ...stackProps
+    } = props;
+    super(scope, id, stackProps);
+    this.deploymentName = deploymentName;
+    this.hostname = hostname;
+    this.paramPrefix = paramPrefix;
+    this.retainData = retainData;
+    this.enableLitestream = enableLitestream;
+    this.initialImage = initialImage;
 
     // Minimal network: one public subnet, no NAT. The instance gets a public
     // IP for *egress only* (image pulls, the tunnel, SSM); the security group
@@ -88,13 +120,13 @@ export class LectorCloudCanaryStack extends Stack {
       vpc,
       // AWS-visible descriptions must stay ASCII: IAM validates against
       // [ -~¡-ÿ] and EC2 SG descriptions are stricter still.
-      description: 'lector canary - zero inbound; cloudflared dials out, shell via SSM',
+      description: `lector ${deploymentName} - zero inbound; cloudflared dials out, shell via SSM`,
       allowAllOutbound: true,
     });
 
     const role = new iam.Role(this, 'InstanceRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-      description: 'lector canary instance - SSM session access + canary parameters',
+      description: `lector ${deploymentName} instance - SSM session access + environment parameters`,
     });
     role.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
@@ -103,7 +135,7 @@ export class LectorCloudCanaryStack extends Stack {
       new iam.PolicyStatement({
         actions: ['ssm:GetParameter'],
         resources: [
-          `arn:${this.partition}:ssm:${this.region}:${this.account}:parameter${PARAM_PREFIX}/*`,
+          `arn:${this.partition}:ssm:${this.region}:${this.account}:parameter${paramPrefix}/*`,
         ],
       }),
     );
@@ -112,25 +144,29 @@ export class LectorCloudCanaryStack extends Stack {
     // name). The live grant is the backup stack's bucket policy keyed on this
     // role's stack=cloud-canary tag — this identity policy is belt-and-braces
     // for the next box, since deploying THIS stack replaces the instance.
-    const litestreamBucketArn = `arn:${this.partition}:s3:::lector-canary-litestream-${this.account}`;
-    role.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
-        resources: [`${litestreamBucketArn}/*`],
-      }),
-    );
-    role.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ['s3:ListBucket'],
-        resources: [litestreamBucketArn],
-      }),
-    );
+    if (enableLitestream) {
+      const litestreamBucketArn = `arn:${this.partition}:s3:::lector-canary-litestream-${this.account}`;
+      role.addToPolicy(
+        new iam.PolicyStatement({
+          actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
+          resources: [`${litestreamBucketArn}/*`],
+        }),
+      );
+      role.addToPolicy(
+        new iam.PolicyStatement({
+          actions: ['s3:ListBucket'],
+          resources: [litestreamBucketArn],
+        }),
+      );
+    }
 
     const userData = ec2.UserData.forLinux();
     userData.addCommands(this.bootScript());
 
     const instanceType = new ec2.InstanceType(
-      this.node.tryGetContext('instanceType') ?? 't4g.small',
+      this.node.tryGetContext(`${deploymentName}InstanceType`) ??
+        this.node.tryGetContext('instanceType') ??
+        (deploymentName === 'staging' ? 't4g.micro' : 't4g.small'),
     );
 
     const instance = new ec2.Instance(this, 'Instance', {
@@ -161,7 +197,7 @@ export class LectorCloudCanaryStack extends Stack {
           volume: ec2.BlockDeviceVolume.ebs(20, {
             volumeType: ec2.EbsDeviceVolumeType.GP3,
             encrypted: true,
-            deleteOnTermination: false,
+            deleteOnTermination: !retainData,
           }),
         },
       ],
@@ -181,7 +217,7 @@ export class LectorCloudCanaryStack extends Stack {
     };
 
     Tags.of(this).add('project', 'lector');
-    Tags.of(this).add('stack', 'cloud-canary');
+    Tags.of(this).add('stack', `cloud-${deploymentName}`);
 
     new CfnOutput(this, 'InstanceId', { value: instance.instanceId });
     new CfnOutput(this, 'ShellHint', {
@@ -189,7 +225,7 @@ export class LectorCloudCanaryStack extends Stack {
       description: 'Shell onto the box (no SSH keys, no open ports)',
     });
     new CfnOutput(this, 'Hostname', {
-      value: `https://${HOSTNAME}`,
+      value: `https://${hostname}`,
       description: 'Route this hostname to the tunnel in Cloudflare (see deploy/cloud/README.md)',
     });
   }
@@ -199,14 +235,14 @@ export class LectorCloudCanaryStack extends Stack {
    * config drift between the repo and the instance because this is the only
    * copy. Escaping rule: `\${…}` emits a literal `${…}` for compose-time
    * interpolation; every other `$` is plain bash. Unescaped `${…}` are CDK
-   * constants resolved at synth (HOSTNAME, IMAGE, PARAM_PREFIX, region).
+   * constants resolved at synth (hostname, initial image, parameter prefix, region).
    */
   private bootScript(): string {
     return `#!/bin/bash
 set -euo pipefail
-exec > >(tee -a /var/log/lector-canary-init.log) 2>&1
+exec > >(tee -a /var/log/lector-${this.deploymentName}-init.log) 2>&1
 
-echo "== lector cloud canary first boot =="
+echo "== lector cloud ${this.deploymentName} first boot =="
 
 # ── docker + compose v2 plugin (AL2023 packages neither compose v2 nor a plugin) ──
 dnf install -y docker
@@ -226,6 +262,11 @@ mkdir -p /srv/lector/data
 UUID=$(blkid -s UUID -o value "$DEV")
 grep -q "$UUID" /etc/fstab || echo "UUID=$UUID /srv/lector/data xfs defaults,nofail 0 2" >> /etc/fstab
 mount -a
+# The image runs as uid/gid 1001. A freshly formatted EBS filesystem is
+# root-owned, so without this the API cannot create /app/data/books or SQLite.
+# Apply after mount so ownership lands on the volume, not the mount point below it.
+chown 1001:1001 /srv/lector/data
+chmod 755 /srv/lector/data
 
 # ── secrets: SSM Parameter Store is the source of truth ──
 # refresh-env.sh re-fetches every parameter and rewrites .env; it runs now
@@ -280,6 +321,7 @@ put OIDC_PROVIDER_NAME    oidc-provider-name
 put LECTOR_BILLING        lector-billing
 put PADDLE_WEBHOOK_SECRET paddle-webhook-secret
 put PADDLE_API_KEY        paddle-api-key
+put PADDLE_ENV            paddle-env
 put CHECKOUT_URL          checkout-url
 put PADDLE_PRICE_MONTHLY  paddle-price-monthly
 put PADDLE_PRICE_ANNUAL   paddle-price-annual
@@ -300,14 +342,16 @@ fi
 echo "refreshed $ENVFILE with keys:"
 awk -F= 'NF>1{print $1}' "$ENVFILE"
 REFRESHEOF
-sed -i "s|__REGION__|${this.region}|g; s|__PARAM_PREFIX__|${PARAM_PREFIX}|g" /srv/lector/refresh-env.sh
+sed -i "s|__REGION__|${this.region}|g; s|__PARAM_PREFIX__|${this.paramPrefix}|g" /srv/lector/refresh-env.sh
 chmod +x /srv/lector/refresh-env.sh
 /srv/lector/refresh-env.sh
 
-# ── continuous DB replication: Litestream → S3 (#270) ──
+# ── continuous DB replication: Litestream → S3 (#270; production only) ──
 # Credentials come from the instance role via IMDSv2 (hop limit 2 — see the
 # stack); no static keys anywhere. Bucket is owned by backup-stack.ts.
-cat > /srv/lector/litestream.yml <<'LITESTREAMEOF'
+${
+  this.enableLitestream
+    ? `cat > /srv/lector/litestream.yml <<'LITESTREAMEOF'
 dbs:
   - path: /data/lector.db
     replicas:
@@ -320,6 +364,9 @@ dbs:
         sync-interval: 10s
         retention: 72h
 LITESTREAMEOF
+`
+    : ''
+}
 
 # ── the whole deployment: lector (cloud proper) + cloudflared + litestream ──
 # No published ports: nothing listens on the host. cloudflared reaches lector
@@ -332,14 +379,17 @@ LITESTREAMEOF
 cat > /srv/lector/docker-compose.yml <<'COMPOSEEOF'
 services:
   lector:
-    image: ${IMAGE}
+    # CI rewrites this exact line to an immutable sha-<commit> tag. Never use
+    # :latest for a promoted staging/production deploy.
+    image: ${this.initialImage}
     container_name: lector
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - LECTOR_MODE=cloud
-      - API_URL=https://${HOSTNAME}
-      - BETTER_AUTH_URL=https://${HOSTNAME}
+      - API_URL=https://${this.hostname}
+      - BETTER_AUTH_URL=https://${this.hostname}
+      - SENTRY_ENVIRONMENT=${this.deploymentName === 'staging' ? 'staging' : 'production'}
       # Interpolated from .env at compose time so a value set via SSM wins;
       # absent -> anthropic. All pure secrets ride env_file below instead,
       # so params that don't exist never become empty-string env overrides.
@@ -359,7 +409,9 @@ services:
     depends_on:
       - lector
 
-  # Continuous SQLite replication to S3 (#270). Shares the data volume with
+${
+  this.enableLitestream
+    ? `  # Continuous SQLite replication to S3 (#270). Shares the data volume with
   # lector read-only-in-spirit (Litestream only appends its own -litestream
   # sidecar files); credentials via the instance role, no env needed.
   litestream:
@@ -375,6 +427,9 @@ services:
     volumes:
       - /srv/lector/data:/data
       - /srv/lector/litestream.yml:/etc/litestream.yml:ro
+`
+    : ''
+}
 COMPOSEEOF
 
 # ── update helper: refresh secrets from SSM + pull newest image + recreate ──
@@ -391,7 +446,7 @@ chmod +x /srv/lector/update.sh
 
 cd /srv/lector
 docker compose up -d
-echo "== lector cloud canary init done =="
+echo "== lector cloud ${this.deploymentName} init done =="
 `;
   }
 }
