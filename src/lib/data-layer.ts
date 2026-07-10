@@ -710,19 +710,18 @@ export async function getJournalEntry(id: string): Promise<JournalEntry | undefi
   return res.json();
 }
 
-export async function createJournalEntry(body: string): Promise<{ id: string }> {
+export function createJournalEntry(body: string): Promise<Response> {
   const entryDate = new Date().toISOString().split('T')[0];
 
-  const res = await apiFetch('/api/journal', {
+  return apiFetch('/api/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body, entryDate, language: getActiveLanguage() }),
   });
-  return res.json();
 }
 
-export async function updateJournalDraft(id: string, body: string): Promise<void> {
-  await apiFetch(`/api/journal/${id}`, {
+export function updateJournalDraft(id: string, body: string): Promise<Response> {
+  return apiFetch(`/api/journal/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body }),
