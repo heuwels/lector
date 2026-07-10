@@ -262,6 +262,11 @@ mkdir -p /srv/lector/data
 UUID=$(blkid -s UUID -o value "$DEV")
 grep -q "$UUID" /etc/fstab || echo "UUID=$UUID /srv/lector/data xfs defaults,nofail 0 2" >> /etc/fstab
 mount -a
+# The image runs as uid/gid 1001. A freshly formatted EBS filesystem is
+# root-owned, so without this the API cannot create /app/data/books or SQLite.
+# Apply after mount so ownership lands on the volume, not the mount point below it.
+chown 1001:1001 /srv/lector/data
+chmod 755 /srv/lector/data
 
 # ── secrets: SSM Parameter Store is the source of truth ──
 # refresh-env.sh re-fetches every parameter and rewrites .env; it runs now
