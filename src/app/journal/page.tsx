@@ -53,7 +53,8 @@ export default function JournalPage() {
     if (editingId && text.trim()) {
       autoSaveTimer.current = setTimeout(async () => {
         try {
-          await updateJournalDraft(editingId, text);
+          const res = await updateJournalDraft(editingId, text);
+          if (!res.ok) return;
           setSaveStatus('Draft saved');
           setTimeout(() => setSaveStatus(null), 2000);
         } catch {
@@ -69,9 +70,18 @@ export default function JournalPage() {
     setError(null);
     try {
       if (editingId) {
-        await updateJournalDraft(editingId, bodyText);
+        const res = await updateJournalDraft(editingId, bodyText);
+        if (!res.ok) {
+          if (res.status !== 429) setError('Failed to save');
+          return;
+        }
       } else {
-        const result = await createJournalEntry(bodyText);
+        const res = await createJournalEntry(bodyText);
+        if (!res.ok) {
+          if (res.status !== 429) setError('Failed to save');
+          return;
+        }
+        const result = (await res.json()) as { id: string };
         setEditingId(result.id);
       }
       await refreshEntries();
@@ -91,11 +101,20 @@ export default function JournalPage() {
     try {
       let id = editingId;
       if (!id) {
-        const result = await createJournalEntry(bodyText);
+        const res = await createJournalEntry(bodyText);
+        if (!res.ok) {
+          if (res.status !== 429) setError('Correction failed');
+          return;
+        }
+        const result = (await res.json()) as { id: string };
         id = result.id;
         setEditingId(id);
       } else {
-        await updateJournalDraft(id, bodyText);
+        const res = await updateJournalDraft(id, bodyText);
+        if (!res.ok) {
+          if (res.status !== 429) setError('Correction failed');
+          return;
+        }
       }
       await submitJournalForCorrection(id);
       await refreshEntries();

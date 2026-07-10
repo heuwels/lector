@@ -14,7 +14,7 @@ beforeEach(() => {
 });
 
 describe('journal write failures', () => {
-  it('rejects a plan-limited create instead of returning an undefined id', async () => {
+  it('returns the plan-limited create response for the caller to inspect', async () => {
     apiFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ error: 'plan_limit', metric: 'journalWordsPerMonth' }), {
         status: 429,
@@ -22,12 +22,12 @@ describe('journal write failures', () => {
       }),
     );
 
-    await expect(createJournalEntry('too many words')).rejects.toThrow(
-      'This entry exceeds your monthly journal allowance.',
-    );
+    const response = await createJournalEntry('too many words');
+    expect(response.ok).toBe(false);
+    expect(response.status).toBe(429);
   });
 
-  it('rejects a plan-limited draft update so submit cannot continue to correction', async () => {
+  it('returns the plan-limited update response for the caller to inspect', async () => {
     apiFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ error: 'plan_limit', metric: 'journalWordsPerMonth' }), {
         status: 429,
@@ -35,8 +35,8 @@ describe('journal write failures', () => {
       }),
     );
 
-    await expect(updateJournalDraft('entry-1', 'too many words')).rejects.toThrow(
-      'This edit exceeds your monthly journal allowance.',
-    );
+    const response = await updateJournalDraft('entry-1', 'too many words');
+    expect(response.ok).toBe(false);
+    expect(response.status).toBe(429);
   });
 });
