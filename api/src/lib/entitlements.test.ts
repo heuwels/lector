@@ -142,6 +142,20 @@ describe('plan resolution', () => {
     expect(engine.resolveEntitlements('ent-c').plan).toBe('cloud');
   });
 
+  test('two entitled subs resolve to the most generous TIER, not the newest row (#222 review)', () => {
+    // Both active → both entitled. Plus is the more generous tier and must win
+    // even though the Cloud row is newer. Asserted in BOTH insertion orders so
+    // the result can't hinge on which row the query happens to return first
+    // (the old status+recency ranking let a newer Cloud shadow an older Plus).
+    seedSubscription('ent-mix1', 'active', PLUS_PRICE, '2026-06-01T00:00:00Z', 'sub_ent-mix1_plus');
+    seedSubscription('ent-mix1', 'active', CLOUD_PRICE, '2026-07-01T00:00:00Z', 'sub_ent-mix1_cloud');
+    seedSubscription('ent-mix2', 'active', CLOUD_PRICE, '2026-07-01T00:00:00Z', 'sub_ent-mix2_cloud');
+    seedSubscription('ent-mix2', 'active', PLUS_PRICE, '2026-06-01T00:00:00Z', 'sub_ent-mix2_plus');
+    const engine = makeEntitlements(makeDeps());
+    expect(engine.resolveEntitlements('ent-mix1').plan).toBe('plus');
+    expect(engine.resolveEntitlements('ent-mix2').plan).toBe('plus');
+  });
+
   test('unknown or missing priceId defaults a paying account to the base plan', () => {
     seedSubscription('ent-d', 'active', 'pri_removed_from_env');
     seedSubscription('ent-e', 'active', null);
@@ -266,5 +280,72 @@ describe('checkLimit boundaries', () => {
     engine.recordUsage('ent-m', 'journalWordsPerMonth', 0);
     engine.recordUsage('ent-m', 'journalWordsPerMonth', -5);
     expect(engine.getUsage('ent-m', 'journalWordsPerMonth')).toBe(0);
+  });
+});
+
+describe('reserve / refund / reserveCount (atomic metering, #222 review)', () => {
+  test('reserve records atomically and denies once the counter is full', () => {
+    seedSubscription('ent-r1', 'active', CLOUD_PRICE); // llm cap 5
+    const engine = makeEntitlements(makeDeps());
+    for (let i = 0; i < 5; i++) {
+      expect(engine.reserve('ent-r1', 'llmRequestsPerMonth').allowed).toBe(true);
+    }
+    // The sixth is denied and must NOT record — reserving is check+increment in
+    // one synchronous step, so the boundary can't be crossed by a check whose
+    // increment hasn't landed yet (the old check-then-record race).
+    expect(engine.reserve('ent-r1', 'llmRequestsPerMonth').allowed).toBe(false);
+    expect(engine.getUsage('ent-r1', 'llmRequestsPerMonth')).toBe(5);
+  });
+
+  test('refund returns allowance and never drives a counter negative', () => {
+    seedSubscription('ent-r2', 'active', CLOUD_PRICE); // tts cap 50
+    const engine = makeEntitlements(makeDeps());
+    engine.reserve('ent-r2', 'ttsCharsPerMonth', 40);
+    engine.refund('ent-r2', 'ttsCharsPerMonth', 40);
+    expect(engine.getUsage('ent-r2', 'ttsCharsPerMonth')).toBe(0);
+    // An over-refund clamps at zero rather than going negative.
+    engine.refund('ent-r2', 'ttsCharsPerMonth', 999);
+    expect(engine.getUsage('ent-r2', 'ttsCharsPerMonth')).toBe(0);
+    // A full month's allowance is available again after the refund.
+    expect(engine.reserve('ent-r2', 'ttsCharsPerMonth', 50).allowed).toBe(true);
+  });
+
+  test('reserveCount inserts only when under the cap, atomically with the check', () => {
+    seedSubscription('ent-r3', 'active', CLOUD_PRICE); // maxCollections cap 2
+    const engine = makeEntitlements(makeDeps());
+    const now = new Date().toISOString();
+    let n = 0;
+    const insert = () => {
+      n += 1;
+      db.prepare(
+        `INSERT INTO collections (id, title, author, language, createdAt, lastReadAt, userId)
+         VALUES (?, 'T', 'A', 'af', ?, ?, 'ent-r3')`,
+      ).run(`ent-r3-c${n}`, now, now);
+    };
+
+    expect(engine.reserveCount('ent-r3', [{ metric: 'maxCollections' }], insert).allowed).toBe(true);
+    expect(engine.reserveCount('ent-r3', [{ metric: 'maxCollections' }], insert).allowed).toBe(true);
+    // The third is over the cap: verdict denied AND the insert never ran.
+    expect(engine.reserveCount('ent-r3', [{ metric: 'maxCollections' }], insert).allowed).toBe(false);
+    const count = db.prepare("SELECT COUNT(*) n FROM collections WHERE userId = 'ent-r3'").get() as { n: number };
+    expect(count.n).toBe(2);
+  });
+
+  test('reserveCount rolls the whole batch back if a later insert throws', () => {
+    seedSubscription('ent-r4', 'active', CLOUD_PRICE);
+    const engine = makeEntitlements(makeDeps());
+    const now = new Date().toISOString();
+    expect(() =>
+      engine.reserveCount('ent-r4', [{ metric: 'maxCollections' }], () => {
+        db.prepare(
+          `INSERT INTO collections (id, title, author, language, createdAt, lastReadAt, userId)
+           VALUES ('ent-r4-c1', 'T', 'A', 'af', ?, ?, 'ent-r4')`,
+        ).run(now, now);
+        throw new Error('boom after first insert');
+      }),
+    ).toThrow('boom');
+    // The insert that ran before the throw is rolled back with the transaction.
+    const count = db.prepare("SELECT COUNT(*) n FROM collections WHERE userId = 'ent-r4'").get() as { n: number };
+    expect(count.n).toBe(0);
   });
 });

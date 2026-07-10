@@ -61,9 +61,10 @@ app.post('/gloss', async (c) => {
 
   const lang = resolveLanguage(language, userId);
 
-  // Managed-key metering (#222): checked before the provider call, recorded
-  // only after it succeeds — a failed call never burns allowance.
-  const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+  // Managed-key metering (#222): reserved before the provider call and refunded
+  // if the stream errors — a failed call never burns allowance, and reserving
+  // up front closes the check-then-record race (#222 review).
+  const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
   if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
 
   recordStudySessionPing(userId, lang);
@@ -73,9 +74,10 @@ app.post('/gloss', async (c) => {
   const provider = getProvider();
 
   // streamText commits a 200 the moment it starts, so a provider failure before
-  // the first delta can't become a non-200. We log and end the stream; the
-  // client treats an empty gloss as a failure and can retry / fall back to
-  // /enrich. (Errors mid-stream are unavoidable over a committed response.)
+  // the first delta can't become a non-200. We refund the reservation, log, and
+  // end the stream; the client treats an empty gloss as a failure and can retry
+  // / fall back to /enrich. (Errors mid-stream are unavoidable over a committed
+  // response.)
   return streamText(c, async (stream) => {
     try {
       for await (const delta of provider.stream({
@@ -85,8 +87,8 @@ app.post('/gloss', async (c) => {
       })) {
         await stream.write(delta);
       }
-      entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
     } catch (err) {
+      entitlements.refund(userId, 'llmRequestsPerMonth', 1);
       console.error('Gloss stream error:', err);
     }
   });
@@ -96,21 +98,25 @@ app.post('/gloss', async (c) => {
 // already glossed. Off the critical path, so it stays non-streamed JSON. No
 // study ping: the originating /gloss call already counted this lookup.
 app.post('/enrich', async (c) => {
+  const userId = getCurrentUserId(c);
+  let reservedLlm = false;
   try {
     const { word, sentence, language } = await c.req.json();
     if (!word) {
       return c.json({ error: 'Word is required' }, 400);
     }
-    const userId = getCurrentUserId(c);
-    const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+    // Reserve before the provider call, refund on failure (#222 review).
+    const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
     if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+    reservedLlm = true;
 
     const lang = resolveLanguage(language, userId);
     const langName = getLanguageConfig(lang).name;
     const entry = await buildWordEntryResponse(langName, word, sentence || '');
-    entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
+    reservedLlm = false; // the managed call happened — the usage is earned
     return c.json(entry);
   } catch (error) {
+    if (reservedLlm) entitlements.refund(userId, 'llmRequestsPerMonth', 1);
     console.error('Enrich error:', error);
     return c.json({ error: error instanceof Error ? error.message : 'Enrich failed' }, 500);
   }
@@ -120,6 +126,8 @@ app.post('/enrich', async (c) => {
 // phrase prompt; words return the rich structured entry (now spelreels-free).
 // Kept for in-context / re-translate callers and back-compat.
 app.post('/', async (c) => {
+  const userId = getCurrentUserId(c);
+  let reservedLlm = false;
   try {
     const { word, sentence, type = 'word', language } = await c.req.json();
 
@@ -127,11 +135,7 @@ app.post('/', async (c) => {
       return c.json({ error: 'Word is required' }, 400);
     }
 
-    const userId = getCurrentUserId(c);
     const lang = resolveLanguage(language, userId);
-
-    const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
-    if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
 
     recordStudySessionPing(userId, lang);
 
@@ -142,10 +146,17 @@ app.post('/', async (c) => {
       // Reader multi-word selection cap (#222) — enforced here (never trust
       // the client's reflect), counted the same way the selection is built:
       // whitespace tokens. Also a cost lever: phrase-translation token cost
-      // scales with selection length.
+      // scales with selection length. Checked before the LLM is reserved so an
+      // over-cap phrase never consumes a managed request.
       const phraseWords = String(word).trim().split(/\s+/).filter(Boolean).length;
       const phraseVerdict = entitlements.checkLimit(userId, 'phraseSelectionWords', phraseWords);
       if (!phraseVerdict.allowed) return planLimitResponse(c, phraseVerdict);
+
+      // Reserve the managed-LLM request before the provider call, refund on
+      // failure (#222 review).
+      const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
+      if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+      reservedLlm = true;
 
       const spelreels = lang === 'af' ? getSpelreelsContext() : '';
       const spelreelsSection = spelreels
@@ -160,14 +171,19 @@ app.post('/', async (c) => {
         responseFormat: 'json',
       });
 
-      entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
+      reservedLlm = false; // the managed call happened — the usage is earned
       return c.json(parseLooseJson<Record<string, unknown>>(text));
     }
 
+    const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
+    if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+    reservedLlm = true;
+
     const entry = await buildWordEntryResponse(langName, word, sentence || '');
-    entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
+    reservedLlm = false; // the managed call happened — the usage is earned
     return c.json(entry);
   } catch (error) {
+    if (reservedLlm) entitlements.refund(userId, 'llmRequestsPerMonth', 1);
     console.error('Translation error:', error);
     return c.json(
       { error: error instanceof Error ? error.message : 'Translation failed' },

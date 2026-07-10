@@ -221,15 +221,33 @@ export interface EntitlementsEngine {
   checkLimit(userId: string, metric: LimitMetric, requested?: number): LimitVerdict;
   /** Record consumption AFTER the metered action succeeds. */
   recordUsage(userId: string, metric: LimitMetric, amount: number): void;
+  /**
+   * Atomic check-and-record for a counter metric — reserve BEFORE a provider
+   * call, refund() if it fails. Closes the check-then-write race (#222 review).
+   */
+  reserve(userId: string, metric: LimitMetric, amount?: number): LimitVerdict;
+  /** Undo a reserve() when the metered action fails. Clamped at zero. */
+  refund(userId: string, metric: LimitMetric, amount: number): void;
+  /**
+   * Atomic check-and-insert for live-count limits (collections/lessons): runs
+   * `commit` inside the same write transaction, only if every check passes.
+   */
+  reserveCount(
+    userId: string,
+    checks: ReadonlyArray<{ metric: 'maxCollections' | 'maxLessons'; requested?: number }>,
+    commit: () => void,
+  ): LimitVerdict;
   getUsage(userId: string, metric: LimitMetric): number;
 }
 
 /**
- * Paddle subscription-status rank, most entitled first (same order as
- * lib/billing.ts resolveBillingStatus — an account with a canceled old sub
- * and an active new one must resolve by the active one).
+ * Plan tiers ranked by entitlement, most generous first. When a user holds
+ * more than one ENTITLED subscription (e.g. an active Cloud and an active
+ * Plus), the most generous tier must win — never merely the most recent (#222
+ * review): ranking entitled rows by status/recency alone let a newer Cloud sub
+ * shadow an older Plus one and wrongly apply Cloud limits.
  */
-const STATUS_RANK: readonly string[] = ['active', 'trialing', 'past_due', 'paused', 'canceled'];
+const PLAN_RANK: Record<PlanId, number> = { plus: 2, cloud: 1 };
 
 export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
   const priceToPlan = new Map(deps.prices.map((p) => [p.id, p.plan]));
@@ -248,39 +266,27 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
     // stamps custom_data.lectorUserId) or by Paddle customer email.
     const rows = db
       .prepare(
-        `SELECT s.status, s.priceId, s.occurredAt FROM billing_subscriptions s
+        `SELECT s.status, s.priceId FROM billing_subscriptions s
          LEFT JOIN billing_customers c ON c.paddleCustomerId = s.paddleCustomerId
          WHERE s.userId = ? OR (? IS NOT NULL AND c.email = lower(?))`,
       )
-      .all(userId, email, email) as Array<{
-      status: string;
-      priceId: string | null;
-      occurredAt: string;
-    }>;
+      .all(userId, email, email) as Array<{ status: string; priceId: string | null }>;
 
-    let best: (typeof rows)[number] | undefined;
+    // Resolve to the MOST ENTITLED tier across all entitled subscriptions —
+    // not the newest row. An entitled sub whose price we can't map (removed
+    // from env, or a pre-#292 row without priceId) is still a paying customer,
+    // so it counts as the base plan.
+    let best: PlanId | null = null;
     for (const row of rows) {
       if (!isEntitledStatus(row.status)) continue;
-      if (!best) {
-        best = row;
-        continue;
-      }
-      const rank = STATUS_RANK.indexOf(row.status);
-      const bestRank = STATUS_RANK.indexOf(best.status);
-      if (rank < bestRank || (rank === bestRank && row.occurredAt > best.occurredAt)) {
-        best = row;
-      }
+      const plan = (row.priceId && priceToPlan.get(row.priceId)) || 'cloud';
+      if (best === null || PLAN_RANK[plan] > PLAN_RANK[best]) best = plan;
     }
 
-    // No entitled subscription: the billing gate 402s such accounts before
-    // any limited route runs, so this is defense-in-depth — give the
-    // cheapest plan's limits rather than inventing a lockout of our own.
-    if (!best) return 'cloud';
-
-    // An entitled subscription whose price we can't map (price removed from
-    // env, or a pre-#292 row without priceId) is still a paying customer:
-    // default to the base plan's generous limits and let ops fix the config.
-    return (best.priceId && priceToPlan.get(best.priceId)) || 'cloud';
+    // No entitled subscription: the billing gate 402s such accounts before any
+    // limited route runs, so this is defense-in-depth — give the base plan's
+    // limits rather than inventing a lockout of our own.
+    return best ?? 'cloud';
   }
 
   function resolveEntitlements(userId: string): ResolvedEntitlements {
@@ -306,6 +312,54 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
          value = value + excluded.value,
          updatedAt = excluded.updatedAt`,
     ).run(userId, metric, currentPeriod(deps.now()), amount, new Date().toISOString());
+  }
+
+  /**
+   * Undo a reservation when the metered action fails after we reserved for it.
+   * Clamped at zero so a double-refund or clock skew can't drive a counter
+   * negative.
+   */
+  function refund(userId: string, metric: LimitMetric, amount: number): void {
+    if (amount <= 0) return;
+    db.prepare(
+      `UPDATE usage_counters SET value = MAX(0, value - ?), updatedAt = ?
+       WHERE userId = ? AND metric = ? AND period = ?`,
+    ).run(amount, new Date().toISOString(), userId, metric, currentPeriod(deps.now()));
+  }
+
+  /**
+   * Atomically check a counter metric and, if allowed, record the usage in the
+   * SAME synchronous step (no `await` between check and write, so two
+   * concurrent requests can't both pass at `limit - 1`). Callers reserve
+   * BEFORE the provider call and refund() if it fails — closing the
+   * check-then-write race that could bill unlimited managed calls (#222 review).
+   */
+  function reserve(userId: string, metric: LimitMetric, amount = 1): LimitVerdict {
+    const verdict = checkLimit(userId, metric, amount);
+    if (verdict.allowed) recordUsage(userId, metric, amount);
+    return verdict;
+  }
+
+  /**
+   * Enforce live-count limits (collections/lessons) and run `commit` — the
+   * insert — inside the SAME write transaction, closing the count-then-insert
+   * race and rolling the check back if the insert throws. `commit` runs only
+   * when every check passes; the returned verdict tells the caller whether it
+   * did.
+   */
+  function reserveCount(
+    userId: string,
+    checks: ReadonlyArray<{ metric: 'maxCollections' | 'maxLessons'; requested?: number }>,
+    commit: () => void,
+  ): LimitVerdict {
+    return db.transaction((): LimitVerdict => {
+      for (const { metric, requested } of checks) {
+        const verdict = checkLimit(userId, metric, requested);
+        if (!verdict.allowed) return verdict;
+      }
+      commit();
+      return { allowed: true };
+    })();
   }
 
   function liveCount(userId: string, metric: 'maxCollections' | 'maxLessons'): number {
@@ -339,7 +393,7 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
     return { allowed: false, metric, limit, used, requested, plan, upgrade: upgradeFor(plan, metric) };
   }
 
-  return { resolveEntitlements, checkLimit, recordUsage, getUsage };
+  return { resolveEntitlements, checkLimit, recordUsage, reserve, refund, reserveCount, getUsage };
 }
 
 let active: EntitlementsEngine = makeEntitlements({
@@ -364,6 +418,9 @@ export const entitlements: EntitlementsEngine = {
   resolveEntitlements: (userId) => active.resolveEntitlements(userId),
   checkLimit: (userId, metric, requested) => active.checkLimit(userId, metric, requested),
   recordUsage: (userId, metric, amount) => active.recordUsage(userId, metric, amount),
+  reserve: (userId, metric, amount) => active.reserve(userId, metric, amount),
+  refund: (userId, metric, amount) => active.refund(userId, metric, amount),
+  reserveCount: (userId, checks, commit) => active.reserveCount(userId, checks, commit),
   getUsage: (userId, metric) => active.getUsage(userId, metric),
 };
 

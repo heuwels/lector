@@ -31,20 +31,21 @@ app.get('/', (c) => {
 // POST /api/collections
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
-
-  // Library size (#222): total collections across languages.
-  const verdict = entitlements.checkLimit(userId, 'maxCollections');
-  if (!verdict.allowed) return planLimitResponse(c, verdict);
-
   const body = await c.req.json();
   const id = body.id || randomUUID();
   const now = new Date().toISOString();
   const lang = resolveLanguage(body.language, userId);
 
-  db.prepare(`
-    INSERT INTO collections (id, title, author, coverUrl, groupId, language, createdAt, lastReadAt, userId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, body.title, body.author || 'Unknown', body.coverUrl || null, body.groupId || null, lang, now, now, userId);
+  // Library size (#222): count + insert atomically so two concurrent creates
+  // can't both slip past the cap — the check used to run before the
+  // `await c.req.json()`, leaving a race window (#222 review).
+  const verdict = entitlements.reserveCount(userId, [{ metric: 'maxCollections' }], () => {
+    db.prepare(`
+      INSERT INTO collections (id, title, author, coverUrl, groupId, language, createdAt, lastReadAt, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, body.title, body.author || 'Unknown', body.coverUrl || null, body.groupId || null, lang, now, now, userId);
+  });
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   return c.json({ id });
 });
@@ -155,11 +156,6 @@ app.get('/:id/lessons', (c) => {
 // POST /api/collections/:id/lessons
 app.post('/:id/lessons', async (c) => {
   const userId = getCurrentUserId(c);
-
-  // Library size (#222): total lessons across languages.
-  const verdict = entitlements.checkLimit(userId, 'maxLessons');
-  if (!verdict.allowed) return planLimitResponse(c, verdict);
-
   const collectionId = c.req.param('id');
   const body = await c.req.json();
   const id = body.id || randomUUID();
@@ -181,12 +177,17 @@ app.post('/:id/lessons', async (c) => {
   // import path, so reader tokens match dictionary and vocab keys.
   const textContent = normalizeText(body.textContent || '');
 
-  db.prepare(`
-    INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, collectionId, normalizeText(body.title || ''), maxOrder.maxOrder + 1, textContent, countWords(textContent), language, now, now, userId);
+  // Library size (#222): count + insert atomically so concurrent lesson adds
+  // can't both slip past the cap (#222 review).
+  const verdict = entitlements.reserveCount(userId, [{ metric: 'maxLessons' }], () => {
+    db.prepare(`
+      INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, collectionId, normalizeText(body.title || ''), maxOrder.maxOrder + 1, textContent, countWords(textContent), language, now, now, userId);
 
-  db.prepare('UPDATE collections SET lastReadAt = ? WHERE id = ? AND userId = ?').run(now, collectionId, userId);
+    db.prepare('UPDATE collections SET lastReadAt = ? WHERE id = ? AND userId = ?').run(now, collectionId, userId);
+  });
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   return c.json({ id });
 });

@@ -2,12 +2,14 @@ import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { db } from '../db';
 import {
+  currentPeriod,
   makeEntitlements,
   setEntitlementsEngineForTests,
   type EntitlementsDeps,
   type PlanLimits,
 } from '../lib/entitlements';
 import journal from './journal';
+import journalCorrect from './journal-correct';
 import collections from './collections';
 import translate from './translate';
 
@@ -189,6 +191,28 @@ describe('phrase selection cap', () => {
     expect(body.metric).toBe('phraseSelectionWords');
     expect(body.requested).toBe(4);
     expect(body.limit).toBe(3);
+  });
+});
+
+describe('managed LLM requests (#222 review)', () => {
+  test('/api/journal-correct is metered and refuses once the LLM cap is reached', async () => {
+    // Exhaust the monthly LLM allowance (STRICT: 100), then the standalone
+    // correction endpoint must refuse BEFORE calling the provider. It used to
+    // skip the check/record entirely — an unmetered path into the managed
+    // provider (#222 review, finding #1).
+    db.prepare(
+      `INSERT INTO usage_counters (userId, metric, period, value, updatedAt)
+       VALUES ('local', 'llmRequestsPerMonth', ?, 100, ?)`,
+    ).run(currentPeriod(new Date('2026-07-15T12:00:00Z')), new Date().toISOString());
+
+    const res = await journalCorrect.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: 'ek het gister in die park geloop' }),
+    });
+    const body = await planLimitBody(res);
+    expect(body.metric).toBe('llmRequestsPerMonth');
+    expect(body.upgrade).toBe('plus'); // cloud plan → upsell to Plus
   });
 });
 

@@ -43,20 +43,25 @@ app.post('/', async (c) => {
   const date = entryDate || new Date().toISOString().split('T')[0];
   const now = new Date().toISOString();
   const wordCount = (body || '').trim().split(/\s+/).filter(Boolean).length;
-
-  // Journal words / month (#222): metered on save, by the words the save adds.
-  if (wordCount > 0) {
-    const verdict = entitlements.checkLimit(userId, 'journalWordsPerMonth', wordCount);
-    if (!verdict.allowed) return planLimitResponse(c, verdict);
-  }
-
   const id = randomUUID();
-  db.prepare(
-    `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
-     VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
-  ).run(id, body || '', wordCount, date, lang, now, now, userId);
-  entitlements.recordUsage(userId, 'journalWordsPerMonth', wordCount);
 
+  // Journal words / month (#222): check, insert, and meter in ONE transaction
+  // so a failed insert never charges allowance and usage is never recorded
+  // without the save landing (#222 review).
+  const denied = db.transaction(() => {
+    if (wordCount > 0) {
+      const verdict = entitlements.checkLimit(userId, 'journalWordsPerMonth', wordCount);
+      if (!verdict.allowed) return verdict;
+    }
+    db.prepare(
+      `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
+       VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
+    ).run(id, body || '', wordCount, date, lang, now, now, userId);
+    if (wordCount > 0) entitlements.recordUsage(userId, 'journalWordsPerMonth', wordCount);
+    return null;
+  })();
+
+  if (denied) return planLimitResponse(c, denied);
   return c.json({ id, entryDate: date });
 });
 
@@ -95,17 +100,18 @@ app.put('/:id', async (c) => {
   const now = new Date().toISOString();
   const updates: string[] = ['updatedAt = ?'];
   const values: unknown[] = [now];
+  let grown = 0;
 
   if (body.body !== undefined) {
     updates.push('body = ?', 'wordCount = ?');
     const wordCount = body.body.trim().split(/\s+/).filter(Boolean).length;
     // Meter only GROWTH (#222): editing down and re-typing must not
-    // double-charge the month's allowance.
-    const grown = wordCount - existing.wordCount;
+    // double-charge the month's allowance. `existing.wordCount` was read above
+    // in the same synchronous tick (no await since), so it can't be stale.
+    grown = wordCount - existing.wordCount;
     if (grown > 0) {
       const verdict = entitlements.checkLimit(userId, 'journalWordsPerMonth', grown);
       if (!verdict.allowed) return planLimitResponse(c, verdict);
-      entitlements.recordUsage(userId, 'journalWordsPerMonth', grown);
     }
     values.push(body.body, wordCount);
   }
@@ -113,7 +119,14 @@ app.put('/:id', async (c) => {
   values.push(id);
   values.push(userId);
   values.push(lang);
-  db.prepare(`UPDATE journal_entries SET ${updates.join(', ')} WHERE id = ? AND userId = ? AND language = ?`).run(...values);
+
+  // Persist and meter in ONE transaction so growth is charged only once the
+  // UPDATE has actually landed — a failed update never burns allowance, and
+  // the old code's record-before-write ordering is gone (#222 review).
+  db.transaction(() => {
+    db.prepare(`UPDATE journal_entries SET ${updates.join(', ')} WHERE id = ? AND userId = ? AND language = ?`).run(...values);
+    if (grown > 0) entitlements.recordUsage(userId, 'journalWordsPerMonth', grown);
+  })();
 
   return c.json({ success: true });
 });
@@ -144,15 +157,18 @@ app.post('/:id/correct', async (c) => {
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
   if (!entry.body.trim()) return c.json({ error: 'Entry body is empty' }, 400);
 
-  const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+  // Reserve the managed-LLM request before the provider call, refund on failure
+  // (#222 review) — a check-then-record leaves a concurrent-request window.
+  const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
   if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+  let reservedLlm = true;
 
   try {
     const data = (await correctJournalText(userId, entry.body, entry.language)) as {
       correctedBody?: string;
       corrections?: unknown;
     };
-    entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
+    reservedLlm = false; // the managed call happened — the usage is earned
 
     const now = new Date().toISOString();
     db.prepare(
@@ -163,6 +179,7 @@ app.post('/:id/correct', async (c) => {
 
     return c.json({ correctedBody: data.correctedBody, corrections: data.corrections });
   } catch (error) {
+    if (reservedLlm) entitlements.refund(userId, 'llmRequestsPerMonth', 1);
     console.error('Journal correction error:', error);
     return c.json({ error: error instanceof Error ? error.message : 'Correction failed' }, 500);
   }

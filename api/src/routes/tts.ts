@@ -25,6 +25,9 @@ const app = new Hono();
 
 // POST /api/tts — synthesize speech via Google Cloud TTS, returned as base64.
 app.post('/', async (c) => {
+  const userId = getCurrentUserId(c);
+  let reservedChars = 0;
+  let earned = false;
   try {
     const { text, rate = 0.9, language } = await c.req.json();
 
@@ -37,12 +40,14 @@ app.post('/', async (c) => {
       return c.json({ error: 'Google Cloud API key not configured', fallback: true }, 503);
     }
 
-    const userId = getCurrentUserId(c);
-    // Managed-key TTS metering (#222), by synthesized characters — checked
-    // before the Google call, recorded only on success. The client's browser
-    // TTS fallback remains free, so over-limit still speaks.
-    const ttsVerdict = entitlements.checkLimit(userId, 'ttsCharsPerMonth', text.length);
+    // Managed-key TTS metering (#222), by synthesized characters. Reserved
+    // before the Google call and refunded (via `finally`) on any non-success
+    // exit, so a failed/over-cap synth never bills and two concurrent requests
+    // can't both slip past the cap (#222 review). The client's browser TTS
+    // fallback stays free, so over-limit still speaks.
+    const ttsVerdict = entitlements.reserve(userId, 'ttsCharsPerMonth', text.length);
     if (!ttsVerdict.allowed) return planLimitResponse(c, ttsVerdict);
+    reservedChars = text.length;
 
     const lang = resolveLanguage(language, userId);
     const langConfig = getLanguageConfig(lang);
@@ -82,11 +87,14 @@ app.post('/', async (c) => {
       return c.json({ error: 'No audio content returned', fallback: true }, 500);
     }
 
-    entitlements.recordUsage(userId, 'ttsCharsPerMonth', text.length);
+    earned = true; // Google synthesized the characters — the usage is real
     return c.json({ audioContent: data.audioContent, contentType: 'audio/mp3' });
   } catch (error) {
     console.error('TTS route error:', error);
     return c.json({ error: 'Internal server error', fallback: true }, 500);
+  } finally {
+    // Every non-success exit (fallback returns, throws) refunds the reservation.
+    if (reservedChars > 0 && !earned) entitlements.refund(userId, 'ttsCharsPerMonth', reservedChars);
   }
 });
 

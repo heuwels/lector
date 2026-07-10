@@ -37,13 +37,6 @@ app.post(
       const buffer = Buffer.from(await file.arrayBuffer());
       const parsed = parseEpub(buffer);
 
-      // Library size (#222): an EPUB adds one collection + all its chapters
-      // at once — check the whole batch before inserting anything.
-      const collVerdict = entitlements.checkLimit(userId, 'maxCollections');
-      if (!collVerdict.allowed) return planLimitResponse(c, collVerdict);
-      const lessonVerdict = entitlements.checkLimit(userId, 'maxLessons', parsed.chapters.length);
-      if (!lessonVerdict.allowed) return planLimitResponse(c, lessonVerdict);
-
       const collectionId = randomUUID();
       const now = new Date().toISOString();
 
@@ -56,25 +49,37 @@ app.post(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      db.transaction(() => {
-        insertCollection.run(collectionId, parsed.title, parsed.author, null, lang, now, now, userId);
+      // Library size (#222): an EPUB adds one collection + all its chapters at
+      // once — check the whole batch AND insert in one transaction so nothing
+      // lands if the cap is hit, and the count can't race a concurrent import
+      // (#222 review).
+      const verdict = entitlements.reserveCount(
+        userId,
+        [
+          { metric: 'maxCollections' },
+          { metric: 'maxLessons', requested: parsed.chapters.length },
+        ],
+        () => {
+          insertCollection.run(collectionId, parsed.title, parsed.author, null, lang, now, now, userId);
 
-        for (let i = 0; i < parsed.chapters.length; i++) {
-          const chapter = parsed.chapters[i];
-          insertLesson.run(
-            randomUUID(),
-            collectionId,
-            chapter.title,
-            i,
-            chapter.markdown,
-            chapter.wordCount,
-            lang,
-            now,
-            now,
-            userId,
-          );
-        }
-      })();
+          for (let i = 0; i < parsed.chapters.length; i++) {
+            const chapter = parsed.chapters[i];
+            insertLesson.run(
+              randomUUID(),
+              collectionId,
+              chapter.title,
+              i,
+              chapter.markdown,
+              chapter.wordCount,
+              lang,
+              now,
+              now,
+              userId,
+            );
+          }
+        },
+      );
+      if (!verdict.allowed) return planLimitResponse(c, verdict);
 
       return c.json({
         collectionId,

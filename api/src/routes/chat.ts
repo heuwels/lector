@@ -49,18 +49,21 @@ app.get('/', (c) => {
 
 // POST /api/chat — send a message, get assistant response
 app.post('/', async (c) => {
+  const userId = getCurrentUserId(c);
+  let reservedLlm = false;
   try {
     cleanExpired();
 
-    const userId = getCurrentUserId(c);
     const { message, language } = await c.req.json();
 
     if (!message?.trim()) {
       return c.json({ error: 'message is required' }, 400);
     }
 
-    const llmVerdict = entitlements.checkLimit(userId, 'llmRequestsPerMonth');
+    // Reserve before the provider call, refund on failure (#222 review).
+    const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
     if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+    reservedLlm = true;
 
     const lang = resolveLanguage(language, userId);
     const langName = getLanguageConfig(lang).name;
@@ -106,7 +109,7 @@ app.post('/', async (c) => {
       maxTokens: 1024,
       task: 'chat',
     });
-    entitlements.recordUsage(userId, 'llmRequestsPerMonth', 1);
+    reservedLlm = false; // the managed call happened — the usage is earned
 
     const assistantMsg: ChatMessageRow = {
       id: randomUUID(),
@@ -133,6 +136,7 @@ app.post('/', async (c) => {
 
     return c.json({ userMessage: userMsg, assistantMessage: assistantMsg });
   } catch (error) {
+    if (reservedLlm) entitlements.refund(userId, 'llmRequestsPerMonth', 1);
     console.error('Chat error:', error);
     return c.json({ error: 'Failed to get response' }, 500);
   }
