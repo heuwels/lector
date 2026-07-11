@@ -396,6 +396,11 @@ services:
       # absent -> anthropic. All pure secrets ride env_file below instead,
       # so params that don't exist never become empty-string env overrides.
       - LLM_PROVIDER=\${LLM_PROVIDER:-anthropic}
+      # The word->domain classifier behind the fluency radar is env-gated
+      # (off under test/e2e); cloud must opt in or knownWords.domain never
+      # fills and the radar reads "pending classification" forever. It uses
+      # the instance-level provider above, not per-user BYOK keys (#220).
+      - CLASSIFY_WORKER=1
     env_file:
       - /srv/lector/.env
     volumes:
@@ -459,8 +464,8 @@ cd /srv/lector
 ./refresh-env.sh
 # Reclaim disk from superseded images BEFORE pulling the new one. A full root
 # volume fails the pull otherwise — six stale 2.66 GB sha-<commit> images once
-# filled the 16 GB disk and took the box down. `-a` drops tagged-but-unused
-# images too; plain `-f` only removes dangling layers, which is why the old
+# filled the 16 GB disk and took the box down. '-a' drops tagged-but-unused
+# images too; plain '-f' only removes dangling layers, which is why the old
 # tags piled up. The running container's image is in use, so it is kept as the
 # rollback target; anything removed is re-pullable from ghcr.
 docker image prune -af
