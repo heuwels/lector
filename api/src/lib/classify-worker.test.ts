@@ -41,13 +41,9 @@ function addKnown(
   state: string,
   opts: { language?: string; domain?: string | null; userId?: string } = {},
 ): void {
-  db.prepare('INSERT INTO knownWords (userId, word, language, state, domain) VALUES (?, ?, ?, ?, ?)').run(
-    opts.userId ?? 'local',
-    word,
-    opts.language ?? 'af',
-    state,
-    opts.domain ?? null,
-  );
+  db.prepare(
+    'INSERT INTO knownWords (userId, word, language, state, domain) VALUES (?, ?, ?, ?, ?)',
+  ).run(opts.userId ?? 'local', word, opts.language ?? 'af', state, opts.domain ?? null);
 }
 
 let vocabId = 0;
@@ -198,7 +194,7 @@ describe('classifyPendingBatch', () => {
     ]);
   });
 
-  test("writes each row to its own tenant — same word for two users updates both, in place (#220)", async () => {
+  test('writes each row to its own tenant — same word for two users updates both, in place (#220)', async () => {
     const db = freshDb();
     addKnown(db, 'kos', 'known', { userId: 'user-a' });
     addKnown(db, 'kos', 'known', { userId: 'user-b' });
@@ -233,6 +229,18 @@ describe('classifyPendingBatch', () => {
     expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('raaisel')).toEqual({
       domain: null,
     });
+  });
+
+  test('propagates classifier failures and leaves every row pending for the next sweep', async () => {
+    const db = freshDb();
+    addKnown(db, 'koffie', 'known');
+
+    await expect(
+      classifyPendingBatch(db, 30, async () => {
+        throw new Error('provider unavailable');
+      }),
+    ).rejects.toThrow('provider unavailable');
+    expect(selectPending(db, 30).map((row) => row.word)).toEqual(['koffie']);
   });
 });
 

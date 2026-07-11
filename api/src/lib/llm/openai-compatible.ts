@@ -52,6 +52,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
     // several catalog models. GPT-5 is the model we have verified requires the
     // newer field; using it gateway-wide can make require_parameters reject
     // otherwise valid Gemini/Mistral/Gemma routes.
+    // BYOK model IDs are allowlisted exactly; future GPT-5 variants must be
+    // evaluated and added deliberately rather than inheriting this implicitly.
     return this.profile === 'openrouter' && this.model === 'openai/gpt-5';
   }
 
@@ -78,6 +80,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
       body.response_format = { type: 'json_object' };
       body.provider = { require_parameters: true };
       if (this.model === 'openai/gpt-5' && options.task === 'phrase-translation') {
+        // Keep the quality-affecting reasoning override on the observed phrase
+        // path; other tasks retain the model default until separately evaluated.
         body.reasoning = { effort: 'minimal' };
       }
     }

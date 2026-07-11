@@ -85,7 +85,8 @@ export function parseLooseJsonResult<T = unknown>(text: string): LooseJsonResult
         return {
           value: JSON.parse(span) as T,
           repaired: false,
-          rootComplete: hasCompleteJsonRoot(unfenced.slice(first)),
+          // Parsing the outer span strictly proves its root is balanced.
+          rootComplete: true,
         };
       } catch {
         // 5. Last resort: repair structural noise (trailing commas, unquoted

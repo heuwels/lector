@@ -92,11 +92,15 @@ export async function classifyWords(
   const byNormalised = new Map<string, string>();
   for (const it of items) byNormalised.set(it.word.trim().toLowerCase(), it.word);
 
-  let parsed: unknown;
+  let parsed: unknown[];
   try {
-    parsed = await completeJson<unknown>(provider, {
+    parsed = await completeJson<unknown[]>(provider, {
       messages: [{ role: 'user', content: buildPrompt(items) }],
       maxTokens,
+      // Classification already retries on the next worker sweep. Keep one
+      // immediate recovery attempt, but never request more than 8192 output
+      // tokens in a single call (or lower an explicit larger first budget).
+      maxRetryTokens: Math.max(maxTokens, 8192),
       task: 'word-classification',
       responseFormat: 'json-array',
     });
@@ -105,8 +109,6 @@ export async function classifyWords(
     if (error instanceof LLMInvalidJsonError) return [];
     throw error;
   }
-  if (!Array.isArray(parsed)) return [];
-
   const assigned = new Map<string, ClassifiedDomain>(); // exact word → domain, first valid wins
   for (const entry of parsed) {
     if (!entry || typeof entry !== 'object') continue;

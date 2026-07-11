@@ -6,6 +6,8 @@ type JsonResponseFormat = Extract<CompletionResponseFormat, 'json-object' | 'jso
 
 export type JsonCompletionOptions = Omit<CompletionOptions, 'responseFormat'> & {
   responseFormat?: JsonResponseFormat;
+  /** Optional ceiling for the second attempt's output budget. */
+  maxRetryTokens?: number;
 };
 
 type ParseResult<T> = { value: T; error?: never } | { value?: never; error: Error };
@@ -81,8 +83,9 @@ export async function completeJson<T>(
   provider: LLMProvider,
   options: JsonCompletionOptions,
 ): Promise<T> {
+  const { maxRetryTokens, ...completionOptions } = options;
   const format = options.responseFormat ?? 'json-object';
-  const firstOptions: CompletionOptions = { ...options, responseFormat: format };
+  const firstOptions: CompletionOptions = { ...completionOptions, responseFormat: format };
 
   let retryTokens = options.maxTokens;
   let retryMessages = options.messages;
@@ -92,7 +95,11 @@ export async function completeJson<T>(
     retryMessages = addRetryInstruction(firstOptions);
   } catch (error) {
     if (!(error instanceof LLMTruncatedError)) throw error;
-    retryTokens = error.canIncreaseBudget ? options.maxTokens * 2 : options.maxTokens;
+    const expandedTokens = error.canIncreaseBudget ? options.maxTokens * 2 : options.maxTokens;
+    retryTokens = Math.max(
+      options.maxTokens,
+      Math.min(expandedTokens, maxRetryTokens ?? expandedTokens),
+    );
   }
 
   const retryOptions: CompletionOptions = {

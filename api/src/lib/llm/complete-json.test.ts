@@ -55,6 +55,14 @@ describe('completeJson', () => {
     expect(provider.calls[1].messages).toEqual(OPTIONS.messages);
   });
 
+  test('honours a retry token ceiling', async () => {
+    const provider = mockProvider([new LLMTruncatedError(100), '{"ok":true}']);
+    await expect(
+      completeJson<{ ok: boolean }>(provider, { ...OPTIONS, maxRetryTokens: 150 }),
+    ).resolves.toEqual({ ok: true });
+    expect(provider.calls.map((call) => call.maxTokens)).toEqual([100, 150]);
+  });
+
   test('does not retry JSON that conservative repair can recover', async () => {
     const provider = mockProvider(['{"ok":true,}']);
     await expect(completeJson<{ ok: boolean }>(provider, OPTIONS)).resolves.toEqual({ ok: true });
