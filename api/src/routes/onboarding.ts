@@ -23,6 +23,11 @@ const LEARNER_INTERESTS = new Set([
   'travel',
 ]);
 const ONBOARDING_STEPS = new Set<OnboardingStep>(['reader', 'practice', 'summary']);
+const ONBOARDING_STEP_ORDER: Record<OnboardingStep, number> = {
+  reader: 0,
+  practice: 1,
+  summary: 2,
+};
 
 class InputError extends Error {}
 
@@ -357,14 +362,23 @@ app.patch('/', async (c) => {
     if (!existing) return c.json({ error: 'Onboarding has not started' }, 409);
     if (existing.status !== 'in_progress') return c.json(buildSnapshot(userId));
 
-    const currentStep =
+    const requestedStep =
       body.currentStep === undefined
-        ? existing.currentStep
+        ? undefined
         : typeof body.currentStep === 'string' &&
             ONBOARDING_STEPS.has(body.currentStep as OnboardingStep)
           ? (body.currentStep as OnboardingStep)
           : null;
-    if (!currentStep) throw new InputError('Invalid currentStep');
+    if (requestedStep === null) throw new InputError('Invalid currentStep');
+
+    // Reader mounts can race with, or happen after, advancing to practice.
+    // Persist the furthest reached step so a stale reader update cannot send a
+    // cross-device resume card backwards through the learning loop.
+    const currentStep =
+      requestedStep === undefined ||
+      ONBOARDING_STEP_ORDER[requestedStep] < ONBOARDING_STEP_ORDER[existing.currentStep]
+        ? existing.currentStep
+        : requestedStep;
 
     let nextLessonId: string | null =
       body.nextLessonId === undefined

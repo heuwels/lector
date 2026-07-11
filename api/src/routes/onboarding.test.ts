@@ -140,6 +140,17 @@ describe('guided onboarding state', () => {
       nextLessonTitle: 'Mañana',
     });
 
+    const reopenedReader = await onboarding.request('/', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentStep: 'reader', nextLessonId: 'onboard-lesson-2' }),
+    });
+    expect(((await reopenedReader.json()) as TestSnapshot).progress).toMatchObject({
+      currentStep: 'practice',
+      nextLessonId: 'onboard-lesson-2',
+      nextLessonTitle: 'Mañana',
+    });
+
     const resumed = await post(onboarding, '/start', input);
     const second = (await resumed.json()) as TestSnapshot;
     expect(second.progress.startedAt).toBe(first.progress.startedAt);

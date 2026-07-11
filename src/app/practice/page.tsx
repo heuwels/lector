@@ -28,13 +28,12 @@ import {
   calculateDictationPoints,
   calculateNextReview,
   calculatePoints,
+  buildMultipleChoiceOptions,
   checkAnswer,
   diffDictation,
-  generateDistractors,
   getFuzzyStatus,
   normalize,
   scoreDictation,
-  shuffle,
 } from './utils';
 import type {
   CurrentSentence,
@@ -289,25 +288,12 @@ export default function PracticePage() {
   // Generate MC options when current sentence or queue changes
   const generateMcOptionsForSentence = useCallback(
     (sentence: ClozeSentence, sentenceQueue: ClozeSentence[]) => {
-      const distractors = generateDistractors(sentence.clozeWord, sentenceQueue);
-      // Pad with fallback words if not enough distractors
-      const fallbacks = ['die', 'het', 'van', 'wat', 'nie', 'kan', 'sal', 'met'];
-      while (distractors.length < 3) {
-        const fb = fallbacks.find(
-          (w) =>
-            normalize(w) !== normalize(sentence.clozeWord) &&
-            !distractors.some((d) => normalize(d) === normalize(w)),
-        );
-        if (fb) distractors.push(fb);
-        else break;
-      }
-      // Strip trailing punctuation from all options so punctuation doesn't give away the answer
-      const cleanCorrect = splitTrailingPunctuation(sentence.clozeWord)[0];
-      const cleanDistractors = distractors.slice(0, 3).map((d) => splitTrailingPunctuation(d)[0]);
-      const options = shuffle([cleanCorrect, ...cleanDistractors]);
-      const correctIdx = options.findIndex((o) => normalize(o) === normalize(cleanCorrect));
+      const { options, correctIndex } = buildMultipleChoiceOptions(
+        sentence.clozeWord,
+        sentenceQueue,
+      );
       setMcOptions(options);
-      setMcCorrectIdx(correctIdx);
+      setMcCorrectIdx(correctIndex);
       setMcSelected(null);
       setMcLocked(false);
     },
