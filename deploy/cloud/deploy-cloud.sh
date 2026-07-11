@@ -19,6 +19,7 @@ esac
 
 LECTOR_ROOT=${LECTOR_ROOT:-/srv/lector}
 COMPOSE="$LECTOR_ROOT/docker-compose.yml"
+REFRESH_ENV="$LECTOR_ROOT/refresh-env.sh"
 DESIRED_IMAGE="ghcr.io/heuwels/lector:${LECTOR_IMAGE_TAG}"
 PREVIOUS_IMAGE=$(awk '/^[[:space:]]+image: ghcr.io\/heuwels\/lector:/{print $2; exit}' "$COMPOSE")
 if [ -z "$PREVIOUS_IMAGE" ]; then
@@ -86,6 +87,32 @@ ensure_sentry_environment() {
   mv "$tmp" "$COMPOSE"
 }
 
+ensure_refresh_env_mapping() {
+  local env_key=$1
+  local parameter_suffix=$2
+  local tmp
+  tmp=$(mktemp "${REFRESH_ENV}.XXXXXX")
+  if ! awk -v env_key="$env_key" -v parameter_suffix="$parameter_suffix" '
+    $1 == "put" && $2 == env_key {
+      if (!written) print "put " env_key " " parameter_suffix
+      written = 1
+      next
+    }
+    /^[[:space:]]*mv[[:space:]]+"\$TMP"[[:space:]]+"\$ENVFILE"[[:space:]]*$/ && !written {
+      print "put " env_key " " parameter_suffix
+      written = 1
+    }
+    { print }
+    END { if (!written) exit 1 }
+  ' "$REFRESH_ENV" > "$tmp"; then
+    rm -f "$tmp"
+    echo "could not add $env_key to $REFRESH_ENV" >&2
+    return 1
+  fi
+  chmod --reference="$REFRESH_ENV" "$tmp" 2>/dev/null || chmod 700 "$tmp"
+  mv "$tmp" "$REFRESH_ENV"
+}
+
 healthy() {
   for _ in $(seq 1 30); do
     if docker exec lector node -e 'fetch("http://localhost:3457/health").then(r=>r.json()).then(j=>process.exit(j.ok?0:1)).catch(()=>process.exit(1))' 2>/dev/null; then
@@ -98,6 +125,11 @@ healthy() {
 
 echo "deploying $DESIRED_IMAGE to $LECTOR_DEPLOYMENT"
 if ! ensure_sentry_environment "$LECTOR_DEPLOYMENT"; then
+  exit 2
+fi
+# UserData is first-boot-only, so retained instances need new SSM mappings
+# migrated before their on-box update helper refreshes the container env.
+if ! ensure_refresh_env_mapping BYOK_ENCRYPTION_KEY byok-encryption-key; then
   exit 2
 fi
 if ! set_image "$DESIRED_IMAGE"; then
