@@ -1,5 +1,12 @@
 import { describe, test, expect } from 'bun:test';
-import { parseLectorMode, parseCloudGate, assertBootableMode, config } from './config';
+import {
+  parseLectorMode,
+  parseCloudGate,
+  parseTrustedProxy,
+  isProductionEnvironment,
+  assertBootableMode,
+  config,
+} from './config';
 
 describe('parseLectorMode', () => {
   test('unset defaults to selfhost (back-compat: existing deployments set nothing)', () => {
@@ -45,6 +52,23 @@ describe('parseCloudGate', () => {
   });
 });
 
+describe('trusted deployment inputs', () => {
+  test('forwarded IP trust is explicit and Cloudflare-only', () => {
+    expect(parseTrustedProxy(undefined)).toBe('none');
+    expect(parseTrustedProxy('')).toBe('none');
+    expect(parseTrustedProxy('cloudflare')).toBe('cloudflare');
+    expect(() => parseTrustedProxy('alb')).toThrow(/LECTOR_TRUSTED_PROXY/);
+  });
+
+  test('NODE_ENV defaults to production exactly like docker-entrypoint', () => {
+    expect(isProductionEnvironment(undefined)).toBe(true);
+    expect(isProductionEnvironment('')).toBe(true);
+    expect(isProductionEnvironment('production')).toBe(true);
+    expect(isProductionEnvironment('test')).toBe(false);
+    expect(isProductionEnvironment('development')).toBe(false);
+  });
+});
+
 describe('assertBootableMode', () => {
   test('selfhost boots, with or without a gate or secret declared', () => {
     expect(() => assertBootableMode('selfhost', 'none', false)).not.toThrow();
@@ -72,6 +96,7 @@ describe('config singleton', () => {
     // `bun run test` never sets LECTOR_MODE, so this pins the default shape.
     expect(config.mode).toBe('selfhost');
     expect(config.cloudGate).toBe('none');
+    expect(config.trustedProxy).toBe('none');
     expect(config.authRequired).toBe(false);
   });
 });

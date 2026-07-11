@@ -11,6 +11,7 @@ function setLang(code: string) {
 }
 
 function reset() {
+  db.prepare('DELETE FROM vocab').run();
   db.prepare('DELETE FROM lessons').run();
   db.prepare('DELETE FROM collections').run();
   db.prepare('DELETE FROM collection_groups').run();
@@ -135,5 +136,27 @@ describe('collections route', () => {
     // `theirs` is in col-2, so the col-1-scoped update must not touch it.
     expect(sortOrderOf('lessons', 'theirs')).toBe(7);
     expect(sortOrderOf('lessons', 'mine')).toBe(1);
+  });
+
+  test('DELETE /:id retains vocabulary and clears its source collection', async () => {
+    insertCollection('source');
+    insertLesson('lesson', 'source', 0);
+    db.prepare(
+      `INSERT INTO vocab
+        (id, text, type, sentence, translation, state, stateUpdatedAt, bookId, language, createdAt, userId)
+       VALUES ('word', 'huis', 'word', '', '', 'new', ?, 'source', 'af', ?, 'local')`,
+    ).run('2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+
+    const response = await app.request('/source?language=af', { method: 'DELETE' });
+    expect(response.status).toBe(200);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM collections WHERE id = 'source'").get()).toEqual({
+      n: 0,
+    });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM lessons WHERE id = 'lesson'").get()).toEqual({
+      n: 0,
+    });
+    expect(db.prepare("SELECT bookId FROM vocab WHERE id = 'word'").get()).toEqual({
+      bookId: null,
+    });
   });
 });

@@ -724,22 +724,26 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
 
   /**
    * Atomically check a counter metric and, if allowed, record the usage in the
-   * SAME synchronous step (no `await` between check and write, so two
-   * concurrent requests can't both pass at `limit - 1`). Callers reserve
-   * BEFORE the provider call and refund() if it fails — closing the
-   * check-then-write race that could bill unlimited managed calls (#222 review).
+   * same BEGIN IMMEDIATE transaction. Taking SQLite's write reservation before
+   * the read serializes this boundary across connections/processes too; merely
+   * keeping the synchronous calls adjacent is only process-local atomicity.
+   * Callers reserve before the provider call and refund() if it fails.
    */
   function reserve(userId: string, metric: MeteredMetric, amount = 1): ReservationVerdict {
-    const now = deps.now();
-    const period = periodFor(metric, now);
-    const resolved = resolveEntitlements(userId);
-    const verdict = checkLimitAtPeriod(userId, metric, amount, period, resolved);
-    if (!verdict.allowed) return verdict;
-    recordUsageAtPeriod(userId, metric, amount, period, now.toISOString());
-    return {
-      allowed: true,
-      reservation: { userId, metric, amount, period, byok: resolved.byok },
-    };
+    return db
+      .transaction((): ReservationVerdict => {
+        const now = deps.now();
+        const period = periodFor(metric, now);
+        const resolved = resolveEntitlements(userId);
+        const verdict = checkLimitAtPeriod(userId, metric, amount, period, resolved);
+        if (!verdict.allowed) return verdict;
+        recordUsageAtPeriod(userId, metric, amount, period, now.toISOString());
+        return {
+          allowed: true,
+          reservation: { userId, metric, amount, period, byok: resolved.byok },
+        };
+      })
+      .immediate();
   }
 
   /**

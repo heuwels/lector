@@ -232,16 +232,26 @@ app.delete('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
   const lang = resolveLanguage(c.req.query('language'), userId);
-  db.prepare('DELETE FROM lessons WHERE collectionId = ? AND userId = ? AND language = ?').run(
-    id,
-    userId,
-    lang,
-  );
-  db.prepare('DELETE FROM collections WHERE id = ? AND userId = ? AND language = ?').run(
-    id,
-    userId,
-    lang,
-  );
+  db.transaction(() => {
+    const owned = db
+      .prepare('SELECT 1 FROM collections WHERE id = ? AND userId = ? AND language = ?')
+      .get(id, userId, lang);
+    if (!owned) return;
+
+    // Vocabulary survives collection deletion. Clear its optional source
+    // pointer before removing the parent so a takeout can always round-trip.
+    db.prepare('UPDATE vocab SET bookId = NULL WHERE bookId = ? AND userId = ?').run(id, userId);
+    db.prepare('DELETE FROM lessons WHERE collectionId = ? AND userId = ? AND language = ?').run(
+      id,
+      userId,
+      lang,
+    );
+    db.prepare('DELETE FROM collections WHERE id = ? AND userId = ? AND language = ?').run(
+      id,
+      userId,
+      lang,
+    );
+  })();
   return c.json({ success: true });
 });
 

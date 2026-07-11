@@ -16,7 +16,11 @@ describe('extract URL burst protection', () => {
         return false;
       },
     };
-    const app = makeExtractUrlRoutes({ rateLimiter: limiter, enforceRateLimit: true });
+    const app = makeExtractUrlRoutes({
+      rateLimiter: limiter,
+      enforceRateLimit: true,
+      trustedProxy: 'cloudflare',
+    });
 
     // Deliberately invalid JSON: a 429 proves the limiter ran before parsing or
     // any outbound fetch work.
@@ -35,7 +39,7 @@ describe('extract URL burst protection', () => {
     expect(seen).toEqual([{ userId: 'local', ip: '203.0.113.9' }]);
   });
 
-  test('uses the first valid forwarded IP and ignores malformed proxy values', async () => {
+  test('uses only the explicitly trusted proxy header', async () => {
     const seenIps: Array<string | null> = [];
     const limiter: ExtractionBurstLimiter = {
       tryConsume(_userId, ip) {
@@ -43,15 +47,31 @@ describe('extract URL burst protection', () => {
         return false;
       },
     };
-    const app = makeExtractUrlRoutes({ rateLimiter: limiter, enforceRateLimit: true });
-    await app.request('/', {
+    const cloudflareApp = makeExtractUrlRoutes({
+      rateLimiter: limiter,
+      enforceRateLimit: true,
+      trustedProxy: 'cloudflare',
+    });
+    await cloudflareApp.request('/', {
       method: 'POST',
       headers: {
         'CF-Connecting-IP': 'not-an-ip',
         'X-Forwarded-For': '198.51.100.4, 10.0.0.1',
       },
     });
-    expect(seenIps).toEqual(['198.51.100.4']);
+    const untrustedApp = makeExtractUrlRoutes({
+      rateLimiter: limiter,
+      enforceRateLimit: true,
+      trustedProxy: 'none',
+    });
+    await untrustedApp.request('/', {
+      method: 'POST',
+      headers: {
+        'CF-Connecting-IP': '203.0.113.9',
+        'X-Forwarded-For': '198.51.100.4',
+      },
+    });
+    expect(seenIps).toEqual([null, null]);
   });
 
   test('self-host mode can bypass the managed-service limiter', async () => {
@@ -62,7 +82,11 @@ describe('extract URL burst protection', () => {
         return false;
       },
     };
-    const app = makeExtractUrlRoutes({ rateLimiter: limiter, enforceRateLimit: false });
+    const app = makeExtractUrlRoutes({
+      rateLimiter: limiter,
+      enforceRateLimit: false,
+      trustedProxy: 'none',
+    });
     const response = await app.request('/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

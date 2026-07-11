@@ -43,7 +43,11 @@ import { startClassifyWorker } from './lib/classify-worker';
 import { isByokAvailable } from './lib/byok';
 import { defaultRequestBodyLimit } from './lib/request-body-limit';
 // Aliased: this file's Bun.serve export below is also named `config`.
-import { config as deploymentConfig, assertBootableMode } from './lib/config';
+import {
+  config as deploymentConfig,
+  assertBootableMode,
+  isProductionEnvironment,
+} from './lib/config';
 
 // Fail-closed deployment-mode guard (#242, re-purposed by #218): cloud proper
 // runs built-in accounts & sessions and must never sign them with Better
@@ -63,7 +67,7 @@ try {
     Boolean(billingConfig.apiKey),
     {
       enabled: billingConfig.freeTierEnabled,
-      production: process.env.NODE_ENV === 'production',
+      production: isProductionEnvironment(process.env.NODE_ENV),
       hasTurnstileSecret: Boolean(process.env.TURNSTILE_SECRET_KEY),
       hasTurnstileSiteKey: Boolean(process.env.TURNSTILE_SITE_KEY),
       hasCheckoutPrice: billingConfig.prices.length > 0,

@@ -4,7 +4,7 @@ import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
 import { htmlToMarkdown, countWords } from '../lib/html-to-markdown';
 import { safeFetch, readBodyCapped, SsrfError } from '../lib/safe-fetch';
-import { config } from '../lib/config';
+import { config, type TrustedProxy } from '../lib/config';
 import { getCurrentUserId } from '../lib/user';
 import { extractionBurstLimiter, type ExtractionBurstLimiter } from '../lib/rate-limit';
 
@@ -24,6 +24,7 @@ export function extractedMarkdownFitsIngress(markdown: string): boolean {
 interface ExtractUrlRouteDeps {
   rateLimiter: ExtractionBurstLimiter;
   enforceRateLimit: boolean;
+  trustedProxy: TrustedProxy;
 }
 
 function firstValidIp(value: string | undefined): string | null {
@@ -35,21 +36,26 @@ function firstValidIp(value: string | undefined): string | null {
   return null;
 }
 
-function clientIp(c: Context): string | null {
-  return (
-    firstValidIp(c.req.header('cf-connecting-ip')) ??
-    firstValidIp(c.req.header('x-forwarded-for')) ??
-    firstValidIp(c.req.header('x-real-ip'))
-  );
+function clientIp(c: Context, trustedProxy: TrustedProxy): string | null {
+  // Never trust generic forwarding headers without a known proxy chain: the
+  // leftmost X-Forwarded-For value is client-controlled behind a normal ALB.
+  // Cloudflare strips/replaces CF-Connecting-IP before forwarding through a
+  // declared Tunnel topology, so that header is authoritative only there.
+  if (trustedProxy !== 'cloudflare') return null;
+  return firstValidIp(c.req.header('cf-connecting-ip'));
 }
 
-export function makeExtractUrlRoutes({ rateLimiter, enforceRateLimit }: ExtractUrlRouteDeps): Hono {
+export function makeExtractUrlRoutes({
+  rateLimiter,
+  enforceRateLimit,
+  trustedProxy,
+}: ExtractUrlRouteDeps): Hono {
   const app = new Hono();
 
   // POST /api/extract-url — fetch a URL and extract its readable article as markdown.
   app.post('/', async (c) => {
     const userId = getCurrentUserId(c);
-    if (enforceRateLimit && !rateLimiter.tryConsume(userId, clientIp(c))) {
+    if (enforceRateLimit && !rateLimiter.tryConsume(userId, clientIp(c, trustedProxy))) {
       c.header('Retry-After', '60');
       return c.json({ error: 'rate_limited', retryAfterSeconds: 60 }, 429);
     }
@@ -184,4 +190,5 @@ export default makeExtractUrlRoutes({
   // Existing self-hosters remain unlimited. Managed cloud instances bound
   // network/DOM work even if an attacker rotates accounts or source IPs.
   enforceRateLimit: config.mode === 'cloud',
+  trustedProxy: config.trustedProxy,
 });

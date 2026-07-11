@@ -846,6 +846,25 @@ app.post(
       });
     }
 
+    // Old takeouts can contain vocab whose optional source collection was
+    // deleted. Vocabulary is portable on its own, so retain the row and clear
+    // only that dangling pointer rather than rejecting the entire backup.
+    const incomingCollectionIds = new Set(finalCollections.keys());
+    const vocabBookReferences = (data.vocab ?? [])
+      .map((row) => row.bookId)
+      .filter((value): value is string => typeof value === 'string' && value.length > 0);
+    const existingCollectionIds = existingOwnedIds('collections', userId, vocabBookReferences);
+    for (const row of data.vocab ?? []) {
+      if (
+        typeof row.bookId === 'string' &&
+        row.bookId.length > 0 &&
+        !incomingCollectionIds.has(row.bookId) &&
+        !existingCollectionIds.has(row.bookId)
+      ) {
+        row.bookId = null;
+      }
+    }
+
     const finalLessons = new Map<string, RestoreRow>();
     for (const row of data.lessons ?? []) {
       finalLessons.set(row.id as string, {

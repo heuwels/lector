@@ -26,6 +26,7 @@
 
 export type LectorMode = 'selfhost' | 'cloud';
 export type CloudGate = 'none' | 'external';
+export type TrustedProxy = 'none' | 'cloudflare';
 
 const VALID_MODES: readonly LectorMode[] = ['selfhost', 'cloud'];
 
@@ -58,6 +59,23 @@ export function parseCloudGate(raw: string | undefined): CloudGate {
     `Invalid LECTOR_CLOUD_GATE "${value}" — expected "external" (or unset). ` +
       'Set it only when an authenticating gateway fronts every request.',
   );
+}
+
+/**
+ * Client IP headers are authoritative only when the origin topology makes
+ * them so. Cloudflare Tunnel is the one supported trusted-proxy shape today;
+ * unset means no forwarded client-IP header is consumed.
+ */
+export function parseTrustedProxy(raw: string | undefined): TrustedProxy {
+  const value = (raw ?? '').trim();
+  if (value === '') return 'none';
+  if (value === 'cloudflare') return 'cloudflare';
+  throw new Error(`Invalid LECTOR_TRUSTED_PROXY "${value}" — expected "cloudflare" (or unset).`);
+}
+
+/** Mirror docker-entrypoint.sh's `${NODE_ENV:-production}` default. */
+export function isProductionEnvironment(raw: string | undefined): boolean {
+  return (raw || 'production') === 'production';
 }
 
 /**
@@ -98,20 +116,24 @@ export function assertBootableMode(
  * selfhost (trusted network) and false under an external gate (the gateway
  * authenticates); true for cloud proper, where Better Auth sessions are the
  * credential (#218). `authSecret` is Better Auth's session-signing secret —
- * presence is boot-guarded for cloud proper.
+ * presence is boot-guarded for cloud proper. `trustedProxy` is the explicit
+ * origin-topology assertion used before consuming any forwarded client IP.
  */
 export const config: {
   readonly mode: LectorMode;
   readonly cloudGate: CloudGate;
+  readonly trustedProxy: TrustedProxy;
   readonly authRequired: boolean;
   readonly authSecret: string | undefined;
 } = (() => {
   const mode = parseLectorMode(process.env.LECTOR_MODE);
   const cloudGate = parseCloudGate(process.env.LECTOR_CLOUD_GATE);
+  const trustedProxy = parseTrustedProxy(process.env.LECTOR_TRUSTED_PROXY);
   const authSecret = process.env.BETTER_AUTH_SECRET || undefined;
   return {
     mode,
     cloudGate,
+    trustedProxy,
     authRequired: mode === 'cloud' && cloudGate === 'none',
     authSecret,
   } as const;

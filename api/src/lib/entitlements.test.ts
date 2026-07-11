@@ -1,5 +1,7 @@
 import '../test-guard';
 import { describe, test, expect, beforeEach } from 'bun:test';
+import { Database } from 'bun:sqlite';
+import path from 'path';
 import { db } from '../db';
 import {
   currentDay,
@@ -506,6 +508,38 @@ describe('reserve / refund / reserveCount (atomic metering, #222 review)', () =>
     // increment hasn't landed yet (the old check-then-record race).
     expect(engine.reserve('ent-r1', 'llmRequestsPerMonth').allowed).toBe(false);
     expect(engine.getUsage('ent-r1', 'llmRequestsPerMonth')).toBe(5);
+  });
+
+  test('reserve takes SQLite write ownership before reading the counter', () => {
+    seedSubscription('ent-r-lock', 'active', CLOUD_PRICE);
+    const competingDb = new Database(path.join(process.env.DATA_DIR!, 'lector.db'));
+    competingDb.exec('PRAGMA busy_timeout = 0');
+    let competingWriteError: unknown;
+    const engine = makeEntitlements(
+      makeDeps({
+        resolveEmail: () => {
+          try {
+            competingDb
+              .prepare(
+                `INSERT INTO usage_counters (userId, metric, period, value, updatedAt)
+                 VALUES ('ent-r-lock-competitor', 'llmRequestsPerMonth', '2026-07', 1, ?)`,
+              )
+              .run(new Date().toISOString());
+          } catch (error) {
+            competingWriteError = error;
+          }
+          return null;
+        },
+      }),
+    );
+
+    try {
+      expect(engine.reserve('ent-r-lock', 'llmRequestsPerMonth').allowed).toBe(true);
+      expect(String(competingWriteError)).toContain('database is locked');
+    } finally {
+      competingDb.close();
+      db.prepare("DELETE FROM usage_counters WHERE userId = 'ent-r-lock-competitor'").run();
+    }
   });
 
   test('daily reservations stop exactly at the Free boundary', () => {

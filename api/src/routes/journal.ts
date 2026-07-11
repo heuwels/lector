@@ -216,7 +216,6 @@ app.post('/:id/correct', async (c) => {
       correctedBody?: string;
       corrections?: unknown;
     };
-    reservation = null; // the provider call happened — the usage is earned
 
     const correctedBody = typeof data.correctedBody === 'string' ? data.correctedBody : null;
     const corrections = JSON.stringify(data.corrections ?? null);
@@ -239,7 +238,15 @@ app.post('/:id/correct', async (c) => {
          WHERE id = ? AND userId = ? AND language = ?`,
       ).run(correctedBody, corrections, now, id, userId, lang);
     });
-    if (!storageVerdict.allowed) return planLimitResponse(c, storageVerdict);
+    if (!storageVerdict.allowed) {
+      // A correction the learner cannot save is not useful consumption. Return
+      // the reserved allowance just as we do when the provider call fails.
+      entitlements.refund(reservation);
+      reservation = null;
+      return planLimitResponse(c, storageVerdict);
+    }
+
+    reservation = null; // provider output was persisted, so the usage is earned
 
     return c.json({ correctedBody, corrections: data.corrections });
   } catch (error) {
