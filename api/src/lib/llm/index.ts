@@ -7,9 +7,15 @@ import { getByokCredential, OPENROUTER_URL } from '../byok';
 
 export type { LLMProvider, ChatMessage, CompletionOptions } from './types';
 export { parseLooseJson } from './parse-json';
+export { completeJson } from './complete-json';
+export { LLMInvalidJsonError } from './errors';
 
 let cachedProvider: LLMProvider | null = null;
 let cachedProviderKey: string | null = null;
+
+function requestProfile(baseUrl: string | undefined): 'openrouter' | undefined {
+  return baseUrl?.replace(/\/$/, '') === OPENROUTER_URL ? 'openrouter' : undefined;
+}
 
 // Deliberately the LOCAL user's settings, not the requester's (#220): the
 // provider is one process-global cached instance, and in cloud mode the
@@ -40,6 +46,7 @@ export function getProvider(userId: string = LOCAL_USER_ID): LLMProvider {
       baseUrl: OPENROUTER_URL,
       apiKey: byok.apiKey,
       model: byok.model,
+      profile: requestProfile(OPENROUTER_URL),
     });
   }
   const raw = getSetting('llmProvider') || process.env.LLM_PROVIDER || 'anthropic';
@@ -108,7 +115,12 @@ export function getProvider(userId: string = LOCAL_USER_ID): LLMProvider {
 
     cacheKey = `openai:${url || 'default'}:${model || 'default'}:${apiKey ? 'keyed' : 'open'}`;
     if (cachedProvider && cachedProviderKey === cacheKey) return cachedProvider;
-    cachedProvider = new OpenAICompatibleProvider({ baseUrl: url, model, apiKey });
+    cachedProvider = new OpenAICompatibleProvider({
+      baseUrl: url,
+      model,
+      apiKey,
+      profile: requestProfile(url),
+    });
   }
 
   cachedProviderKey = cacheKey;
@@ -143,6 +155,7 @@ export function getClassificationProvider(): LLMProvider {
       baseUrl,
       model,
       apiKey: process.env.CLASSIFY_LLM_API_KEY,
+      profile: requestProfile(baseUrl),
     });
   }
   return getProvider();

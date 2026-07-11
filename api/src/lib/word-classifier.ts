@@ -15,7 +15,12 @@
 //    domain is never reclassified once set.
 
 import { DOMAINS, GENERAL, isClassifiedDomain, type ClassifiedDomain } from './domains';
-import { getClassificationProvider, parseLooseJson, type LLMProvider } from './llm';
+import {
+  completeJson,
+  getClassificationProvider,
+  LLMInvalidJsonError,
+  type LLMProvider,
+} from './llm';
 
 export interface ClassifyItem {
   word: string;
@@ -82,27 +87,28 @@ export async function classifyWords(
   // floor; CLASSIFY_MAX_TOKENS bumps it further for an especially chatty model.
   const envMax = parseInt(process.env.CLASSIFY_MAX_TOKENS || '', 10);
   const maxTokens = envMax > 0 ? envMax : Math.min(8192, Math.max(2048, items.length * 64));
-  const text = await provider.complete({
-    messages: [{ role: 'user', content: buildPrompt(items) }],
-    maxTokens,
-    task: 'word-classification',
-    responseFormat: 'json',
-  });
-
   // Normalised input word → exact stored spelling, so the returned domain UPDATEs
   // the right knownWords row no matter how the model re-cased/echoed the word.
   const byNormalised = new Map<string, string>();
   for (const it of items) byNormalised.set(it.word.trim().toLowerCase(), it.word);
 
-  let parsed: unknown;
+  let parsed: unknown[];
   try {
-    parsed = parseLooseJson<unknown>(text);
-  } catch {
+    parsed = await completeJson<unknown[]>(provider, {
+      messages: [{ role: 'user', content: buildPrompt(items) }],
+      maxTokens,
+      // Classification already retries on the next worker sweep. Keep one
+      // immediate recovery attempt, but never request more than 8192 output
+      // tokens in a single call (or lower an explicit larger first budget).
+      maxRetryTokens: Math.max(maxTokens, 8192),
+      task: 'word-classification',
+      responseFormat: 'json-array',
+    });
+  } catch (error) {
     // Whole-response garbage: classify nothing this round (retried next sweep).
-    return [];
+    if (error instanceof LLMInvalidJsonError) return [];
+    throw error;
   }
-  if (!Array.isArray(parsed)) return [];
-
   const assigned = new Map<string, ClassifiedDomain>(); // exact word → domain, first valid wins
   for (const entry of parsed) {
     if (!entry || typeof entry !== 'object') continue;

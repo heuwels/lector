@@ -1,6 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { LLMProvider, CompletionOptions, LLMTask } from './types';
+import { LLMTruncatedError } from './errors';
+
+function expectsJson(options: CompletionOptions): boolean {
+  return options.responseFormat === 'json-object' || options.responseFormat === 'json-array';
+}
 
 // General-purpose default. Use a plain alias (no date suffix) so it doesn't get
 // retired out from under us the way a pinned snapshot does — that's exactly what
@@ -154,6 +159,9 @@ export class AnthropicProvider implements LLMProvider {
     });
 
     const content = message.content[0];
+    if (expectsJson(options) && message.stop_reason === 'max_tokens') {
+      throw new LLMTruncatedError(options.maxTokens);
+    }
     if (content.type !== 'text') {
       throw new Error('Unexpected response type from Anthropic');
     }
@@ -166,6 +174,7 @@ export class AnthropicProvider implements LLMProvider {
     const prompt = options.messages.map((m) => m.content).join('\n\n');
 
     let resultText = '';
+    let stopReason: string | null = null;
 
     for await (const message of query({
       prompt,
@@ -195,13 +204,20 @@ export class AnthropicProvider implements LLMProvider {
         }
       }
       if (message.type === 'result') {
-        const result = (message as { result?: string }).result;
+        const resultMessage = message as { result?: string; stop_reason?: string | null };
+        stopReason = resultMessage.stop_reason ?? null;
+        const result = resultMessage.result;
         if (result) {
           resultText = result;
         }
       }
     }
 
+    if (expectsJson(options) && stopReason === 'max_tokens') {
+      // The Agent SDK does not expose an output-token option, so a retry can
+      // regenerate but cannot request a larger cap the way the Messages API can.
+      throw new LLMTruncatedError(options.maxTokens, false);
+    }
     if (!resultText) {
       throw new Error('No text response from Agent SDK');
     }

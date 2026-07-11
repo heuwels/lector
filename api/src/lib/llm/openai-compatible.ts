@@ -1,13 +1,18 @@
 import type { LLMProvider, CompletionOptions } from './types';
+import { LLMTruncatedError } from './errors';
 
 const DEFAULT_URL = 'http://localhost:11434';
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+export type OpenAICompatibleProfile = 'generic' | 'openrouter';
 
 export interface OpenAICompatibleOptions {
   baseUrl?: string;
   model?: string;
   apiKey?: string;
   timeoutMs?: number;
+  /** Opt into request fields verified for a specific API/model pair. */
+  profile?: OpenAICompatibleProfile;
 }
 
 /**
@@ -23,18 +28,33 @@ export class OpenAICompatibleProvider implements LLMProvider {
   private baseUrl: string;
   private apiKey?: string;
   private timeoutMs: number;
+  private profile: OpenAICompatibleProfile;
 
   constructor(options?: OpenAICompatibleOptions) {
-    this.baseUrl = (options?.baseUrl || process.env.OPENAI_COMPAT_URL || DEFAULT_URL).replace(/\/$/, '');
+    this.baseUrl = (options?.baseUrl || process.env.OPENAI_COMPAT_URL || DEFAULT_URL).replace(
+      /\/$/,
+      '',
+    );
     this.model = options?.model || process.env.OPENAI_COMPAT_MODEL || '';
     this.apiKey = options?.apiKey || process.env.OPENAI_COMPAT_API_KEY || undefined;
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.profile = options?.profile ?? 'generic';
   }
 
   private headers(): Record<string, string> {
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.apiKey) h.Authorization = `Bearer ${this.apiKey}`;
     return h;
+  }
+
+  private usesMaxCompletionTokens(): boolean {
+    // OpenRouter's route capability filter still advertises max_tokens for
+    // several catalog models. GPT-5 is the model we have verified requires the
+    // newer field; using it gateway-wide can make require_parameters reject
+    // otherwise valid Gemini/Mistral/Gemma routes.
+    // BYOK model IDs are allowlisted exactly; future GPT-5 variants must be
+    // evaluated and added deliberately rather than inheriting this implicitly.
+    return this.profile === 'openrouter' && this.model === 'openai/gpt-5';
   }
 
   private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
@@ -47,20 +67,24 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
   }
 
-  async complete(options: CompletionOptions): Promise<string> {
-    const body: Record<string, unknown> = {
-      model: this.model,
-      messages: options.messages,
-      max_tokens: options.maxTokens,
-    };
-    // We deliberately do NOT set response_format. No value works across every
-    // OpenAI-compatible backend: LM Studio 400s on `json_object` (it wants
-    // `json_schema` or `text`), while Ollama silently ignores `json_schema` and
-    // only does structured output via its own native `format` field. The only
-    // universally-safe path is prompt-driven JSON — callers that need it instruct
-    // "ONLY a JSON object, no markdown" and parse with parseLooseJson(). This
-    // mirrors AnthropicProvider, which also relies on the prompt. So
-    // options.responseFormat is intentionally not acted on here.
+  private async requestCompletion(options: CompletionOptions): Promise<string> {
+    const maxTokens = options.maxTokens;
+    const body: Record<string, unknown> = { model: this.model, messages: options.messages };
+    if (this.usesMaxCompletionTokens()) body.max_completion_tokens = maxTokens;
+    else body.max_tokens = maxTokens;
+    // No response_format value works across every compatible backend: LM Studio
+    // rejects json_object and Ollama ignores json_schema. Keep prompt-driven JSON
+    // as the default, and use server-side JSON only for an explicitly
+    // known-capable endpoint.
+    if (this.profile === 'openrouter' && options.responseFormat === 'json-object') {
+      body.response_format = { type: 'json_object' };
+      body.provider = { require_parameters: true };
+      if (this.model === 'openai/gpt-5' && options.task === 'phrase-translation') {
+        // Keep the quality-affecting reasoning override on the observed phrase
+        // path; other tasks retain the model default until separately evaluated.
+        body.reasoning = { effort: 'minimal' };
+      }
+    }
 
     const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',
@@ -74,7 +98,27 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || '';
+    if (data.error) {
+      const detail = data.error.message || data.error.code || 'Unknown provider error';
+      throw new Error(`LLM provider error: ${detail}`);
+    }
+    const choice = data.choices?.[0];
+    if (choice?.error || choice?.finish_reason === 'error') {
+      const detail =
+        choice?.error?.message || choice?.native_finish_reason || 'Unknown provider error';
+      throw new Error(`LLM provider error: ${detail}`);
+    }
+    if (
+      (options.responseFormat === 'json-object' || options.responseFormat === 'json-array') &&
+      choice?.finish_reason === 'length'
+    ) {
+      throw new LLMTruncatedError(maxTokens);
+    }
+    return choice?.message?.content || '';
+  }
+
+  async complete(options: CompletionOptions): Promise<string> {
+    return this.requestCompletion(options);
   }
 
   /**
@@ -88,9 +132,10 @@ export class OpenAICompatibleProvider implements LLMProvider {
     const body: Record<string, unknown> = {
       model: this.model,
       messages: options.messages,
-      max_tokens: options.maxTokens,
       stream: true,
     };
+    if (this.usesMaxCompletionTokens()) body.max_completion_tokens = options.maxTokens;
+    else body.max_tokens = options.maxTokens;
 
     const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',
@@ -99,7 +144,9 @@ export class OpenAICompatibleProvider implements LLMProvider {
     });
 
     if (!response.ok || !response.body) {
-      const error = response.ok ? 'no response body' : await response.text().catch(() => `HTTP ${response.status}`);
+      const error = response.ok
+        ? 'no response body'
+        : await response.text().catch(() => `HTTP ${response.status}`);
       throw new Error(`LLM provider error: ${error}`);
     }
 
@@ -162,7 +209,11 @@ export class OpenAICompatibleProvider implements LLMProvider {
     const data = await response.json();
     const items: unknown[] = Array.isArray(data?.data) ? data.data : [];
     return items
-      .map((item) => (typeof item === 'object' && item && 'id' in item ? String((item as { id: unknown }).id) : ''))
+      .map((item) =>
+        typeof item === 'object' && item && 'id' in item
+          ? String((item as { id: unknown }).id)
+          : '',
+      )
       .filter((id) => id.length > 0);
   }
 }

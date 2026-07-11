@@ -1,15 +1,21 @@
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { LLMTruncatedError } from './errors';
+import { completeJson } from './complete-json';
 
 // Intercept the Agent SDK before the provider module binds it, so the tests
 // below can assert what query() actually receives (notably options.env — the
 // subprocess auth fix for #247). The fake yields a minimal result message.
 type QueryArgs = { prompt: string; options: Record<string, unknown> };
 const queryCalls: QueryArgs[] = [];
+let queryResult: { result?: string; stop_reason?: string | null } = {
+  result: 'ok',
+  stop_reason: null,
+};
 mock.module('@anthropic-ai/claude-agent-sdk', () => ({
   query: (args: QueryArgs) => {
     queryCalls.push(args);
     return (async function* () {
-      yield { type: 'result', result: 'ok' };
+      yield { type: 'result', ...queryResult };
     })();
   },
 }));
@@ -37,6 +43,7 @@ beforeEach(() => {
     delete process.env[k];
   }
   queryCalls.length = 0;
+  queryResult = { result: 'ok', stop_reason: null };
 });
 
 afterEach(() => {
@@ -138,5 +145,88 @@ describe('Agent SDK subprocess auth (#247)', () => {
     // the real API over the network in a unit test.
     const p = new AnthropicProvider({ apiKey: 'sk-ant-test', oauthToken: 'tok-unused' });
     expect((p as unknown as { useAgentSdk: boolean }).useAgentSdk).toBe(false);
+  });
+
+  test('surfaces a JSON max_tokens stop as truncation without claiming a larger SDK cap', async () => {
+    queryResult = { result: '{"ok":', stop_reason: 'max_tokens' };
+    const p = new AnthropicProvider({ oauthToken: 'tok' });
+
+    try {
+      await p.complete({
+        messages: [{ role: 'user', content: 'hi' }],
+        maxTokens: 100,
+        responseFormat: 'json-object',
+      });
+      throw new Error('Expected truncation');
+    } catch (error) {
+      expect(error).toBeInstanceOf(LLMTruncatedError);
+      expect((error as LLMTruncatedError).canIncreaseBudget).toBe(false);
+    }
+  });
+});
+
+describe('Anthropic API truncation metadata', () => {
+  test('maps a JSON max_tokens stop to a retryable truncation', async () => {
+    const p = new AnthropicProvider({ apiKey: 'sk-ant-test' });
+    (p as unknown as { client: unknown }).client = {
+      messages: {
+        create: async () => ({
+          content: [{ type: 'text', text: '{"ok":' }],
+          stop_reason: 'max_tokens',
+        }),
+      },
+    };
+
+    await expect(
+      p.complete({
+        messages: [{ role: 'user', content: 'hi' }],
+        maxTokens: 100,
+        responseFormat: 'json-object',
+      }),
+    ).rejects.toBeInstanceOf(LLMTruncatedError);
+  });
+
+  test('does not turn a truncated text response into a JSON retry signal', async () => {
+    const p = new AnthropicProvider({ apiKey: 'sk-ant-test' });
+    (p as unknown as { client: unknown }).client = {
+      messages: {
+        create: async () => ({
+          content: [{ type: 'text', text: 'partial text' }],
+          stop_reason: 'max_tokens',
+        }),
+      },
+    };
+
+    await expect(
+      p.complete({
+        messages: [{ role: 'user', content: 'hi' }],
+        maxTokens: 100,
+      }),
+    ).resolves.toBe('partial text');
+  });
+
+  test('integrates with JSON completion retries at double the API token budget', async () => {
+    const budgets: number[] = [];
+    const p = new AnthropicProvider({ apiKey: 'sk-ant-test' });
+    (p as unknown as { client: unknown }).client = {
+      messages: {
+        create: async (params: { max_tokens: number }) => {
+          budgets.push(params.max_tokens);
+          const retry = budgets.length === 2;
+          return {
+            content: [{ type: 'text', text: retry ? '{"ok":true}' : '{"ok":' }],
+            stop_reason: retry ? 'end_turn' : 'max_tokens',
+          };
+        },
+      },
+    };
+
+    await expect(
+      completeJson<{ ok: boolean }>(p, {
+        messages: [{ role: 'user', content: 'hi' }],
+        maxTokens: 100,
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(budgets).toEqual([100, 200]);
   });
 });

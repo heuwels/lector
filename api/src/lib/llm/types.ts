@@ -11,21 +11,21 @@ export interface ChatMessage {
  */
 export type LLMTask = 'word-translation' | 'phrase-translation' | 'chat' | 'word-classification';
 
+export type CompletionResponseFormat = 'json-object' | 'json-array' | 'text';
+
 export interface CompletionOptions {
   messages: ChatMessage[];
   maxTokens: number;
   /** Optional task hint for per-task model selection (Anthropic only for now). */
   task?: LLMTask;
   /**
-   * Hint that the caller will JSON.parse() the result (translate and
-   * journal-correct pass 'json'; prose callers like explain/chat leave it
-   * 'text'). Providers do NOT turn this into a server-side JSON-mode flag: no
-   * response_format value works across all backends (LM Studio rejects
-   * json_object, Ollama ignores json_schema), so JSON is enforced by the prompt
-   * and read back with parseLooseJson(). Kept as a hint for possible future
-   * per-provider handling.
+   * Expected response shape. Generic providers do not turn this into a
+   * server-side JSON-mode flag because no response_format value works across
+   * all backends (LM Studio rejects json_object, Ollama ignores json_schema).
+   * Explicitly verified API profiles may act on the hint; callers still parse
+   * and validate the returned root shape locally.
    */
-  responseFormat?: 'json' | 'text';
+  responseFormat?: CompletionResponseFormat;
 }
 
 export interface LLMProvider {
