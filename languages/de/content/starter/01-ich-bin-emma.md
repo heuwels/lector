@@ -10,4 +10,6 @@ Der Tag heute ist gut. Warum? Einfach so. So ein Tag kommt immer wieder: Man mac
 
 Was will ich in diesem Jahr? Viel! Etwas weiß ich schon, aber das kommt noch nicht. Mehr kommt mit der Zeit. Und alles andere? Das weiß nur das Leben. So ist das bei mir: Nicht alles muss man sagen. Aber was man sagt, das muss auch so sein.
 
-Noch etwas über mich: Ich frage viel. Immer schon. Warum ist das so? Wer sagt das? Muss das so sein? Bei uns sagt man: «Emma, immer diese eine Frage mehr!» Ja, so bin ich. Wer keine Frage hat, der hat auch kein Leben — so ist das bei mir. Jetzt aber: Wir gehen durch meine Stadt.
+Was könnte ich noch über mich sagen? Nicht viel. Ich bin, wie ich bin. Und könnte ich mich machen, wie ich will — ich würde mich genau so machen. Bei mir gibt es kein Wenn und kein Aber: Es gibt nur den Tag und das, was man an ihm tun kann. Ich habe keinen Tag wie den anderen, und auch das ist gut. Man muss im Leben auch einmal etwas lassen können; das weiß ich nun.
+
+Noch etwas über mich: Ich frage viel. Immer schon. Warum ist das so? Wer sagt das? Muss das so sein? Bei uns sagt man: «Emma, immer diese eine Frage mehr!» Ja, so bin ich. Wer keine Frage hat, der hat auch kein Leben — so ist das bei mir. Jetzt aber: Kommt bitte mit — wir gehen durch meine Stadt. So sei es.

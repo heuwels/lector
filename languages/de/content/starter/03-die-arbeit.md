@@ -8,4 +8,6 @@ Wir sind drei bei der Arbeit: eine Frau, die einfach alles kann. Ein Mann, der i
 
 Mal ist ein Tag gut: Alles geht wie von selbst, von der ersten Uhr bis zum Ende. Mal will ein Tag einfach nicht: Alles kommt auf einmal, jeder will etwas von dir, und du hast gar keine Zeit mehr. Aber auch so ein Tag geht zu Ende. Und dann weiß ich wieder, warum ich diese Arbeit habe: Sie macht etwas für die Menschen, und das ist gut. Sie ist nicht nur für das Geld da.
 
+Vor Jahren hätte ich das nicht so sehen können. Da war für mich klar: Arbeit ist Arbeit und Geld ist Geld — mehr nicht. So war das lange, und lange konnte ich es auch gar nicht klar sehen. Aber die Zeit hat mir eines klar gemacht: Gute Arbeit gibt dir nicht nur Geld, sondern einen Teil von dir selbst dazu. Sie sollte nie nur ein Muss sein. Und gerade dann, wenn ein Tag nicht gut geht, weiß man, warum man sie hat.
+
 Das ist für mich der Weg: Eine Arbeit muss mehr sein als Geld. Sie ist ein Teil vom Leben — und was für einer. Wenn die Arbeit gut ist, dann geht es dir gut. So einfach ist das.

@@ -9,3 +9,5 @@ Andere sagen: Arbeit. Wer viel macht, der hat viel vom Leben. Auch das ist etwas
 Was ist es dann? Ganz weiß ich es nicht. Wer weiß so etwas schon? Aber nach den Jahren habe ich meine drei: Menschen, die gut zu dir sind. Etwas machen, das mehr ist als Geld. Und Zeit, in der man einfach nur ist. Mehr muss es nicht sein.
 
 Und wenn einmal gar nichts gut geht? Auch das kommt — bei mir wie bei dir. Dann weiß ich: Nichts ist für immer, nicht das Gute und nicht das andere. Alles geht so, wie ein Tag geht. Nach dem Tag ganz am Ende von einem Jahr kommt immer der erste Tag von einem neuen. Das ist alles, was ich über das gute Leben weiß. Es ist nicht viel. Aber es ist genau richtig.
+
+Und euch? Euch will ich nur das eine sagen: Ich hab nicht mehr als ihr. Auch ich weiß nicht ganz genau, wie das gute Leben geht. Aber ich werde weiter durch die Zeit gehen, so wie immer — und ins neue Jahr will ich nur das mit, was wirklich ist: die Menschen, die Zeit, meine Stadt. Mehr will ich gar nicht.

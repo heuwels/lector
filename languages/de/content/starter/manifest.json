@@ -13,7 +13,7 @@
       "file": "01-ich-bin-emma.md",
       "title": "Ich bin Emma",
       "maxRank": 250,
-      "maxNewLemmas": 110
+      "maxNewLemmas": 120
     },
     {
       "file": "02-meine-stadt.md",
@@ -89,7 +89,8 @@
     {
       "file": "16-das-wochenende.md",
       "title": "Das Wochenende",
-      "maxRank": 1000
+      "maxRank": 1000,
+      "maxNewLemmas": 75
     },
     {
       "file": "17-der-markt.md",
@@ -99,7 +100,8 @@
     {
       "file": "18-der-staat.md",
       "title": "Der Staat",
-      "maxRank": 1000
+      "maxRank": 1000,
+      "maxNewLemmas": 75
     },
     {
       "file": "19-die-ausbildung.md",

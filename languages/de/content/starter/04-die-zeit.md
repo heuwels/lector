@@ -8,4 +8,6 @@ Und das Jahr? Ein Jahr ist wie eine Welt: Es hat das Neue in sich und auch das, 
 
 Was ich nach den Jahren über die Zeit weiß: Man hat nie mehr Zeit als jetzt. Wer immer nur sagt «Das kommt noch, das kommt schon noch», bei dem kommt es nie. Und wer sagt «Jetzt oder gar nicht», bei dem wird es etwas. Zeit kann man nicht machen und nicht haben wollen wie Geld. Man kann nur durch sie gehen — gut oder nicht gut.
 
+Und das Ende vom Tag? Das ist für mich eine gute Zeit. Nicht jeder Tag ist gleich: Einige sind gleich weg, andere gehen fast nicht. Man weiß nie, welche Zeit ein Tag noch gibt — der eine ist bereits weg, wenn er da ist; der andere will gar nicht mehr gehen. Die Uhr ist für alle gleich; die Zeit jedoch ist es nicht. Unter allem, was ich habe, ist die Zeit das eine, das ich nicht machen kann. Sie ist das große Gut des Menschen. So etwa ist das: Zeit ist das Leben selbst.
+
 Bei uns sagt man: Die Zeit geht nicht. Wir gehen. Die Zeit steht da, wo sie immer war, und wir gehen durch sie — Tag für Tag, Jahr für Jahr. Und weil das so ist, will ich gut durch meine Zeit gehen. Mit den Menschen, die gut zu mir sind. In meiner Stadt. So wie jetzt.
