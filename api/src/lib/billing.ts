@@ -1,8 +1,8 @@
 /**
- * Paddle billing gate (#224) — the bare-minimum "paying members only" layer
- * for cloud proper. Lector Cloud has no free tier: an account with no active
- * Paddle subscription is locked to data takeout + subscribing (#216's lapse
- * behaviour, minimally).
+ * Paddle billing gate (#224) and derived Free access. Paid entitlement still
+ * comes only from Paddle's mirror; when the strict LECTOR_FREE_TIER rollout
+ * flag is enabled, an authenticated non-suspended account without an entitled
+ * row may continue on server-enforced Free limits.
  *
  * Moving parts:
  *   - Paddle (merchant of record) owns checkout, tax, dunning, and the
@@ -31,12 +31,7 @@ export type BillingMode = 'off' | 'paddle';
 export type PaddleEnvironment = 'production' | 'sandbox';
 
 /** Paddle Billing subscription statuses (developer.paddle.com). */
-export type PaddleSubscriptionStatus =
-  | 'active'
-  | 'trialing'
-  | 'past_due'
-  | 'paused'
-  | 'canceled';
+export type PaddleSubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'paused' | 'canceled';
 
 /**
  * Statuses that keep the account usable. `past_due` stays entitled on
@@ -45,11 +40,7 @@ export type PaddleSubscriptionStatus =
  * needs no case of its own — Paddle keeps status `active` until the period
  * actually ends.
  */
-const ENTITLED_STATUSES: readonly PaddleSubscriptionStatus[] = [
-  'active',
-  'trialing',
-  'past_due',
-];
+const ENTITLED_STATUSES: readonly PaddleSubscriptionStatus[] = ['active', 'trialing', 'past_due'];
 
 export function isEntitledStatus(status: string | null): boolean {
   return status !== null && (ENTITLED_STATUSES as readonly string[]).includes(status);
@@ -70,6 +61,17 @@ export function parseBillingMode(raw: string | undefined): BillingMode {
   );
 }
 
+/**
+ * Strict rollout flag: only exact lowercase `true` enables Free. Empty,
+ * unset, and exact `false` preserve the paid-only product; every other value
+ * is a deployment typo and refuses to boot.
+ */
+export function parseFreeTierEnabled(raw: string | undefined): boolean {
+  if (raw === undefined || raw === '' || raw === 'false') return false;
+  if (raw === 'true') return true;
+  throw new Error(`Invalid LECTOR_FREE_TIER "${raw}" — expected "true", "false", or unset.`);
+}
+
 /** Parse PADDLE_ENV. Unset/empty → 'production'; only 'sandbox' opts out. */
 export function parsePaddleEnvironment(raw: string | undefined): PaddleEnvironment {
   const value = (raw ?? '').trim();
@@ -80,9 +82,7 @@ export function parsePaddleEnvironment(raw: string | undefined): PaddleEnvironme
 
 /** Paddle REST API base for the configured environment. */
 export function paddleApiBase(environment: PaddleEnvironment): string {
-  return environment === 'sandbox'
-    ? 'https://sandbox-api.paddle.com'
-    : 'https://api.paddle.com';
+  return environment === 'sandbox' ? 'https://sandbox-api.paddle.com' : 'https://api.paddle.com';
 }
 
 /**
@@ -97,7 +97,92 @@ export function assertBillingBootable(
   authRequired: boolean,
   hasWebhookSecret: boolean,
   hasApiKey: boolean,
+  free: {
+    enabled: boolean;
+    production: boolean;
+    hasTurnstileSecret: boolean;
+    hasTurnstileSiteKey: boolean;
+    hasCheckoutPrice?: boolean;
+    hasGoogleTtsApiKey?: boolean;
+    byokAvailable?: boolean;
+    classifyWorkerEnabled?: boolean;
+    classifyLlmUrl?: string;
+    classifyLlmModel?: string;
+    llmProvider?: string;
+    openAiCompatUrl?: string;
+    hasOpenAiCompatApiKey?: boolean;
+    wordGlossModel?: string;
+    simplePhraseModel?: string;
+    simpleContextModel?: string;
+  } = {
+    enabled: false,
+    production: false,
+    hasTurnstileSecret: false,
+    hasTurnstileSiteKey: false,
+  },
 ): void {
+  if (free.enabled && billing !== 'paddle') {
+    throw new Error('LECTOR_FREE_TIER=true requires LECTOR_BILLING=paddle.');
+  }
+  if (free.enabled && !authRequired) {
+    throw new Error(
+      'LECTOR_FREE_TIER=true requires cloud proper (LECTOR_MODE=cloud with built-in accounts).',
+    );
+  }
+  if (free.enabled && free.production && (!free.hasTurnstileSecret || !free.hasTurnstileSiteKey)) {
+    throw new Error(
+      'LECTOR_FREE_TIER=true in production requires TURNSTILE_SECRET_KEY and ' +
+        'TURNSTILE_SITE_KEY so public no-card signup cannot run without bot protection.',
+    );
+  }
+  if (free.enabled && free.production) {
+    const expectedUrl = 'https://openrouter.ai/api';
+    const expectedModel = 'google/gemini-2.5-flash-lite';
+    if (!free.hasCheckoutPrice) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true in production requires at least one configured PADDLE_PRICE_* so the advertised Cloud upsell can start checkout.',
+      );
+    }
+    if (!free.hasGoogleTtsApiKey) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true in production requires GOOGLE_CLOUD_API_KEY so the advertised paid managed-voice upsell is available.',
+      );
+    }
+    if (!free.byokAvailable) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true in production requires a valid BYOK_ENCRYPTION_KEY so Free accounts retain the advertised AI escape hatch.',
+      );
+    }
+    if (free.classifyWorkerEnabled && (!free.classifyLlmUrl || !free.classifyLlmModel)) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true with CLASSIFY_WORKER=1 requires dedicated CLASSIFY_LLM_URL and CLASSIFY_LLM_MODEL values so Free vocabulary cannot fall back to the unmetered managed translation provider.',
+      );
+    }
+    if (free.llmProvider !== 'openai') {
+      throw new Error('LECTOR_FREE_TIER=true in production requires LLM_PROVIDER=openai.');
+    }
+    if (free.openAiCompatUrl?.replace(/\/$/, '') !== expectedUrl) {
+      throw new Error(
+        `LECTOR_FREE_TIER=true in production requires OPENAI_COMPAT_URL=${expectedUrl}.`,
+      );
+    }
+    if (!free.hasOpenAiCompatApiKey) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true in production requires OPENAI_COMPAT_API_KEY for managed translations.',
+      );
+    }
+    const taskModels = [
+      ['OPENAI_COMPAT_WORD_GLOSS_MODEL', free.wordGlossModel],
+      ['OPENAI_COMPAT_SIMPLE_PHRASE_MODEL', free.simplePhraseModel],
+      ['OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL', free.simpleContextModel],
+    ] as const;
+    for (const [name, model] of taskModels) {
+      if (model !== expectedModel) {
+        throw new Error(`LECTOR_FREE_TIER=true in production requires ${name}=${expectedModel}.`);
+      }
+    }
+  }
+
   if (billing !== 'paddle') return;
   if (!authRequired) {
     throw new Error(
@@ -175,6 +260,7 @@ export function parseExemptEmails(raw: string | undefined): Set<string> {
 export const billingConfig: {
   readonly mode: BillingMode;
   readonly enforced: boolean;
+  readonly freeTierEnabled: boolean;
   readonly webhookSecret: string | undefined;
   readonly apiKey: string | undefined;
   readonly environment: PaddleEnvironment;
@@ -185,6 +271,7 @@ export const billingConfig: {
   return {
     mode,
     enforced: mode === 'paddle',
+    freeTierEnabled: parseFreeTierEnabled(process.env.LECTOR_FREE_TIER),
     webhookSecret: process.env.PADDLE_WEBHOOK_SECRET || undefined,
     apiKey: process.env.PADDLE_API_KEY || undefined,
     environment: parsePaddleEnvironment(process.env.PADDLE_ENV),
@@ -441,6 +528,7 @@ export function getUserEmail(userId: string): string | null {
 
 export interface BillingGateOptions {
   enforced: boolean;
+  freeTierEnabled: boolean;
   exemptEmails: Set<string>;
   /** Test seam; prod uses the `user`-table lookup. */
   resolveEmail?: (userId: string) => string | null;
@@ -454,9 +542,10 @@ export interface BillingGateOptions {
 
 /**
  * The gate (#224). Mounted on /api/* AFTER the session and PAT middlewares,
- * so the tenant is already resolved whichever credential carried it. An
- * account without an entitled subscription gets 402 `subscription_required`
- * everywhere except:
+ * so the tenant is already resolved whichever credential carried it. With
+ * Free off, an account without an entitled subscription gets 402
+ * `subscription_required` everywhere except; with Free on, an authenticated
+ * non-suspended tenant proceeds to the entitlement engine:
  *
  *   - /api/auth/* — sign-in/up/out must work for locked accounts (and these
  *     requests carry no tenant to check).
@@ -492,6 +581,12 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
       return c.json({ error: 'Authentication required' }, 401);
     }
 
+    // Suspension is enforced by the preceding accountStatusMiddleware. Once
+    // authentication has resolved a tenant, the Free rollout lets every
+    // non-suspended account reach ordinary routes; plan limits remain the
+    // server-owned cost/product boundary.
+    if (opts.freeTierEnabled) return next();
+
     // Comped tester (#221): dynamic per-account exemption, checked before the
     // subscription so it works even with no Paddle row at all.
     if (checkBillingExempt(userId)) return next();
@@ -509,5 +604,6 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
 /** The prod middleware, bound to the resolved billing config. */
 export const billingMiddleware = makeBillingMiddleware({
   enforced: billingConfig.enforced,
+  freeTierEnabled: billingConfig.freeTierEnabled,
   exemptEmails: billingConfig.exemptEmails,
 });

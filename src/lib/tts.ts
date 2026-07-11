@@ -1,7 +1,7 @@
 // Text-to-Speech wrapper
-// Uses Google Cloud TTS when available, falls back to browser TTS
-import { getActiveLanguage } from './data-layer';
-import { apiFetch } from './api-base';
+// Uses managed TTS when entitled and available, otherwise browser TTS
+import { getActiveLanguage, getEntitlements } from './data-layer';
+import { apiFetch, lectorMode } from './api-base';
 import { LANGUAGES, DEFAULT_LANGUAGE, type LanguageCode } from './languages';
 
 // Default speech rate (1.0 is normal speed). Exported so callers that offer a
@@ -261,6 +261,16 @@ export async function speak(text: string, rate: number = DEFAULT_RATE): Promise<
   const mode = getTTSMode();
 
   if (mode === 'google') {
+    if (lectorMode() === 'cloud') {
+      const entitlements = await getEntitlements();
+      if (entitlements?.limits.ttsCharsPerMonth === 0) {
+        // Free (including Free+BYOK) is browser-only. Persist the fallback so a
+        // lapsed subscriber does not repeatedly make denied managed-TTS calls.
+        setTTSMode('browser');
+        speakWithBrowser(text, rate);
+        return;
+      }
+    }
     const success = await speakWithGoogle(text, rate);
     if (success) return;
   }

@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-base';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import {
+  getEntitlements,
+  invalidateEntitlementsCache,
+  type ClientEntitlements,
+} from '@/lib/data-layer';
 
 type ByokProvider = 'openrouter' | 'anthropic';
 interface ProviderConfig {
@@ -27,6 +32,7 @@ export default function BYOKSettings() {
   const [model, setModel] = useState('');
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [plan, setPlan] = useState<ClientEntitlements['plan'] | null>(null);
 
   const load = async () => {
     const res = await apiFetch('/api/byok');
@@ -39,6 +45,7 @@ export default function BYOKSettings() {
 
   useEffect(() => {
     load().catch(() => toast.error('Could not load BYOK settings'));
+    getEntitlements().then((entitlements) => setPlan(entitlements?.plan ?? null));
   }, []);
 
   const save = async () => {
@@ -51,6 +58,7 @@ export default function BYOKSettings() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Could not enable BYOK');
+      invalidateEntitlementsCache();
       setApiKey('');
       setEditing(false);
       await load();
@@ -67,10 +75,11 @@ export default function BYOKSettings() {
     try {
       const res = await apiFetch('/api/byok', { method: 'DELETE' });
       if (!res.ok) throw new Error('Could not disable BYOK');
+      invalidateEntitlementsCache();
       setApiKey('');
       setEditing(false);
       await load();
-      toast.success('Reverted to Lector managed AI');
+      toast.success('Reverted to your Lector managed AI allowance');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not disable BYOK');
     } finally {
@@ -79,7 +88,7 @@ export default function BYOKSettings() {
   };
 
   return (
-    <section className="panel p-6">
+    <section id="byok" className="panel scroll-mt-6 p-6">
       <div className="mb-2 flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold text-foreground">Bring your own AI key</h2>
         {status?.enabled && (
@@ -89,10 +98,22 @@ export default function BYOKSettings() {
         )}
       </div>
       <p className="mb-4 text-sm text-muted-foreground">
-        Use your own OpenRouter or Anthropic account for translations, explanations, journal
-        corrections, and chat. Your key is encrypted at rest, never shown again, and removes
-        managed-AI usage caps.
+        {plan === 'free'
+          ? 'Free includes a small managed Gemini allowance. Add your own OpenRouter or Anthropic key to keep translating after that allowance and unlock richer AI actions without subscribing.'
+          : 'Use your own OpenRouter or Anthropic account for translations, explanations, journal corrections, and chat instead of the managed AI allowance.'}{' '}
+        Your key is encrypted at rest and never shown again. BYOK does not enable managed voices;
+        those remain a Cloud benefit.
       </p>
+
+      {plan === 'free' && (
+        <p className="mb-4 rounded-lg border border-border bg-[var(--primary-soft)] p-3 text-xs text-foreground">
+          Prefer Lector to handle both AI and higher-quality audio?{' '}
+          <a href="/subscribe" className="font-semibold text-primary hover:underline">
+            Compare Cloud plans
+          </a>
+          . Browser voices stay free either way.
+        </p>
+      )}
 
       {status && !status.available ? (
         <p className="text-sm text-muted-foreground">
@@ -166,7 +187,7 @@ export default function BYOKSettings() {
                 Replace key or model
               </Button>
               <Button variant="destructive" onClick={disable} disabled={saving}>
-                Revert to managed AI
+                Use managed allowance
               </Button>
             </div>
           ) : (

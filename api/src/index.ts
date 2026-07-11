@@ -40,6 +40,8 @@ import { accountStatusMiddleware } from './lib/admin';
 import { getAuthEngine, runAuthMigrations, resolveTrustedOrigins } from './lib/accounts';
 import { HTTPException } from 'hono/http-exception';
 import { startClassifyWorker } from './lib/classify-worker';
+import { isByokAvailable } from './lib/byok';
+import { defaultRequestBodyLimit } from './lib/request-body-limit';
 // Aliased: this file's Bun.serve export below is also named `config`.
 import { config as deploymentConfig, assertBootableMode } from './lib/config';
 
@@ -59,6 +61,24 @@ try {
     deploymentConfig.authRequired,
     Boolean(billingConfig.webhookSecret),
     Boolean(billingConfig.apiKey),
+    {
+      enabled: billingConfig.freeTierEnabled,
+      production: process.env.NODE_ENV === 'production',
+      hasTurnstileSecret: Boolean(process.env.TURNSTILE_SECRET_KEY),
+      hasTurnstileSiteKey: Boolean(process.env.TURNSTILE_SITE_KEY),
+      hasCheckoutPrice: billingConfig.prices.length > 0,
+      hasGoogleTtsApiKey: Boolean(process.env.GOOGLE_CLOUD_API_KEY),
+      byokAvailable: isByokAvailable(),
+      classifyWorkerEnabled: process.env.CLASSIFY_WORKER === '1',
+      classifyLlmUrl: process.env.CLASSIFY_LLM_URL,
+      classifyLlmModel: process.env.CLASSIFY_LLM_MODEL,
+      llmProvider: process.env.LLM_PROVIDER,
+      openAiCompatUrl: process.env.OPENAI_COMPAT_URL,
+      hasOpenAiCompatApiKey: Boolean(process.env.OPENAI_COMPAT_API_KEY),
+      wordGlossModel: process.env.OPENAI_COMPAT_WORD_GLOSS_MODEL,
+      simplePhraseModel: process.env.OPENAI_COMPAT_SIMPLE_PHRASE_MODEL,
+      simpleContextModel: process.env.OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL,
+    },
   );
 } catch (err) {
   console.error(`FATAL: ${(err as Error).message}`);
@@ -118,6 +138,10 @@ if (deploymentConfig.authRequired) {
 } else {
   app.use('*', cors());
 }
+// Bound every ordinary API body before session/auth/route code can buffer or
+// parse it. Restore, EPUB import, and Paddle webhook own stricter/different
+// route-level contracts and are exact-path exemptions in the helper.
+app.use('/api/*', defaultRequestBodyLimit);
 app.use('*', logger());
 app.use('/api/*', sessionMiddleware);
 app.use('/api/*', authMiddleware);
@@ -141,6 +165,9 @@ if (deploymentConfig.authRequired) {
 }
 if (billingConfig.enforced) {
   console.log('[lector] billing: Paddle subscription gate active (#224)');
+}
+if (billingConfig.freeTierEnabled) {
+  console.log('[lector] billing: derived Free account access active');
 }
 
 app.route('/api/collections', collections);

@@ -1,10 +1,17 @@
 import { Hono } from 'hono';
-import { randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { db } from '../db';
 import { getCurrentUserId } from '../lib/user';
 import { LANGUAGES, isValidLanguageCode } from '../lib/languages';
 import { countWords } from '../lib/html-to-markdown';
 import { hasStarterContent, loadStarterContent } from '../lib/starter-content';
+import {
+  entitlements,
+  planLimitResponse,
+  type AtomicLimitCheck,
+  type LimitVerdict,
+} from '../lib/entitlements';
+import { collectionMetadataBytes, lessonTextBytes } from '../lib/storage-limits';
 
 // Starter content seeding (#315). Both language-selection paths (setup page,
 // language switcher) POST /seed after setting targetLanguage; the empty-library
@@ -16,6 +23,11 @@ import { hasStarterContent, loadStarterContent } from '../lib/starter-content';
 const app = new Hono();
 
 const seededKey = (language: string) => `starterSeeded:${language}`;
+
+function starterLessonId(language: string, sourceFile: string): string {
+  const digest = createHash('sha256').update(sourceFile).digest('hex');
+  return `starter-${language}-lesson-${digest}`;
+}
 
 function isSeeded(userId: string, language: string): boolean {
   return !!db
@@ -83,28 +95,11 @@ app.post('/seed', async (c) => {
     return c.json({ seeded: false, reason: 'no-content' });
   }
 
-  const setFlag = db.prepare(
-    'INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)',
-  );
-
-  // A library that already has collections in this language isn't a fresh
-  // start — don't inject content into it (e.g. rows imported via API token
-  // before the language was ever UI-selected). Set the flag so the skip is
-  // permanent rather than re-evaluated every switch.
-  const existing = db
-    .prepare('SELECT COUNT(*) AS n FROM collections WHERE userId = ? AND language = ?')
-    .get(userId, language) as { n: number };
-  if (existing.n > 0) {
-    setFlag.run(userId, seededKey(language), JSON.stringify(true));
-    return c.json({ seeded: false, reason: 'library-not-empty' });
-  }
-
   // Deterministic per-user id — safe under the composite (userId, id) PK
   // (#279) and easy for tests to target.
   const collectionId = `starter-${language}`;
   const now = new Date().toISOString();
   const pack = LANGUAGES[language];
-  const lessons = content.lessons.map((lesson) => ({ ...lesson, id: randomUUID() }));
 
   const insertCollection = db.prepare(`
     INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt, userId)
@@ -114,41 +109,123 @@ app.post('/seed', async (c) => {
     INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const getCollection = db.prepare('SELECT language FROM collections WHERE userId = ? AND id = ?');
+  const hasLesson = db.prepare('SELECT 1 FROM lessons WHERE userId = ? AND id = ?');
+  const hasOtherCollectionInLanguage = db.prepare(
+    'SELECT 1 FROM collections WHERE userId = ? AND language = ? AND id <> ? LIMIT 1',
+  );
+  const setFlag = db.prepare(
+    'INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)',
+  );
 
-  db.transaction(() => {
-    insertCollection.run(
-      collectionId,
-      content.title,
-      content.author,
-      null,
-      language,
-      now,
-      now,
-      userId,
-    );
-    lessons.forEach((lesson, i) => {
-      insertLesson.run(
-        lesson.id,
-        collectionId,
-        lesson.title,
-        i,
-        lesson.markdown,
-        countWords(lesson.markdown, pack),
-        language,
-        now,
-        now,
-        userId,
+  type SeedOutcome =
+    | { kind: 'already-seeded' }
+    | { kind: 'library-not-empty' }
+    | { kind: 'limited'; verdict: Exclude<LimitVerdict, { allowed: true }> }
+    | { kind: 'seeded'; insertedCollection: boolean; insertedLessons: number };
+
+  // Determine net-new rows and reserve them under one outer transaction. The
+  // entitlement engine nests its own savepoint around the count checks and
+  // inserts. Stable ids make retries safe if a prior seed wrote rows but lost
+  // its flag, while plain INSERTs ensure existing/lapsed rows are never
+  // replaced or deleted merely to fit a lower plan.
+  const outcome = db.transaction((): SeedOutcome => {
+    if (isSeeded(userId, language)) return { kind: 'already-seeded' };
+
+    // A genuinely non-starter library isn't a fresh start. A known starter
+    // collection, however, may be a retry after flag loss and is repaired by
+    // inserting only its missing stable lesson ids.
+    const existingCollection = getCollection.get(userId, collectionId) as
+      | { language: string }
+      | undefined;
+    // A crafted import can occupy the reserved id. Never attach starter
+    // lessons to a collection from a different language or replace that row.
+    if (existingCollection && existingCollection.language !== language) {
+      setFlag.run(userId, seededKey(language), JSON.stringify(true));
+      return { kind: 'library-not-empty' };
+    }
+    if (hasOtherCollectionInLanguage.get(userId, language, collectionId)) {
+      setFlag.run(userId, seededKey(language), JSON.stringify(true));
+      return { kind: 'library-not-empty' };
+    }
+
+    const insertedCollection = !existingCollection;
+    const lessons = content.lessons.map((lesson, sortOrder) => ({
+      ...lesson,
+      id: starterLessonId(language, lesson.sourceFile),
+      sortOrder,
+    }));
+    const missingLessons = lessons.filter((lesson) => !hasLesson.get(userId, lesson.id));
+
+    const checks: AtomicLimitCheck[] = [];
+    if (insertedCollection) checks.push({ metric: 'maxCollections', requested: 1 });
+    if (missingLessons.length > 0) {
+      checks.push({ metric: 'maxLessons', requested: missingLessons.length });
+      const bytes = missingLessons.map((lesson) => lessonTextBytes(lesson.markdown, lesson.title));
+      checks.push(
+        { metric: 'maxLessonTextBytes', requested: Math.max(0, ...bytes) },
+        {
+          metric: 'maxLessonTextBytesTotal',
+          requested: bytes.reduce((total, size) => total + size, 0),
+        },
       );
+    }
+    if (insertedCollection) {
+      checks.push({
+        metric: 'maxCollectionMetadataBytes',
+        requested: collectionMetadataBytes(content),
+      });
+    }
+
+    const verdict = entitlements.reserveCount(userId, checks, () => {
+      if (insertedCollection) {
+        insertCollection.run(
+          collectionId,
+          content.title,
+          content.author,
+          null,
+          language,
+          now,
+          now,
+          userId,
+        );
+      }
+      for (const lesson of missingLessons) {
+        insertLesson.run(
+          lesson.id,
+          collectionId,
+          lesson.title,
+          lesson.sortOrder,
+          lesson.markdown,
+          countWords(lesson.markdown, pack),
+          language,
+          now,
+          now,
+          userId,
+        );
+      }
+      setFlag.run(userId, seededKey(language), JSON.stringify(true));
     });
-    setFlag.run(userId, seededKey(language), JSON.stringify(true));
+    return verdict.allowed
+      ? { kind: 'seeded', insertedCollection, insertedLessons: missingLessons.length }
+      : { kind: 'limited', verdict };
   })();
 
+  if (outcome.kind === 'already-seeded') {
+    return c.json({ seeded: false, reason: 'already-seeded', ...recommendation(userId, language) });
+  }
+  if (outcome.kind === 'library-not-empty') {
+    return c.json({ seeded: false, reason: 'library-not-empty' });
+  }
+  if (outcome.kind === 'limited') return planLimitResponse(c, outcome.verdict);
+  if (!outcome.insertedCollection && outcome.insertedLessons === 0) {
+    return c.json({ seeded: false, reason: 'already-present' });
+  }
   return c.json({
     seeded: true,
     collectionId,
-    lessonCount: lessons.length,
-    recommendedLessonId: lessons[0]?.id,
-    recommendedLessonTitle: lessons[0]?.title,
+    lessonCount: content.lessons.length,
+    ...recommendation(userId, language),
   });
 });
 

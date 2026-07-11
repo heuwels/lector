@@ -188,40 +188,50 @@ function getDb(): Database {
       createdAt TEXT NOT NULL
     );
 
-    -- AI-translation cache. Persists structured AI translations after the user
+    -- Per-user AI-translation cache. Persists structured AI translations after the user
     -- accepts them (Save to vocab / Mark Known / set level). The dictionary
     -- read-side falls through here when the read-only kaikki dict misses, so
     -- coverage of the user's reading corpus approaches 100% over time. Lives in
     -- lector.db (the mutable DB), not the read-only dictionary-af.db.
     CREATE TABLE IF NOT EXISTS cached_entries (
-      word TEXT PRIMARY KEY,
+      userId TEXT NOT NULL DEFAULT 'local',
+      word TEXT NOT NULL,
       language TEXT NOT NULL DEFAULT 'af',
       ipa TEXT,
       etymology TEXT,
       sourceSentence TEXT,
       createdAt TEXT NOT NULL,
-      updatedAt TEXT NOT NULL
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, word, language)
     );
-    CREATE INDEX IF NOT EXISTS idx_cached_entries_language ON cached_entries(language);
+    CREATE INDEX IF NOT EXISTS idx_cached_entries_user_language ON cached_entries(userId, language);
 
     CREATE TABLE IF NOT EXISTS cached_senses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId TEXT NOT NULL DEFAULT 'local',
       word TEXT NOT NULL,
+      language TEXT NOT NULL DEFAULT 'af',
       pos TEXT,
       gloss TEXT NOT NULL,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (word) REFERENCES cached_entries(word) ON DELETE CASCADE
+      FOREIGN KEY (userId, word, language)
+        REFERENCES cached_entries(userId, word, language) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_cached_senses_word ON cached_senses(word);
+    CREATE INDEX IF NOT EXISTS idx_cached_senses_user_word
+      ON cached_senses(userId, word, language);
 
     CREATE TABLE IF NOT EXISTS cached_related_forms (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId TEXT NOT NULL DEFAULT 'local',
       word TEXT NOT NULL,
+      language TEXT NOT NULL DEFAULT 'af',
       related_word TEXT NOT NULL,
       relation TEXT NOT NULL,
-      FOREIGN KEY (word) REFERENCES cached_entries(word) ON DELETE CASCADE
+      FOREIGN KEY (userId, word, language)
+        REFERENCES cached_entries(userId, word, language) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_cached_related_word ON cached_related_forms(word);
+    CREATE INDEX IF NOT EXISTS idx_cached_related_user_word
+      ON cached_related_forms(userId, word, language);
 
     -- Paddle billing mirror (#224). Written ONLY by the signature-verified
     -- webhook (routes/billing.ts); read by the billing gate (lib/billing.ts).
@@ -285,10 +295,11 @@ function getDb(): Database {
     );
     CREATE INDEX IF NOT EXISTS idx_admin_audit_createdAt ON admin_audit_log(createdAt);
 
-    -- Per-user monthly usage counters for the plan-limits engine (#222).
-    -- period is a UTC calendar month ('2026-07'): the "monthly reset" is the
-    -- period key rolling over — no cron, and history stays queryable for the
-    -- admin dashboard (#221). Written via lib/entitlements.ts only.
+    -- Per-user usage counters for the plan-limits engine (#222). The period is
+    -- an explicit metric-owned UTC window: month ('2026-07') or day
+    -- ('2026-07-15'). Resets are the period key rolling over — no cron — and
+    -- history stays queryable for the admin dashboard. Written via
+    -- lib/entitlements.ts only.
     CREATE TABLE IF NOT EXISTS usage_counters (
       userId TEXT NOT NULL,
       metric TEXT NOT NULL,
@@ -434,6 +445,7 @@ function getDb(): Database {
   migrateBooks(_db);
   migrateAddLanguageColumn(_db);
   migrateCachedEntriesCompoundKey(_db);
+  migrateAcceptedCacheUserKey(_db);
 
   // dailyStats.ankiReviews — Anki reviews/day synced from AnkiConnect, counted
   // toward the activity heatmap + streak. Added after the language migration
@@ -598,8 +610,9 @@ function ensurePartitionIndexes(database: Database) {
  * deployments (one user, 'local'); the isolation boundary for cloud (#218).
  * Same shape as migrateAddLanguageColumn: plain ALTER where the PK is
  * unaffected, guarded transactional rebuilds where userId joins the PK.
- * Shared read-only data (cached_entries/senses/related_forms, dictionaries,
- * sentence banks) deliberately stays global — see plan 010.
+ * Accepted AI dictionary entries are migrated separately as tenant data by
+ * migrateAcceptedCacheUserKey. Only curated dictionaries and sentence banks
+ * deliberately stay global.
  */
 function migrateAddUserIdColumn(database: Database) {
   const alterTables = [
@@ -1123,7 +1136,13 @@ function migrateCachedEntriesCompoundKey(database: Database) {
   const cachedSql = database
     .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='cached_entries'")
     .get() as { sql: string } | undefined;
-  if (!cachedSql || /PRIMARY KEY\s*\(\s*word\s*,\s*language\s*\)/i.test(cachedSql.sql)) return;
+  if (
+    !cachedSql ||
+    /PRIMARY KEY\s*\(\s*word\s*,\s*language\s*\)/i.test(cachedSql.sql) ||
+    /PRIMARY KEY\s*\(\s*userId\s*,\s*word\s*,\s*language\s*\)/i.test(cachedSql.sql)
+  ) {
+    return;
+  }
 
   database.transaction(() => {
     database.exec(`
@@ -1173,6 +1192,89 @@ function migrateCachedEntriesCompoundKey(database: Database) {
       DROP TABLE cached_related_forms;
       ALTER TABLE cached_related_forms_new RENAME TO cached_related_forms;
       CREATE INDEX IF NOT EXISTS idx_cached_related_word ON cached_related_forms(word, language);
+    `);
+  })();
+}
+
+/**
+ * Public cloud accounts must never share user-accepted AI dictionary rows.
+ * Historical rows have no attributable owner, so they belong only to the
+ * implicit self-hosted `local` tenant. This runs after the old word/language
+ * compound-key migration and is intentionally idempotent.
+ */
+export function migrateAcceptedCacheUserKey(database: Database) {
+  const columns = database.prepare('PRAGMA table_info(cached_entries)').all() as Array<{
+    name: string;
+    pk: number;
+  }>;
+  if (columns.length === 0) return;
+
+  const primaryKey = columns
+    .filter((column) => column.pk > 0)
+    .sort((a, b) => a.pk - b.pk)
+    .map((column) => column.name);
+  if (primaryKey.join(',') === 'userId,word,language') return;
+
+  database.transaction(() => {
+    database.exec(`
+      CREATE TABLE cached_entries_tenant_new (
+        userId TEXT NOT NULL DEFAULT 'local',
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        ipa TEXT,
+        etymology TEXT,
+        sourceSentence TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        PRIMARY KEY (userId, word, language)
+      );
+      INSERT INTO cached_entries_tenant_new
+        (userId, word, language, ipa, etymology, sourceSentence, createdAt, updatedAt)
+        SELECT 'local', word, language, ipa, etymology, sourceSentence, createdAt, updatedAt
+        FROM cached_entries;
+
+      CREATE TABLE cached_senses_tenant_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId TEXT NOT NULL DEFAULT 'local',
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        pos TEXT,
+        gloss TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (userId, word, language)
+          REFERENCES cached_entries_tenant_new(userId, word, language) ON DELETE CASCADE
+      );
+      INSERT INTO cached_senses_tenant_new
+        (id, userId, word, language, pos, gloss, sort_order)
+        SELECT id, 'local', word, language, pos, gloss, sort_order FROM cached_senses;
+
+      CREATE TABLE cached_related_forms_tenant_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId TEXT NOT NULL DEFAULT 'local',
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        related_word TEXT NOT NULL,
+        relation TEXT NOT NULL,
+        FOREIGN KEY (userId, word, language)
+          REFERENCES cached_entries_tenant_new(userId, word, language) ON DELETE CASCADE
+      );
+      INSERT INTO cached_related_forms_tenant_new
+        (id, userId, word, language, related_word, relation)
+        SELECT id, 'local', word, language, related_word, relation FROM cached_related_forms;
+
+      DROP TABLE cached_senses;
+      DROP TABLE cached_related_forms;
+      DROP TABLE cached_entries;
+      ALTER TABLE cached_entries_tenant_new RENAME TO cached_entries;
+      ALTER TABLE cached_senses_tenant_new RENAME TO cached_senses;
+      ALTER TABLE cached_related_forms_tenant_new RENAME TO cached_related_forms;
+
+      CREATE INDEX idx_cached_entries_user_language
+        ON cached_entries(userId, language);
+      CREATE INDEX idx_cached_senses_user_word
+        ON cached_senses(userId, word, language);
+      CREATE INDEX idx_cached_related_user_word
+        ON cached_related_forms(userId, word, language);
     `);
   })();
 }

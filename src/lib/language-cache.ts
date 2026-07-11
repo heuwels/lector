@@ -50,6 +50,15 @@ function tenantId(): string | null {
   return cloudTenant;
 }
 
+/**
+ * Current cache namespace for other tenant-scoped in-memory caches. Null in
+ * cloud until AuthGuard has resolved a session; callers must not reuse a
+ * value from a previous account in that state.
+ */
+export function activeTenantId(): string | null {
+  return tenantId();
+}
+
 function keyFor(tenant: string): string {
   return `${LEGACY_KEY}:${tenant}`;
 }

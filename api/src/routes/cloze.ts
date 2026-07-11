@@ -11,6 +11,23 @@ import {
 } from '../lib/languages';
 import { getCurrentUserId } from '../lib/user';
 import { randomUUID } from 'crypto';
+import { entitlements, planLimitResponse, type AtomicLimitCheck } from '../lib/entitlements';
+import {
+  aggregateGrowthCheck,
+  batchGrowthCheck,
+  clozeContentBytes,
+  growingRowCheck,
+  validatePersistedId,
+} from '../lib/storage-limits';
+import {
+  booleanLikeToSql,
+  validateBooleanLike,
+  validateEnum,
+  validateOptionalLanguage,
+  validateOwnedReference,
+  validateSafeInteger,
+  validateTimestamp,
+} from '../lib/persisted-input';
 
 type BankEntry = {
   id: number | string;
@@ -22,6 +39,122 @@ type BankEntry = {
   collection: string;
   source?: 'tatoeba' | 'mined';
 };
+
+type ClozeContentRow = {
+  id: string;
+  sentence: string;
+  clozeWord: string;
+  translation: string;
+};
+
+const CLOZE_SOURCES = new Set(['tatoeba', 'mined'] as const);
+const CLOZE_COLLECTIONS = new Set(['top500', 'top1000', 'top2000', 'mined', 'random'] as const);
+const CLOZE_MASTERY_LEVELS = new Set([0, 25, 50, 75, 100]);
+
+function validateMasteryLevel(
+  value: unknown,
+  field: string,
+  options: { optional?: boolean } = {},
+): string | null {
+  if (value === undefined) return options.optional === false ? `${field} is required` : null;
+  return Number.isSafeInteger(value) && CLOZE_MASTERY_LEVELS.has(value as number)
+    ? null
+    : `${field} must be one of 0, 25, 50, 75, or 100`;
+}
+
+function validateClozeCreateItem(item: unknown, userId: string, prefix = ''): string | null {
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return `${prefix || 'body'} must be an object`;
+  }
+  const row = item as Record<string, unknown>;
+  const field = (name: string) => `${prefix}${name}`;
+
+  if (row.id !== undefined) {
+    const idError = validatePersistedId(row.id);
+    if (idError) return `${field('id')}: ${idError}`;
+  }
+  const refError = validateOwnedReference('vocab', row.vocabEntryId, userId, field('vocabEntryId'));
+  if (refError) return refError;
+  const languageError = validateOptionalLanguage(row.language, field('language'));
+  if (languageError) return languageError;
+
+  for (const name of ['sentence', 'clozeWord', 'translation'] as const) {
+    if (typeof row[name] !== 'string') return `${field(name)} must be a string`;
+  }
+  const indexError = validateSafeInteger(row.clozeIndex, field('clozeIndex'), {
+    optional: false,
+    min: 0,
+  });
+  if (indexError) return indexError;
+  const sourceError = validateEnum(row.source, field('source'), CLOZE_SOURCES);
+  if (sourceError) return sourceError;
+  const collectionError = validateEnum(row.collection, field('collection'), CLOZE_COLLECTIONS);
+  if (collectionError) return collectionError;
+  for (const [name, nullable] of [
+    ['wordRank', true],
+    ['tatoebaSentenceId', true],
+    ['reviewCount', false],
+    ['timesCorrect', false],
+    ['timesIncorrect', false],
+  ] as const) {
+    const error = validateSafeInteger(row[name], field(name), { min: 0, nullable });
+    if (error) return error;
+  }
+  const masteryError = validateMasteryLevel(row.masteryLevel, field('masteryLevel'));
+  if (masteryError) return masteryError;
+  const nextReviewError = validateTimestamp(row.nextReview, field('nextReview'));
+  if (nextReviewError) return nextReviewError;
+  return validateTimestamp(row.lastReviewed, field('lastReviewed'), { nullable: true });
+}
+
+function existingClozeContent(
+  userId: string,
+  ids: readonly string[],
+): Map<string, ClozeContentRow> {
+  const unique = [...new Set(ids)];
+  const rows: ClozeContentRow[] = [];
+  for (let offset = 0; offset < unique.length; offset += 400) {
+    const chunk = unique.slice(offset, offset + 400);
+    const placeholders = chunk.map(() => '?').join(',');
+    rows.push(
+      ...(db
+        .prepare(
+          `SELECT id, sentence, clozeWord, translation FROM clozeSentences
+           WHERE userId = ? AND id IN (${placeholders})`,
+        )
+        .all(userId, ...chunk) as ClozeContentRow[]),
+    );
+  }
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
+function clozeWriteChecks(
+  userId: string,
+  items: ReadonlyArray<ClozeContentRow>,
+): AtomicLimitCheck[] {
+  const finalById = new Map(items.map((item) => [item.id, item]));
+  const existing = existingClozeContent(userId, [...finalById.keys()]);
+  let previousBytes = 0;
+  let nextBytes = 0;
+  let largestGrowingRow = 0;
+  let newRows = 0;
+  for (const [id, item] of finalById) {
+    const before = existing.get(id);
+    const beforeBytes = before ? clozeContentBytes(before) : 0;
+    const afterBytes = clozeContentBytes(item);
+    if (!before) newRows++;
+    if (afterBytes > beforeBytes) largestGrowingRow = Math.max(largestGrowingRow, afterBytes);
+    previousBytes += beforeBytes;
+    nextBytes += afterBytes;
+  }
+  const growth = Math.max(0, nextBytes - previousBytes);
+  return [
+    ...(newRows > 0 ? [{ metric: 'maxClozeSentences' as const, requested: newRows }] : []),
+    ...growingRowCheck('maxClozeEntryBytes', largestGrowingRow),
+    ...aggregateGrowthCheck('maxClozeTextBytesTotal', nextBytes, previousBytes),
+    ...batchGrowthCheck(growth),
+  ];
+}
 
 // Per-language sentence banks, lazily loaded. Each value is a LITERAL dynamic
 // import so the bundler still includes the JSON, but the file is only read when
@@ -107,9 +240,40 @@ app.get('/', (c) => {
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
   const body = await c.req.json();
-  const lang = resolveLanguage(Array.isArray(body) ? body[0]?.language : body.language, userId);
+  if (Array.isArray(body) && body.length === 0) {
+    return c.json({ error: 'At least one cloze sentence is required' }, 400);
+  }
+  const items = Array.isArray(body) ? body : [body];
+  for (const [index, item] of items.entries()) {
+    const error = validateClozeCreateItem(
+      item,
+      userId,
+      Array.isArray(body) ? `items[${index}].` : '',
+    );
+    if (error) return c.json({ error }, 400);
+  }
+  const explicitLanguages = new Set(
+    items.flatMap((item) =>
+      typeof item.language === 'string' && item.language ? [item.language] : [],
+    ),
+  );
+  if (explicitLanguages.size > 1) {
+    return c.json({ error: 'All cloze sentences in a batch must use the same language' }, 400);
+  }
+  const lang = resolveLanguage([...explicitLanguages][0], userId);
 
   if (Array.isArray(body)) {
+    const prepared = body.map((item) => ({ ...item, id: item.id || randomUUID() }));
+    const finalById = new Map(prepared.map((item) => [item.id as string, item]));
+    const checks = clozeWriteChecks(
+      userId,
+      [...finalById.values()].map((item) => ({
+        id: item.id as string,
+        sentence: item.sentence,
+        clozeWord: item.clozeWord,
+        translation: item.translation,
+      })),
+    );
     // Upsert on the composite (userId, id) PK (#279): ids are per-tenant, so
     // another tenant's id can never conflict here — it just becomes the
     // writer's own row.
@@ -127,61 +291,73 @@ app.post('/', async (c) => {
         timesIncorrect = excluded.timesIncorrect, language = excluded.language
     `);
 
-    db.transaction(() => {
-      for (const item of body) {
+    const verdict = entitlements.reserveCount(userId, checks, () => {
+      for (const item of finalById.values()) {
         stmt.run(
-          item.id || randomUUID(),
+          item.id,
           item.sentence,
           item.clozeWord,
           item.clozeIndex,
           item.translation,
-          item.source || 'tatoeba',
-          item.collection || 'random',
-          item.wordRank || null,
-          item.tatoebaSentenceId || null,
-          item.vocabEntryId || null,
-          item.masteryLevel || 0,
-          item.nextReview || new Date().toISOString(),
-          item.reviewCount || 0,
-          item.lastReviewed || null,
-          item.timesCorrect || 0,
-          item.timesIncorrect || 0,
+          item.source ?? 'tatoeba',
+          item.collection ?? 'random',
+          item.wordRank ?? null,
+          item.tatoebaSentenceId ?? null,
+          item.vocabEntryId ?? null,
+          item.masteryLevel ?? 0,
+          item.nextReview ?? new Date().toISOString(),
+          item.reviewCount ?? 0,
+          item.lastReviewed ?? null,
+          item.timesCorrect ?? 0,
+          item.timesIncorrect ?? 0,
           lang,
           userId,
         );
       }
-    })();
+    });
+    if (!verdict.allowed) return planLimitResponse(c, verdict);
 
     return c.json({ success: true, count: body.length });
   }
 
   const id = body.id || randomUUID();
+  const checks = clozeWriteChecks(userId, [
+    {
+      id,
+      sentence: body.sentence,
+      clozeWord: body.clozeWord,
+      translation: body.translation,
+    },
+  ]);
 
-  db.prepare(
-    `
-    INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, language, userId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `,
-  ).run(
-    id,
-    body.sentence,
-    body.clozeWord,
-    body.clozeIndex,
-    body.translation,
-    body.source || 'tatoeba',
-    body.collection || 'random',
-    body.wordRank || null,
-    body.tatoebaSentenceId || null,
-    body.vocabEntryId || null,
-    body.masteryLevel || 0,
-    body.nextReview || new Date().toISOString(),
-    body.reviewCount || 0,
-    body.lastReviewed || null,
-    body.timesCorrect || 0,
-    body.timesIncorrect || 0,
-    lang,
-    userId,
-  );
+  const verdict = entitlements.reserveCount(userId, checks, () => {
+    db.prepare(
+      `
+      INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview, reviewCount, lastReviewed, timesCorrect, timesIncorrect, language, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    ).run(
+      id,
+      body.sentence,
+      body.clozeWord,
+      body.clozeIndex,
+      body.translation,
+      body.source ?? 'tatoeba',
+      body.collection ?? 'random',
+      body.wordRank ?? null,
+      body.tatoebaSentenceId ?? null,
+      body.vocabEntryId ?? null,
+      body.masteryLevel ?? 0,
+      body.nextReview ?? new Date().toISOString(),
+      body.reviewCount ?? 0,
+      body.lastReviewed ?? null,
+      body.timesCorrect ?? 0,
+      body.timesIncorrect ?? 0,
+      lang,
+      userId,
+    );
+  });
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   return c.json({ id });
 });
@@ -246,22 +422,26 @@ app.post('/onboarding', async (c) => {
   const existed = !!db
     .prepare('SELECT 1 FROM clozeSentences WHERE userId = ? AND id = ?')
     .get(userId, id);
-  db.prepare(
-    `INSERT INTO clozeSentences
-       (userId, id, sentence, clozeWord, clozeIndex, translation, source, collection,
-        vocabEntryId, masteryLevel, nextReview, reviewCount, timesCorrect, timesIncorrect,
-        blacklisted, language)
-     VALUES (?, ?, ?, ?, ?, ?, 'mined', 'mined', ?, 0, ?, 0, 0, 0, 0, ?)
-     ON CONFLICT(userId, id) DO UPDATE SET
-       sentence = excluded.sentence,
-       clozeWord = excluded.clozeWord,
-       clozeIndex = excluded.clozeIndex,
-       translation = excluded.translation,
-       source = 'mined',
-       collection = 'mined',
-       vocabEntryId = excluded.vocabEntryId,
-       language = excluded.language`,
-  ).run(userId, id, sentence, clozeWord, clozeIndex, translation, vocabId, now, language);
+  const checks = clozeWriteChecks(userId, [{ id, sentence, clozeWord, translation }]);
+  const verdict = entitlements.reserveCount(userId, checks, () => {
+    db.prepare(
+      `INSERT INTO clozeSentences
+         (userId, id, sentence, clozeWord, clozeIndex, translation, source, collection,
+          vocabEntryId, masteryLevel, nextReview, reviewCount, timesCorrect, timesIncorrect,
+          blacklisted, language)
+       VALUES (?, ?, ?, ?, ?, ?, 'mined', 'mined', ?, 0, ?, 0, 0, 0, 0, ?)
+       ON CONFLICT(userId, id) DO UPDATE SET
+         sentence = excluded.sentence,
+         clozeWord = excluded.clozeWord,
+         clozeIndex = excluded.clozeIndex,
+         translation = excluded.translation,
+         source = 'mined',
+         collection = 'mined',
+         vocabEntryId = excluded.vocabEntryId,
+         language = excluded.language`,
+    ).run(userId, id, sentence, clozeWord, clozeIndex, translation, vocabId, now, language);
+  });
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   const row = db
     .prepare('SELECT * FROM clozeSentences WHERE userId = ? AND id = ? AND language = ?')
@@ -458,12 +638,14 @@ app.post('/seed', async (c) => {
   // stable string id (stored as the PK) so re-seeding is idempotent for both.
   const existing = db
     .prepare(
-      'SELECT id, tatoebaSentenceId, clozeWord, collection, reviewCount FROM clozeSentences WHERE userId = ? AND tatoebaSentenceId IS NOT NULL AND language = ?',
+      'SELECT id, tatoebaSentenceId, sentence, clozeWord, translation, collection, reviewCount FROM clozeSentences WHERE userId = ? AND tatoebaSentenceId IS NOT NULL AND language = ?',
     )
     .all(userId, lang) as {
     id: string;
     tatoebaSentenceId: number;
+    sentence: string;
     clozeWord: string;
+    translation: string;
     collection: string;
     reviewCount: number;
   }[];
@@ -491,8 +673,10 @@ app.post('/seed', async (c) => {
   const toInsert: BankEntry[] = [];
   const toUpdate: {
     id: string;
+    sentence: string;
     clozeWord: string;
     clozeIndex: number;
+    translation: string;
     wordRank: number | null;
     collection: string;
   }[] = [];
@@ -511,8 +695,10 @@ app.post('/seed', async (c) => {
     ) {
       toUpdate.push({
         id: ex.id,
+        sentence: ex.sentence,
         clozeWord: s.clozeWord,
         clozeIndex: s.clozeIndex,
+        translation: ex.translation,
         wordRank: s.wordRank,
         collection: s.collection,
       });
@@ -528,11 +714,25 @@ app.post('/seed', async (c) => {
     UPDATE clozeSentences SET clozeWord = ?, clozeIndex = ?, wordRank = ?, collection = ? WHERE id = ? AND userId = ?
   `);
 
-  db.transaction(() => {
-    for (const s of toInsert) {
+  const preparedInserts = toInsert.map((entry) => ({
+    entry,
+    id: (entry.source ?? 'tatoeba') === 'mined' ? minedId(entry.id) : randomUUID(),
+  }));
+  const checks = clozeWriteChecks(userId, [
+    ...preparedInserts.map(({ entry, id }) => ({
+      id,
+      sentence: entry.text,
+      clozeWord: entry.clozeWord,
+      translation: entry.translation,
+    })),
+    ...toUpdate,
+  ]);
+
+  const verdict = entitlements.reserveCount(userId, checks, () => {
+    for (const { entry: s, id } of preparedInserts) {
       const mined = (s.source ?? 'tatoeba') === 'mined';
       insertStmt.run(
-        mined ? minedId(s.id) : randomUUID(),
+        id,
         s.text,
         s.clozeWord,
         s.clozeIndex,
@@ -553,7 +753,8 @@ app.post('/seed', async (c) => {
     for (const s of toUpdate) {
       updateStmt.run(s.clozeWord, s.clozeIndex, s.wordRank, s.collection, s.id, userId);
     }
-  })();
+  });
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   const minedSeeded = toInsert.filter((s) => (s.source ?? 'tatoeba') === 'mined').length;
   return c.json({
@@ -610,9 +811,41 @@ app.put('/:id', async (c) => {
   const lang = resolveLanguage(c.req.query('language'), userId);
   const body = await c.req.json();
 
+  for (const field of ['sentence', 'clozeWord', 'translation'] as const) {
+    if (body[field] !== undefined && typeof body[field] !== 'string') {
+      return c.json({ error: `${field} must be a string` }, 400);
+    }
+  }
+  const sourceError = validateEnum(body.source, 'source', CLOZE_SOURCES);
+  if (sourceError) return c.json({ error: sourceError }, 400);
+  const collectionError = validateEnum(body.collection, 'collection', CLOZE_COLLECTIONS);
+  if (collectionError) return c.json({ error: collectionError }, 400);
+  for (const [field, nullable] of [
+    ['clozeIndex', false],
+    ['wordRank', true],
+    ['reviewCount', false],
+    ['timesCorrect', false],
+    ['timesIncorrect', false],
+  ] as const) {
+    const error = validateSafeInteger(body[field], field, { min: 0, nullable });
+    if (error) return c.json({ error }, 400);
+  }
+  const masteryError = validateMasteryLevel(body.masteryLevel, 'masteryLevel');
+  if (masteryError) return c.json({ error: masteryError }, 400);
+  const nextReviewError = validateTimestamp(body.nextReview, 'nextReview');
+  if (nextReviewError) return c.json({ error: nextReviewError }, 400);
+  const lastReviewedError = validateTimestamp(body.lastReviewed, 'lastReviewed', {
+    nullable: true,
+  });
+  if (lastReviewedError) return c.json({ error: lastReviewedError }, 400);
+  const blacklistedError = validateBooleanLike(body.blacklisted, 'blacklisted');
+  if (blacklistedError) return c.json({ error: blacklistedError }, 400);
+
   const existing = db
-    .prepare('SELECT id FROM clozeSentences WHERE id = ? AND userId = ? AND language = ?')
-    .get(id, userId, lang);
+    .prepare(
+      'SELECT id, sentence, clozeWord, translation FROM clozeSentences WHERE id = ? AND userId = ? AND language = ?',
+    )
+    .get(id, userId, lang) as ClozeContentRow | undefined;
   if (!existing) return c.json({ error: 'Not found' }, 404);
 
   const updates: string[] = [];
@@ -638,7 +871,9 @@ app.put('/:id', async (c) => {
   for (const field of fields) {
     if (body[field] !== undefined) {
       updates.push(`${field} = ?`);
-      values.push(body[field] instanceof Date ? body[field].toISOString() : body[field]);
+      values.push(
+        field === 'blacklisted' ? booleanLikeToSql(body[field] as boolean | 0 | 1) : body[field],
+      );
     }
   }
 
@@ -646,9 +881,20 @@ app.put('/:id', async (c) => {
     values.push(id);
     values.push(userId);
     values.push(lang);
-    db.prepare(
-      `UPDATE clozeSentences SET ${updates.join(', ')} WHERE id = ? AND userId = ? AND language = ?`,
-    ).run(...values);
+    const checks = clozeWriteChecks(userId, [
+      {
+        id,
+        sentence: body.sentence !== undefined ? body.sentence : existing.sentence,
+        clozeWord: body.clozeWord !== undefined ? body.clozeWord : existing.clozeWord,
+        translation: body.translation !== undefined ? body.translation : existing.translation,
+      },
+    ]);
+    const verdict = entitlements.reserveCount(userId, checks, () => {
+      db.prepare(
+        `UPDATE clozeSentences SET ${updates.join(', ')} WHERE id = ? AND userId = ? AND language = ?`,
+      ).run(...values);
+    });
+    if (!verdict.allowed) return planLimitResponse(c, verdict);
   }
 
   return c.json({ success: true });
@@ -679,27 +925,50 @@ app.post('/:id/review', async (c) => {
     .get(id, userId, lang) as ClozeSentenceRow | undefined;
   if (!sentence) return c.json({ error: 'Not found' }, 404);
 
-  const correct = body.correct as boolean;
+  const correctError = validateBooleanLike(body.correct, 'correct');
+  if (correctError || body.correct === undefined) {
+    return c.json({ error: correctError ?? 'correct is required' }, 400);
+  }
+  const masteryError = validateMasteryLevel(body.masteryLevel, 'masteryLevel', {
+    optional: false,
+  });
+  if (masteryError) return c.json({ error: masteryError }, 400);
+  const nextReviewError = validateTimestamp(body.nextReview, 'nextReview', { optional: false });
+  if (nextReviewError) return c.json({ error: nextReviewError }, 400);
+
+  const correct = booleanLikeToSql(body.correct as boolean | 0 | 1) === 1;
   const newMasteryLevel = body.masteryLevel as ClozeMasteryLevel;
   const nextReview = body.nextReview as string;
+  const nextReviewCount = sentence.reviewCount + 1;
+  const nextTimesCorrect = sentence.timesCorrect + (correct ? 1 : 0);
+  const nextTimesIncorrect = sentence.timesIncorrect + (correct ? 0 : 1);
+  for (const [field, value] of [
+    ['reviewCount', nextReviewCount],
+    ['timesCorrect', nextTimesCorrect],
+    ['timesIncorrect', nextTimesIncorrect],
+  ] as const) {
+    const error = validateSafeInteger(value, field, { optional: false, min: 0 });
+    if (error) return c.json({ error: `${field} would exceed the safe counter range` }, 400);
+  }
 
   db.prepare(
     `
     UPDATE clozeSentences SET
       masteryLevel = ?,
       nextReview = ?,
-      reviewCount = reviewCount + 1,
+      reviewCount = ?,
       lastReviewed = ?,
-      timesCorrect = timesCorrect + ?,
-      timesIncorrect = timesIncorrect + ?
+      timesCorrect = ?,
+      timesIncorrect = ?
     WHERE id = ? AND userId = ? AND language = ?
   `,
   ).run(
     newMasteryLevel,
     nextReview,
+    nextReviewCount,
     new Date().toISOString(),
-    correct ? 1 : 0,
-    correct ? 0 : 1,
+    nextTimesCorrect,
+    nextTimesIncorrect,
     id,
     userId,
     lang,

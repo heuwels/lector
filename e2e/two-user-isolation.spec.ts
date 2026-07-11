@@ -14,7 +14,7 @@ import path from 'node:path';
  * links from.
  */
 
-const CLOUD_API = 'http://localhost:3467';
+const CLOUD_API = `http://localhost:${process.env.E2E_ISOLATION_API_PORT || '3467'}`;
 const UI_ORIGIN = 'http://localhost:3456';
 const OUTBOX = path.join(__dirname, '..', 'tmp', 'e2e-cloud-data', 'outbox.jsonl');
 const PASSWORD = 'wagwoord-vir-toetse-123';

@@ -1,6 +1,11 @@
 import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { db } from '../db';
+import {
+  makeEntitlements,
+  parsePlanLimitOverrides,
+  setEntitlementsEngineForTests,
+} from '../lib/entitlements';
 
 // Mock the provider factory so POST never reaches a real LLM. Each test swaps
 // `currentProvider` and inspects `captured` to assert what the route sent.
@@ -11,7 +16,27 @@ mock.module('../lib/llm', () => ({
   getProvider: () => currentProvider,
 }));
 
-const { default: app } = await import('../routes/chat');
+const { default: app, MAX_CHAT_MESSAGE_BYTES } = await import('../routes/chat');
+
+let restoreEngine: (() => void) | null = null;
+
+function useFreeByokEntitlements() {
+  const planLimits = parsePlanLimitOverrides(undefined);
+  restoreEngine?.();
+  restoreEngine = setEntitlementsEngineForTests(
+    makeEntitlements({
+      enforced: true,
+      freeTierEnabled: true,
+      exemptEmails: new Set(),
+      prices: [],
+      planLimits,
+      resolveEmail: () => null,
+      isByok: () => true,
+      compedPlan: () => null,
+      now: () => new Date('2026-07-15T12:00:00Z'),
+    }),
+  );
+}
 
 // Timestamps must be recent: the route's cleanExpired() purges rows older than
 // the 7-day TTL on every GET/POST. Relative-to-now keeps seeds valid over time.
@@ -27,7 +52,7 @@ function seed(opts: {
   responseId?: string | null;
 }) {
   db.prepare(
-    'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt, language) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt, language) VALUES (?, ?, ?, ?, ?, ?, ?)',
   ).run(
     opts.id,
     opts.role ?? 'user',
@@ -35,15 +60,20 @@ function seed(opts: {
     null,
     opts.responseId ?? null,
     ago(opts.minutesAgo),
-    opts.language
+    opts.language,
   );
 }
 
 function setActiveLanguage(code: string) {
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('targetLanguage', JSON.stringify(code));
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
+    'targetLanguage',
+    JSON.stringify(code),
+  );
 }
 
 function reset() {
+  restoreEngine?.();
+  restoreEngine = null;
   db.prepare('DELETE FROM chat_messages').run();
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
   captured.messages = undefined;
@@ -183,4 +213,34 @@ describe('chat route — per-language scoping', () => {
     expect(res.status).toBe(400);
   });
 
+  test('Free BYOK chat returns the provider response without storing history', async () => {
+    useFreeByokEntitlements();
+
+    const res = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'help me', language: 'de' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ assistantMessage: { content: 'MOCK ANSWER' } });
+    expect(captured.messages?.at(-1)?.content).toContain('help me');
+    expect((db.prepare('SELECT COUNT(*) AS n FROM chat_messages').get() as { n: number }).n).toBe(
+      0,
+    );
+  });
+
+  test('POST enforces a universal 32 KiB UTF-8 message limit before provider use', async () => {
+    const res = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'é'.repeat(MAX_CHAT_MESSAGE_BYTES / 2 + 1) }),
+    });
+
+    expect(res.status).toBe(413);
+    expect(captured.messages).toBeUndefined();
+    expect((db.prepare('SELECT COUNT(*) AS n FROM chat_messages').get() as { n: number }).n).toBe(
+      0,
+    );
+  });
 });

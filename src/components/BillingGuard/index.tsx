@@ -41,7 +41,7 @@ function CloudBillingGate({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     fetchBillingStatus().then((status) => {
       if (cancelled) return;
-      setState(status === null || status.active ? 'ok' : 'locked');
+      setState(status === null || status.accessAllowed ? 'ok' : 'locked');
     });
     return () => {
       cancelled = true;

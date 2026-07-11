@@ -24,7 +24,7 @@ import { apiUrl } from './api';
  * fulfilled per page.
  */
 
-const CLOUD_API = 'http://localhost:3462';
+const CLOUD_API = `http://localhost:${process.env.E2E_AUTH_API_PORT || '3462'}`;
 const EMAILS = path.join(__dirname, '..', 'tmp', 'e2e-data-cloud', 'emails.jsonl');
 
 // The external-server (docker) run boots one selfhost container and no cloud
@@ -124,7 +124,9 @@ test.describe.serial('Anki in cloud mode (#241)', () => {
     expect(probes.count()).toBe(0);
   });
 
-  test('vocab page: addon pill, no pull-sync button, export queues server-side', async ({ page }) => {
+  test('vocab page: addon pill, no pull-sync button, export queues server-side', async ({
+    page,
+  }) => {
     await useCloudEnv(page);
     const probes = trackAnkiProbes(page);
     await signIn(page);
@@ -174,7 +176,13 @@ test.describe.serial('Anki in cloud mode (#241)', () => {
     const pendingRes = await request.get(`${CLOUD_API}/api/anki/pending`, { headers: bearer });
     expect(pendingRes.ok()).toBeTruthy();
     const { pending } = (await pendingRes.json()) as {
-      pending: Array<{ lectorId: string; cardType: string; lang: string; sentenceHtml: string; version: number }>;
+      pending: Array<{
+        lectorId: string;
+        cardType: string;
+        lang: string;
+        sentenceHtml: string;
+        version: number;
+      }>;
     };
     const item = pending.find((p) => p.lectorId === vocabId);
     expect(item).toBeTruthy();
@@ -216,14 +224,23 @@ test.describe.serial('Anki in cloud mode (#241)', () => {
         reviews: [
           { lectorId: vocabId, word: 'huis', lang: 'af', type: 2, interval: 30 },
           {
-            word: 'berge', lang: 'af', type: 2, interval: 5, noteId: 7,
-            sentence: 'Die berge is hoog.', translation: 'The mountains are high.',
+            word: 'berge',
+            lang: 'af',
+            type: 2,
+            interval: 5,
+            noteId: 7,
+            sentence: 'Die berge is hoog.',
+            translation: 'The mountains are high.',
           },
         ],
         reviewsByDay: [['2026-07-10', 17]],
       },
     });
-    const summary = (await reviewsRes.json()) as { updated: number; created: number; syncedDays: number };
+    const summary = (await reviewsRes.json()) as {
+      updated: number;
+      created: number;
+      syncedDays: number;
+    };
     expect(summary.updated).toBe(1);
     expect(summary.created).toBe(1);
     expect(summary.syncedDays).toBe(1);

@@ -8,7 +8,7 @@
 
 import { DEFAULT_LANGUAGE, foldWord, getLanguageConfig, isValidLanguageCode } from './languages';
 import { apiFetch } from './api-base';
-import { readLanguageCache } from './language-cache';
+import { activeTenantId, readLanguageCache } from './language-cache';
 
 // Active language helper — reads the tenant-keyed cache (#281), falls back
 // to the default (SSR, cloud pre-session, or simply nothing cached yet).
@@ -24,6 +24,14 @@ export function getActivePack() {
 
 function langParam(prefix: '?' | '&' = '?'): string {
   return `${prefix}language=${getActiveLanguage()}`;
+}
+
+async function apiError(res: Response, fallback: string): Promise<Error> {
+  const body = (await res
+    .clone()
+    .json()
+    .catch(() => ({}))) as { error?: unknown };
+  return new Error(typeof body.error === 'string' ? body.error : fallback);
 }
 
 // Re-export the shared domain types for convenience
@@ -85,6 +93,7 @@ export async function createCollection(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...data, language: getActiveLanguage() }),
   });
+  if (!res.ok) throw await apiError(res, 'Could not create collection');
   const { id } = await res.json();
   return id;
 }
@@ -170,6 +179,7 @@ export async function addLessonToCollection(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+  if (!res.ok) throw await apiError(res, 'Could not create lesson');
   const { id } = await res.json();
   return id;
 }
@@ -240,6 +250,13 @@ export async function createStandaloneLesson(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title: data.title, textContent: data.textContent }),
   });
+  if (!res.ok) {
+    // The operation spans two legacy endpoints. If the authoritative lesson
+    // limit rejects the second half, remove the collection created solely for
+    // this import so a capped Free account does not accumulate empty shells.
+    await apiFetch(`/api/collections/${collectionId}`, { method: 'DELETE' });
+    throw await apiError(res, 'Could not create imported lesson');
+  }
   const { id: lessonId } = await res.json();
   return { collectionId, lessonId };
 }
@@ -383,14 +400,23 @@ export async function getKnownWordsMap(): Promise<Map<string, WordState>> {
 // ============================================================================
 
 export interface ClientEntitlements {
-  plan: string;
+  plan: 'free' | 'cloud' | 'plus' | 'unlimited';
   byok: boolean;
   limits: Record<string, number | null>;
   usage: Record<string, number>;
-  period: string;
+  periods: { day: string; month: string };
 }
 
-let entitlementsCache: { value: ClientEntitlements; at: number } | null = null;
+let entitlementsCache: {
+  tenantId: string;
+  value: ClientEntitlements;
+  at: number;
+} | null = null;
+
+/** Provider/funding changes alter effective limits immediately. */
+export function invalidateEntitlementsCache(): void {
+  entitlementsCache = null;
+}
 
 /**
  * The account's plan limits + this month's usage, cached for five minutes —
@@ -399,13 +425,21 @@ let entitlementsCache: { value: ClientEntitlements; at: number } | null = null;
  * (network hiccup) — callers must treat null as "don't reflect anything".
  */
 export async function getEntitlements(): Promise<ClientEntitlements | null> {
-  if (entitlementsCache && Date.now() - entitlementsCache.at < 5 * 60_000) {
+  const tenantId = activeTenantId();
+  if (
+    tenantId !== null &&
+    entitlementsCache?.tenantId === tenantId &&
+    Date.now() - entitlementsCache.at < 5 * 60_000
+  ) {
     return entitlementsCache.value;
   }
   const res = await apiFetch('/api/billing/entitlements');
   if (!res.ok) return null;
   const value = (await res.json()) as ClientEntitlements;
-  entitlementsCache = { value, at: Date.now() };
+  // Cloud pre-session reads must never become a browser-global cache entry.
+  // AuthGuard records the tenant before app surfaces mount; selfhost uses the
+  // stable `local` namespace.
+  if (tenantId !== null) entitlementsCache = { tenantId, value, at: Date.now() };
   return value;
 }
 

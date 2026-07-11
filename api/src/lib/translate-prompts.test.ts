@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { buildGlossPrompt, buildWordEntryPrompt, buildPhrasePrompt } from './translate-prompts';
+import {
+  buildGlossPrompt,
+  buildPhrasePrompt,
+  buildSimpleContextPrompt,
+  buildSimplePhrasePrompt,
+  buildWordEntryPrompt,
+} from './translate-prompts';
 import { getSpelreelsContext } from './spelreels';
 
 const WORD = 'seemeeu';
@@ -46,6 +52,33 @@ describe('buildWordEntryPrompt (enrich path)', () => {
   test('never carries the spelreels ruleset (the regression we are fixing)', () => {
     expect(prompt).not.toContain(SPELREELS_MARKER);
     expect(prompt).not.toContain(getSpelreelsContext());
+  });
+});
+
+describe('bounded Free prompts', () => {
+  test('simple phrase contains the selection and context but no rich schema or spelreels', () => {
+    const prompt = buildSimplePhrasePrompt('Afrikaans', 'die appel', SENTENCE);
+    expect(prompt).toContain('die appel');
+    expect(prompt).toContain(SENTENCE);
+    expect(prompt).not.toContain(SPELREELS_MARKER);
+    expect(prompt).not.toContain(getSpelreelsContext());
+    expect(prompt).not.toContain('literalBreakdown');
+    expect(prompt).not.toContain('idiomaticMeaning');
+    expect(prompt).not.toContain('usageNotes');
+    expect(prompt).not.toContain('etymology');
+    expect(prompt).toContain('ONLY');
+  });
+
+  test('simple context asks for one sense without rich dictionary fields', () => {
+    const prompt = buildSimpleContextPrompt('Afrikaans', WORD, SENTENCE);
+    expect(prompt).toContain(WORD);
+    expect(prompt).toContain(SENTENCE);
+    expect(prompt).not.toContain(SPELREELS_MARKER);
+    expect(prompt).not.toContain(getSpelreelsContext());
+    expect(prompt).not.toContain('relatedForms');
+    expect(prompt).not.toContain('etymology');
+    expect(prompt).not.toContain('partOfSpeech');
+    expect(prompt).toContain('ONLY');
   });
 });
 

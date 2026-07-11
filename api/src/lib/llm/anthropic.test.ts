@@ -57,8 +57,12 @@ describe('AnthropicProvider model selection', () => {
   test('defaults every task to claude-sonnet-4-6 when nothing is configured', () => {
     const p = new AnthropicProvider({ apiKey: 'test' });
     expect(p.modelForTask()).toBe('claude-sonnet-4-6');
-    expect(p.modelForTask('word-translation')).toBe('claude-sonnet-4-6');
-    expect(p.modelForTask('phrase-translation')).toBe('claude-sonnet-4-6');
+    expect(p.modelForTask('word-gloss')).toBe('claude-sonnet-4-6');
+    expect(p.modelForTask('word-enrichment')).toBe('claude-sonnet-4-6');
+    expect(p.modelForTask('context-simple')).toBe('claude-sonnet-4-6');
+    expect(p.modelForTask('context-rich')).toBe('claude-sonnet-4-6');
+    expect(p.modelForTask('phrase-simple')).toBe('claude-sonnet-4-6');
+    expect(p.modelForTask('phrase-rich')).toBe('claude-sonnet-4-6');
     expect(p.modelForTask('chat')).toBe('claude-sonnet-4-6');
   });
 
@@ -70,8 +74,12 @@ describe('AnthropicProvider model selection', () => {
       phraseModel: 'claude-opus-4-8',
       chatModel: 'claude-opus-4-8',
     });
-    expect(p.modelForTask('word-translation')).toBe('claude-haiku-4-5');
-    expect(p.modelForTask('phrase-translation')).toBe('claude-opus-4-8');
+    expect(p.modelForTask('word-gloss')).toBe('claude-haiku-4-5');
+    expect(p.modelForTask('word-enrichment')).toBe('claude-haiku-4-5');
+    expect(p.modelForTask('context-simple')).toBe('claude-haiku-4-5');
+    expect(p.modelForTask('context-rich')).toBe('claude-haiku-4-5');
+    expect(p.modelForTask('phrase-simple')).toBe('claude-opus-4-8');
+    expect(p.modelForTask('phrase-rich')).toBe('claude-opus-4-8');
     expect(p.modelForTask('chat')).toBe('claude-opus-4-8');
     expect(p.modelForTask()).toBe('claude-sonnet-4-6');
   });
@@ -80,15 +88,15 @@ describe('AnthropicProvider model selection', () => {
     process.env.ANTHROPIC_MODEL = 'claude-sonnet-4-6';
     process.env.ANTHROPIC_WORD_MODEL = 'claude-haiku-4-5';
     const p = new AnthropicProvider({ apiKey: 'test' });
-    expect(p.modelForTask('word-translation')).toBe('claude-haiku-4-5');
-    expect(p.modelForTask('phrase-translation')).toBe('claude-sonnet-4-6');
+    expect(p.modelForTask('word-gloss')).toBe('claude-haiku-4-5');
+    expect(p.modelForTask('phrase-rich')).toBe('claude-sonnet-4-6');
     expect(p.modelForTask('chat')).toBe('claude-sonnet-4-6');
   });
 
   test('explicit options beat env vars', () => {
     process.env.ANTHROPIC_WORD_MODEL = 'from-env';
     const p = new AnthropicProvider({ apiKey: 'test', wordModel: 'from-option' });
-    expect(p.modelForTask('word-translation')).toBe('from-option');
+    expect(p.modelForTask('word-gloss')).toBe('from-option');
   });
 
   test('an unknown task falls back to the general default', () => {

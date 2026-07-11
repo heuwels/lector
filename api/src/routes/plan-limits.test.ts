@@ -4,12 +4,14 @@ import { db } from '../db';
 import {
   currentPeriod,
   makeEntitlements,
+  NO_STORAGE_LIMITS,
   setEntitlementsEngineForTests,
   type EntitlementsDeps,
   type PlanLimits,
 } from '../lib/entitlements';
 import journal from './journal';
 import journalCorrect from './journal-correct';
+import llmStatus from './llm-status';
 import collections from './collections';
 import translate from './translate';
 
@@ -19,22 +21,27 @@ import translate from './translate';
 // Google call, so no network mocking is needed here.
 
 const STRICT: PlanLimits = {
+  ...NO_STORAGE_LIMITS,
   phraseSelectionWords: 3,
   journalWordsPerMonth: 10,
   maxCollections: 1,
   maxLessons: 1,
   llmRequestsPerMonth: 100,
   ttsCharsPerMonth: 100,
+  wordGlossesPerMonth: 100,
+  phraseTranslationsPerDay: 10,
+  contextTranslationsPerDay: 10,
 };
 
 function strictEngine(overrides: Partial<EntitlementsDeps> = {}) {
   return makeEntitlements({
     enforced: true,
+    freeTierEnabled: false,
     exemptEmails: new Set(),
     prices: [],
     // Every plan resolves to 'cloud' (no subscription rows in selfhost test
     // mode) — point both plans at the strict limits.
-    planLimits: { cloud: STRICT, plus: STRICT },
+    planLimits: { free: STRICT, cloud: STRICT, plus: STRICT },
     resolveEmail: () => null,
     isByok: () => false,
     compedPlan: () => null,
@@ -92,7 +99,9 @@ describe('journal words per month', () => {
     expect(body.metric).toBe('journalWordsPerMonth');
     expect(body.limit).toBe(10);
     // Nothing was saved or metered.
-    expect(db.prepare("SELECT COUNT(*) n FROM journal_entries WHERE userId='local'").get()).toEqual({ n: 0 });
+    expect(db.prepare("SELECT COUNT(*) n FROM journal_entries WHERE userId='local'").get()).toEqual(
+      { n: 0 },
+    );
   });
 
   test('edits meter only growth, and shrinking never refunds', async () => {
@@ -111,7 +120,9 @@ describe('journal words per month', () => {
     });
     expect(res.status).toBe(200);
     let counter = db
-      .prepare("SELECT value FROM usage_counters WHERE userId='local' AND metric='journalWordsPerMonth'")
+      .prepare(
+        "SELECT value FROM usage_counters WHERE userId='local' AND metric='journalWordsPerMonth'",
+      )
       .get() as { value: number };
     expect(counter.value).toBe(3);
 
@@ -123,7 +134,9 @@ describe('journal words per month', () => {
     });
     expect(res.status).toBe(200);
     counter = db
-      .prepare("SELECT value FROM usage_counters WHERE userId='local' AND metric='journalWordsPerMonth'")
+      .prepare(
+        "SELECT value FROM usage_counters WHERE userId='local' AND metric='journalWordsPerMonth'",
+      )
       .get() as { value: number };
     expect(counter.value).toBe(10);
 
@@ -213,6 +226,17 @@ describe('managed LLM requests (#222 review)', () => {
     const body = await planLimitBody(res);
     expect(body.metric).toBe('llmRequestsPerMonth');
     expect(body.upgrade).toBe('plus'); // cloud plan → upsell to Plus
+  });
+
+  test('/api/llm-status/test cannot bypass the managed LLM allowance', async () => {
+    db.prepare(
+      `INSERT INTO usage_counters (userId, metric, period, value, updatedAt)
+       VALUES ('local', 'llmRequestsPerMonth', ?, 100, ?)`,
+    ).run(currentPeriod(new Date('2026-07-15T12:00:00Z')), new Date().toISOString());
+
+    const res = await llmStatus.request('/test', { method: 'POST' });
+    const body = await planLimitBody(res);
+    expect(body.metric).toBe('llmRequestsPerMonth');
   });
 });
 

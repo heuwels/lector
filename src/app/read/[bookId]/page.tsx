@@ -21,7 +21,7 @@ import {
   incrementDailyStat,
   markVocabPushedToAnki,
 } from '@/lib/data-layer';
-import { showPlanLimitToast } from '@/lib/plan-limits';
+import { phraseSelectionLimitPayload, showPlanLimitToast } from '@/lib/plan-limits';
 import { addWordCard, addClozeCard } from '@/lib/anki';
 import { queueForAnki } from '@/lib/anki-queue';
 import { useAnkiTransport } from '@/lib/anki-transport';
@@ -234,17 +234,9 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       if (isPhrase) {
         const phraseWords = word.trim().split(/\s+/).filter(Boolean).length;
         const ent = await getEntitlements();
-        const cap = ent?.limits?.phraseSelectionWords;
-        if (ent && typeof cap === 'number' && phraseWords > cap) {
-          showPlanLimitToast({
-            error: 'plan_limit',
-            metric: 'phraseSelectionWords',
-            limit: cap,
-            used: 0,
-            requested: phraseWords,
-            plan: ent.plan,
-            upgrade: ent.plan === 'cloud' ? 'plus' : null,
-          });
+        const limitPayload = ent ? phraseSelectionLimitPayload(ent, phraseWords) : null;
+        if (limitPayload) {
+          showPlanLimitToast(limitPayload);
           return;
         }
       }

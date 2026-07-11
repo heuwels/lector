@@ -66,7 +66,7 @@ describe('POST /api/anki proxy allowlist (SECURITY-04)', () => {
   test('disallowed actions are refused without touching AnkiConnect', async () => {
     const realFetch = globalThis.fetch;
     let fetched = false;
-    globalThis.fetch = ((..._args: Parameters<typeof fetch>) => {
+    globalThis.fetch = (() => {
       fetched = true;
       throw new Error('must not be called');
     }) as unknown as typeof fetch;
@@ -347,15 +347,17 @@ describe('POST /api/anki/ack', () => {
     expect(pendingRows()).toEqual([]);
   });
 
-  test('ignores acks without a numeric note id or unknown entries', async () => {
+  test('rejects acks without a safe numeric note id and ignores unknown entries', async () => {
     seedVocab('v1', 'huis');
-    const res = await post('/ack', {
-      results: [
-        { lectorId: 'v1', cardType: 'basic' }, // no noteId
-        { lectorId: 'ghost', cardType: 'basic', noteId: 1 },
-      ],
+    const invalid = await post('/ack', {
+      results: [{ lectorId: 'v1', cardType: 'basic' }],
     });
-    expect(((await res.json()) as { acked: number }).acked).toBe(0);
+    expect(invalid.status).toBe(400);
+
+    const unknown = await post('/ack', {
+      results: [{ lectorId: 'ghost', cardType: 'basic', noteId: 1 }],
+    });
+    expect(((await unknown.json()) as { acked: number }).acked).toBe(0);
     expect(vocabRow('v1')!.pushedToAnki).toBe(0);
   });
 });
@@ -456,7 +458,6 @@ describe('POST /api/anki/reviews', () => {
       reviewsByDay: [
         ['2026-07-10', 31],
         ['2026-07-09', 8],
-        ['not-a-date', 5],
       ],
     });
     const body = (await res.json()) as { syncedDays: number };
@@ -471,6 +472,18 @@ describe('POST /api/anki/reviews', () => {
       ankiReviews: number;
     };
     expect(day).toEqual({ minutesRead: 12, ankiReviews: 31 });
+  });
+
+  test('rejects malformed review-day metadata instead of silently dropping it', async () => {
+    const res = await post('/reviews', {
+      reviewsByDay: [['not-a-date', 5]],
+    });
+    expect(res.status).toBe(400);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM dailyStats WHERE userId = 'local'").get()).toEqual(
+      {
+        n: 0,
+      },
+    );
   });
 
   test('rejects bodies with neither reviews nor reviewsByDay', async () => {

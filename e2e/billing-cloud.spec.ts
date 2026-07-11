@@ -17,7 +17,7 @@ import path from 'path';
  * (the 'starting checkout redirects…' test). The enforcement around it is ours.
  */
 
-const CLOUD_API = 'http://localhost:3469';
+const CLOUD_API = `http://localhost:${process.env.E2E_BILLING_API_PORT || '3469'}`;
 const WEBHOOK_SECRET = 'e2e-paddle-webhook-secret';
 const EMAILS = path.join(__dirname, '..', 'tmp', 'e2e-billing-data', 'emails.jsonl');
 
@@ -194,7 +194,10 @@ test.describe.serial('billing gate lifecycle', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           enforced: true,
-          active: false,
+          accessAllowed: false,
+          subscriptionActive: false,
+          freeTierEnabled: false,
+          suspended: false,
           exempt: false,
           status: 'none',
           checkout: { prices: [{ id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' }] },
