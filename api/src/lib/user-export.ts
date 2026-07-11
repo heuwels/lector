@@ -16,6 +16,9 @@ export interface UserExport {
   knownWords: unknown[];
   clozeSentences: unknown[];
   dailyStats: unknown[];
+  learnerProfiles: unknown[];
+  onboardingProgress: unknown[];
+  learnerEvents: unknown[];
   settings: SettingRow[];
 }
 
@@ -38,6 +41,13 @@ export function buildUserExport(userId: string): UserExport {
     knownWords: db.prepare('SELECT * FROM knownWords WHERE userId = ?').all(userId),
     clozeSentences: db.prepare('SELECT * FROM clozeSentences WHERE userId = ?').all(userId),
     dailyStats: db.prepare('SELECT * FROM dailyStats WHERE userId = ?').all(userId),
+    learnerProfiles: db.prepare('SELECT * FROM learner_profiles WHERE userId = ?').all(userId),
+    onboardingProgress: db
+      .prepare('SELECT * FROM onboarding_progress WHERE userId = ?')
+      .all(userId),
+    learnerEvents: db
+      .prepare('SELECT * FROM learner_events WHERE userId = ? ORDER BY occurredAt, rowid')
+      .all(userId),
     settings,
   };
 }

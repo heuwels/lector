@@ -34,9 +34,9 @@ function status(language: string) {
 
 function collectionCount(language: string): number {
   return (
-    db
-      .prepare('SELECT COUNT(*) AS n FROM collections WHERE language = ?')
-      .get(language) as { n: number }
+    db.prepare('SELECT COUNT(*) AS n FROM collections WHERE language = ?').get(language) as {
+      n: number;
+    }
   ).n;
 }
 
@@ -60,15 +60,22 @@ describe('starter route', () => {
   test('POST /seed copies the starter collection into the library', async () => {
     const res = await seed('es');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const seeded = (await res.json()) as {
+      seeded: boolean;
+      collectionId: string;
+      lessonCount: number;
+      recommendedLessonId: string;
+      recommendedLessonTitle: string;
+    };
+    expect(seeded).toMatchObject({
       seeded: true,
       collectionId: 'starter-es',
       lessonCount: 2,
+      recommendedLessonTitle: 'Hola',
     });
+    expect(seeded.recommendedLessonId).toBeTruthy();
 
-    const collection = db
-      .prepare('SELECT * FROM collections WHERE id = ?')
-      .get('starter-es') as {
+    const collection = db.prepare('SELECT * FROM collections WHERE id = ?').get('starter-es') as {
       title: string;
       author: string;
       language: string;
@@ -99,7 +106,13 @@ describe('starter route', () => {
       expect(lesson.userId).toBe('local');
     }
 
-    expect(await (await status('es')).json()).toEqual({ available: true, seeded: true });
+    expect(await (await status('es')).json()).toEqual({
+      available: true,
+      seeded: true,
+      collectionId: 'starter-es',
+      recommendedLessonId: seeded.recommendedLessonId,
+      recommendedLessonTitle: 'Hola',
+    });
   });
 
   test('POST /seed is once-only: repeats and deletes do not re-seed', async () => {
@@ -107,7 +120,12 @@ describe('starter route', () => {
     expect(collectionCount('es')).toBe(1);
 
     const repeat = await seed('es');
-    expect(await repeat.json()).toEqual({ seeded: false, reason: 'already-seeded' });
+    expect(await repeat.json()).toMatchObject({
+      seeded: false,
+      reason: 'already-seeded',
+      collectionId: 'starter-es',
+      recommendedLessonTitle: 'Hola',
+    });
     expect(collectionCount('es')).toBe(1);
 
     // Deleting the collection must NOT resurrect it on the next select — the
@@ -127,9 +145,7 @@ describe('starter route', () => {
 
     // The flag must NOT be set: if af ships content later, the user's next
     // selection should still receive it.
-    const flag = db
-      .prepare('SELECT 1 FROM settings WHERE key = ?')
-      .get('starterSeeded:af');
+    const flag = db.prepare('SELECT 1 FROM settings WHERE key = ?').get('starterSeeded:af');
     expect(flag).toBeNull();
   });
 

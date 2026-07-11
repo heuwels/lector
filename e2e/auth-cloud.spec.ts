@@ -159,6 +159,7 @@ test.describe.serial('cloud auth lifecycle', () => {
     // for it — complete onboarding once so SetupGuard lets /settings render.
     await page.goto('/setup');
     await page.getByTestId('setup-language-af').click();
+    await page.getByTestId('skip-guided-onboarding').click();
     await page.waitForURL((url) => url.pathname === '/');
 
     // Mint a token in the Settings UI (session-authenticated — reachable in
@@ -199,7 +200,9 @@ test.describe.serial('cloud auth lifecycle', () => {
 // the API has a provider configured. Render-only — the OAuth dance needs a
 // live IdP; the engine tests cover config down to the plugin boundary.
 test.describe('BYO OIDC login button', () => {
-  test('renders with the provider name when the flag is set, absent otherwise', async ({ page }) => {
+  test('renders with the provider name when the flag is set, absent otherwise', async ({
+    page,
+  }) => {
     await useCloudEnv(page, { OIDC_LOGIN: '1', OIDC_PROVIDER_NAME: 'Authentik' });
     await page.goto('/login');
     await expect(page.getByTestId('login-oidc')).toHaveText('Continue with Authentik');

@@ -298,6 +298,55 @@ function getDb(): Database {
       PRIMARY KEY (userId, metric, period)
     );
 
+    -- Guided onboarding + learner activity (#331). The profile is deliberately
+    -- small but durable: it is the first slice of the shared learner model
+    -- planned in #125. Progress is one non-restartable v1 journey per account;
+    -- events are append-only inputs shared by onboarding and future composers.
+    CREATE TABLE IF NOT EXISTS learner_profiles (
+      userId TEXT NOT NULL DEFAULT 'local',
+      language TEXT NOT NULL,
+      approximateLevel TEXT NOT NULL CHECK (approximateLevel IN ('new', 'beginner', 'intermediate', 'advanced', 'not_sure')),
+      interests TEXT NOT NULL DEFAULT '[]',
+      dailyMinutes INTEGER NOT NULL CHECK (dailyMinutes BETWEEN 5 AND 120),
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, language)
+    );
+
+    CREATE TABLE IF NOT EXISTS onboarding_progress (
+      userId TEXT PRIMARY KEY,
+      version INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed', 'skipped')),
+      currentStep TEXT NOT NULL CHECK (currentStep IN ('reader', 'practice', 'summary')),
+      language TEXT NOT NULL,
+      starterCollectionId TEXT,
+      recommendedLessonId TEXT,
+      recommendedLessonTitle TEXT,
+      nextLessonId TEXT,
+      nextLessonTitle TEXT,
+      startedAt TEXT NOT NULL,
+      completedAt TEXT,
+      updatedAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS learner_events (
+      userId TEXT NOT NULL DEFAULT 'local',
+      id TEXT NOT NULL,
+      eventType TEXT NOT NULL,
+      language TEXT NOT NULL,
+      lessonId TEXT,
+      vocabId TEXT,
+      properties TEXT NOT NULL DEFAULT '{}',
+      idempotencyKey TEXT,
+      occurredAt TEXT NOT NULL,
+      PRIMARY KEY (userId, id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_learner_events_user_occurred
+      ON learner_events(userId, occurredAt);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_learner_events_user_idempotency
+      ON learner_events(userId, idempotencyKey)
+      WHERE idempotencyKey IS NOT NULL;
+
     -- Anki export queue (#241): cards the app wants created in Anki, pulled by
     -- the Lector addon (GET /api/anki/pending) and confirmed back (POST
     -- /api/anki/ack), which flips vocab.pushedToAnki. Rows reference vocab by
@@ -341,7 +390,9 @@ function getDb(): Database {
 
   // anki_pending predating the stale-ack guard (#241 review): add the version
   // counter the ack round-trip now keys on.
-  const ankiPendingCols = _db.prepare('PRAGMA table_info(anki_pending)').all() as { name: string }[];
+  const ankiPendingCols = _db.prepare('PRAGMA table_info(anki_pending)').all() as {
+    name: string;
+  }[];
   if (ankiPendingCols.length > 0 && !ankiPendingCols.some((c) => c.name === 'version')) {
     _db.exec('ALTER TABLE anki_pending ADD COLUMN version INTEGER NOT NULL DEFAULT 1');
   }
@@ -1470,4 +1521,46 @@ export interface ChatMessageRow {
   responseId: string | null;
   createdAt: string;
   language: LanguageCode;
+}
+
+export type ApproximateLevel = 'new' | 'beginner' | 'intermediate' | 'advanced' | 'not_sure';
+export type OnboardingStatus = 'in_progress' | 'completed' | 'skipped';
+export type OnboardingStep = 'reader' | 'practice' | 'summary';
+
+export interface LearnerProfileRow {
+  userId: string;
+  language: LanguageCode;
+  approximateLevel: ApproximateLevel;
+  interests: string;
+  dailyMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OnboardingProgressRow {
+  userId: string;
+  version: number;
+  status: OnboardingStatus;
+  currentStep: OnboardingStep;
+  language: LanguageCode;
+  starterCollectionId: string | null;
+  recommendedLessonId: string | null;
+  recommendedLessonTitle: string | null;
+  nextLessonId: string | null;
+  nextLessonTitle: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  updatedAt: string;
+}
+
+export interface LearnerEventRow {
+  userId: string;
+  id: string;
+  eventType: string;
+  language: LanguageCode;
+  lessonId: string | null;
+  vocabId: string | null;
+  properties: string;
+  idempotencyKey: string | null;
+  occurredAt: string;
 }

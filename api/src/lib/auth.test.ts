@@ -14,10 +14,20 @@ function createTestToken(
 ): string {
   const token = `ltr_${randomBytes(32).toString('base64url')}`;
   const id = randomUUID();
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO api_tokens (id, name, tokenHash, scopes, createdAt, expiresAt, userId)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, 'test-token', hashToken(token), JSON.stringify(scopes), new Date().toISOString(), expiresAt || null, userId);
+  `,
+  ).run(
+    id,
+    'test-token',
+    hashToken(token),
+    JSON.stringify(scopes),
+    new Date().toISOString(),
+    expiresAt || null,
+    userId,
+  );
   return token;
 }
 
@@ -31,6 +41,8 @@ function buildApp(): Hono {
   app.get('/api/collections', (c) => c.json({ ok: true }));
   app.post('/api/collections', (c) => c.json({ ok: true }));
   app.get('/api/stats', (c) => c.json({ ok: true }));
+  app.get('/api/onboarding', (c) => c.json({ ok: true }));
+  app.post('/api/learner-events', (c) => c.json({ ok: true }));
   app.get('/api/tokens', (c) => c.json({ ok: true }));
   app.post('/api/tokens', (c) => c.json({ ok: true }));
   app.post('/api/chat', (c) => c.json({ ok: true }));
@@ -61,7 +73,7 @@ describe('Auth middleware', () => {
       headers: { Authorization: 'Bearer ltr_invalid_token' },
     });
     expect(res.status).toBe(401);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBe('Invalid token');
   });
 
@@ -127,13 +139,42 @@ describe('Auth middleware', () => {
     expect(res2.status).toBe(200);
   });
 
+  test('onboarding and learner events share the existing stats scopes', async () => {
+    const readToken = createTestToken(['stats:read']);
+    expect(
+      (
+        await app.request('/api/onboarding', {
+          headers: { Authorization: `Bearer ${readToken}` },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request('/api/learner-events', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${readToken}` },
+        })
+      ).status,
+    ).toBe(403);
+
+    const writeToken = createTestToken(['stats:write']);
+    expect(
+      (
+        await app.request('/api/learner-events', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${writeToken}` },
+        })
+      ).status,
+    ).toBe(200);
+  });
+
   test('returns 403 for insufficient scope', async () => {
     const token = createTestToken(['stats:read']);
     const res = await app.request('/api/collections', {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(403);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain('Insufficient scope');
   });
 
@@ -156,7 +197,7 @@ describe('Auth middleware', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(401);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toBe('Token has expired');
   });
 
@@ -166,7 +207,7 @@ describe('Auth middleware', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(403);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toContain('not token auth');
   });
 
@@ -214,7 +255,9 @@ describe('Auth middleware', () => {
     await app.request('/api/collections', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const row = db.prepare('SELECT lastUsedAt FROM api_tokens WHERE name = ?').get('test-token') as { lastUsedAt: string | null };
+    const row = db
+      .prepare('SELECT lastUsedAt FROM api_tokens WHERE name = ?')
+      .get('test-token') as { lastUsedAt: string | null };
     expect(row.lastUsedAt).not.toBeNull();
   });
 

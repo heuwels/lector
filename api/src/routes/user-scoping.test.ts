@@ -18,6 +18,7 @@ const { default: dataApp } = await import('../routes/data');
 const { default: importApp } = await import('../routes/import');
 const { default: tokensApp } = await import('../routes/tokens');
 const { default: starterApp } = await import('../routes/starter');
+const { default: onboardingApp } = await import('../routes/onboarding');
 
 // The userId-scoping ratchet (#217, plan 010 piece 2) — the multi-tenant twin
 // of language-scoping.test.ts. Rows are seeded for a different user directly
@@ -41,6 +42,9 @@ const USER_TABLES = [
   'collection_groups',
   'api_tokens',
   'settings',
+  'learner_profiles',
+  'onboarding_progress',
+  'learner_events',
 ];
 
 function reset() {
@@ -56,6 +60,9 @@ function reset() {
   db.prepare("DELETE FROM settings WHERE key LIKE 'ratchet_%'").run();
   db.prepare("DELETE FROM settings WHERE key LIKE 'starterSeeded:%'").run();
   db.prepare('DELETE FROM api_tokens WHERE userId = ?').run(INTRUDER);
+  db.prepare('DELETE FROM learner_events').run();
+  db.prepare('DELETE FROM onboarding_progress').run();
+  db.prepare('DELETE FROM learner_profiles').run();
 }
 
 function seedIntruderCollection(id: string) {
@@ -122,12 +129,16 @@ describe('userId scoping ratchet', () => {
 
     const del = await vocabApp.request('/v_intruder', { method: 'DELETE' });
     expect(del.status).toBe(404);
-    const survives = db.prepare('SELECT COUNT(*) AS n FROM vocab WHERE id = ?').get('v_intruder') as { n: number };
+    const survives = db
+      .prepare('SELECT COUNT(*) AS n FROM vocab WHERE id = ?')
+      .get('v_intruder') as { n: number };
     expect(survives.n).toBe(1);
   });
 
   test("known-words map excludes another user's words", async () => {
-    db.prepare("INSERT INTO knownWords (userId, word, language, state) VALUES (?, 'geheim', 'af', 'known')").run(INTRUDER);
+    db.prepare(
+      "INSERT INTO knownWords (userId, word, language, state) VALUES (?, 'geheim', 'af', 'known')",
+    ).run(INTRUDER);
     const res = await knownWordsApp.request('/?language=af');
     const map = (await res.json()) as Record<string, string>;
     expect(map.geheim).toBeUndefined();
@@ -154,12 +165,16 @@ describe('userId scoping ratchet', () => {
     expect(review.status).toBe(404);
 
     await clozeApp.request('/c_intruder?language=af', { method: 'DELETE' });
-    const survives = db.prepare('SELECT COUNT(*) AS n FROM clozeSentences WHERE id = ?').get('c_intruder') as { n: number };
+    const survives = db
+      .prepare('SELECT COUNT(*) AS n FROM clozeSentences WHERE id = ?')
+      .get('c_intruder') as { n: number };
     expect(survives.n).toBe(1);
   });
 
-  test("settings are per-user — reads exclude, writes land on the requester", async () => {
-    db.prepare("INSERT INTO settings (userId, key, value) VALUES (?, 'ratchet_secret', '\"x\"')").run(INTRUDER);
+  test('settings are per-user — reads exclude, writes land on the requester', async () => {
+    db.prepare(
+      "INSERT INTO settings (userId, key, value) VALUES (?, 'ratchet_secret', '\"x\"')",
+    ).run(INTRUDER);
 
     const list = await settingsApp.request('/');
     const settings = (await list.json()) as Record<string, unknown>;
@@ -173,9 +188,9 @@ describe('userId scoping ratchet', () => {
       body: JSON.stringify({ timezone: 'Australia/Sydney' }),
     });
     expect(put.status).toBe(200);
-    const row = db
-      .prepare("SELECT userId FROM settings WHERE key = 'timezone'")
-      .get() as { userId: string };
+    const row = db.prepare("SELECT userId FROM settings WHERE key = 'timezone'").get() as {
+      userId: string;
+    };
     expect(row.userId).toBe('local');
     db.prepare("DELETE FROM settings WHERE key = 'timezone'").run();
   });
@@ -200,7 +215,9 @@ describe('userId scoping ratchet', () => {
 
     const del = await tokensApp.request('/t_intruder', { method: 'DELETE' });
     expect(del.status).toBe(404);
-    const survives = db.prepare("SELECT COUNT(*) AS n FROM api_tokens WHERE id = 't_intruder'").get() as { n: number };
+    const survives = db
+      .prepare("SELECT COUNT(*) AS n FROM api_tokens WHERE id = 't_intruder'")
+      .get() as { n: number };
     expect(survives.n).toBe(1);
   });
 });
@@ -241,10 +258,11 @@ describe('per-user library ratchet (#220)', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ language: 'es' }),
       });
-      expect(await res.json()).toEqual({
+      expect(await res.json()).toMatchObject({
         seeded: true,
         collectionId: 'starter-es',
         lessonCount: 2,
+        recommendedLessonTitle: 'Hola',
       });
 
       const owners = db
@@ -314,7 +332,9 @@ describe('per-user library ratchet (#220)', () => {
     expect(progress.status).toBe(404);
 
     await lessonsApp.request('/les_intruder?language=af', { method: 'DELETE' });
-    const survives = db.prepare('SELECT COUNT(*) AS n FROM lessons WHERE id = ?').get('les_intruder') as { n: number };
+    const survives = db
+      .prepare('SELECT COUNT(*) AS n FROM lessons WHERE id = ?')
+      .get('les_intruder') as { n: number };
     expect(survives.n).toBe(1);
   });
 
@@ -337,8 +357,12 @@ describe('per-user library ratchet (#220)', () => {
     });
     expect(put.status).toBe(404);
 
-    expect((await journalApp.request('/j_intruder?language=af', { method: 'DELETE' })).status).toBe(404);
-    const survives = db.prepare("SELECT body FROM journal_entries WHERE id = 'j_intruder'").get() as { body: string };
+    expect((await journalApp.request('/j_intruder?language=af', { method: 'DELETE' })).status).toBe(
+      404,
+    );
+    const survives = db
+      .prepare("SELECT body FROM journal_entries WHERE id = 'j_intruder'")
+      .get() as { body: string };
     expect(survives.body).toBe('geheime dagboek');
   });
 
@@ -349,14 +373,14 @@ describe('per-user library ratchet (#220)', () => {
     ).run(INTRUDER);
 
     const list = await statsApp.request('/?language=af');
-    expect(((await list.json()) as unknown[])).toHaveLength(0);
+    expect((await list.json()) as unknown[]).toHaveLength(0);
 
     const streak = await statsApp.request('/streak');
     const s = (await streak.json()) as { streak: number; longest: number };
     expect(s.longest).toBe(0); // the intruder's active day is not my streak
 
     const activity = await statsApp.request('/activity');
-    expect(((await activity.json()) as unknown[])).toHaveLength(0);
+    expect((await activity.json()) as unknown[]).toHaveLength(0);
   });
 
   test("chat history excludes another user's messages, and clearing chat leaves theirs", async () => {
@@ -373,7 +397,9 @@ describe('per-user library ratchet (#220)', () => {
     expect(rows.find((r) => r.id === 'm_intruder')).toBeUndefined();
 
     await chatApp.request('/?language=af', { method: 'DELETE' });
-    const survives = db.prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE id = 'm_intruder'").get() as { n: number };
+    const survives = db
+      .prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE id = 'm_intruder'")
+      .get() as { n: number };
     expect(survives.n).toBe(1);
   });
 
@@ -393,7 +419,9 @@ describe('per-user library ratchet (#220)', () => {
     });
     await groupsApp.request('/g_intruder', { method: 'DELETE' });
 
-    const row = db.prepare("SELECT name FROM collection_groups WHERE id = 'g_intruder'").get() as { name: string };
+    const row = db.prepare("SELECT name FROM collection_groups WHERE id = 'g_intruder'").get() as {
+      name: string;
+    };
     expect(row.name).toBe('Geheime Groep');
   });
 
@@ -404,7 +432,24 @@ describe('per-user library ratchet (#220)', () => {
     db.prepare(
       "INSERT INTO dailyStats (userId, date, language, dictionaryLookups) VALUES (?, '2026-01-01', 'af', 9)",
     ).run(INTRUDER);
-    db.prepare("INSERT INTO settings (userId, key, value) VALUES (?, 'ratchet_secret', '\"x\"')").run(INTRUDER);
+    db.prepare(
+      "INSERT INTO settings (userId, key, value) VALUES (?, 'ratchet_secret', '\"x\"')",
+    ).run(INTRUDER);
+    db.prepare(
+      `INSERT INTO learner_profiles
+         (userId, language, approximateLevel, interests, dailyMinutes, createdAt, updatedAt)
+       VALUES (?, 'af', 'beginner', '[]', 10, ?, ?)`,
+    ).run(INTRUDER, TS, TS);
+    db.prepare(
+      `INSERT INTO onboarding_progress
+         (userId, status, currentStep, language, startedAt, updatedAt)
+       VALUES (?, 'in_progress', 'reader', 'af', ?, ?)`,
+    ).run(INTRUDER, TS, TS);
+    db.prepare(
+      `INSERT INTO learner_events
+         (userId, id, eventType, language, properties, occurredAt)
+       VALUES (?, 'intruder-event', 'onboarding.started', 'af', '{}', ?)`,
+    ).run(INTRUDER, TS);
 
     const res = await dataApp.request('/');
     const backup = (await res.json()) as Record<string, { id?: string; key?: string }[]>;
@@ -413,7 +458,13 @@ describe('per-user library ratchet (#220)', () => {
     expect(backup.lessons).toHaveLength(0);
     expect(backup.vocab).toHaveLength(0);
     expect(backup.dailyStats).toHaveLength(0);
+    expect(backup.learnerProfiles).toHaveLength(0);
+    expect(backup.onboardingProgress).toHaveLength(0);
+    expect(backup.learnerEvents).toHaveLength(0);
     expect(backup.settings.find((s) => s.key === 'ratchet_secret')).toBeUndefined();
+
+    const snapshot = await onboardingApp.request('/');
+    expect(await snapshot.json()).toEqual({ progress: null, profile: null, events: [] });
   });
 
   test('restoring a backup stamps every row with the requester, never a userId from the payload', async () => {
@@ -422,13 +473,21 @@ describe('per-user library ratchet (#220)', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         collections: [
-          { id: 'col_restored', title: 'Myne Nou', createdAt: TS, lastReadAt: TS, userId: INTRUDER },
+          {
+            id: 'col_restored',
+            title: 'Myne Nou',
+            createdAt: TS,
+            lastReadAt: TS,
+            userId: INTRUDER,
+          },
         ],
       }),
     });
     expect(res.status).toBe(200);
 
-    const row = db.prepare("SELECT userId FROM collections WHERE id = 'col_restored'").get() as { userId: string };
+    const row = db.prepare("SELECT userId FROM collections WHERE id = 'col_restored'").get() as {
+      userId: string;
+    };
     expect(row.userId).toBe('local');
   });
 
@@ -446,12 +505,19 @@ describe('per-user library ratchet (#220)', () => {
     'collection_groups',
     'chat_messages',
     'journal_entries',
+    'learner_events',
   ];
 
   test('every synthetic-id tenant table keys on (userId, id) — schema ratchet (#279)', () => {
     for (const table of COMPOSITE_PK_TABLES) {
-      const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string; pk: number }[];
-      const pk = cols.filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name);
+      const cols = db.prepare(`PRAGMA table_info(${table})`).all() as {
+        name: string;
+        pk: number;
+      }[];
+      const pk = cols
+        .filter((c) => c.pk > 0)
+        .sort((a, b) => a.pk - b.pk)
+        .map((c) => c.name);
       expect(pk, `${table} must key on (userId, id)`).toEqual(['userId', 'id']);
     }
   });
@@ -475,12 +541,16 @@ describe('per-user library ratchet (#220)', () => {
        VALUES ('v_local_first', 'indringer', 'word', 'sin', 'intruder copy', 'new', ?, ?, 'af', ?)`,
     ).run(TS, TS, INTRUDER);
 
-    const shared = db.prepare("SELECT userId, text FROM vocab WHERE id = 'v_shared' ORDER BY userId").all() as { userId: string; text: string }[];
+    const shared = db
+      .prepare("SELECT userId, text FROM vocab WHERE id = 'v_shared' ORDER BY userId")
+      .all() as { userId: string; text: string }[];
     expect(shared).toEqual([
       { userId: INTRUDER, text: 'geheim' },
       { userId: 'local', text: 'myne' },
     ]);
-    const localFirst = db.prepare("SELECT userId, text FROM vocab WHERE id = 'v_local_first' ORDER BY userId").all() as { userId: string; text: string }[];
+    const localFirst = db
+      .prepare("SELECT userId, text FROM vocab WHERE id = 'v_local_first' ORDER BY userId")
+      .all() as { userId: string; text: string }[];
     expect(localFirst).toEqual([
       { userId: INTRUDER, text: 'indringer' },
       { userId: 'local', text: 'oorspronklik' },
@@ -515,7 +585,14 @@ describe('per-user library ratchet (#220)', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify([
-        { id: 'c_intruder', sentence: 'Gekaapte ___.', clozeWord: 'sin', clozeIndex: 0, translation: 'x', language: 'af' },
+        {
+          id: 'c_intruder',
+          sentence: 'Gekaapte ___.',
+          clozeWord: 'sin',
+          clozeIndex: 0,
+          translation: 'x',
+          language: 'af',
+        },
       ]),
     });
     expect(res.status).toBe(200);
@@ -566,7 +643,7 @@ describe('per-user library ratchet (#220)', () => {
     expect(myVoc.text).toBe('gekaap');
   });
 
-  test("mined cloze seeding works for a tenant even when another tenant already holds the bank ids (#220)", async () => {
+  test('mined cloze seeding works for a tenant even when another tenant already holds the bank ids (#220)', async () => {
     const bank = (await import('../lib/sentence-bank-af.json')).default as {
       id: number | string;
       source?: string;
@@ -589,7 +666,9 @@ describe('per-user library ratchet (#220)', () => {
     expect(seeded.mined).toBeGreaterThan(0);
 
     const mine = db
-      .prepare("SELECT COUNT(*) AS n FROM clozeSentences WHERE userId = 'local' AND source = 'mined' AND language = 'af'")
+      .prepare(
+        "SELECT COUNT(*) AS n FROM clozeSentences WHERE userId = 'local' AND source = 'mined' AND language = 'af'",
+      )
       .get() as { n: number };
     expect(mine.n).toBe(seeded.mined);
 
@@ -614,8 +693,12 @@ describe('per-user library ratchet (#220)', () => {
        VALUES (?, 'Ou saad-ry.', 'saad', 0, 'x', 'mined', 'mined', ?, 'af', 'local')`,
     ).run(String(legacy!.id), TS);
 
-    const first = (await (await clozeApp.request('/seed?language=af', { method: 'POST' })).json()) as { mined: number };
-    const second = (await (await clozeApp.request('/seed?language=af', { method: 'POST' })).json()) as { mined: number };
+    const first = (await (
+      await clozeApp.request('/seed?language=af', { method: 'POST' })
+    ).json()) as { mined: number };
+    const second = (await (
+      await clozeApp.request('/seed?language=af', { method: 'POST' })
+    ).json()) as { mined: number };
 
     // The legacy row is recognized as already seeded (not duplicated), and a
     // repeat seed inserts nothing new.
@@ -653,14 +736,19 @@ describe('per-user library ratchet (#220)', () => {
     );
 
     const form = new FormData();
-    form.append('file', new File([new Uint8Array(zip.toBuffer())], 'ratchet.epub', { type: 'application/epub+zip' }));
+    form.append(
+      'file',
+      new File([new Uint8Array(zip.toBuffer())], 'ratchet.epub', { type: 'application/epub+zip' }),
+    );
     form.append('language', 'af');
 
     const res = await importApp.request('/epub', { method: 'POST', body: form });
     expect(res.status).toBe(200);
     const { collectionId } = (await res.json()) as { collectionId: string };
 
-    const col = db.prepare('SELECT userId FROM collections WHERE id = ?').get(collectionId) as { userId: string };
+    const col = db.prepare('SELECT userId FROM collections WHERE id = ?').get(collectionId) as {
+      userId: string;
+    };
     expect(col.userId).toBe('local');
 
     const lessons = db

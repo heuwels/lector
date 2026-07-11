@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { apiUrl } from './api';
+import { mockSetupSkipPersistence } from './onboarding-helpers';
 
 // The REAL Spanish starter series (#317), exercised against the production
 // Docker image — the inverse of starter-content.spec.ts's fixture tests. Dev
@@ -34,7 +35,9 @@ test.describe('shipped Spanish starter series (#317, production image only)', ()
 
     await page.goto('/');
     await expect(page).toHaveURL(/\/setup/, { timeout: 15000 });
+    await mockSetupSkipPersistence(page);
     await page.getByTestId('setup-language-es').click();
+    await page.getByTestId('skip-guided-onboarding').click();
     await expect(page).toHaveURL('/', { timeout: 15000 });
 
     // The full series lands on the first paint.
@@ -48,7 +51,11 @@ test.describe('shipped Spanish starter series (#317, production image only)', ()
     expect(starter?.lessonCount).toBe(20);
 
     // Open lesson 1 and read.
-    await page.locator('h3', { hasText: 'Tus primeras 1000 palabras' }).first().click();
+    await page
+      .getByRole('link', { name: /Tus primeras 1000 palabras/ })
+      .first()
+      .click();
+    await expect(page).toHaveURL('/collection/starter-es');
     await expect(page.getByText('Yo soy Ana').first()).toBeVisible();
     await page.getByText('Yo soy Ana', { exact: true }).first().click();
     await expect(page.getByText('Mi nombre es Ana').first()).toBeVisible({ timeout: 15000 });
