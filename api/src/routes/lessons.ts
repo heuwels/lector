@@ -120,11 +120,20 @@ app.delete('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
   const lang = resolveLanguage(c.req.query('language'), userId);
-  db.prepare('DELETE FROM lessons WHERE id = ? AND userId = ? AND language = ?').run(
-    id,
-    userId,
-    lang,
-  );
+  db.transaction(() => {
+    const owned = db
+      .prepare('SELECT 1 FROM lessons WHERE id = ? AND userId = ? AND language = ?')
+      .get(id, userId, lang);
+    if (!owned) return;
+
+    // Vocabulary is portable after its source lesson is removed.
+    db.prepare('UPDATE vocab SET bookId = NULL WHERE bookId = ? AND userId = ?').run(id, userId);
+    db.prepare('DELETE FROM lessons WHERE id = ? AND userId = ? AND language = ?').run(
+      id,
+      userId,
+      lang,
+    );
+  })();
   return c.json({ success: true });
 });
 

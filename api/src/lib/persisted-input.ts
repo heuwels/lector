@@ -120,11 +120,12 @@ export function validateWordKey(value: unknown, field = 'word'): string | null {
   return null;
 }
 
-export type OwnedReferenceTable = 'collection_groups' | 'collections' | 'vocab';
+export type OwnedReferenceTable = 'collection_groups' | 'collections' | 'lessons' | 'vocab';
 
 const REFERENCE_LABELS: Record<OwnedReferenceTable, string> = {
   collection_groups: 'group',
   collections: 'collection',
+  lessons: 'lesson',
   vocab: 'vocab entry',
 };
 

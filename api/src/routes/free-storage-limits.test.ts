@@ -570,8 +570,9 @@ describe('Free fair-use storage boundaries', () => {
     db.prepare(
       `INSERT INTO lessons
         (userId, id, collectionId, title, textContent, language, createdAt, lastReadAt)
-       VALUES ('local', 'l-own', 'c-own', 'Lesson', '', 'af', ?, ?)`,
-    ).run(timestamp, timestamp);
+       VALUES ('validation-intruder', 'l-other', 'c-other', 'Other lesson', '', 'af', ?, ?),
+              ('local', 'l-own', 'c-own', 'Lesson', '', 'af', ?, ?)`,
+    ).run(timestamp, timestamp, timestamp, timestamp);
 
     expect((await collections.request('/', json({ title: 'No', groupId: 'g-other' }))).status).toBe(
       400,
@@ -588,7 +589,7 @@ describe('Free fair-use storage boundaries', () => {
         })
       ).status,
     ).toBe(400);
-    expect((await vocab.request('/', json({ text: 'nee', bookId: 'c-other' }))).status).toBe(400);
+    expect((await vocab.request('/', json({ text: 'nee', bookId: 'l-other' }))).status).toBe(400);
     expect(
       (
         await cloze.request(
@@ -611,7 +612,7 @@ describe('Free fair-use storage boundaries', () => {
       (await collections.request('/c-own/lessons', json({ title: 'Yes', textContent: '' }))).status,
     ).toBe(200);
     expect(
-      (await vocab.request('/', json({ id: 'v-own', text: 'huis', bookId: 'c-own' }))).status,
+      (await vocab.request('/', json({ id: 'v-own', text: 'huis', bookId: 'l-own' }))).status,
     ).toBe(200);
     expect(
       (

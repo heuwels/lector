@@ -99,7 +99,10 @@ app.post('/', async (c) => {
     const idError = validatePersistedId(body.id);
     if (idError) return c.json({ error: idError }, 400);
   }
-  const bookIdError = validateOwnedReference('collections', body.bookId, userId, 'bookId');
+  // `bookId` is the legacy column name for the lesson where the word was
+  // encountered (see VocabEntry). Validate the real target, otherwise every
+  // reader save is rejected because the route param is a lesson id.
+  const bookIdError = validateOwnedReference('lessons', body.bookId, userId, 'bookId');
   if (bookIdError) return c.json({ error: bookIdError }, 400);
   const languageError = validateOptionalLanguage(body.language);
   if (languageError) return c.json({ error: languageError }, 400);

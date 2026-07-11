@@ -238,9 +238,22 @@ app.delete('/:id', (c) => {
       .get(id, userId, lang);
     if (!owned) return;
 
-    // Vocabulary survives collection deletion. Clear its optional source
-    // pointer before removing the parent so a takeout can always round-trip.
-    db.prepare('UPDATE vocab SET bookId = NULL WHERE bookId = ? AND userId = ?').run(id, userId);
+    // Vocabulary survives collection deletion. `bookId` is the legacy name
+    // for its source lesson id, so clear pointers to every lesson being
+    // removed. Also clear the collection id itself for pre-lessons backups
+    // that can still carry the older relation.
+    db.prepare(
+      `UPDATE vocab
+       SET bookId = NULL
+       WHERE userId = ?
+         AND (
+           bookId = ?
+           OR bookId IN (
+             SELECT id FROM lessons
+             WHERE collectionId = ? AND userId = ? AND language = ?
+           )
+         )`,
+    ).run(userId, id, id, userId, lang);
     db.prepare('DELETE FROM lessons WHERE collectionId = ? AND userId = ? AND language = ?').run(
       id,
       userId,
