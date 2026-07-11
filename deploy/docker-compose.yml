@@ -42,6 +42,12 @@ services:
       - OPENAI_COMPAT_MODEL=${OPENAI_COMPAT_MODEL:-llama3.1:8b}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - CLAUDE_OAUTH_TOKEN=${CLAUDE_OAUTH_TOKEN:-}
+      # Background word→domain classifier that feeds the fluency radar. The
+      # code gate defaults OFF (so tests never fire LLM calls), so deployments
+      # must opt in — without this the radar reads "pending classification"
+      # forever. Runs on the provider above; set 0 to disable, or point
+      # CLASSIFY_LLM_URL at a dedicated OpenAI-compatible endpoint.
+      - CLASSIFY_WORKER=${CLASSIFY_WORKER:-1}
       # Error tracking + tracing (optional). One DSN covers the API and, via
       # /__env.js, the browser. Point it at Sentry.io, self-hosted Sentry, or
       # GlitchTip. Unset → Sentry stays off.
