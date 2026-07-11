@@ -71,20 +71,22 @@ describe('OpenAICompatibleProvider', () => {
       expect(result).toBe('hello back');
     });
 
-    test('never sends response_format in text mode', async () => {
+    test('keeps JSON mode and reasoning off for GPT-5 text completions', async () => {
       globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
         const body = JSON.parse(init?.body as string);
         expect(body.response_format).toBeUndefined();
+        expect(body.reasoning).toBeUndefined();
+        expect(body.max_completion_tokens).toBe(10);
+        expect(body.max_tokens).toBeUndefined();
         return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 });
       }) as unknown as typeof fetch;
 
-      const provider = new OpenAICompatibleProvider({ model: 'm' });
+      const provider = new OpenAICompatibleProvider({ model: 'openai/gpt-5', profile: 'openrouter-gpt5' });
       await provider.complete({ messages: [{ role: 'user', content: 'Hi' }], maxTokens: 10 });
     });
 
-    // JSON is prompt-driven, not enforced via response_format: no value works
-    // across all backends (LM Studio 400s on json_object; Ollama ignores
-    // json_schema), so we never send it and read the text back with parseLooseJson.
+    // Generic JSON remains prompt-driven: LM Studio rejects json_object and
+    // Ollama ignores json_schema, so only verified profiles opt into JSON mode.
     test('does NOT send response_format even when responseFormat is "json"', async () => {
       globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
         const body = JSON.parse(init?.body as string);
@@ -99,6 +101,116 @@ describe('OpenAICompatibleProvider', () => {
         responseFormat: 'json',
       });
       expect(result).toBe('{"ok":true}');
+    });
+
+    test('keeps default reasoning for non-phrase GPT-5 JSON tasks', async () => {
+      globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+        const body = JSON.parse(init?.body as string);
+        expect(body.response_format).toEqual({ type: 'json_object' });
+        expect(body.reasoning).toBeUndefined();
+        return new Response(
+          JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{"ok":true}' } }] }),
+          { status: 200 },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({ model: 'openai/gpt-5', profile: 'openrouter-gpt5' });
+      await provider.complete({
+        messages: [{ role: 'user', content: 'Hi' }],
+        maxTokens: 10,
+        responseFormat: 'json',
+        task: 'word-translation',
+      });
+    });
+
+    test('uses GPT-5 structured-output fields for OpenRouter JSON', async () => {
+      globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+        const body = JSON.parse(init?.body as string);
+        expect(body.response_format).toEqual({ type: 'json_object' });
+        expect(body.reasoning).toEqual({ effort: 'minimal' });
+        expect(body.max_completion_tokens).toBe(10);
+        expect(body.max_tokens).toBeUndefined();
+        return new Response(
+          JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{"ok":true}' } }] }),
+          { status: 200 },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({ model: 'openai/gpt-5', profile: 'openrouter-gpt5' });
+      const result = await provider.complete({
+        messages: [{ role: 'user', content: 'Hi' }],
+        maxTokens: 10,
+        responseFormat: 'json',
+        task: 'phrase-translation',
+      });
+      expect(result).toBe('{"ok":true}');
+    });
+
+    test('retries a length-limited GPT-5 JSON completion with double the token budget', async () => {
+      const budgets: number[] = [];
+      globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+        const body = JSON.parse(init?.body as string);
+        budgets.push(body.max_completion_tokens);
+        expect(body.response_format).toEqual({ type: 'json_object' });
+        expect(body.reasoning).toEqual({ effort: 'minimal' });
+        const retry = budgets.length === 2;
+        return new Response(
+          JSON.stringify({
+            choices: [{
+              finish_reason: retry ? 'stop' : 'length',
+              message: { content: retry ? '{"ok":true}' : '{"ok":' },
+            }],
+          }),
+          { status: 200 },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({ model: 'openai/gpt-5', profile: 'openrouter-gpt5' });
+      const result = await provider.complete({
+        messages: [{ role: 'user', content: 'Hi' }],
+        maxTokens: 10,
+        responseFormat: 'json',
+        task: 'phrase-translation',
+      });
+
+      expect(result).toBe('{"ok":true}');
+      expect(budgets).toEqual([10, 20]);
+    });
+
+    test('throws a specific error when the GPT-5 JSON retry is also length-limited', async () => {
+      globalThis.fetch = mock(async () => new Response(
+        JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: '{"ok":' } }] }),
+        { status: 200 },
+      )) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({ model: 'openai/gpt-5', profile: 'openrouter-gpt5' });
+      await expect(provider.complete({
+        messages: [{ role: 'user', content: 'Hi' }],
+        maxTokens: 10,
+        responseFormat: 'json',
+        task: 'phrase-translation',
+      })).rejects.toThrow('LLM response was truncated after retrying with a 20-token limit');
+    });
+
+    test('does not retry length-limited JSON on a generic backend', async () => {
+      let calls = 0;
+      globalThis.fetch = mock(async () => {
+        calls += 1;
+        return new Response(
+          JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: '{"ok":' } }] }),
+          { status: 200 },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({ model: 'local-model' });
+      const result = await provider.complete({
+        messages: [{ role: 'user', content: 'Hi' }],
+        maxTokens: 10,
+        responseFormat: 'json',
+      });
+
+      expect(result).toBe('{"ok":');
+      expect(calls).toBe(1);
     });
 
     test('returns empty string when response has no choices', async () => {

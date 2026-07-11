@@ -1,5 +1,5 @@
 import '../test-guard';
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { randomBytes } from 'crypto';
 import { db } from '../db';
 import {
@@ -15,6 +15,7 @@ import {
 import { getProvider } from './llm';
 
 const previousKey = process.env.BYOK_ENCRYPTION_KEY;
+const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
   process.env.BYOK_ENCRYPTION_KEY = randomBytes(32).toString('base64');
@@ -24,6 +25,10 @@ beforeEach(() => {
 afterAll(() => {
   if (previousKey === undefined) delete process.env.BYOK_ENCRYPTION_KEY;
   else process.env.BYOK_ENCRYPTION_KEY = previousKey;
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
 });
 
 describe('BYOK encryption', () => {
@@ -83,6 +88,49 @@ describe('per-user credential storage and routing', () => {
     expect(hasByokCredential('byok-test-a')).toBe(false);
     expect(getByokCredential('byok-test-a')).toBeNull();
     expect(getProvider('byok-test-a').model).not.toBe('model-a');
+  });
+
+  test('enables structured output only for the OpenRouter GPT-5 profile', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+      bodies.push(JSON.parse(init?.body as string));
+      return new Response(
+        JSON.stringify({
+          choices: [{ finish_reason: 'stop', message: { content: '{"translation":"ok"}' } }],
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    saveByokCredential('byok-test-a', 'openrouter', 'sk-user-a', 'openai/gpt-5');
+    await getProvider('byok-test-a').complete({
+      messages: [{ role: 'user', content: 'Translate' }],
+      maxTokens: 100,
+      responseFormat: 'json',
+      task: 'phrase-translation',
+    });
+
+    saveByokCredential('byok-test-b', 'openrouter', 'sk-user-b', 'google/gemini-2.5-flash-lite');
+    await getProvider('byok-test-b').complete({
+      messages: [{ role: 'user', content: 'Translate' }],
+      maxTokens: 100,
+      responseFormat: 'json',
+    });
+
+    expect(bodies[0]).toMatchObject({
+      model: 'openai/gpt-5',
+      max_completion_tokens: 100,
+      response_format: { type: 'json_object' },
+      reasoning: { effort: 'minimal' },
+    });
+    expect(bodies[0].max_tokens).toBeUndefined();
+    expect(bodies[1]).toMatchObject({
+      model: 'google/gemini-2.5-flash-lite',
+      max_tokens: 100,
+    });
+    expect(bodies[1].max_completion_tokens).toBeUndefined();
+    expect(bodies[1].response_format).toBeUndefined();
+    expect(bodies[1].reasoning).toBeUndefined();
   });
 
   test('routes an Anthropic key through the native Anthropic provider', () => {

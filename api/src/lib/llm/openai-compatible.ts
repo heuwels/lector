@@ -3,11 +3,15 @@ import type { LLMProvider, CompletionOptions } from './types';
 const DEFAULT_URL = 'http://localhost:11434';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+export type OpenAICompatibleProfile = 'generic' | 'openrouter-gpt5';
+
 export interface OpenAICompatibleOptions {
   baseUrl?: string;
   model?: string;
   apiKey?: string;
   timeoutMs?: number;
+  /** Opt into request fields verified for a specific API/model pair. */
+  profile?: OpenAICompatibleProfile;
 }
 
 /**
@@ -23,12 +27,14 @@ export class OpenAICompatibleProvider implements LLMProvider {
   private baseUrl: string;
   private apiKey?: string;
   private timeoutMs: number;
+  private profile: OpenAICompatibleProfile;
 
   constructor(options?: OpenAICompatibleOptions) {
     this.baseUrl = (options?.baseUrl || process.env.OPENAI_COMPAT_URL || DEFAULT_URL).replace(/\/$/, '');
     this.model = options?.model || process.env.OPENAI_COMPAT_MODEL || '';
     this.apiKey = options?.apiKey || process.env.OPENAI_COMPAT_API_KEY || undefined;
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.profile = options?.profile ?? 'generic';
   }
 
   private headers(): Record<string, string> {
@@ -47,20 +53,21 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
   }
 
-  async complete(options: CompletionOptions): Promise<string> {
-    const body: Record<string, unknown> = {
-      model: this.model,
-      messages: options.messages,
-      max_tokens: options.maxTokens,
-    };
-    // We deliberately do NOT set response_format. No value works across every
-    // OpenAI-compatible backend: LM Studio 400s on `json_object` (it wants
-    // `json_schema` or `text`), while Ollama silently ignores `json_schema` and
-    // only does structured output via its own native `format` field. The only
-    // universally-safe path is prompt-driven JSON — callers that need it instruct
-    // "ONLY a JSON object, no markdown" and parse with parseLooseJson(). This
-    // mirrors AnthropicProvider, which also relies on the prompt. So
-    // options.responseFormat is intentionally not acted on here.
+  private async requestCompletion(
+    options: CompletionOptions,
+    maxTokens: number,
+  ): Promise<{ content: string; finishReason?: string }> {
+    const body: Record<string, unknown> = { model: this.model, messages: options.messages };
+    if (this.profile === 'openrouter-gpt5') body.max_completion_tokens = maxTokens;
+    else body.max_tokens = maxTokens;
+    // No response_format value works across every compatible backend: LM Studio
+    // rejects json_object and Ollama ignores json_schema. Keep prompt-driven JSON
+    // as the default, and use server-side JSON only for explicitly known-capable
+    // endpoint/model pairs.
+    if (this.profile === 'openrouter-gpt5' && options.responseFormat === 'json') {
+      body.response_format = { type: 'json_object' };
+      if (options.task === 'phrase-translation') body.reasoning = { effort: 'minimal' };
+    }
 
     const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',
@@ -74,7 +81,29 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || '';
+    const choice = data.choices?.[0];
+    return {
+      content: choice?.message?.content || '',
+      finishReason: choice?.finish_reason || undefined,
+    };
+  }
+
+  async complete(options: CompletionOptions): Promise<string> {
+    const completion = await this.requestCompletion(options, options.maxTokens);
+    if (
+      this.profile !== 'openrouter-gpt5' ||
+      options.responseFormat !== 'json' ||
+      completion.finishReason !== 'length'
+    ) {
+      return completion.content;
+    }
+
+    const retryTokens = options.maxTokens * 2;
+    const retry = await this.requestCompletion(options, retryTokens);
+    if (retry.finishReason === 'length') {
+      throw new Error(`LLM response was truncated after retrying with a ${retryTokens}-token limit`);
+    }
+    return retry.content;
   }
 
   /**
@@ -88,9 +117,10 @@ export class OpenAICompatibleProvider implements LLMProvider {
     const body: Record<string, unknown> = {
       model: this.model,
       messages: options.messages,
-      max_tokens: options.maxTokens,
       stream: true,
     };
+    if (this.profile === 'openrouter-gpt5') body.max_completion_tokens = options.maxTokens;
+    else body.max_tokens = options.maxTokens;
 
     const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',

@@ -11,6 +11,15 @@ export { parseLooseJson } from './parse-json';
 let cachedProvider: LLMProvider | null = null;
 let cachedProviderKey: string | null = null;
 
+function requestProfile(
+  baseUrl: string | undefined,
+  model: string | undefined,
+): 'openrouter-gpt5' | undefined {
+  return baseUrl?.replace(/\/$/, '') === OPENROUTER_URL && model === 'openai/gpt-5'
+    ? 'openrouter-gpt5'
+    : undefined;
+}
+
 // Deliberately the LOCAL user's settings, not the requester's (#220): the
 // provider is one process-global cached instance, and in cloud mode the
 // 'local' tenant has no settings rows, so every lookup falls through to the
@@ -40,6 +49,7 @@ export function getProvider(userId: string = LOCAL_USER_ID): LLMProvider {
       baseUrl: OPENROUTER_URL,
       apiKey: byok.apiKey,
       model: byok.model,
+      profile: requestProfile(OPENROUTER_URL, byok.model),
     });
   }
   const raw = getSetting('llmProvider') || process.env.LLM_PROVIDER || 'anthropic';
@@ -108,7 +118,12 @@ export function getProvider(userId: string = LOCAL_USER_ID): LLMProvider {
 
     cacheKey = `openai:${url || 'default'}:${model || 'default'}:${apiKey ? 'keyed' : 'open'}`;
     if (cachedProvider && cachedProviderKey === cacheKey) return cachedProvider;
-    cachedProvider = new OpenAICompatibleProvider({ baseUrl: url, model, apiKey });
+    cachedProvider = new OpenAICompatibleProvider({
+      baseUrl: url,
+      model,
+      apiKey,
+      profile: requestProfile(url, model),
+    });
   }
 
   cachedProviderKey = cacheKey;
