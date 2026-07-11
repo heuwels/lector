@@ -16,6 +16,16 @@ from typing import Any, Optional
 
 TIMEOUT_SECONDS = 15
 
+# Wire-protocol version — mirrors ANKI_PROTOCOL_* in the server's
+# api/src/lib/anki-protocol.ts; bump the pair together when request/response
+# shapes change. The server bridges older protocols with transformers and
+# refuses ones below its minimum with a 426 whose message we show verbatim.
+PROTOCOL = 1
+
+# Keep in step with manifest.json's human_version (AnkiWeb installs don't
+# ship the manifest, so this constant is the runtime source of truth).
+ADDON_VERSION = "1.1.0"
+
 
 class LectorApiError(Exception):
     """Raised for transport failures and non-2xx responses, with a readable message."""
@@ -25,6 +35,13 @@ class LectorApi:
     def __init__(self, api_url: str, api_token: str) -> None:
         self.base_url = (api_url or "").rstrip("/")
         self.token = (api_token or "").strip()
+        # Latest protocol the server advertised (0 until a request succeeds).
+        self.server_protocol_current = 0
+
+    @property
+    def update_available(self) -> bool:
+        """True once the server has advertised a newer protocol than ours."""
+        return self.server_protocol_current > PROTOCOL
 
     def _request(self, method: str, path: str, payload: Optional[dict] = None) -> Any:
         if not self.base_url:
@@ -41,18 +58,31 @@ class LectorApi:
             headers={
                 "Authorization": f"Bearer {self.token}",
                 "Content-Type": "application/json",
-                "User-Agent": "lector-anki-addon/1.0",
+                "User-Agent": f"lector-anki-addon/{ADDON_VERSION}",
+                "X-Lector-Anki-Protocol": str(PROTOCOL),
             },
         )
         try:
             with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
                 body = response.read().decode("utf-8")
+                try:
+                    self.server_protocol_current = int(
+                        response.headers.get("X-Lector-Anki-Protocol-Current") or 0
+                    )
+                except ValueError:
+                    pass
         except urllib.error.HTTPError as err:
             detail = ""
             try:
                 detail = json.loads(err.read().decode("utf-8")).get("error", "")
             except Exception:
                 pass
+            if err.code == 426:
+                # The server refused our protocol version; its message tells
+                # the user what to do — show it without the transport prefix.
+                raise LectorApiError(
+                    detail or "This Lector add-on is too old for the server — please update it."
+                ) from err
             raise LectorApiError(f"Lector API {err.code} on {path}: {detail or err.reason}") from err
         except urllib.error.URLError as err:
             raise LectorApiError(f"Could not reach the Lector API at {self.base_url}: {err.reason}") from err

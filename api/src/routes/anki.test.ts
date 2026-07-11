@@ -19,9 +19,14 @@ function seedVocab(
     `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language)
      VALUES (?, ?, 'word', ?, ?, ?, ?, ?, ?)`,
   ).run(
-    id, text,
-    opts.sentence ?? 'Die huis is groot.', opts.translation ?? 'The house is big.',
-    opts.state ?? 'new', TS, TS, opts.language ?? 'af',
+    id,
+    text,
+    opts.sentence ?? 'Die huis is groot.',
+    opts.translation ?? 'The house is big.',
+    opts.state ?? 'new',
+    TS,
+    TS,
+    opts.language ?? 'af',
   );
 }
 
@@ -34,13 +39,17 @@ function post(path: string, body: unknown) {
 }
 
 function pendingRows(): Array<{ vocabId: string; cardType: string }> {
-  return db.prepare('SELECT vocabId, cardType FROM anki_pending ORDER BY vocabId, cardType').all() as Array<{
+  return db
+    .prepare('SELECT vocabId, cardType FROM anki_pending ORDER BY vocabId, cardType')
+    .all() as Array<{
     vocabId: string;
     cardType: string;
   }>;
 }
 
-function vocabRow(id: string): { state: string; pushedToAnki: number; ankiNoteId: number | null } | undefined {
+function vocabRow(
+  id: string,
+): { state: string; pushedToAnki: number; ankiNoteId: number | null } | undefined {
   return db.prepare('SELECT state, pushedToAnki, ankiNoteId FROM vocab WHERE id = ?').get(id) as
     | { state: string; pushedToAnki: number; ankiNoteId: number | null }
     | undefined;
@@ -86,7 +95,10 @@ describe('POST /api/anki proxy allowlist (SECURITY-04)', () => {
     try {
       const res = await post('/', { action: 'version' });
       expect(res.status).toBe(200);
-      expect((await res.json()) as { result: number; error: null }).toEqual({ result: 6, error: null });
+      expect((await res.json()) as { result: number; error: null }).toEqual({
+        result: 6,
+        error: null,
+      });
       expect(actions).toEqual(['version']);
     } finally {
       globalThis.fetch = realFetch;
@@ -126,7 +138,9 @@ describe('POST /api/anki/queue', () => {
     await post('/queue', { items: [{ id: 'v1', cardType: 'basic', meaning: 'dwelling' }] });
 
     expect(pendingRows()).toEqual([{ vocabId: 'v1', cardType: 'basic' }]);
-    const row = db.prepare('SELECT meaning FROM anki_pending WHERE vocabId = ?').get('v1') as { meaning: string };
+    const row = db.prepare('SELECT meaning FROM anki_pending WHERE vocabId = ?').get('v1') as {
+      meaning: string;
+    };
     expect(row.meaning).toBe('dwelling');
   });
 
@@ -168,8 +182,14 @@ describe('GET /api/anki/pending', () => {
     const res = await app.request('/pending');
     const { pending } = (await res.json()) as {
       pending: Array<{
-        lectorId: string; cardType: string; lang: string; word: string;
-        sentenceHtml: string; clozeText: string; translation: string; meaning: string;
+        lectorId: string;
+        cardType: string;
+        lang: string;
+        word: string;
+        sentenceHtml: string;
+        clozeText: string;
+        translation: string;
+        meaning: string;
       }>;
     };
 
@@ -189,10 +209,15 @@ describe('GET /api/anki/pending', () => {
   test('per-item overrides win over the vocab row (phrase-cloze / practice)', async () => {
     seedVocab('v1', 'baie groot huis', { sentence: 'original', translation: 'orig-t' });
     await post('/queue', {
-      items: [{
-        id: 'v1', cardType: 'cloze',
-        word: 'groot', sentence: 'Die baie groot huis staan.', translation: 'override-t',
-      }],
+      items: [
+        {
+          id: 'v1',
+          cardType: 'cloze',
+          word: 'groot',
+          sentence: 'Die baie groot huis staan.',
+          translation: 'override-t',
+        },
+      ],
     });
 
     const { pending } = (await (await app.request('/pending')).json()) as {
@@ -286,7 +311,9 @@ describe('pending pagination + ack versioning (#241 review P1s)', () => {
     // …so the stale ack marks the entry pushed (the v1 note DOES exist in
     // Anki) but must NOT clear the newer queue row.
     await post('/ack', {
-      results: [{ lectorId: 'v1', cardType: 'basic', noteId: 1, version: pulled.pending[0].version }],
+      results: [
+        { lectorId: 'v1', cardType: 'basic', noteId: 1, version: pulled.pending[0].version },
+      ],
     });
     expect(vocabRow('v1')!.pushedToAnki).toBe(1);
 
@@ -311,7 +338,9 @@ describe('POST /api/anki/ack', () => {
     seedVocab('v1', 'huis');
     await post('/queue', { items: [{ id: 'v1', cardType: 'basic' }] });
 
-    const res = await post('/ack', { results: [{ lectorId: 'v1', cardType: 'basic', noteId: 1234567890 }] });
+    const res = await post('/ack', {
+      results: [{ lectorId: 'v1', cardType: 'basic', noteId: 1234567890 }],
+    });
     expect(((await res.json()) as { acked: number }).acked).toBe(1);
 
     expect(vocabRow('v1')).toEqual({ state: 'new', pushedToAnki: 1, ankiNoteId: 1234567890 });
@@ -344,9 +373,9 @@ describe('POST /api/anki/reviews', () => {
     const res = await post('/reviews', {
       reviews: [
         { lectorId: 'learning', type: 2, interval: 30 }, // mature card → known
-        { lectorId: 'mature', type: 1, interval: 0 },    // learning card → would demote; must not
-        { lectorId: 'muted', type: 2, interval: 30 },    // ignored stays ignored
-        { lectorId: 'queued', type: 0, interval: 0 },    // New card → no signal
+        { lectorId: 'mature', type: 1, interval: 0 }, // learning card → would demote; must not
+        { lectorId: 'muted', type: 2, interval: 30 }, // ignored stays ignored
+        { lectorId: 'queued', type: 0, interval: 0 }, // New card → no signal
       ],
     });
     const body = (await res.json()) as { updated: number; created: number; unchanged: number };
@@ -358,7 +387,11 @@ describe('POST /api/anki/reviews', () => {
     expect(vocabRow('muted')!.state).toBe('ignored');
     expect(vocabRow('queued')!.state).toBe('level2');
 
-    const known = db.prepare("SELECT state FROM knownWords WHERE userId = 'local' AND word = ? AND language = 'af'").get('huis') as { state: string };
+    const known = db
+      .prepare(
+        "SELECT state FROM knownWords WHERE userId = 'local' AND word = ? AND language = 'af'",
+      )
+      .get('huis') as { state: string };
     expect(known.state).toBe('known');
   });
 
@@ -367,7 +400,7 @@ describe('POST /api/anki/reviews', () => {
 
     const res = await post('/reviews', {
       reviews: [
-        { word: 'Huis', lang: 'af', type: 1, interval: 0 },  // level1 signal…
+        { word: 'Huis', lang: 'af', type: 1, interval: 0 }, // level1 signal…
         { word: 'huis', lang: 'af', type: 2, interval: 25 }, // …outranked by known
       ],
     });
@@ -378,16 +411,32 @@ describe('POST /api/anki/reviews', () => {
 
   test('imports studied words that have no entry, marked as pushed', async () => {
     const res = await post('/reviews', {
-      reviews: [{
-        word: 'Berge', lang: 'af', type: 2, interval: 10, noteId: 42,
-        sentence: 'Die berge is hoog.', translation: 'The mountains are high.',
-      }],
+      reviews: [
+        {
+          word: 'Berge',
+          lang: 'af',
+          type: 2,
+          interval: 10,
+          noteId: 42,
+          sentence: 'Die berge is hoog.',
+          translation: 'The mountains are high.',
+        },
+      ],
     });
     const body = (await res.json()) as { updated: number; created: number };
     expect(body.created).toBe(1);
 
-    const row = db.prepare("SELECT text, state, sentence, pushedToAnki, ankiNoteId, language FROM vocab WHERE userId = 'local'").get() as {
-      text: string; state: string; sentence: string; pushedToAnki: number; ankiNoteId: number; language: string;
+    const row = db
+      .prepare(
+        "SELECT text, state, sentence, pushedToAnki, ankiNoteId, language FROM vocab WHERE userId = 'local'",
+      )
+      .get() as {
+      text: string;
+      state: string;
+      sentence: string;
+      pushedToAnki: number;
+      ankiNoteId: number;
+      language: string;
     };
     expect(row.text).toBe('berge'); // folded key, matching the browser sync's import
     expect(row.state).toBe('level4');
@@ -413,13 +462,64 @@ describe('POST /api/anki/reviews', () => {
     const body = (await res.json()) as { syncedDays: number };
     expect(body.syncedDays).toBe(2);
 
-    const day = db.prepare("SELECT minutesRead, ankiReviews FROM dailyStats WHERE date = '2026-07-10' AND userId = 'local'").get() as {
-      minutesRead: number; ankiReviews: number;
+    const day = db
+      .prepare(
+        "SELECT minutesRead, ankiReviews FROM dailyStats WHERE date = '2026-07-10' AND userId = 'local'",
+      )
+      .get() as {
+      minutesRead: number;
+      ankiReviews: number;
     };
     expect(day).toEqual({ minutesRead: 12, ankiReviews: 31 });
   });
 
   test('rejects bodies with neither reviews nor reviewsByDay', async () => {
     expect((await post('/reviews', {})).status).toBe(400);
+  });
+});
+
+describe('addon protocol handshake', () => {
+  // The 426 below-minimum branch is covered in lib/anki-protocol.test.ts
+  // (ANKI_PROTOCOL_MIN is 1 today, so no live request can be too old).
+  beforeEach(clear);
+  afterEach(clear);
+
+  test('addon endpoints advertise the current protocol on every response', async () => {
+    const pending = await app.request('/pending');
+    expect(pending.status).toBe(200);
+    expect(pending.headers.get('x-lector-anki-protocol-current')).toBe('1');
+
+    const ack = await post('/ack', { results: [] });
+    expect(ack.status).toBe(400); // body validation still runs under the handshake
+    expect(ack.headers.get('x-lector-anki-protocol-current')).toBe('1');
+  });
+
+  test('a header-less (pre-handshake 1.0) addon is served normally', async () => {
+    const res = await app.request('/pending');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ pending: [], remaining: 0 });
+  });
+
+  test('an explicit supported protocol header is served normally', async () => {
+    const res = await app.request('/pending', {
+      headers: { 'X-Lector-Anki-Protocol': '1' },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ pending: [], remaining: 0 });
+  });
+
+  test('the browser-facing proxy routes are not protocol-gated', async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ result: 6, error: null }), {
+        headers: { 'Content-Type': 'application/json' },
+      })) as unknown as typeof fetch;
+    try {
+      const res = await post('/', { action: 'version' });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('x-lector-anki-protocol-current')).toBeNull();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });
