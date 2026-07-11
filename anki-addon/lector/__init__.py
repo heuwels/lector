@@ -168,6 +168,8 @@ def _review_phase(api: LectorApi, auto: bool, pulled_total: int, failed_total: i
             if failed_total:
                 parts.append(f"{failed_total} failed")
             parts.append(f"reviews: {summary['updated']} upgraded, {summary['created']} imported")
+            if api.update_available:
+                parts.append("add-on update available")
             _finish("Lector sync — " + ", ".join(parts))
 
         mw.taskman.run_in_background(send, on_pushed)

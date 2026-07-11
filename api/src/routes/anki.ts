@@ -11,6 +11,15 @@ import {
   splitTrailingPunctuation,
   stateRank,
 } from '../lib/anki';
+import {
+  ANKI_PROTOCOL_CURRENT,
+  ANKI_PROTOCOL_CURRENT_HEADER,
+  ANKI_PROTOCOL_HEADER,
+  ankiProtocolVerdict,
+  downgradeAnkiResponse,
+  parseAnkiProtocol,
+  upgradeAnkiRequest,
+} from '../lib/anki-protocol';
 import { randomUUID } from 'crypto';
 
 const ANKI_CONNECT_URL = process.env.ANKI_CONNECT_URL || 'http://localhost:8765';
@@ -54,7 +63,10 @@ const app = new Hono();
 // GET /api/anki — connection check + deck list
 app.get('/', async (c) => {
   try {
-    const [versionRes, decksRes] = await Promise.all([ankiRequest('version'), ankiRequest('deckNames')]);
+    const [versionRes, decksRes] = await Promise.all([
+      ankiRequest('version'),
+      ankiRequest('deckNames'),
+    ]);
     return c.json({
       connected: true,
       version: versionRes.result,
@@ -76,7 +88,10 @@ app.post('/', async (c) => {
 
     if (typeof action !== 'string' || !PROXY_ALLOWED_ACTIONS.has(action)) {
       return c.json(
-        { result: null, error: `Action not allowed. Permitted: ${[...PROXY_ALLOWED_ACTIONS].join(', ')}` },
+        {
+          result: null,
+          error: `Action not allowed. Permitted: ${[...PROXY_ALLOWED_ACTIONS].join(', ')}`,
+        },
         403,
       );
     }
@@ -110,6 +125,23 @@ const CARD_TYPES: readonly AnkiCardType[] = ['basic', 'word', 'cloze'];
 const MAX_QUEUE_ITEMS = 500;
 const MAX_REVIEW_ITEMS = 10_000;
 const MAX_REVIEW_DAYS = 3_660;
+
+// Version handshake for the addon-facing endpoints (lib/anki-protocol.ts):
+// resolve the addon's protocol, refuse below-minimum versions with a 426 the
+// addon shows verbatim, advertise the server's current protocol on every
+// response, and stash the version for the request/response transformers.
+// /queue is excluded — it's called by the web app, not the addon.
+const addonProtocol = async (c: import('hono').Context, next: () => Promise<void>) => {
+  const version = parseAnkiProtocol(c.req.header(ANKI_PROTOCOL_HEADER));
+  c.header(ANKI_PROTOCOL_CURRENT_HEADER, String(ANKI_PROTOCOL_CURRENT));
+  const verdict = ankiProtocolVerdict(version);
+  if (!verdict.ok) return c.json(verdict.body, verdict.status);
+  c.set('ankiProtocol', version);
+  await next();
+};
+app.use('/pending', addonProtocol);
+app.use('/ack', addonProtocol);
+app.use('/reviews', addonProtocol);
 
 interface QueueItem {
   id: string;
@@ -161,7 +193,10 @@ app.post('/queue', async (c) => {
     const item = raw as QueueItem;
     const id = typeof item?.id === 'string' ? item.id : '';
     if (!id || !CARD_TYPES.includes(item.cardType)) {
-      failed.push({ id: id || '(missing id)', error: 'Each item needs an id and a valid cardType' });
+      failed.push({
+        id: id || '(missing id)',
+        error: 'Each item needs an id and a valid cardType',
+      });
       continue;
     }
 
@@ -182,9 +217,13 @@ app.post('/queue', async (c) => {
     }
 
     upsertPending.run(
-      userId, id, item.cardType,
-      optionalString(item.word), optionalString(item.sentence),
-      optionalString(item.translation), optionalString(item.meaning),
+      userId,
+      id,
+      item.cardType,
+      optionalString(item.word),
+      optionalString(item.sentence),
+      optionalString(item.translation),
+      optionalString(item.meaning),
       now,
     );
     queued++;
@@ -206,14 +245,22 @@ app.post('/queue', async (c) => {
 app.get('/pending', (c) => {
   const userId = getCurrentUserId(c);
 
-  const total = (db.prepare(`
+  const total = (
+    db
+      .prepare(
+        `
     SELECT COUNT(*) AS n
     FROM anki_pending p
     JOIN vocab v ON v.userId = p.userId AND v.id = p.vocabId
     WHERE p.userId = ?
-  `).get(userId) as { n: number }).n;
+  `,
+      )
+      .get(userId) as { n: number }
+  ).n;
 
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT p.vocabId, p.cardType, p.word AS pWord, p.sentence AS pSentence,
            p.translation AS pTranslation, p.meaning AS pMeaning, p.queuedAt, p.version,
            v.text, v.sentence, v.translation, v.language
@@ -222,13 +269,26 @@ app.get('/pending', (c) => {
     WHERE p.userId = ?
     ORDER BY p.queuedAt, p.vocabId
     LIMIT ${MAX_QUEUE_ITEMS}
-  `).all(userId) as Array<{
-    vocabId: string; cardType: AnkiCardType; pWord: string | null; pSentence: string | null;
-    pTranslation: string | null; pMeaning: string | null; queuedAt: string; version: number;
-    text: string; sentence: string; translation: string; language: string;
+  `,
+    )
+    .all(userId) as Array<{
+    vocabId: string;
+    cardType: AnkiCardType;
+    pWord: string | null;
+    pSentence: string | null;
+    pTranslation: string | null;
+    pMeaning: string | null;
+    queuedAt: string;
+    version: number;
+    text: string;
+    sentence: string;
+    translation: string;
+    language: string;
   }>;
 
-  const deleteRow = db.prepare('DELETE FROM anki_pending WHERE userId = ? AND vocabId = ? AND cardType = ?');
+  const deleteRow = db.prepare(
+    'DELETE FROM anki_pending WHERE userId = ? AND vocabId = ? AND cardType = ?',
+  );
 
   const pending = [];
   for (const row of rows) {
@@ -261,7 +321,12 @@ app.get('/pending', (c) => {
     });
   }
 
-  return c.json({ pending, remaining: Math.max(0, total - rows.length) });
+  return c.json(
+    downgradeAnkiResponse(c.get('ankiProtocol'), '/pending', {
+      pending,
+      remaining: Math.max(0, total - rows.length),
+    }),
+  );
 });
 
 // POST /api/anki/ack — the addon confirms created/updated notes. Flips the
@@ -272,7 +337,11 @@ app.get('/pending', (c) => {
 // the newer row in the queue for the next sync (review P1 #2).
 app.post('/ack', async (c) => {
   const userId = getCurrentUserId(c);
-  const body = await c.req.json().catch(() => null);
+  const body = upgradeAnkiRequest(
+    c.get('ankiProtocol'),
+    '/ack',
+    await c.req.json().catch(() => null),
+  );
   const results = (body as { results?: unknown })?.results;
 
   if (!Array.isArray(results) || results.length === 0) {
@@ -282,7 +351,9 @@ app.post('/ack', async (c) => {
     return c.json({ error: `Too many results (max ${MAX_QUEUE_ITEMS})` }, 400);
   }
 
-  const markPushed = db.prepare('UPDATE vocab SET pushedToAnki = 1, ankiNoteId = ? WHERE id = ? AND userId = ?');
+  const markPushed = db.prepare(
+    'UPDATE vocab SET pushedToAnki = 1, ankiNoteId = ? WHERE id = ? AND userId = ?',
+  );
   const clearPendingUpTo = db.prepare(
     'DELETE FROM anki_pending WHERE userId = ? AND vocabId = ? AND cardType = ? AND version <= ?',
   );
@@ -293,15 +364,25 @@ app.post('/ack', async (c) => {
   let acked = 0;
   db.transaction((items: unknown[]) => {
     for (const raw of items) {
-      const item = raw as { lectorId?: unknown; cardType?: unknown; noteId?: unknown; version?: unknown };
+      const item = raw as {
+        lectorId?: unknown;
+        cardType?: unknown;
+        noteId?: unknown;
+        version?: unknown;
+      };
       const lectorId = typeof item.lectorId === 'string' ? item.lectorId : '';
-      const noteId = typeof item.noteId === 'number' && Number.isFinite(item.noteId) ? Math.trunc(item.noteId) : null;
+      const noteId =
+        typeof item.noteId === 'number' && Number.isFinite(item.noteId)
+          ? Math.trunc(item.noteId)
+          : null;
       if (!lectorId || noteId === null) continue;
 
       const res = markPushed.run(noteId, lectorId, userId);
       if (CARD_TYPES.includes(item.cardType as AnkiCardType)) {
         const version =
-          typeof item.version === 'number' && Number.isFinite(item.version) ? Math.trunc(item.version) : null;
+          typeof item.version === 'number' && Number.isFinite(item.version)
+            ? Math.trunc(item.version)
+            : null;
         if (version === null) {
           clearPendingAny.run(userId, lectorId, item.cardType as string);
         } else {
@@ -312,7 +393,7 @@ app.post('/ack', async (c) => {
     }
   })(results);
 
-  return c.json({ acked });
+  return c.json(downgradeAnkiResponse(c.get('ankiProtocol'), '/ack', { acked }));
 });
 
 interface ReviewItem {
@@ -336,7 +417,11 @@ interface ReviewItem {
 // the heatmap counts Anki study days without server→AnkiConnect access.
 app.post('/reviews', async (c) => {
   const userId = getCurrentUserId(c);
-  const body = await c.req.json().catch(() => null);
+  const body = upgradeAnkiRequest(
+    c.get('ankiProtocol'),
+    '/reviews',
+    await c.req.json().catch(() => null),
+  );
   const reviews = (body as { reviews?: unknown })?.reviews;
   const reviewsByDay = (body as { reviewsByDay?: unknown })?.reviewsByDay;
 
@@ -367,11 +452,12 @@ app.post('/reviews', async (c) => {
 
       const lang = resolveLanguage(typeof item.lang === 'string' ? item.lang : undefined, userId);
       const word = typeof item.word === 'string' ? item.word.trim() : '';
-      const key = typeof item.lectorId === 'string' && item.lectorId
-        ? `id:${item.lectorId}`
-        : word
-          ? `word:${lang}:${foldWord(word, getLanguageConfig(lang))}`
-          : '';
+      const key =
+        typeof item.lectorId === 'string' && item.lectorId
+          ? `id:${item.lectorId}`
+          : word
+            ? `word:${lang}:${foldWord(word, getLanguageConfig(lang))}`
+            : '';
       if (!key) continue;
 
       const existing = best.get(key);
@@ -382,16 +468,24 @@ app.post('/reviews', async (c) => {
 
     // One vocab snapshot per call for the word-fallback resolution — folded
     // comparison happens in app code, never SQL LOWER() (#289).
-    const allVocab = db.prepare('SELECT id, text, state, language FROM vocab WHERE userId = ?')
+    const allVocab = db
+      .prepare('SELECT id, text, state, language FROM vocab WHERE userId = ?')
       .all(userId) as Array<Pick<VocabRow, 'id' | 'text' | 'state' | 'language'>>;
     const byId = new Map(allVocab.map((v) => [v.id, v]));
     const byWord = new Map<string, Pick<VocabRow, 'id' | 'text' | 'state' | 'language'>>();
     for (const v of allVocab) {
-      byWord.set(`${v.language}:${foldWord(v.text, getLanguageConfig(resolveLanguage(v.language, userId)))}`, v);
+      byWord.set(
+        `${v.language}:${foldWord(v.text, getLanguageConfig(resolveLanguage(v.language, userId)))}`,
+        v,
+      );
     }
 
-    const updateState = db.prepare('UPDATE vocab SET state = ?, stateUpdatedAt = ? WHERE id = ? AND userId = ?');
-    const upsertKnown = db.prepare('INSERT OR REPLACE INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)');
+    const updateState = db.prepare(
+      'UPDATE vocab SET state = ?, stateUpdatedAt = ? WHERE id = ? AND userId = ?',
+    );
+    const upsertKnown = db.prepare(
+      'INSERT OR REPLACE INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)',
+    );
     const insertVocab = db.prepare(`
       INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId)
       VALUES (?, ?, 'word', ?, ?, ?, ?, 0, NULL, NULL, ?, 1, ?, ?, ?)
@@ -416,7 +510,12 @@ app.post('/reviews', async (c) => {
           }
           updateState.run(state, now, entry.id, userId);
           const entryLang = resolveLanguage(entry.language, userId);
-          upsertKnown.run(userId, foldWord(entry.text, getLanguageConfig(entryLang)), entryLang, state);
+          upsertKnown.run(
+            userId,
+            foldWord(entry.text, getLanguageConfig(entryLang)),
+            entryLang,
+            state,
+          );
           entry.state = state; // keep the snapshot honest for repeated targets
           updated++;
           continue;
@@ -429,13 +528,22 @@ app.post('/reviews', async (c) => {
 
         // Import: a studied Lector-note card with no matching entry (created
         // in Anki, or the entry was deleted here). Mirrors findNewAnkiWords.
-        const noteId = typeof item.noteId === 'number' && Number.isFinite(item.noteId) ? Math.trunc(item.noteId) : null;
+        const noteId =
+          typeof item.noteId === 'number' && Number.isFinite(item.noteId)
+            ? Math.trunc(item.noteId)
+            : null;
         const id = randomUUID();
         insertVocab.run(
-          id, folded,
+          id,
+          folded,
           typeof item.sentence === 'string' ? item.sentence : '',
           typeof item.translation === 'string' ? item.translation : '',
-          state, now, now, noteId, lang, userId,
+          state,
+          now,
+          now,
+          noteId,
+          lang,
+          userId,
         );
         upsertKnown.run(userId, folded, lang, state);
         const importedRow = { id, text: folded, state, language: lang };
@@ -451,7 +559,14 @@ app.post('/reviews', async (c) => {
     syncedDays = upsertAnkiReviewDays(userId, reviewsByDay as Array<[string, number]>);
   }
 
-  return c.json({ updated, created, unchanged, syncedDays });
+  return c.json(
+    downgradeAnkiResponse(c.get('ankiProtocol'), '/reviews', {
+      updated,
+      created,
+      unchanged,
+      syncedDays,
+    }),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -481,9 +596,9 @@ function isHttpUrl(value: string): boolean {
 // local service, so we don't block private addresses here.
 function getAnkiConnectUrl(userId: string): string {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(userId, 'ankiConnectUrl') as
-      | { value: string }
-      | undefined;
+    const row = db
+      .prepare('SELECT value FROM settings WHERE userId = ? AND key = ?')
+      .get(userId, 'ankiConnectUrl') as { value: string } | undefined;
     const raw = row?.value?.replace(/^"|"$/g, '').trim();
     if (raw && isHttpUrl(raw)) return raw;
   } catch {
