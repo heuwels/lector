@@ -3,6 +3,7 @@ import { AnthropicProvider } from './anthropic';
 import { OpenAICompatibleProvider } from './openai-compatible';
 import { db } from '../../db';
 import { LOCAL_USER_ID } from '../user';
+import { getByokCredential, OPENROUTER_URL } from '../byok';
 
 export type { LLMProvider, ChatMessage, CompletionOptions } from './types';
 export { parseLooseJson } from './parse-json';
@@ -16,9 +17,9 @@ let cachedProviderKey: string | null = null;
 // env-var managed keys — which is the intended cloud default until BYOK
 // (#223) makes providers per-user.
 function getSetting(key: string): string | null {
-  const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(LOCAL_USER_ID, key) as
-    | { value: string }
-    | undefined;
+  const row = db
+    .prepare('SELECT value FROM settings WHERE userId = ? AND key = ?')
+    .get(LOCAL_USER_ID, key) as { value: string } | undefined;
   if (!row) return null;
   try {
     return JSON.parse(row.value);
@@ -27,7 +28,20 @@ function getSetting(key: string): string | null {
   }
 }
 
-export function getProvider(): LLMProvider {
+export function getProvider(userId: string = LOCAL_USER_ID): LLMProvider {
+  const byok = getByokCredential(userId);
+  if (byok) {
+    // Never put user credentials in the process-global provider cache: an
+    // account-specific instance prevents cross-tenant key/model bleed.
+    if (byok.provider === 'anthropic') {
+      return new AnthropicProvider({ apiKey: byok.apiKey, model: byok.model });
+    }
+    return new OpenAICompatibleProvider({
+      baseUrl: OPENROUTER_URL,
+      apiKey: byok.apiKey,
+      model: byok.model,
+    });
+  }
   const raw = getSetting('llmProvider') || process.env.LLM_PROVIDER || 'anthropic';
   // 'ollama' / 'apfel' / 'lmstudio' were separate providers; they are now one
   // OpenAI-compatible backend. Map any legacy or unknown value onto it.

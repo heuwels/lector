@@ -63,6 +63,7 @@ Design notes:
    | `claude-oauth-token`           | SecureString | `CLAUDE_OAUTH_TOKEN` (plan credits — preferred over API key)                                                                                                                                                                                                         |
    | `anthropic-api-key`            | SecureString | `ANTHROPIC_API_KEY`                                                                                                                                                                                                                                                  |
    | `openrouter-api-key`           | SecureString | `OPENAI_COMPAT_API_KEY`                                                                                                                                                                                                                                              |
+   | `byok-encryption-key`          | SecureString | `BYOK_ENCRYPTION_KEY` — base64-encoded 32-byte AES key used only for per-user provider credentials. Generate independently per deployment; losing or rotating it without re-encrypting stored rows makes existing BYOK keys unreadable.                              |
    | `google-api-key`               | SecureString | `GOOGLE_CLOUD_API_KEY` (TTS)                                                                                                                                                                                                                                         |
    | `llm-provider`                 | String       | `LLM_PROVIDER` (`anthropic` default, or `openai`)                                                                                                                                                                                                                    |
    | `openai-compat-url`            | String       | `OPENAI_COMPAT_URL`                                                                                                                                                                                                                                                  |
@@ -78,16 +79,16 @@ Design notes:
    | `lector-billing`               | String       | `LECTOR_BILLING` (#224 — `paddle` arms the subscription gate; unset = billing off. Requires `paddle-webhook-secret` and `paddle-api-key`, or the container refuses to boot)                                                                                          |
    | `paddle-webhook-secret`        | SecureString | `PADDLE_WEBHOOK_SECRET` (the notification destination's secret key, Paddle → Developer tools → Notifications)                                                                                                                                                        |
    | `paddle-api-key`               | SecureString | `PADDLE_API_KEY` (server-side key that creates checkout transactions — Paddle → Developer tools → Authentication → API keys; required once billing is armed. The checkout overlay itself opens on lector.dev, whose client-side token lives in the lector-site repo) |
-   | `checkout-url`                 | String       | `CHECKOUT_URL` (the approved-domain checkout page the app redirects to, e.g. `https://lector.dev/checkout`; unset → the subscribe screen shows its "checkout unavailable" fallback) |
-   | `paddle-price-monthly`         | String       | `PADDLE_PRICE_MONTHLY` (`pri_…` — Cloud monthly; a plan card renders for each configured price) |
-   | `paddle-price-annual`          | String       | `PADDLE_PRICE_ANNUAL` (`pri_…` — Cloud annual) |
-   | `paddle-price-plus-monthly`    | String       | `PADDLE_PRICE_PLUS_MONTHLY` (`pri_…` — Plus monthly) |
-   | `paddle-price-plus-annual`     | String       | `PADDLE_PRICE_PLUS_ANNUAL` (`pri_…` — Plus annual) |
-   | `billing-exempt-emails`        | String       | `BILLING_EXEMPT_EMAILS` (comma-separated accounts the gate never locks — operator + test accounts) |
-   | `admin-emails`                 | String       | `LECTOR_ADMIN_EMAILS` (#221 — comma-separated accounts with admin-dashboard access; no spaces; unset = no admins) |
-   | `sentry-dsn`                   | String       | `SENTRY_DSN` — full-stack error tracking + tracing (API + browser, injected into `window.__ENV__`); public DSN; unset = off. Points at Sentry.io, self-hosted Sentry, or GlitchTip |
-   | `sentry-traces-sample-rate`    | String       | `SENTRY_TRACES_SAMPLE_RATE` (0–1, server/API only; `0` = errors only, no traces; default full sampling) |
-   | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
+   | `checkout-url`                 | String       | `CHECKOUT_URL` (the approved-domain checkout page the app redirects to, e.g. `https://lector.dev/checkout`; unset → the subscribe screen shows its "checkout unavailable" fallback)                                                                                  |
+   | `paddle-price-monthly`         | String       | `PADDLE_PRICE_MONTHLY` (`pri_…` — Cloud monthly; a plan card renders for each configured price)                                                                                                                                                                      |
+   | `paddle-price-annual`          | String       | `PADDLE_PRICE_ANNUAL` (`pri_…` — Cloud annual)                                                                                                                                                                                                                       |
+   | `paddle-price-plus-monthly`    | String       | `PADDLE_PRICE_PLUS_MONTHLY` (`pri_…` — Plus monthly)                                                                                                                                                                                                                 |
+   | `paddle-price-plus-annual`     | String       | `PADDLE_PRICE_PLUS_ANNUAL` (`pri_…` — Plus annual)                                                                                                                                                                                                                   |
+   | `billing-exempt-emails`        | String       | `BILLING_EXEMPT_EMAILS` (comma-separated accounts the gate never locks — operator + test accounts)                                                                                                                                                                   |
+   | `admin-emails`                 | String       | `LECTOR_ADMIN_EMAILS` (#221 — comma-separated accounts with admin-dashboard access; no spaces; unset = no admins)                                                                                                                                                    |
+   | `sentry-dsn`                   | String       | `SENTRY_DSN` — full-stack error tracking + tracing (API + browser, injected into `window.__ENV__`); public DSN; unset = off. Points at Sentry.io, self-hosted Sentry, or GlitchTip                                                                                   |
+   | `sentry-traces-sample-rate`    | String       | `SENTRY_TRACES_SAMPLE_RATE` (0–1, server/API only; `0` = errors only, no traces; default full sampling)                                                                                                                                                              |
+   | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)                                                                                                                                                                                                            |
 
    ```bash
    aws ssm put-parameter --name /lector/canary/tunnel-token \
@@ -106,6 +107,11 @@ Design notes:
      --type String --value 'https://openrouter.ai/api'
    aws ssm put-parameter --name /lector/canary/openai-compat-model \
      --type String --value 'google/gemini-2.5-flash-lite'
+   # Per-user BYOK credential encryption (generate once per deployment and
+   # keep it in SSM; never reuse the same key between staging and production):
+   openssl rand -base64 32 | tr -d '\n' | aws ssm put-parameter \
+     --name /lector/canary/byok-encryption-key --type SecureString \
+     --value file:///dev/stdin
    # TTS:
    aws ssm put-parameter --name /lector/canary/google-api-key \
      --type SecureString --value '…'

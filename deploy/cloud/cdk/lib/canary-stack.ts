@@ -39,6 +39,7 @@ import { Construct } from 'constructs';
  *   /lector/canary/claude-oauth-token  SecureString  optional — CLAUDE_OAUTH_TOKEN (plan credits)
  *   /lector/canary/anthropic-api-key   SecureString  optional — ANTHROPIC_API_KEY
  *   /lector/canary/openrouter-api-key  SecureString  optional — OPENAI_COMPAT_API_KEY
+ *   /lector/canary/byok-encryption-key SecureString  required for BYOK — base64-encoded 32-byte AES key
  *   /lector/canary/google-api-key      SecureString  optional — GOOGLE_CLOUD_API_KEY (TTS)
  *   /lector/canary/llm-provider        String        optional — LLM_PROVIDER (default anthropic)
  *   /lector/canary/openai-compat-url   String        optional — e.g. https://openrouter.ai/api
@@ -306,6 +307,7 @@ put TUNNEL_TOKEN          tunnel-token
 put CLAUDE_OAUTH_TOKEN    claude-oauth-token
 put ANTHROPIC_API_KEY     anthropic-api-key
 put OPENAI_COMPAT_API_KEY openrouter-api-key
+put BYOK_ENCRYPTION_KEY   byok-encryption-key
 put GOOGLE_CLOUD_API_KEY  google-api-key
 put LLM_PROVIDER          llm-provider
 put OPENAI_COMPAT_URL     openai-compat-url
@@ -398,6 +400,13 @@ services:
       - /srv/lector/.env
     volumes:
       - /srv/lector/data:/app/data
+    # Cap container logs — Docker's json-file default has no max-size, so a
+    # long-lived container's request log would grow until it fills the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -408,6 +417,11 @@ services:
       - TUNNEL_TOKEN=\${TUNNEL_TOKEN}
     depends_on:
       - lector
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 ${
   this.enableLitestream
@@ -427,6 +441,11 @@ ${
     volumes:
       - /srv/lector/data:/data
       - /srv/lector/litestream.yml:/etc/litestream.yml:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 `
     : ''
 }
@@ -438,9 +457,15 @@ cat > /srv/lector/update.sh <<'UPDATEEOF'
 set -euo pipefail
 cd /srv/lector
 ./refresh-env.sh
+# Reclaim disk from superseded images BEFORE pulling the new one. A full root
+# volume fails the pull otherwise — six stale 2.66 GB sha-<commit> images once
+# filled the 16 GB disk and took the box down. `-a` drops tagged-but-unused
+# images too; plain `-f` only removes dangling layers, which is why the old
+# tags piled up. The running container's image is in use, so it is kept as the
+# rollback target; anything removed is re-pullable from ghcr.
+docker image prune -af
 docker compose pull
 docker compose up -d
-docker image prune -f
 UPDATEEOF
 chmod +x /srv/lector/update.sh
 

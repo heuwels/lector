@@ -93,6 +93,16 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
         working-directory: api
+      # Keep diagnostics visible without blocking CI until the existing API
+      # type-error baseline is cleaned up; then remove continue-on-error.
+      - name: Typecheck API (advisory)
+        id: api_typecheck
+        continue-on-error: true
+        run: bun run typecheck
+        working-directory: api
+      - name: Report API typecheck debt
+        if: steps.api_typecheck.outcome == 'failure'
+        run: echo "::warning title=API typecheck is advisory::Existing API type errors remain; see the previous step. Make this check blocking after the baseline is clean."
       # bun run test, not bare bun test — the script isolates DATA_DIR
       - run: bun run test
         working-directory: api

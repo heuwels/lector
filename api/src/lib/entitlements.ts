@@ -35,6 +35,7 @@ import type { Context } from 'hono';
 import { db } from '../db';
 import { billingConfig, getUserEmail, isEntitledStatus } from './billing';
 import { getCompedPlan } from './account-flags';
+import { hasByokCredential } from './byok';
 
 export type PlanId = 'cloud' | 'plus';
 export type ResolvedPlan = PlanId | 'unlimited';
@@ -390,7 +391,15 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
           : getUsage(userId, metric);
 
     if (used + requested <= limit) return { allowed: true };
-    return { allowed: false, metric, limit, used, requested, plan, upgrade: upgradeFor(plan, metric) };
+    return {
+      allowed: false,
+      metric,
+      limit,
+      used,
+      requested,
+      plan,
+      upgrade: upgradeFor(plan, metric),
+    };
   }
 
   return { resolveEntitlements, checkLimit, recordUsage, reserve, refund, reserveCount, getUsage };
@@ -402,9 +411,7 @@ let active: EntitlementsEngine = makeEntitlements({
   prices: billingConfig.prices,
   planLimits: parsePlanLimitOverrides(process.env.LECTOR_PLAN_LIMITS),
   resolveEmail: getUserEmail,
-  // BYOK is not purchasable until #223 lands per-user key storage; the
-  // engine honors the flag so #223 only has to flip this seam.
-  isByok: () => false,
+  isByok: hasByokCredential,
   compedPlan: getCompedPlan,
   now: () => new Date(),
 });

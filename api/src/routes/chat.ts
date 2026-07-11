@@ -19,7 +19,7 @@ const TTL_DAYS = 7;
 
 function cleanExpired() {
   db.prepare(
-    `DELETE FROM chat_messages WHERE createdAt < datetime('now', '-${TTL_DAYS} days')`
+    `DELETE FROM chat_messages WHERE createdAt < datetime('now', '-${TTL_DAYS} days')`,
   ).run();
 }
 
@@ -36,11 +36,15 @@ app.get('/', (c) => {
 
   if (before) {
     messages = db
-      .prepare('SELECT * FROM chat_messages WHERE userId = ? AND createdAt < ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .prepare(
+        'SELECT * FROM chat_messages WHERE userId = ? AND createdAt < ? AND language = ? ORDER BY createdAt DESC LIMIT ?',
+      )
       .all(userId, before, lang, limit) as ChatMessageRow[];
   } else {
     messages = db
-      .prepare('SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .prepare(
+        'SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?',
+      )
       .all(userId, lang, limit) as ChatMessageRow[];
   }
 
@@ -77,17 +81,19 @@ app.post('/', async (c) => {
       provider: null,
       responseId: null,
       createdAt: now,
-      language: lang
+      language: lang,
     };
 
-    const provider = getProvider();
+    const provider = getProvider(userId);
 
     // Send the full recent (same-language) history every turn. We previously had
     // a stateful path for LM Studio that threaded a server-side response_id; that
     // was dropped when the local providers were unified behind one
     // OpenAI-compatible backend, so every provider now uses this single path.
     const recentMessages = db
-      .prepare('SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .prepare(
+        'SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?',
+      )
       .all(userId, lang, MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
 
     const history = [...recentMessages.reverse(), userMsg];
@@ -118,20 +124,32 @@ app.post('/', async (c) => {
       provider: provider.name,
       responseId: null,
       createdAt: new Date().toISOString(),
-      language: lang
+      language: lang,
     };
 
     // Save both messages only after LLM succeeds
     const insertMsg = db.prepare(
-      'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt, language, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt, language, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     );
     insertMsg.run(
-      userMsg.id, userMsg.role, userMsg.content, userMsg.provider,
-      userMsg.responseId, userMsg.createdAt, lang, userId
+      userMsg.id,
+      userMsg.role,
+      userMsg.content,
+      userMsg.provider,
+      userMsg.responseId,
+      userMsg.createdAt,
+      lang,
+      userId,
     );
     insertMsg.run(
-      assistantMsg.id, assistantMsg.role, assistantMsg.content, assistantMsg.provider,
-      assistantMsg.responseId, assistantMsg.createdAt, lang, userId
+      assistantMsg.id,
+      assistantMsg.role,
+      assistantMsg.content,
+      assistantMsg.provider,
+      assistantMsg.responseId,
+      assistantMsg.createdAt,
+      lang,
+      userId,
     );
 
     return c.json({ userMessage: userMsg, assistantMessage: assistantMsg });
