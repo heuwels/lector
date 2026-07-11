@@ -43,6 +43,11 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # Optional: Google Cloud API key (for TTS)
 GOOGLE_CLOUD_API_KEY=...
+
+# Background word→domain classifier feeding the Stats fluency radar. The code
+# default is OFF (keeps tests LLM-free), so opt in wherever the radar should
+# populate; the shipped compose files set it for you.
+CLASSIFY_WORKER=1
 ```
 
 The app works without API keys — the local dictionary covers the top 2000 words. Claude API is only needed for uncommon words and phrase translation.
@@ -102,6 +107,7 @@ services:
       - NODE_ENV=production
       - API_URL=http://localhost:3457   # browser-facing API origin — set to http://<host>:3457 for remote access
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLASSIFY_WORKER=1   # word→domain classifier behind the fluency radar (off by default in code)
     volumes:
       - ./data:/app/data
 ```
