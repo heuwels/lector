@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, JournalEntryRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
@@ -99,7 +100,7 @@ app.put('/:id', async (c) => {
 
   const now = new Date().toISOString();
   const updates: string[] = ['updatedAt = ?'];
-  const values: unknown[] = [now];
+  const values: SQLQueryBindings[] = [now];
   let grown = 0;
 
   if (body.body !== undefined) {

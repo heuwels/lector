@@ -1265,7 +1265,7 @@ function migrateBooks(database: Database) {
 export const db = new Proxy({} as Database, {
   get(_target, prop) {
     const realDb = getDb();
-    const value = (realDb as Record<string | symbol, unknown>)[prop];
+    const value = (realDb as unknown as Record<string | symbol, unknown>)[prop];
     if (typeof value === 'function') {
       return (value as (...args: unknown[]) => unknown).bind(realDb);
     }

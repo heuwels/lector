@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, ClozeSentenceRow, ClozeMasteryLevel } from '../db';
 import { resolveLanguage } from '../lib/active-language';
@@ -47,7 +48,7 @@ app.get('/', (c) => {
   const limit = parseInt(c.req.query('limit') || '100');
 
   let query = 'SELECT * FROM clozeSentences WHERE userId = ? AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
-  const params: unknown[] = [userId, lang];
+  const params: SQLQueryBindings[] =[userId, lang];
 
   if (collection) { query += ' AND collection = ?'; params.push(collection); }
   if (word) { query += ' AND clozeWord = ?'; params.push(word); }
@@ -131,7 +132,7 @@ app.get('/due', (c) => {
 
   const now = new Date().toISOString();
   let query: string;
-  const params: unknown[] = [];
+  const params: SQLQueryBindings[] =[];
 
   if (mode === 'new') {
     query = 'SELECT * FROM clozeSentences WHERE userId = ? AND reviewCount = 0 AND (blacklisted = 0 OR blacklisted IS NULL) AND language = ?';
@@ -356,7 +357,7 @@ app.put('/:id', async (c) => {
   if (!existing) return c.json({ error: 'Not found' }, 404);
 
   const updates: string[] = [];
-  const values: unknown[] = [];
+  const values: SQLQueryBindings[] =[];
 
   const fields = ['sentence', 'clozeWord', 'clozeIndex', 'translation', 'source', 'collection', 'wordRank', 'masteryLevel', 'nextReview', 'reviewCount', 'lastReviewed', 'timesCorrect', 'timesIncorrect', 'blacklisted'];
 

@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, VocabRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
@@ -17,7 +18,7 @@ app.get('/', (c) => {
   const text = c.req.query('text');
 
   let query = 'SELECT * FROM vocab WHERE userId = ? AND language = ?';
-  const params: unknown[] = [userId, lang];
+  const params: SQLQueryBindings[] =[userId, lang];
 
   if (state) { query += ' AND state = ?'; params.push(state); }
   if (bookId) { query += ' AND bookId = ?'; params.push(bookId); }
@@ -96,7 +97,7 @@ app.put('/:id', async (c) => {
   if (!existing) return c.json({ error: 'Vocab not found' }, 404);
 
   const updates: string[] = [];
-  const values: unknown[] = [];
+  const values: SQLQueryBindings[] =[];
 
   if (body.state !== undefined) {
     updates.push('state = ?', 'stateUpdatedAt = ?');
