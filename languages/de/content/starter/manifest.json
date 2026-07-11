@@ -1,0 +1,117 @@
+{
+  "title": "Deine ersten 1000 Wörter",
+  "author": "Lector",
+  "allow": [
+    "Emma",
+    "Paul",
+    "Nina",
+    "Berger"
+  ],
+  "maxNewLemmasPerLesson": 60,
+  "lessons": [
+    {
+      "file": "01-ich-bin-emma.md",
+      "title": "Ich bin Emma",
+      "maxRank": 250,
+      "maxNewLemmas": 120
+    },
+    {
+      "file": "02-meine-stadt.md",
+      "title": "Meine Stadt",
+      "maxRank": 250
+    },
+    {
+      "file": "03-die-arbeit.md",
+      "title": "Die Arbeit",
+      "maxRank": 250
+    },
+    {
+      "file": "04-die-zeit.md",
+      "title": "Die Zeit",
+      "maxRank": 250
+    },
+    {
+      "file": "05-gut-leben.md",
+      "title": "Gut leben",
+      "maxRank": 250
+    },
+    {
+      "file": "06-paul.md",
+      "title": "Paul",
+      "maxRank": 500,
+      "maxNewLemmas": 75
+    },
+    {
+      "file": "07-die-familie.md",
+      "title": "Die Familie",
+      "maxRank": 500
+    },
+    {
+      "file": "08-die-woche.md",
+      "title": "Die Woche",
+      "maxRank": 500
+    },
+    {
+      "file": "09-die-schule.md",
+      "title": "Die Schule",
+      "maxRank": 500
+    },
+    {
+      "file": "10-der-abend.md",
+      "title": "Der Abend",
+      "maxRank": 500
+    },
+    {
+      "file": "11-die-wohnung.md",
+      "title": "Die Wohnung",
+      "maxRank": 750
+    },
+    {
+      "file": "12-der-sommer.md",
+      "title": "Der Sommer",
+      "maxRank": 750
+    },
+    {
+      "file": "13-nina-und-die-musik.md",
+      "title": "Nina und die Musik",
+      "maxRank": 750
+    },
+    {
+      "file": "14-die-sprache.md",
+      "title": "Die Sprache",
+      "maxRank": 750
+    },
+    {
+      "file": "15-der-plan.md",
+      "title": "Die Idee",
+      "maxRank": 750
+    },
+    {
+      "file": "16-das-wochenende.md",
+      "title": "Das Wochenende",
+      "maxRank": 1000,
+      "maxNewLemmas": 75
+    },
+    {
+      "file": "17-der-markt.md",
+      "title": "Der Markt",
+      "maxRank": 1000
+    },
+    {
+      "file": "18-der-staat.md",
+      "title": "Der Staat",
+      "maxRank": 1000,
+      "maxNewLemmas": 75
+    },
+    {
+      "file": "19-die-ausbildung.md",
+      "title": "Die Ausbildung",
+      "maxRank": 1000
+    },
+    {
+      "file": "20-ein-jahr-ein-leben.md",
+      "title": "Ein Jahr, ein Leben",
+      "maxRank": 1000
+    }
+  ]
+}

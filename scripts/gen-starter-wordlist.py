@@ -67,19 +67,44 @@ class Dictionary:
             )
         self.db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
 
-    def resolve_lemma(self, folded: str) -> str | None:
-        """Exact headword, else inflection→lemma (the static half of the app's
-        lookupWord path — the AI-cache fallthrough is deliberately absent:
-        starter words must resolve for a brand-new user)."""
-        row = self.db.execute("SELECT word FROM entries WHERE word = ?", (folded,)).fetchone()
-        if row:
-            return row[0]
+    ALT_SPELLING_MARKERS = (
+        "alternative spelling of",
+        "standard spelling of",  # de 'weiss' = "Switzerland and Liechtenstein standard spelling of weiß"
+        "alternative form of",
+        "obsolete spelling of",
+    )
+
+    def _inflection_lemma(self, folded: str) -> str | None:
         row = self.db.execute(
             "SELECT i.lemma FROM inflections i JOIN entries e ON e.word = i.lemma "
             "WHERE i.inflected_form = ? LIMIT 1",
             (folded,),
         ).fetchone()
         return row[0] if row else None
+
+    def resolve_lemma(self, folded: str) -> str | None:
+        """Exact headword, else inflection→lemma (the static half of the app's
+        lookupWord path — the AI-cache fallthrough is deliberately absent:
+        starter words must resolve for a brand-new user).
+
+        One wordlist-specific refinement: an exact entry whose EVERY sense is
+        an alternative-spelling note is not a teaching target — wordfreq's de
+        list carries Swiss ss-spellings (weiss/gross/strasse) with their own
+        kaikki entries, while real German content produces the ß keys. Follow
+        the inflections link to the canonical headword instead, so the list
+        holds the key the app tokenizer will actually credit."""
+        row = self.db.execute("SELECT word FROM entries WHERE word = ?", (folded,)).fetchone()
+        if row:
+            word = row[0]
+            senses = self.db.execute("SELECT gloss FROM senses WHERE word = ?", (word,)).fetchall()
+            if senses and all(
+                any(marker in s[0].lower() for marker in self.ALT_SPELLING_MARKERS) for s in senses
+            ):
+                canonical = self._inflection_lemma(folded)
+                if canonical and canonical != word:
+                    return canonical
+            return word
+        return self._inflection_lemma(folded)
 
     def is_name_only(self, headword: str) -> bool:
         pos = self.pos_set(headword)
@@ -100,7 +125,13 @@ class Dictionary:
         in the pack manifest."""
         if "name" in self.pos_set(headword):
             return False
-        junk = ("abbreviation of", "obsolete spelling of", "obsolete form of", "alternative spelling of")
+        junk = (
+            "abbreviation of",
+            "obsolete spelling of",
+            "obsolete form of",
+            "alternative spelling of",
+            "nonstandard form of",  # de 'n' = "nonstandard form of 'n"
+        )
         rows = self.db.execute(
             "SELECT gloss FROM senses WHERE word = ? AND pos IN ('conj','prep','article','det')",
             (headword,),
@@ -145,9 +176,23 @@ def main() -> None:
         help="rename a source token before resolution (repeatable). af: --alias \"n='n\" — "
         "the woordeboek CSV counts the article 'n as bare n, but the app tokenizes 'n whole.",
     )
+    ap.add_argument(
+        "--drop",
+        action="append",
+        default=[],
+        metavar="WORD",
+        help="explicitly exclude a candidate (repeatable) — the escape hatch for "
+        "per-language judgment calls the generic filters can't make.",
+    )
     args = ap.parse_args()
 
     aliases = dict(a.split("=", 1) for a in args.alias)
+    drops = {fold(d) for d in args.drop}
+    # Keys the tokenizer can actually produce: apostrophe-bearing keys are only
+    # legal when deliberately aliased in (af "'n" has an extraTokenPattern);
+    # otherwise the tokenizer SPLITS apostrophes (de "geht's" → geht + s), so
+    # such a key could never be credited by real content — a wasted slot.
+    alias_targets = {fold(v) for v in aliases.values()}
 
     dictionary = Dictionary(args.dict or REPO / "data" / f"dictionary-{args.lang}.db")
     source = candidates_csv(args.freq_csv) if args.freq_csv else candidates_wordfreq(args.lang, args.scan)
@@ -164,6 +209,9 @@ def main() -> None:
         if not is_wordlike(folded):
             stats["not_wordlike"] += 1
             continue
+        if folded in drops:
+            stats["dropped"] = stats.get("dropped", 0) + 1
+            continue
         if flagged_proper:
             stats["flagged_proper"] += 1
             continue
@@ -173,6 +221,14 @@ def main() -> None:
             continue
         if lemma in seen_lemmas:
             stats["lemma_dupe"] += 1
+            continue
+        # The resolved KEY must be producible by the app tokenizer, which
+        # splits apostrophes (de "geht's" → geht + s) — such a key could never
+        # be credited by real content. Aliased keys (af "'n", which has its own
+        # extraTokenPattern) are deliberate exceptions. Checked on the lemma,
+        # not the surface: af CSV "video's" legitimately resolves to "video".
+        if "'" in lemma and lemma not in alias_targets:
+            stats["untokenizable"] = stats.get("untokenizable", 0) + 1
             continue
         if dictionary.is_name_only(lemma):
             stats["name_only"] += 1

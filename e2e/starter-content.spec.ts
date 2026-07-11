@@ -109,8 +109,10 @@ test.describe('starter content seeding (#315)', () => {
   });
 });
 
-// Runs everywhere, including against the production image: no pack ships
-// starter content yet, so selecting a language must behave exactly as before.
+// Runs everywhere, including against the production image. es and de now ship a
+// starter series, so this edge uses a pack that does NOT: af has a wordlist but
+// no manifest, so hasStarterContent is false and selecting it must behave
+// exactly as before, with nothing seeded.
 test.describe('starter content absent (#315 edge)', () => {
   test('selecting a language without starter content leaves the library untouched', async ({
     browser,
@@ -119,26 +121,26 @@ test.describe('starter content absent (#315 edge)', () => {
     const page = await context.newPage();
 
     const status = (await (
-      await page.request.get(apiUrl('/api/starter/status?language=de'))
+      await page.request.get(apiUrl('/api/starter/status?language=af'))
     ).json()) as { available: boolean };
     expect(status.available).toBe(false);
 
     const before = (await (
-      await page.request.get(apiUrl('/api/collections?language=de'))
+      await page.request.get(apiUrl('/api/collections?language=af'))
     ).json()) as { id: string }[];
 
     await page.request.delete(apiUrl('/api/settings/targetLanguage'));
     await page.goto('/');
     await expect(page).toHaveURL(/\/setup/, { timeout: 15000 });
-    await page.getByTestId('setup-language-de').click();
+    await page.getByTestId('setup-language-af').click();
     await expect(page).toHaveURL('/', { timeout: 15000 });
     await expect(page.getByText('Your Library').first()).toBeVisible({ timeout: 15000 });
 
     const after = (await (
-      await page.request.get(apiUrl('/api/collections?language=de'))
+      await page.request.get(apiUrl('/api/collections?language=af'))
     ).json()) as { id: string }[];
     expect(after.length).toBe(before.length);
-    expect(after.find((c) => c.id === 'starter-de')).toBeUndefined();
+    expect(after.find((c) => c.id === 'starter-af')).toBeUndefined();
 
     await restoreAfrikaans(page);
     await context.close();
