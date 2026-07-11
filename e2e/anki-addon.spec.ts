@@ -174,7 +174,7 @@ test.describe.serial('Anki in cloud mode (#241)', () => {
     const pendingRes = await request.get(`${CLOUD_API}/api/anki/pending`, { headers: bearer });
     expect(pendingRes.ok()).toBeTruthy();
     const { pending } = (await pendingRes.json()) as {
-      pending: Array<{ lectorId: string; cardType: string; lang: string; sentenceHtml: string }>;
+      pending: Array<{ lectorId: string; cardType: string; lang: string; sentenceHtml: string; version: number }>;
     };
     const item = pending.find((p) => p.lectorId === vocabId);
     expect(item).toBeTruthy();
@@ -182,10 +182,15 @@ test.describe.serial('Anki in cloud mode (#241)', () => {
     expect(item!.lang).toBe('af');
     expect(item!.sentenceHtml).toBe('Die <b>huis</b> is groot.');
 
-    // Ack: flips pushedToAnki + stores the note id, clears the queue.
+    // Ack: flips pushedToAnki + stores the note id, clears the queue. The
+    // version rides along like the real addon sends it (stale-ack guard).
     const ackRes = await request.post(`${CLOUD_API}/api/anki/ack`, {
       headers: bearer,
-      data: { results: [{ lectorId: vocabId, cardType: 'basic', noteId: 1720000000000 }] },
+      data: {
+        results: [
+          { lectorId: vocabId, cardType: 'basic', noteId: 1720000000000, version: item!.version },
+        ],
+      },
     });
     expect(((await ackRes.json()) as { acked: number }).acked).toBe(1);
 
@@ -201,7 +206,10 @@ test.describe.serial('Anki in cloud mode (#241)', () => {
     expect(emptied.pending).toEqual([]);
 
     // Push: a mature card upgrades the entry; an unmatched studied word is
-    // imported as vocab (both mirror the old browser sync, structured).
+    // imported as vocab (both mirror the old browser sync, structured). The
+    // import item is shaped exactly like review_state_for_card emits for a
+    // hand-made note: no lectorId, word/lang from the fields, sentence +
+    // translation included so the import lands with real context.
     const reviewsRes = await request.post(`${CLOUD_API}/api/anki/reviews`, {
       headers: bearer,
       data: {
@@ -251,6 +259,13 @@ test.describe('Anki transport in selfhost mode (#241)', () => {
     await page.goto('/settings');
     await expect(page.getByText('AnkiConnect URL')).toBeVisible();
     await expect(page.getByTestId('anki-addon-panel')).not.toBeVisible();
+
+    // The token picker offers the anki scopes the addon panel's setup copy
+    // points at (review P2 #3) — the documented least-privilege token must be
+    // mintable in the UI, not just via the API.
+    await page.getByRole('button', { name: 'Generate Token' }).click();
+    await expect(page.getByText('Anki sync (read)')).toBeVisible();
+    await expect(page.getByText('Anki sync (write)')).toBeVisible();
   });
 
   test('a self-hoster can switch to the addon transport, and back', async ({ page }) => {

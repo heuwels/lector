@@ -4,12 +4,29 @@ The direction reversal of heuwels/lector#241: everything here runs inside
 Anki Desktop on the user's machine and talks OUT to the Lector API, so the
 integration works no matter where Lector is hosted, and Anki only needs to be
 open at some point — not at the moment a word is saved.
+
+This module is deliberately aqt-free: it contains the pure steps (collection
+mutation, collection reads, HTTP posts) that __init__.py sequences on the
+correct Anki execution paths (CollectionOp for undoable writes, QueryOp for
+reads, taskman for network). That split also makes it unit-testable — see
+../tests/test_contract.py.
 """
 
 from __future__ import annotations
 
+import re
+
 from .api import LectorApi
 from .notetypes import BASIC_MODEL, CLOZE_MODEL, ensure_models
+
+# Server batch ceilings (api/src/routes/anki.ts): /ack and /queue accept 500
+# items, /reviews 10,000. Chunk below them so a big collection can never
+# wedge a sync with a permanent 400 (#350 review P1).
+ACK_CHUNK = 400
+REVIEWS_CHUNK = 5000
+# Backstop for the pull→apply→ack drain loop, far above any sane queue
+# (25 rounds × 500 cards); the loop also stops whenever a round acks nothing.
+MAX_PULL_ROUNDS = 25
 
 # Deck names for the {lang} placeholder in the configured deck pattern.
 LANGUAGE_NAMES = {
@@ -31,6 +48,10 @@ FIELD_MAP = {
 }
 
 
+def chunked(items: list, size: int) -> list:
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
+
 def deck_name_for(pattern: str, lang: str) -> str:
     name = LANGUAGE_NAMES.get(lang, lang)
     try:
@@ -39,9 +60,40 @@ def deck_name_for(pattern: str, lang: str) -> str:
         return "Lector"
 
 
+def field(note, name: str) -> str:
+    """A note field's value, or '' when the (possibly foreign) model lacks it."""
+    try:
+        return note[name] or ""
+    except KeyError:
+        return ""
+
+
+def strip_html(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]*>", " ", value)).strip()
+
+
+def strip_cloze(value: str) -> str:
+    """{{c1::word}} / {{c1::word::hint}} → word."""
+    return re.sub(r"\{\{c\d+::(.+?)(?:::[^}]*)?\}\}", r"\1", value)
+
+
+def lector_owned(note) -> bool:
+    """Only notes the addon owns take part in sync (#350 review: a user's
+    pre-existing note type that happens to be named "Lector" must not have
+    its unrelated notes uploaded). Ownership = one of our model names AND
+    (a LectorId value — everything the addon creates — or the `lector` tag,
+    which is also the documented opt-in for hand-made cards)."""
+    try:
+        if note.note_type()["name"] not in (BASIC_MODEL, CLOZE_MODEL):
+            return False
+        return bool(field(note, "LectorId").strip()) or ("lector" in note.tags)
+    except Exception:
+        return False
+
+
 def _set_fields(note, card_type: str, item: dict) -> None:
-    for field, key in FIELD_MAP[card_type].items():
-        note[field] = str(item.get(key, "") or "") if key else ""
+    for name, key in FIELD_MAP[card_type].items():
+        note[name] = str(item.get(key, "") or "") if key else ""
     note["LectorId"] = str(item.get("lectorId", ""))
     note["Lang"] = str(item.get("lang", ""))
 
@@ -63,34 +115,65 @@ def _upsert_note(col, model, deck_id: int, card_type: str, item: dict):
     return note.id
 
 
-def _is_lector_note(note) -> bool:
-    try:
-        return note.note_type()["name"] in (BASIC_MODEL, CLOZE_MODEL)
-    except Exception:
-        return False
+def apply_pending(col, pending: list, deck_pattern: str) -> tuple:
+    """Collection-mutation phase: upsert one pulled batch into Anki.
+    Returns (acks, failures). Runs inside a CollectionOp op (undoable);
+    performs NO network I/O."""
+    models = ensure_models(col)
+    acks = []
+    failures = 0
+    for item in pending:
+        card_type = item.get("cardType")
+        model = models.get(card_type)
+        if model is None or not item.get("lectorId"):
+            failures += 1
+            continue
+        try:
+            deck_id = col.decks.id(deck_name_for(deck_pattern, str(item.get("lang", ""))))
+            note_id = _upsert_note(col, model, deck_id, card_type, item)
+            acks.append({
+                "lectorId": item["lectorId"],
+                "cardType": card_type,
+                "noteId": int(note_id),
+                # Echoed so a re-queue between this pull and the ack survives
+                # (the server's delete is version-conditional).
+                "version": item.get("version"),
+            })
+        except Exception:
+            failures += 1
+    return acks, failures
 
 
 def review_state_for_card(note, card) -> dict:
-    """The structured review payload for one card — what replaces HTML parsing."""
+    """The structured review payload for one card — what replaces HTML
+    parsing. Hand-made notes (no LectorId) also carry their sentence and
+    translation so the server-side import lands with real context."""
     interval = card.ivl if card.ivl and card.ivl > 0 else 0  # learning ivls are negative seconds
-    return {
-        "lectorId": note["LectorId"] or None,
-        "word": note["Word"],
-        "lang": note["Lang"] or None,
+    lector_id = field(note, "LectorId").strip()
+    state = {
+        "lectorId": lector_id or None,
+        "word": field(note, "Word"),
+        "lang": field(note, "Lang") or None,
         "type": card.type,
         "interval": interval,
         "noteId": note.id,
     }
+    if not lector_id:
+        raw_sentence = field(note, "Sentence") or strip_cloze(field(note, "Text"))
+        state["sentence"] = strip_html(raw_sentence)
+        state["translation"] = strip_html(field(note, "Translation"))
+    return state
 
 
 def collect_review_states(col) -> list:
+    """Collection-read phase (QueryOp): every owned card's current state."""
     reviews = []
     for model_name in (BASIC_MODEL, CLOZE_MODEL):
         if col.models.by_name(model_name) is None:
             continue
         for note_id in col.find_notes(f'"note:{model_name}"'):
             note = col.get_note(note_id)
-            if not _is_lector_note(note):
+            if not lector_owned(note):
                 continue
             for card in note.cards():
                 reviews.append(review_state_for_card(note, card))
@@ -118,52 +201,31 @@ def reviews_by_day(col) -> list:
         return []
 
 
-def run_sync(col, config: dict) -> str:
-    """Full sync: pending → notes → ack, then review push. Returns a summary
-    line for the tooltip. Runs under QueryOp on a background thread with the
-    collection lock held — no aqt imports here, so it stays testable."""
-    api = LectorApi(config.get("api_url", ""), config.get("api_token", ""))
-    deck_pattern = str(config.get("deck") or "Lector::{lang}")
+def post_acks(api: LectorApi, acks: list) -> None:
+    """Network phase: confirm created/updated notes, chunked to the server cap."""
+    for chunk in chunked(acks, ACK_CHUNK):
+        api.post_ack(chunk)
 
-    pending = api.get_pending()
-    models = ensure_models(col)
 
-    acks = []
-    failures = 0
-    for item in pending:
-        card_type = item.get("cardType")
-        model = models.get(card_type)
-        if model is None or not item.get("lectorId"):
-            failures += 1
+def post_reviews(api: LectorApi, reviews: list, by_day) -> dict:
+    """Network phase: push review states, chunked; day counts ride the first
+    chunk only (they're idempotent per-day upserts — once is enough)."""
+    totals = {"updated": 0, "created": 0}
+    batches = chunked(reviews, REVIEWS_CHUNK) or [[]]
+    for index, chunk in enumerate(batches):
+        if not chunk and index > 0:
             continue
-        try:
-            deck_id = col.decks.id(deck_name_for(deck_pattern, str(item.get("lang", ""))))
-            note_id = _upsert_note(col, model, deck_id, card_type, item)
-            acks.append({"lectorId": item["lectorId"], "cardType": card_type, "noteId": int(note_id)})
-        except Exception:
-            failures += 1
-
-    if acks:
-        api.post_ack(acks)
-
-    reviews = collect_review_states(col)
-    summary = api.post_reviews(reviews, reviews_by_day(col))
-
-    parts = [f"{len(acks)} card{'s' if len(acks) != 1 else ''} pulled"]
-    if failures:
-        parts.append(f"{failures} failed")
-    parts.append(
-        f"reviews: {summary.get('updated', 0)} upgraded, "
-        f"{summary.get('created', 0)} imported"
-    )
-    return "Lector sync — " + ", ".join(parts)
+        summary = api.post_reviews(chunk, by_day if index == 0 else None)
+        totals["updated"] += int(summary.get("updated", 0) or 0)
+        totals["created"] += int(summary.get("created", 0) or 0)
+    return totals
 
 
 def flush_reviews(config: dict, reviews: list) -> None:
-    """Push a captured batch of review states (the reviewer-hook buffer).
-    Best-effort: called at profile close, so it must never block shutdown on
-    an unreachable server beyond the request timeout."""
+    """Push a captured batch of review states (the reviewer-hook buffer),
+    chunked like any other push. Best-effort — callers run it off the main
+    thread and swallow failures; the next full sync re-sends every state."""
     if not reviews:
         return
     api = LectorApi(config.get("api_url", ""), config.get("api_token", ""))
-    api.post_reviews(reviews)
+    post_reviews(api, reviews, None)

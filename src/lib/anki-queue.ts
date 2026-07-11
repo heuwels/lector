@@ -26,20 +26,33 @@ export interface AnkiQueueResult {
   failed: Array<{ id: string; error: string }>;
 }
 
+/** The server rejects batches above this (routes/anki.ts MAX_QUEUE_ITEMS) —
+ *  callers never need to care because queueForAnki chunks to it. */
+export const QUEUE_BATCH_LIMIT = 500;
+
 /**
- * Enqueue vocab entries as pending Anki cards. Per-item problems (deleted
+ * Enqueue vocab entries as pending Anki cards. Batches larger than the
+ * server's per-call ceiling are sent in chunks and the results merged, so a
+ * bulk vocab-page export of any size works. Per-item problems (deleted
  * entry, cloze word missing from its sentence) come back in `failed` rather
  * than throwing; transport/HTTP failures throw.
  */
 export async function queueForAnki(items: AnkiQueueItem[]): Promise<AnkiQueueResult> {
-  const res = await apiFetch('/api/anki/queue', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items }),
-  });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(data.error || 'Failed to queue cards for Anki');
+  const total: AnkiQueueResult = { queued: 0, failed: [] };
+  for (let start = 0; start < items.length; start += QUEUE_BATCH_LIMIT) {
+    const chunk = items.slice(start, start + QUEUE_BATCH_LIMIT);
+    const res = await apiFetch('/api/anki/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: chunk }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error || 'Failed to queue cards for Anki');
+    }
+    const result = (await res.json()) as AnkiQueueResult;
+    total.queued += result.queued;
+    total.failed.push(...result.failed);
   }
-  return (await res.json()) as AnkiQueueResult;
+  return total;
 }

@@ -62,9 +62,15 @@ class LectorApi:
         except json.JSONDecodeError as err:
             raise LectorApiError(f"Lector API returned invalid JSON on {path}") from err
 
-    def get_pending(self) -> list:
+    def get_pending(self) -> tuple:
+        """One batch of pending cards plus the count still queued behind it.
+        The server pages at its own /ack ceiling, so a returned batch is
+        always fully ack-able; drain by looping pull→apply→ack while batches
+        keep coming."""
         result = self._request("GET", "/api/anki/pending")
-        return result.get("pending", []) if isinstance(result, dict) else []
+        if not isinstance(result, dict):
+            return [], 0
+        return result.get("pending", []) or [], int(result.get("remaining", 0) or 0)
 
     def post_ack(self, results: list) -> dict:
         return self._request("POST", "/api/anki/ack", {"results": results}) or {}

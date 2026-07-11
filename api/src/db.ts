@@ -292,6 +292,9 @@ function getDb(): Database {
     -- word/sentence/translation/meaning override the vocab row's values when
     -- set — the reader's phrase-cloze and practice queue card content that
     -- differs from the stored entry (chosen blank, practice sentence).
+    -- version increments on every re-queue; acks echo it so a stale ack (the
+    -- addon confirming content it pulled before a re-queue) can never delete
+    -- the newer row. Monotonic on purpose — same-millisecond timestamps tie.
     CREATE TABLE IF NOT EXISTS anki_pending (
       userId TEXT NOT NULL DEFAULT 'local',
       vocabId TEXT NOT NULL,
@@ -301,6 +304,7 @@ function getDb(): Database {
       translation TEXT,
       meaning TEXT,
       queuedAt TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
       PRIMARY KEY (userId, vocabId, cardType)
     );
   `);
@@ -319,6 +323,13 @@ function getDb(): Database {
   const chatCols = _db.prepare('PRAGMA table_info(chat_messages)').all() as { name: string }[];
   if (!chatCols.some((c) => c.name === 'responseId')) {
     _db.exec('ALTER TABLE chat_messages ADD COLUMN responseId TEXT');
+  }
+
+  // anki_pending predating the stale-ack guard (#241 review): add the version
+  // counter the ack round-trip now keys on.
+  const ankiPendingCols = _db.prepare('PRAGMA table_info(anki_pending)').all() as { name: string }[];
+  if (ankiPendingCols.length > 0 && !ankiPendingCols.some((c) => c.name === 'version')) {
+    _db.exec('ALTER TABLE anki_pending ADD COLUMN version INTEGER NOT NULL DEFAULT 1');
   }
 
   if (!chatCols.some((c) => c.name === 'language')) {
@@ -1285,6 +1296,7 @@ export interface AnkiPendingRow {
   translation: string | null;
   meaning: string | null;
   queuedAt: string;
+  version: number;
 }
 
 export interface ClozeSentenceRow {

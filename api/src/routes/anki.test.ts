@@ -225,6 +225,84 @@ describe('GET /api/anki/pending', () => {
   });
 });
 
+describe('pending pagination + ack versioning (#241 review P1s)', () => {
+  beforeEach(clear);
+  afterEach(clear);
+
+  test('pending serves at most one ack-able batch; acking drains it; the rest follows', async () => {
+    const insertVocab = db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language)
+       VALUES (?, ?, 'word', 's', 't', 'new', ?, ?, 'af')`,
+    );
+    const insertPending = db.prepare(
+      `INSERT INTO anki_pending (userId, vocabId, cardType, queuedAt) VALUES ('local', ?, 'word', ?)`,
+    );
+    db.transaction(() => {
+      for (let i = 0; i < 502; i++) {
+        insertVocab.run(`v${i}`, `w${i}`, TS, TS);
+        insertPending.run(`v${i}`, TS);
+      }
+    })();
+
+    const first = (await (await app.request('/pending')).json()) as {
+      pending: Array<{ lectorId: string; cardType: string; version: number }>;
+      remaining: number;
+    };
+    expect(first.pending.length).toBe(500);
+    expect(first.remaining).toBe(2);
+
+    const ackRes = await post('/ack', {
+      results: first.pending.map((p, i) => ({
+        lectorId: p.lectorId,
+        cardType: p.cardType,
+        noteId: i + 1,
+        version: p.version,
+      })),
+    });
+    expect(ackRes.status).toBe(200);
+    expect(((await ackRes.json()) as { acked: number }).acked).toBe(500);
+
+    const second = (await (await app.request('/pending')).json()) as {
+      pending: unknown[];
+      remaining: number;
+    };
+    expect(second.pending.length).toBe(2);
+    expect(second.remaining).toBe(0);
+  });
+
+  test('a stale ack cannot delete a re-queued card (version guard)', async () => {
+    seedVocab('v1', 'huis');
+    await post('/queue', { items: [{ id: 'v1', cardType: 'basic' }] });
+
+    // The addon pulls version 1…
+    const pulled = (await (await app.request('/pending')).json()) as {
+      pending: Array<{ version: number }>;
+    };
+    expect(pulled.pending[0].version).toBe(1);
+
+    // …the user re-queues with new content before the ack lands…
+    await post('/queue', { items: [{ id: 'v1', cardType: 'basic', meaning: 'v2 content' }] });
+
+    // …so the stale ack marks the entry pushed (the v1 note DOES exist in
+    // Anki) but must NOT clear the newer queue row.
+    await post('/ack', {
+      results: [{ lectorId: 'v1', cardType: 'basic', noteId: 1, version: pulled.pending[0].version }],
+    });
+    expect(vocabRow('v1')!.pushedToAnki).toBe(1);
+
+    const again = (await (await app.request('/pending')).json()) as {
+      pending: Array<{ meaning: string; version: number }>;
+    };
+    expect(again.pending.length).toBe(1);
+    expect(again.pending[0].meaning).toBe('v2 content');
+    expect(again.pending[0].version).toBe(2);
+
+    // A current-version ack clears it.
+    await post('/ack', { results: [{ lectorId: 'v1', cardType: 'basic', noteId: 1, version: 2 }] });
+    expect(pendingRows()).toEqual([]);
+  });
+});
+
 describe('POST /api/anki/ack', () => {
   beforeEach(clear);
   afterEach(clear);

@@ -142,9 +142,15 @@ app.post('/queue', async (c) => {
   }
 
   const selectVocab = db.prepare('SELECT * FROM vocab WHERE id = ? AND userId = ?');
+  // Re-queue = UPDATE with a version bump (never OR REPLACE): the version is
+  // what lets /ack detect that its confirmation is stale (review P1 #2).
   const upsertPending = db.prepare(`
-    INSERT OR REPLACE INTO anki_pending (userId, vocabId, cardType, word, sentence, translation, meaning, queuedAt)
+    INSERT INTO anki_pending (userId, vocabId, cardType, word, sentence, translation, meaning, queuedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(userId, vocabId, cardType) DO UPDATE SET
+      word = excluded.word, sentence = excluded.sentence,
+      translation = excluded.translation, meaning = excluded.meaning,
+      queuedAt = excluded.queuedAt, version = anki_pending.version + 1
   `);
 
   let queued = 0;
@@ -192,20 +198,33 @@ app.post('/queue', async (c) => {
 // verbatim. Reading is idempotent; rows leave the queue only on ack. A row
 // whose cloze no longer builds (the entry was edited after queueing) is
 // dropped from the queue rather than served broken forever.
+//
+// Paginated (review P1 #1): at most MAX_QUEUE_ITEMS rows per call — the same
+// ceiling /ack accepts, so one pulled batch is always fully ack-able. The
+// addon drains the queue by looping pull→apply→ack while batches keep coming;
+// `remaining` is advisory (for logs/progress).
 app.get('/pending', (c) => {
   const userId = getCurrentUserId(c);
 
+  const total = (db.prepare(`
+    SELECT COUNT(*) AS n
+    FROM anki_pending p
+    JOIN vocab v ON v.userId = p.userId AND v.id = p.vocabId
+    WHERE p.userId = ?
+  `).get(userId) as { n: number }).n;
+
   const rows = db.prepare(`
     SELECT p.vocabId, p.cardType, p.word AS pWord, p.sentence AS pSentence,
-           p.translation AS pTranslation, p.meaning AS pMeaning, p.queuedAt,
+           p.translation AS pTranslation, p.meaning AS pMeaning, p.queuedAt, p.version,
            v.text, v.sentence, v.translation, v.language
     FROM anki_pending p
     JOIN vocab v ON v.userId = p.userId AND v.id = p.vocabId
     WHERE p.userId = ?
     ORDER BY p.queuedAt, p.vocabId
+    LIMIT ${MAX_QUEUE_ITEMS}
   `).all(userId) as Array<{
     vocabId: string; cardType: AnkiCardType; pWord: string | null; pSentence: string | null;
-    pTranslation: string | null; pMeaning: string | null; queuedAt: string;
+    pTranslation: string | null; pMeaning: string | null; queuedAt: string; version: number;
     text: string; sentence: string; translation: string; language: string;
   }>;
 
@@ -238,15 +257,19 @@ app.get('/pending', (c) => {
       translation,
       meaning,
       queuedAt: row.queuedAt,
+      version: row.version,
     });
   }
 
-  return c.json({ pending });
+  return c.json({ pending, remaining: Math.max(0, total - rows.length) });
 });
 
 // POST /api/anki/ack — the addon confirms created/updated notes. Flips the
 // entry's pushedToAnki + ankiNoteId (the same marks the browser path sets via
-// PUT /api/vocab/:id) and clears the pending row.
+// PUT /api/vocab/:id) and clears the pending row. When the ack echoes the
+// pulled row's `version`, the delete is conditional (version <= echoed) — a
+// re-queue between pull and ack bumps the version, so the stale ack leaves
+// the newer row in the queue for the next sync (review P1 #2).
 app.post('/ack', async (c) => {
   const userId = getCurrentUserId(c);
   const body = await c.req.json().catch(() => null);
@@ -260,19 +283,30 @@ app.post('/ack', async (c) => {
   }
 
   const markPushed = db.prepare('UPDATE vocab SET pushedToAnki = 1, ankiNoteId = ? WHERE id = ? AND userId = ?');
-  const clearPending = db.prepare('DELETE FROM anki_pending WHERE userId = ? AND vocabId = ? AND cardType = ?');
+  const clearPendingUpTo = db.prepare(
+    'DELETE FROM anki_pending WHERE userId = ? AND vocabId = ? AND cardType = ? AND version <= ?',
+  );
+  const clearPendingAny = db.prepare(
+    'DELETE FROM anki_pending WHERE userId = ? AND vocabId = ? AND cardType = ?',
+  );
 
   let acked = 0;
   db.transaction((items: unknown[]) => {
     for (const raw of items) {
-      const item = raw as { lectorId?: unknown; cardType?: unknown; noteId?: unknown };
+      const item = raw as { lectorId?: unknown; cardType?: unknown; noteId?: unknown; version?: unknown };
       const lectorId = typeof item.lectorId === 'string' ? item.lectorId : '';
       const noteId = typeof item.noteId === 'number' && Number.isFinite(item.noteId) ? Math.trunc(item.noteId) : null;
       if (!lectorId || noteId === null) continue;
 
       const res = markPushed.run(noteId, lectorId, userId);
       if (CARD_TYPES.includes(item.cardType as AnkiCardType)) {
-        clearPending.run(userId, lectorId, item.cardType as string);
+        const version =
+          typeof item.version === 'number' && Number.isFinite(item.version) ? Math.trunc(item.version) : null;
+        if (version === null) {
+          clearPendingAny.run(userId, lectorId, item.cardType as string);
+        } else {
+          clearPendingUpTo.run(userId, lectorId, item.cardType as string, version);
+        }
       }
       if (res.changes > 0) acked++;
     }

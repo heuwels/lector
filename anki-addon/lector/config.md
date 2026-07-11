@@ -11,3 +11,7 @@
 - **sync_on_profile_open** — pull queued cards and push review states each
   time you open this profile (default `true`). You can always sync manually
   via **Tools → Lector: Sync now**.
+
+Hand-made cards: create them on the **Lector** / **Lector Cloze** note types
+and add the `lector` tag — the next sync imports them into your Lector vocab.
+Notes without the tag (and without a LectorId) are never touched or uploaded.

@@ -14,9 +14,11 @@ Desktop on your machine and talks **out** to the Lector API:
   from Anki's scheduler) flows back and upgrades word states in Lector —
   learning → `level1`, relearning → `level2`, young → `level4`, mature →
   `known`. Upgrade-only: Lector never demotes a word because a card lapsed,
-  and `ignored` words stay ignored. Cards you create yourself on the Lector
-  note types are imported as new vocab. Daily review counts feed the
-  activity heatmap.
+  and `ignored` words stay ignored. Daily review counts feed the activity
+  heatmap. Only notes the addon owns take part: everything it creates, plus
+  any card you hand-make on the Lector note types **and tag `lector`** —
+  those are imported into your vocab (with their sentence and translation).
+  Untagged notes on a same-named note type are left strictly alone.
 - **When**: on profile open (configurable), via **Tools → Lector: Sync now**,
   and answered-card states are flushed when the profile closes.
 

@@ -606,8 +606,11 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     // pushedToAnki in the DB. The panel state flips optimistically so the
     // button reads "added" like the direct path.
     if (ankiTransport === 'addon') {
+      // word override: the entry stores the folded key ("häuser"), but the
+      // card must show the displayed casing ("Häuser") like the AnkiConnect
+      // path always has.
       const result = await queueForAnki([
-        { id: entry.id, cardType: 'word', translation, meaning: wordMeaning },
+        { id: entry.id, cardType: 'word', word: wordPanel.word, translation, meaning: wordMeaning },
       ]);
       if (result.failed.length > 0) throw new Error(result.failed[0].error);
       setWordPanel((prev) => ({
