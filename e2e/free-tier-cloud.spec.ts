@@ -64,6 +64,7 @@ test.describe.serial('Free cloud learning loop', () => {
     expect(page.url()).not.toContain('/subscribe');
 
     await page.getByTestId('setup-language-af').click();
+    await page.getByTestId('skip-guided-onboarding').click();
     await page.waitForURL((url) => url.pathname === '/');
     await expect(page.getByTestId('account-email')).toHaveText(EMAIL);
   });
