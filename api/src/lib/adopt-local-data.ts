@@ -51,6 +51,9 @@ export const TENANT_TABLES = [
   // Plan-limit usage counters (#222): adopted so a migrating self-hoster's
   // current-month metering carries over instead of resetting to zero.
   'usage_counters',
+  // Anki export queue (#241): adopted so cards queued before the switch still
+  // reach the addon afterwards (rows join vocab on the same userId).
+  'anki_pending',
 ] as const;
 
 export type TenantTable = (typeof TENANT_TABLES)[number];

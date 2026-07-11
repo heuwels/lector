@@ -18,6 +18,15 @@ jobs:
       - name: Validate gated deployment and rollback
         run: bash deploy/cloud/deploy-cloud.test.sh
 
+  # Anki addon (#241): aqt-free contract tests over anki-addon/lector — chunk
+  # ceilings vs the API's batch caps, review-payload shape, ownership scoping.
+  addon-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Anki addon contract tests
+        run: python3 -m unittest discover -s anki-addon/tests -v
+
   lint:
     runs-on: ubuntu-latest
     steps:

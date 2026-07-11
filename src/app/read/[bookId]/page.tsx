@@ -21,6 +21,8 @@ import {
 } from '@/lib/data-layer';
 import { showPlanLimitToast } from '@/lib/plan-limits';
 import { addWordCard, addClozeCard } from '@/lib/anki';
+import { queueForAnki } from '@/lib/anki-queue';
+import { useAnkiTransport } from '@/lib/anki-transport';
 import { translateWord, translatePhrase, streamWordGloss, enrichWord } from '@/lib/claude';
 import {
   lookupWordRemote,
@@ -38,6 +40,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   const { bookId: lessonId } = use(params);
   const router = useRouter();
   const activeLang = useActiveLanguage();
+  const ankiTransport = useAnkiTransport();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [siblings, setSiblings] = useState<LessonSummary[]>([]);
@@ -597,6 +600,28 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
 
     const entry = await ensureVocabEntry();
+
+    // Addon transport (#241): queue server-side instead of browser→
+    // AnkiConnect; the Lector addon creates the note and its ack flips
+    // pushedToAnki in the DB. The panel state flips optimistically so the
+    // button reads "added" like the direct path.
+    if (ankiTransport === 'addon') {
+      // word override: the entry stores the folded key ("häuser"), but the
+      // card must show the displayed casing ("Häuser") like the AnkiConnect
+      // path always has.
+      const result = await queueForAnki([
+        { id: entry.id, cardType: 'word', word: wordPanel.word, translation, meaning: wordMeaning },
+      ]);
+      if (result.failed.length > 0) throw new Error(result.failed[0].error);
+      setWordPanel((prev) => ({
+        ...prev,
+        existingEntry: prev.existingEntry
+          ? { ...prev.existingEntry, pushedToAnki: true }
+          : { ...entry, pushedToAnki: true },
+      }));
+      return;
+    }
+
     const noteId = await addWordCard(deckName, wordPanel.word, translation, wordMeaning);
     await markVocabPushedToAnki(entry.id, noteId);
     setWordPanel((prev) => ({
@@ -605,7 +630,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         ? { ...prev.existingEntry, pushedToAnki: true, ankiNoteId: noteId }
         : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
     }));
-  }, [wordPanel, getAnkiDecks, ensureVocabEntry]);
+  }, [wordPanel, getAnkiDecks, ensureVocabEntry, ankiTransport]);
 
   const addClozeToAnki = useCallback(
     async (blankWord: string) => {
@@ -613,6 +638,31 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
 
       const entry = await ensureVocabEntry();
+
+      // Addon transport (#241): same queue as addWordToAnki. The selected
+      // phrase is the card's sentence and blankWord the cloze target — sent
+      // as per-item overrides since they differ from the stored entry.
+      if (ankiTransport === 'addon') {
+        const result = await queueForAnki([
+          {
+            id: entry.id,
+            cardType: 'cloze',
+            word: blankWord,
+            sentence: wordPanel.word,
+            translation,
+            meaning: translation,
+          },
+        ]);
+        if (result.failed.length > 0) throw new Error(result.failed[0].error);
+        setWordPanel((prev) => ({
+          ...prev,
+          existingEntry: prev.existingEntry
+            ? { ...prev.existingEntry, pushedToAnki: true }
+            : { ...entry, pushedToAnki: true },
+        }));
+        return;
+      }
+
       const noteId = await addClozeCard(
         clozeDeck,
         wordPanel.word,
@@ -628,7 +678,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
       }));
     },
-    [wordPanel, getAnkiDecks, ensureVocabEntry],
+    [wordPanel, getAnkiDecks, ensureVocabEntry, ankiTransport],
   );
 
   const retranslateWithAi = useCallback(async () => {

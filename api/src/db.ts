@@ -297,6 +297,30 @@ function getDb(): Database {
       updatedAt TEXT NOT NULL,
       PRIMARY KEY (userId, metric, period)
     );
+
+    -- Anki export queue (#241): cards the app wants created in Anki, pulled by
+    -- the Lector addon (GET /api/anki/pending) and confirmed back (POST
+    -- /api/anki/ack), which flips vocab.pushedToAnki. Rows reference vocab by
+    -- (userId, id) without an FK: the pending read JOINs vocab, so a row whose
+    -- entry was deleted simply never surfaces (and ack/queue clean up).
+    -- word/sentence/translation/meaning override the vocab row's values when
+    -- set — the reader's phrase-cloze and practice queue card content that
+    -- differs from the stored entry (chosen blank, practice sentence).
+    -- version increments on every re-queue; acks echo it so a stale ack (the
+    -- addon confirming content it pulled before a re-queue) can never delete
+    -- the newer row. Monotonic on purpose — same-millisecond timestamps tie.
+    CREATE TABLE IF NOT EXISTS anki_pending (
+      userId TEXT NOT NULL DEFAULT 'local',
+      vocabId TEXT NOT NULL,
+      cardType TEXT NOT NULL CHECK (cardType IN ('basic', 'word', 'cloze')),
+      word TEXT,
+      sentence TEXT,
+      translation TEXT,
+      meaning TEXT,
+      queuedAt TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (userId, vocabId, cardType)
+    );
   `);
 
   // Migrations for existing databases
@@ -313,6 +337,13 @@ function getDb(): Database {
   const chatCols = _db.prepare('PRAGMA table_info(chat_messages)').all() as { name: string }[];
   if (!chatCols.some((c) => c.name === 'responseId')) {
     _db.exec('ALTER TABLE chat_messages ADD COLUMN responseId TEXT');
+  }
+
+  // anki_pending predating the stale-ack guard (#241 review): add the version
+  // counter the ack round-trip now keys on.
+  const ankiPendingCols = _db.prepare('PRAGMA table_info(anki_pending)').all() as { name: string }[];
+  if (ankiPendingCols.length > 0 && !ankiPendingCols.some((c) => c.name === 'version')) {
+    _db.exec('ALTER TABLE anki_pending ADD COLUMN version INTEGER NOT NULL DEFAULT 1');
   }
 
   if (!chatCols.some((c) => c.name === 'language')) {
@@ -1363,6 +1394,20 @@ export interface KnownWordRow {
   word: string;
   language: string;
   state: WordState;
+}
+
+export type AnkiCardType = 'basic' | 'word' | 'cloze';
+
+export interface AnkiPendingRow {
+  userId: string;
+  vocabId: string;
+  cardType: AnkiCardType;
+  word: string | null;
+  sentence: string | null;
+  translation: string | null;
+  meaning: string | null;
+  queuedAt: string;
+  version: number;
 }
 
 export interface ClozeSentenceRow {
