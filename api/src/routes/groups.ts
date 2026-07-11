@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, CollectionGroupRow } from '../db';
 import { getCurrentUserId } from '../lib/user';
@@ -63,7 +64,7 @@ app.put('/:id', async (c) => {
   const body = await c.req.json();
 
   const updates: string[] = [];
-  const values: unknown[] = [];
+  const values: SQLQueryBindings[] = [];
 
   if (body.name !== undefined) {
     if (!body.name.trim()) {

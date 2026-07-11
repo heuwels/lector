@@ -6,7 +6,7 @@
  * and mounted in cloud proper (`config.authRequired`) — selfhost never
  * touches it. Session → userId: lib/session.ts; route-side reads: lib/user.ts.
  */
-import { betterAuth } from 'better-auth';
+import { betterAuth, type BetterAuthPlugin } from 'better-auth';
 import { captcha, genericOAuth, twoFactor } from 'better-auth/plugins';
 import { getMigrations } from 'better-auth/db/migration';
 import type { Database } from 'bun:sqlite';
@@ -62,7 +62,7 @@ export function oidcDiscoveryUrl(issuer: string): string {
 
 /** Factory shared by the prod singleton and tests (in-memory DB aside). */
 export function createAuthEngine(opts: AuthEngineOptions) {
-  const plugins = [
+  const plugins: BetterAuthPlugin[] = [
     // TOTP two-factor auth (Google Authenticator et al), per-user opt-in from
     // Settings. Enrolment is verify-to-arm (skipVerificationOnEnable stays
     // false): `twoFactorEnabled` only flips after the first valid code, so a

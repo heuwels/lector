@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, CollectionRow, LessonRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
@@ -102,7 +103,7 @@ app.put('/:id', async (c) => {
   const body = await c.req.json();
 
   const updates: string[] = [];
-  const values: unknown[] = [];
+  const values: SQLQueryBindings[] = [];
 
   if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
   if (body.author !== undefined) { updates.push('author = ?'); values.push(body.author); }

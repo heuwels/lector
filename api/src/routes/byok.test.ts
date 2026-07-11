@@ -10,7 +10,7 @@ const originalFetch = globalThis.fetch;
 beforeEach(() => {
   process.env.BYOK_ENCRYPTION_KEY = randomBytes(32).toString('base64');
   db.prepare("DELETE FROM user_provider_credentials WHERE userId = 'local'").run();
-  globalThis.fetch = (async () => new Response('{}', { status: 200 })) as typeof fetch;
+  globalThis.fetch = (async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
 });
 
 afterAll(() => {
@@ -21,11 +21,11 @@ afterAll(() => {
 
 describe('BYOK settings route', () => {
   test('validates, stores, reports only metadata, then disables', async () => {
-    let validationRequest: Request | null = null;
-    globalThis.fetch = (async (input, init) => {
-      validationRequest = new Request(input, init);
+    const captured: { request: Request | null } = { request: null };
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      captured.request = new Request(input, init);
       return new Response('{}', { status: 200 });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const put = await app.request('/', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -37,8 +37,8 @@ describe('BYOK settings route', () => {
       provider: 'openrouter',
       model: 'google/gemini-2.5-flash-lite',
     });
-    expect(validationRequest?.url).toBe('https://openrouter.ai/api/v1/key');
-    expect(validationRequest?.headers.get('Authorization')).toBe('Bearer sk-or-v1-secret');
+    expect(captured.request?.url).toBe('https://openrouter.ai/api/v1/key');
+    expect(captured.request?.headers.get('Authorization')).toBe('Bearer sk-or-v1-secret');
 
     const get = await app.request('/');
     const status = await get.json();
@@ -54,7 +54,7 @@ describe('BYOK settings route', () => {
   });
 
   test('does not persist a key rejected by OpenRouter', async () => {
-    globalThis.fetch = (async () => new Response('unauthorized', { status: 401 })) as typeof fetch;
+    globalThis.fetch = (async () => new Response('unauthorized', { status: 401 })) as unknown as typeof fetch;
     const response = await app.request('/', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -77,11 +77,11 @@ describe('BYOK settings route', () => {
   });
 
   test('validates and stores an Anthropic key through the native API', async () => {
-    let validationRequest: Request | null = null;
-    globalThis.fetch = (async (input, init) => {
-      validationRequest = new Request(input, init);
+    const captured: { request: Request | null } = { request: null };
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      captured.request = new Request(input, init);
       return Response.json({ data: [], has_more: false, first_id: null, last_id: null });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const response = await app.request('/', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -97,8 +97,8 @@ describe('BYOK settings route', () => {
       provider: 'anthropic',
       model: 'claude-haiku-4-5',
     });
-    expect(validationRequest?.url).toContain('api.anthropic.com/v1/models');
-    expect(validationRequest?.headers.get('x-api-key')).toBe('sk-ant-secret');
+    expect(captured.request?.url).toContain('api.anthropic.com/v1/models');
+    expect(captured.request?.headers.get('x-api-key')).toBe('sk-ant-secret');
   });
 
   test('updates the model without requiring the write-only key again', async () => {
@@ -114,7 +114,7 @@ describe('BYOK settings route', () => {
     expect(first.status).toBe(200);
     globalThis.fetch = (async () => {
       throw new Error('model-only updates must not call the provider');
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const update = await app.request('/', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

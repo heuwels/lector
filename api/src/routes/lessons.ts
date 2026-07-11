@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, LessonRow } from '../db';
 import { countWords } from '../lib/html-to-markdown';
@@ -32,7 +33,7 @@ app.put('/:id', async (c) => {
   const body = await c.req.json();
 
   const updates: string[] = [];
-  const values: unknown[] = [];
+  const values: SQLQueryBindings[] = [];
 
   // Text ingress (#289): lesson edits get NFC'd like every other import path.
   if (body.title !== undefined) { updates.push('title = ?'); values.push(normalizeText(body.title)); }
