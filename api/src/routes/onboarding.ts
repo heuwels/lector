@@ -236,7 +236,7 @@ function resolveRecommendation(
   return {
     starterCollectionId: requestedCollectionId ?? null,
     recommendedLessonId: lesson?.id ?? null,
-    recommendedLessonTitle: lesson?.title ?? null,
+    recommendedLessonTitle: lesson?.title.slice(0, 200) ?? null,
   };
 }
 
@@ -390,7 +390,7 @@ app.patch('/', async (c) => {
         .prepare('SELECT title FROM lessons WHERE userId = ? AND id = ? AND language = ?')
         .get(userId, nextLessonId, existing.language) as { title: string } | undefined;
       if (!lesson) throw new InputError('Next lesson not found');
-      nextLessonTitle = lesson.title;
+      nextLessonTitle = lesson.title.slice(0, 200);
     } else if (body.nextLessonId === null) {
       nextLessonId = null;
       nextLessonTitle = null;

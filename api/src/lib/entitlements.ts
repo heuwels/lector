@@ -62,6 +62,10 @@ export interface PlanLimits {
   maxAcceptedDictionaryBytesTotal: number | null;
   /** Fair-use ceiling: per-language calendar-day activity rows. */
   maxDailyStatsRows: number | null;
+  /** Retained onboarding/learning-loop event rows. */
+  maxLearnerEvents: number | null;
+  /** UTF-8 bytes in one learner event's JSON properties. */
+  maxLearnerEventBytes: number | null;
   /** Fair-use ceiling: journal rows (including empty drafts). */
   maxJournalEntries: number | null;
   /** Fair-use ceiling: personal API tokens. */
@@ -122,6 +126,8 @@ export const NO_STORAGE_LIMITS = {
   maxAcceptedDictionaryEntries: null,
   maxAcceptedDictionaryBytesTotal: null,
   maxDailyStatsRows: null,
+  maxLearnerEvents: null,
+  maxLearnerEventBytes: null,
   maxJournalEntries: null,
   maxApiTokens: null,
   maxApiTokenNameBytes: null,
@@ -165,6 +171,7 @@ export type LiveLimitMetric =
   | 'maxClozeSentences'
   | 'maxAcceptedDictionaryEntries'
   | 'maxDailyStatsRows'
+  | 'maxLearnerEvents'
   | 'maxJournalEntries'
   | 'maxApiTokens'
   | 'maxAnkiPendingRows'
@@ -204,6 +211,11 @@ const DEFAULT_PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxAcceptedDictionaryEntries: 1_000,
     maxAcceptedDictionaryBytesTotal: 2 * 1024 * 1024,
     maxDailyStatsRows: 5_000,
+    // Onboarding emits fewer than 20 idempotent events in the normal loop.
+    // This leaves ample retry/headroom while keeping their takeout footprint
+    // finite alongside the 90 MiB portability proof.
+    maxLearnerEvents: 50,
+    maxLearnerEventBytes: 2 * 1024,
     maxJournalEntries: 5_000,
     maxApiTokens: 20,
     maxApiTokenNameBytes: 128,
@@ -213,7 +225,7 @@ const DEFAULT_PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     // Exported learner-authored TEXT totals 17.5 MiB at all aggregate caps.
     // The serialized proof additionally budgets 2x JSON escaping, every field
     // name/row/128-byte id, metadata, settings, and all dictionary children:
-    // 93,009,446 bytes inside the Cloudflare-safe 90 MiB restore envelope.
+    // 93,292,434 bytes inside the Cloudflare-safe 90 MiB restore envelope.
     maxLessonTextBytes: 1024 * 1024,
     maxLessonTextBytesTotal: 5 * 1024 * 1024,
     maxVocabEntryBytes: 16 * 1024,
@@ -245,6 +257,8 @@ const DEFAULT_PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxAcceptedDictionaryEntries: null,
     maxAcceptedDictionaryBytesTotal: null,
     maxDailyStatsRows: null,
+    maxLearnerEvents: null,
+    maxLearnerEventBytes: null,
     maxJournalEntries: null,
     maxApiTokens: null,
     maxApiTokenNameBytes: null,
@@ -282,6 +296,8 @@ const DEFAULT_PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxAcceptedDictionaryEntries: null,
     maxAcceptedDictionaryBytesTotal: null,
     maxDailyStatsRows: null,
+    maxLearnerEvents: null,
+    maxLearnerEventBytes: null,
     maxJournalEntries: null,
     maxApiTokens: null,
     maxApiTokenNameBytes: null,
@@ -347,6 +363,8 @@ const UNLIMITED: PlanLimits = {
   maxAcceptedDictionaryEntries: null,
   maxAcceptedDictionaryBytesTotal: null,
   maxDailyStatsRows: null,
+  maxLearnerEvents: null,
+  maxLearnerEventBytes: null,
   maxJournalEntries: null,
   maxApiTokens: null,
   maxApiTokenNameBytes: null,
@@ -793,6 +811,8 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
         return scalarUsage('SELECT COUNT(*) AS used FROM cached_entries WHERE userId = ?', userId);
       case 'maxDailyStatsRows':
         return scalarUsage('SELECT COUNT(*) AS used FROM dailyStats WHERE userId = ?', userId);
+      case 'maxLearnerEvents':
+        return scalarUsage('SELECT COUNT(*) AS used FROM learner_events WHERE userId = ?', userId);
       case 'maxJournalEntries':
         return scalarUsage('SELECT COUNT(*) AS used FROM journal_entries WHERE userId = ?', userId);
       case 'maxApiTokens':
@@ -883,6 +903,7 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
     'maxClozeSentences',
     'maxAcceptedDictionaryEntries',
     'maxDailyStatsRows',
+    'maxLearnerEvents',
     'maxJournalEntries',
     'maxApiTokens',
     'maxAnkiPendingRows',
@@ -906,6 +927,7 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
     'maxJournalEntryBytes',
     'maxApiTokenNameBytes',
     'maxAnkiPendingEntryBytes',
+    'maxLearnerEventBytes',
     'maxWriteBatchBytes',
   ]);
 

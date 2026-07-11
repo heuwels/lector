@@ -20,6 +20,7 @@ import data from './data';
 import tokens from './tokens';
 import settings from './settings';
 import stats from './stats';
+import learnerEvents from './learner-events';
 
 const STORAGE_LIMITS: PlanLimits = {
   ...NO_STORAGE_LIMITS,
@@ -34,6 +35,8 @@ const STORAGE_LIMITS: PlanLimits = {
   maxAcceptedDictionaryEntries: 1,
   maxAcceptedDictionaryBytesTotal: 30,
   maxDailyStatsRows: 1,
+  maxLearnerEvents: 1,
+  maxLearnerEventBytes: 10,
   maxJournalEntries: 2,
   maxApiTokens: 1,
   maxApiTokenNameBytes: 4,
@@ -84,6 +87,9 @@ const TABLES = [
   'cached_entries',
   'anki_pending',
   'dailyStats',
+  'learner_events',
+  'onboarding_progress',
+  'learner_profiles',
   'journal_entries',
   'clozeSentences',
   'knownWords',
@@ -374,6 +380,38 @@ describe('Free fair-use storage boundaries', () => {
     db.prepare("DELETE FROM api_tokens WHERE userId = 'local'").run();
     await expectLimit(await tokens.request('/', json({ name: 'abcde' })), 'maxApiTokenNameBytes');
     expect((await tokens.request('/', json({ name: 'x'.repeat(1025) }))).status).toBe(400);
+  });
+
+  test('learner events enforce retained-row and per-event byte caps', async () => {
+    const event = (properties: Record<string, unknown>, eventType = 'onboarding.started') =>
+      learnerEvents.request('/', json({ eventType, language: 'af', properties }));
+
+    expect((await event({ x: '1' })).status).toBe(201);
+    await expectLimit(await event({}, 'onboarding.completed'), 'maxLearnerEvents');
+
+    db.prepare("DELETE FROM learner_events WHERE userId = 'local'").run();
+    await expectLimit(await event({ text: '1234567890' }), 'maxLearnerEventBytes');
+
+    const restored = await data.request(
+      '/',
+      json({
+        learnerEvents: [
+          {
+            id: 'event-1',
+            eventType: 'onboarding.started',
+            language: 'af',
+            properties: {},
+          },
+          {
+            id: 'event-2',
+            eventType: 'onboarding.completed',
+            language: 'af',
+            properties: {},
+          },
+        ],
+      }),
+    );
+    await expectLimit(restored, 'maxLearnerEvents');
   });
 
   test('Anki pending overrides are net-key aware and byte bounded', async () => {

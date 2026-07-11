@@ -2,11 +2,14 @@ import { Hono } from 'hono';
 import { db } from '../db';
 import {
   LEARNER_EVENT_TYPES,
+  MAX_LEARNER_EVENT_PROPERTIES_BYTES,
   recordLearnerEvent,
   type LearnerEventInput,
   type LearnerEventType,
 } from '../lib/learner-events';
+import { planLimitResponse } from '../lib/entitlements';
 import { isValidLanguageCode, type LanguageCode } from '../lib/languages';
+import { utf8Bytes } from '../lib/storage-limits';
 import { getCurrentUserId } from '../lib/user';
 
 const app = new Hono();
@@ -72,7 +75,7 @@ app.post('/', async (c) => {
   if (!properties || typeof properties !== 'object' || Array.isArray(properties)) {
     return c.json({ error: 'properties must be an object' }, 400);
   }
-  if (JSON.stringify(properties).length > 8_192) {
+  if (utf8Bytes(JSON.stringify(properties)) > MAX_LEARNER_EVENT_PROPERTIES_BYTES) {
     return c.json({ error: 'properties is too large' }, 400);
   }
 
@@ -84,6 +87,7 @@ app.post('/', async (c) => {
     properties: properties as Record<string, unknown>,
     idempotencyKey,
   } satisfies LearnerEventInput);
+  if ('limit' in result && result.limit) return planLimitResponse(c, result.limit);
   return c.json(result, result.recorded ? 201 : 200);
 });
 

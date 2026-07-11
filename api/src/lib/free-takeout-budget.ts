@@ -2,6 +2,7 @@ import type { PlanLimits } from './entitlements';
 import { CACHE_ACCEPTED_LIMITS } from './dictionary-db';
 import { KNOWN_SETTING_KEYS, MAX_SETTING_VALUE_BYTES } from './settings-keys';
 import { MAX_PERSISTED_ID_BYTES } from './storage-limits';
+import { LANGUAGES } from './languages';
 
 export const FREE_RESTORE_ENVELOPE_BYTES = 90 * 1024 * 1024;
 const JSON_ESCAPE_FACTOR = 2;
@@ -48,6 +49,9 @@ export function calculateFreeTakeoutUpperBound(limits: PlanLimits) {
     journalEntries: requiredLimit(limits, 'maxJournalEntries'),
     dailyStats: requiredLimit(limits, 'maxDailyStatsRows'),
     acceptedDictionaryEntries: requiredLimit(limits, 'maxAcceptedDictionaryEntries'),
+    learnerProfiles: Object.keys(LANGUAGES).length,
+    onboardingProgress: 1,
+    learnerEvents: requiredLimit(limits, 'maxLearnerEvents'),
   };
 
   const baseEnvelope = {
@@ -61,6 +65,9 @@ export function calculateFreeTakeoutUpperBound(limits: PlanLimits) {
     journalEntries: [],
     dailyStats: [],
     acceptedDictionaryEntries: [],
+    learnerProfiles: [],
+    onboardingProgress: [],
+    learnerEvents: [],
     settings: [],
   };
 
@@ -176,6 +183,38 @@ export function calculateFreeTakeoutUpperBound(limits: PlanLimits) {
       relation: '',
     })),
   };
+  const learnerProfile = {
+    language: HOSTILE_LANGUAGE,
+    approximateLevel: 'intermediate',
+    interests: '["faith-and-theology","current-events"]',
+    dailyMinutes: MAX_FINITE_NUMBER,
+    createdAt: HOSTILE_TIMESTAMP,
+    updatedAt: HOSTILE_TIMESTAMP,
+  };
+  const onboardingProgress = {
+    version: MAX_FINITE_NUMBER,
+    status: 'in_progress',
+    currentStep: 'practice',
+    language: HOSTILE_LANGUAGE,
+    starterCollectionId: HOSTILE_ID,
+    recommendedLessonId: HOSTILE_ID,
+    recommendedLessonTitle: '\\'.repeat(200),
+    nextLessonId: HOSTILE_ID,
+    nextLessonTitle: '\\'.repeat(200),
+    startedAt: HOSTILE_TIMESTAMP,
+    completedAt: HOSTILE_TIMESTAMP,
+    updatedAt: HOSTILE_TIMESTAMP,
+  };
+  const learnerEvent = {
+    id: HOSTILE_ID,
+    eventType: 'practice.answer_submitted',
+    language: HOSTILE_LANGUAGE,
+    lessonId: HOSTILE_ID,
+    vocabId: HOSTILE_ID,
+    properties: '',
+    idempotencyKey: '\\'.repeat(200),
+    occurredAt: HOSTILE_TIMESTAMP,
+  };
 
   const structureAndMetadataBytes =
     jsonBytes(baseEnvelope) +
@@ -188,6 +227,9 @@ export function calculateFreeTakeoutUpperBound(limits: PlanLimits) {
     populatedArrayBytes(counts.journalEntries, journalEntry) +
     populatedArrayBytes(counts.dailyStats, dailyStat) +
     populatedArrayBytes(counts.acceptedDictionaryEntries, acceptedDictionaryEntry) +
+    populatedArrayBytes(counts.learnerProfiles, learnerProfile) +
+    populatedArrayBytes(counts.onboardingProgress, onboardingProgress) +
+    populatedArrayBytes(counts.learnerEvents, learnerEvent) +
     [...KNOWN_SETTING_KEYS].reduce(
       (total, key, index) => total + jsonBytes({ key, value: '' }) + (index === 0 ? 0 : 1),
       0,
@@ -201,7 +243,8 @@ export function calculateFreeTakeoutUpperBound(limits: PlanLimits) {
     requiredLimit(limits, 'maxKnownWordsTextBytesTotal') +
     requiredLimit(limits, 'maxClozeTextBytesTotal') +
     requiredLimit(limits, 'maxAcceptedDictionaryBytesTotal') +
-    requiredLimit(limits, 'maxJournalTextBytesTotal');
+    requiredLimit(limits, 'maxJournalTextBytesTotal') +
+    requiredLimit(limits, 'maxLearnerEventBytes') * counts.learnerEvents;
   const escapedLearnerTextBytes = learnerTextBytes * JSON_ESCAPE_FACTOR;
   const escapedSettingValueBytes =
     KNOWN_SETTING_KEYS.size * MAX_SETTING_VALUE_BYTES * JSON_ESCAPE_FACTOR;

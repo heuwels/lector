@@ -1,6 +1,10 @@
 import { randomUUID } from 'crypto';
 import { db, type LearnerEventRow } from '../db';
+import { entitlements } from './entitlements';
 import type { LanguageCode } from './languages';
+import { batchGrowthCheck, growingRowCheck, utf8Bytes } from './storage-limits';
+
+export const MAX_LEARNER_EVENT_PROPERTIES_BYTES = 8 * 1024;
 
 export const LEARNER_EVENT_TYPES = [
   'onboarding.started',
@@ -62,31 +66,62 @@ export function recordLearnerEvent(userId: string, input: LearnerEventInput) {
 
   const id = randomUUID();
   const occurredAt = new Date().toISOString();
-  const result = db
-    .prepare(
-      `INSERT OR IGNORE INTO learner_events
-       (userId, id, eventType, language, lessonId, vocabId, properties, idempotencyKey, occurredAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      userId,
-      id,
-      input.eventType,
-      input.language,
-      input.lessonId ?? null,
-      input.vocabId ?? null,
-      JSON.stringify(input.properties ?? {}),
-      input.idempotencyKey ?? null,
-      occurredAt,
-    );
+  const properties = JSON.stringify(input.properties ?? {});
+  const pending: LearnerEventRow = {
+    userId,
+    id,
+    eventType: input.eventType,
+    language: input.language,
+    lessonId: input.lessonId ?? null,
+    vocabId: input.vocabId ?? null,
+    properties,
+    idempotencyKey: input.idempotencyKey ?? null,
+    occurredAt,
+  };
+  const bytes = utf8Bytes(properties);
+  let stored: LearnerEventRow | undefined;
+  let recorded = false;
+  const verdict = entitlements.reserveCount(
+    userId,
+    [
+      { metric: 'maxLearnerEvents' },
+      ...growingRowCheck('maxLearnerEventBytes', bytes),
+      ...batchGrowthCheck(bytes),
+    ],
+    () => {
+      const result = db
+        .prepare(
+          `INSERT OR IGNORE INTO learner_events
+           (userId, id, eventType, language, lessonId, vocabId, properties, idempotencyKey, occurredAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          userId,
+          id,
+          input.eventType,
+          input.language,
+          input.lessonId ?? null,
+          input.vocabId ?? null,
+          properties,
+          input.idempotencyKey ?? null,
+          occurredAt,
+        );
+      recorded = result.changes > 0;
+      stored = (
+        recorded
+          ? db.prepare('SELECT * FROM learner_events WHERE userId = ? AND id = ?').get(userId, id)
+          : db
+              .prepare('SELECT * FROM learner_events WHERE userId = ? AND idempotencyKey = ?')
+              .get(userId, input.idempotencyKey ?? '')
+      ) as LearnerEventRow | undefined;
+    },
+  );
 
-  const row = (
-    result.changes > 0
-      ? db.prepare('SELECT * FROM learner_events WHERE userId = ? AND id = ?').get(userId, id)
-      : db
-          .prepare('SELECT * FROM learner_events WHERE userId = ? AND idempotencyKey = ?')
-          .get(userId, input.idempotencyKey ?? '')
-  ) as LearnerEventRow;
-
-  return { recorded: result.changes > 0, event: learnerEventResponse(row) };
+  if (!verdict.allowed) {
+    // Internal onboarding telemetry is deliberately non-blocking; callers that
+    // expose this route can turn the attached verdict into the normal 429.
+    return { recorded: false, event: learnerEventResponse(pending), limit: verdict };
+  }
+  if (!stored) throw new Error('Learner event insert completed without a stored row');
+  return { recorded, event: learnerEventResponse(stored) };
 }

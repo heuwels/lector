@@ -13,9 +13,10 @@ describe('Free takeout serialization budget', () => {
     // timestamps/numbers/languages, and worst-case 2x JSON string escaping.
     expect(proof.counts.clozeSentences).toBe(25_000);
     expect(proof.counts.acceptedDictionaryEntries).toBe(1_000);
+    expect(proof.counts.learnerEvents).toBe(50);
     expect(proof.structureAndMetadataBytes).toBeGreaterThan(50 * 1024 * 1024);
     expect(proof.escapedLearnerTextBytes).toBeGreaterThan(35 * 1024 * 1024);
-    expect(proof.totalBytes).toBe(93_009_446);
+    expect(proof.totalBytes).toBe(93_292_434);
     expect(proof.totalBytes).toBeLessThanOrEqual(FREE_RESTORE_ENVELOPE_BYTES);
     expect(FREE_RESTORE_ENVELOPE_BYTES - proof.totalBytes).toBeGreaterThan(1 * 1024 * 1024);
   });
