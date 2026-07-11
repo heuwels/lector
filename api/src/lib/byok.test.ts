@@ -10,11 +10,15 @@ import {
   getByokCredential,
   hasByokCredential,
   isByokAvailable,
+  OPENROUTER_URL,
   saveByokCredential,
 } from './byok';
-import { getProvider } from './llm';
+import { getClassificationProvider, getProvider } from './llm';
 
 const previousKey = process.env.BYOK_ENCRYPTION_KEY;
+const previousClassifyUrl = process.env.CLASSIFY_LLM_URL;
+const previousClassifyModel = process.env.CLASSIFY_LLM_MODEL;
+const previousClassifyKey = process.env.CLASSIFY_LLM_API_KEY;
 const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
@@ -29,6 +33,12 @@ afterAll(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  if (previousClassifyUrl === undefined) delete process.env.CLASSIFY_LLM_URL;
+  else process.env.CLASSIFY_LLM_URL = previousClassifyUrl;
+  if (previousClassifyModel === undefined) delete process.env.CLASSIFY_LLM_MODEL;
+  else process.env.CLASSIFY_LLM_MODEL = previousClassifyModel;
+  if (previousClassifyKey === undefined) delete process.env.CLASSIFY_LLM_API_KEY;
+  else process.env.CLASSIFY_LLM_API_KEY = previousClassifyKey;
 });
 
 describe('BYOK encryption', () => {
@@ -90,7 +100,7 @@ describe('per-user credential storage and routing', () => {
     expect(getProvider('byok-test-a').model).not.toBe('model-a');
   });
 
-  test('enables structured output only for the OpenRouter GPT-5 profile', async () => {
+  test('uses OpenRouter JSON mode for every model and GPT-5 reasoning only where needed', async () => {
     const bodies: Array<Record<string, unknown>> = [];
     globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
       bodies.push(JSON.parse(init?.body as string));
@@ -106,7 +116,7 @@ describe('per-user credential storage and routing', () => {
     await getProvider('byok-test-a').complete({
       messages: [{ role: 'user', content: 'Translate' }],
       maxTokens: 100,
-      responseFormat: 'json',
+      responseFormat: 'json-object',
       task: 'phrase-translation',
     });
 
@@ -114,23 +124,51 @@ describe('per-user credential storage and routing', () => {
     await getProvider('byok-test-b').complete({
       messages: [{ role: 'user', content: 'Translate' }],
       maxTokens: 100,
-      responseFormat: 'json',
+      responseFormat: 'json-object',
     });
 
     expect(bodies[0]).toMatchObject({
       model: 'openai/gpt-5',
       max_completion_tokens: 100,
       response_format: { type: 'json_object' },
+      provider: { require_parameters: true },
       reasoning: { effort: 'minimal' },
     });
     expect(bodies[0].max_tokens).toBeUndefined();
     expect(bodies[1]).toMatchObject({
       model: 'google/gemini-2.5-flash-lite',
       max_tokens: 100,
+      response_format: { type: 'json_object' },
+      provider: { require_parameters: true },
     });
     expect(bodies[1].max_completion_tokens).toBeUndefined();
-    expect(bodies[1].response_format).toBeUndefined();
     expect(bodies[1].reasoning).toBeUndefined();
+  });
+
+  test('profiles a dedicated OpenRouter classifier without forcing object JSON', async () => {
+    process.env.CLASSIFY_LLM_URL = OPENROUTER_URL;
+    process.env.CLASSIFY_LLM_MODEL = 'openai/gpt-5';
+    process.env.CLASSIFY_LLM_API_KEY = 'sk-classifier';
+    let body: Record<string, unknown> | undefined;
+    globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+      body = JSON.parse(init?.body as string);
+      return new Response(
+        JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '[]' } }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    await getClassificationProvider().complete({
+      messages: [{ role: 'user', content: 'Classify' }],
+      maxTokens: 100,
+      responseFormat: 'json-array',
+      task: 'word-classification',
+    });
+
+    expect(body).toMatchObject({ model: 'openai/gpt-5', max_completion_tokens: 100 });
+    expect(body?.max_tokens).toBeUndefined();
+    expect(body?.response_format).toBeUndefined();
+    expect(body?.provider).toBeUndefined();
   });
 
   test('routes an Anthropic key through the native Anthropic provider', () => {

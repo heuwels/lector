@@ -15,7 +15,12 @@
 //    domain is never reclassified once set.
 
 import { DOMAINS, GENERAL, isClassifiedDomain, type ClassifiedDomain } from './domains';
-import { getClassificationProvider, parseLooseJson, type LLMProvider } from './llm';
+import {
+  completeJson,
+  getClassificationProvider,
+  LLMInvalidJsonError,
+  type LLMProvider,
+} from './llm';
 
 export interface ClassifyItem {
   word: string;
@@ -82,13 +87,6 @@ export async function classifyWords(
   // floor; CLASSIFY_MAX_TOKENS bumps it further for an especially chatty model.
   const envMax = parseInt(process.env.CLASSIFY_MAX_TOKENS || '', 10);
   const maxTokens = envMax > 0 ? envMax : Math.min(8192, Math.max(2048, items.length * 64));
-  const text = await provider.complete({
-    messages: [{ role: 'user', content: buildPrompt(items) }],
-    maxTokens,
-    task: 'word-classification',
-    responseFormat: 'json',
-  });
-
   // Normalised input word → exact stored spelling, so the returned domain UPDATEs
   // the right knownWords row no matter how the model re-cased/echoed the word.
   const byNormalised = new Map<string, string>();
@@ -96,10 +94,16 @@ export async function classifyWords(
 
   let parsed: unknown;
   try {
-    parsed = parseLooseJson<unknown>(text);
-  } catch {
+    parsed = await completeJson<unknown>(provider, {
+      messages: [{ role: 'user', content: buildPrompt(items) }],
+      maxTokens,
+      task: 'word-classification',
+      responseFormat: 'json-array',
+    });
+  } catch (error) {
     // Whole-response garbage: classify nothing this round (retried next sweep).
-    return [];
+    if (error instanceof LLMInvalidJsonError) return [];
+    throw error;
   }
   if (!Array.isArray(parsed)) return [];
 

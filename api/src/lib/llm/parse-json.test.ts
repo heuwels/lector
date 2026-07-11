@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { parseLooseJson } from './parse-json';
+import { parseLooseJson, parseLooseJsonResult } from './parse-json';
 
 describe('parseLooseJson', () => {
   test('parses plain JSON', () => {
@@ -19,11 +19,15 @@ describe('parseLooseJson', () => {
   });
 
   test('extracts an object from surrounding prose', () => {
-    expect(parseLooseJson<{ a: number }>('Sure! Here you go: {"a":1} Hope that helps.')).toEqual({ a: 1 });
+    expect(parseLooseJson<{ a: number }>('Sure! Here you go: {"a":1} Hope that helps.')).toEqual({
+      a: 1,
+    });
   });
 
   test('keeps nested objects intact via the outermost span', () => {
-    expect(parseLooseJson<{ a: { b: number } }>('prefix {"a":{"b":2}} suffix')).toEqual({ a: { b: 2 } });
+    expect(parseLooseJson<{ a: { b: number } }>('prefix {"a":{"b":2}} suffix')).toEqual({
+      a: { b: 2 },
+    });
   });
 
   test('parses a top-level array', () => {
@@ -44,7 +48,9 @@ describe('parseLooseJson', () => {
 
   test('handles a realistic fenced translation payload', () => {
     const raw = '```json\n{"word":"loop","senses":[{"partOfSpeech":"noun","gloss":"walk"}]}\n```';
-    expect(parseLooseJson<{ word: string; senses: Array<{ partOfSpeech: string; gloss: string }> }>(raw)).toEqual({
+    expect(
+      parseLooseJson<{ word: string; senses: Array<{ partOfSpeech: string; gloss: string }> }>(raw),
+    ).toEqual({
       word: 'loop',
       senses: [{ partOfSpeech: 'noun', gloss: 'walk' }],
     });
@@ -62,14 +68,34 @@ describe('parseLooseJson', () => {
   // which carries no ambiguity, so it can be repaired without dropping data.
 
   test('repairs a trailing comma', () => {
-    expect(parseLooseJson<{ word: string; senses: string[] }>('{ "word": "mos", "senses": ["of course", "moss",] }')).toEqual({
+    expect(
+      parseLooseJson<{ word: string; senses: string[] }>(
+        '{ "word": "mos", "senses": ["of course", "moss",] }',
+      ),
+    ).toEqual({
       word: 'mos',
       senses: ['of course', 'moss'],
     });
   });
 
+  test('reports whether repair closed a missing outer container', () => {
+    const safe = parseLooseJsonResult<{ ok: boolean }>('{"ok":true,}');
+    expect(safe).toEqual({ value: { ok: true }, repaired: true, rootComplete: true });
+
+    const truncated = parseLooseJsonResult<{ translation: string; details: unknown[] }>(
+      '{"translation":"partial","details":[]',
+    );
+    expect(truncated).toEqual({
+      value: { translation: 'partial', details: [] },
+      repaired: true,
+      rootComplete: false,
+    });
+  });
+
   test('repairs single-quoted JSON from a local model', () => {
-    expect(parseLooseJson<{ word: string; gloss: string }>("{ 'word': 'gaaf', 'gloss': 'cool, nice' }")).toEqual({
+    expect(
+      parseLooseJson<{ word: string; gloss: string }>("{ 'word': 'gaaf', 'gloss': 'cool, nice' }"),
+    ).toEqual({
       word: 'gaaf',
       gloss: 'cool, nice',
     });
@@ -78,12 +104,17 @@ describe('parseLooseJson', () => {
   test('repairs unquoted keys/values within a brace span', () => {
     // Was previously asserted to throw; jsonrepair now recovers it. Only a real
     // {…} span is repaired, so bare prose ("not json at all") still throws.
-    expect(parseLooseJson<{ partOfSpeech: string }>('text { partOfSpeech: noun } more')).toEqual({ partOfSpeech: 'noun' });
+    expect(parseLooseJson<{ partOfSpeech: string }>('text { partOfSpeech: noun } more')).toEqual({
+      partOfSpeech: 'noun',
+    });
   });
 
   test('recovers from a trailing ``` fence with no opening fence', () => {
     const raw = '{ "word": "goudbruin", "gloss": "golden brown" }\n```';
-    expect(parseLooseJson<{ word: string; gloss: string }>(raw)).toEqual({ word: 'goudbruin', gloss: 'golden brown' });
+    expect(parseLooseJson<{ word: string; gloss: string }>(raw)).toEqual({
+      word: 'goudbruin',
+      gloss: 'golden brown',
+    });
   });
 
   // --- The actual production bug: unescaped double-quotes inside a string value.
@@ -151,7 +182,11 @@ describe('parseLooseJson', () => {
     // the contract is "keep what was sent", never silently drop received bytes.)
     const truncated =
       '{"word":"goud","senses":[{"partOfSpeech":"verb","gloss":"pull"}],"ipa":"/xoʊd/","etymology":"From Middle Dutch goud (gold';
-    expect(parseLooseJson<{ word: string; senses: unknown[]; ipa: string; etymology: string }>(truncated)).toEqual({
+    expect(
+      parseLooseJson<{ word: string; senses: unknown[]; ipa: string; etymology: string }>(
+        truncated,
+      ),
+    ).toEqual({
       word: 'goud',
       senses: [{ partOfSpeech: 'verb', gloss: 'pull' }],
       ipa: '/xoʊd/',

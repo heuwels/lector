@@ -1,9 +1,10 @@
 import type { LLMProvider, CompletionOptions } from './types';
+import { LLMTruncatedError } from './errors';
 
 const DEFAULT_URL = 'http://localhost:11434';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
-export type OpenAICompatibleProfile = 'generic' | 'openrouter-gpt5';
+export type OpenAICompatibleProfile = 'generic' | 'openrouter';
 
 export interface OpenAICompatibleOptions {
   baseUrl?: string;
@@ -30,7 +31,10 @@ export class OpenAICompatibleProvider implements LLMProvider {
   private profile: OpenAICompatibleProfile;
 
   constructor(options?: OpenAICompatibleOptions) {
-    this.baseUrl = (options?.baseUrl || process.env.OPENAI_COMPAT_URL || DEFAULT_URL).replace(/\/$/, '');
+    this.baseUrl = (options?.baseUrl || process.env.OPENAI_COMPAT_URL || DEFAULT_URL).replace(
+      /\/$/,
+      '',
+    );
     this.model = options?.model || process.env.OPENAI_COMPAT_MODEL || '';
     this.apiKey = options?.apiKey || process.env.OPENAI_COMPAT_API_KEY || undefined;
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -43,6 +47,14 @@ export class OpenAICompatibleProvider implements LLMProvider {
     return h;
   }
 
+  private usesMaxCompletionTokens(): boolean {
+    // OpenRouter's route capability filter still advertises max_tokens for
+    // several catalog models. GPT-5 is the model we have verified requires the
+    // newer field; using it gateway-wide can make require_parameters reject
+    // otherwise valid Gemini/Mistral/Gemma routes.
+    return this.profile === 'openrouter' && this.model === 'openai/gpt-5';
+  }
+
   private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -53,20 +65,21 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
   }
 
-  private async requestCompletion(
-    options: CompletionOptions,
-    maxTokens: number,
-  ): Promise<{ content: string; finishReason?: string }> {
+  private async requestCompletion(options: CompletionOptions): Promise<string> {
+    const maxTokens = options.maxTokens;
     const body: Record<string, unknown> = { model: this.model, messages: options.messages };
-    if (this.profile === 'openrouter-gpt5') body.max_completion_tokens = maxTokens;
+    if (this.usesMaxCompletionTokens()) body.max_completion_tokens = maxTokens;
     else body.max_tokens = maxTokens;
     // No response_format value works across every compatible backend: LM Studio
     // rejects json_object and Ollama ignores json_schema. Keep prompt-driven JSON
-    // as the default, and use server-side JSON only for explicitly known-capable
-    // endpoint/model pairs.
-    if (this.profile === 'openrouter-gpt5' && options.responseFormat === 'json') {
+    // as the default, and use server-side JSON only for an explicitly
+    // known-capable endpoint.
+    if (this.profile === 'openrouter' && options.responseFormat === 'json-object') {
       body.response_format = { type: 'json_object' };
-      if (options.task === 'phrase-translation') body.reasoning = { effort: 'minimal' };
+      body.provider = { require_parameters: true };
+      if (this.model === 'openai/gpt-5' && options.task === 'phrase-translation') {
+        body.reasoning = { effort: 'minimal' };
+      }
     }
 
     const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
@@ -81,29 +94,27 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
 
     const data = await response.json();
+    if (data.error) {
+      const detail = data.error.message || data.error.code || 'Unknown provider error';
+      throw new Error(`LLM provider error: ${detail}`);
+    }
     const choice = data.choices?.[0];
-    return {
-      content: choice?.message?.content || '',
-      finishReason: choice?.finish_reason || undefined,
-    };
+    if (choice?.error || choice?.finish_reason === 'error') {
+      const detail =
+        choice?.error?.message || choice?.native_finish_reason || 'Unknown provider error';
+      throw new Error(`LLM provider error: ${detail}`);
+    }
+    if (
+      (options.responseFormat === 'json-object' || options.responseFormat === 'json-array') &&
+      choice?.finish_reason === 'length'
+    ) {
+      throw new LLMTruncatedError(maxTokens);
+    }
+    return choice?.message?.content || '';
   }
 
   async complete(options: CompletionOptions): Promise<string> {
-    const completion = await this.requestCompletion(options, options.maxTokens);
-    if (
-      this.profile !== 'openrouter-gpt5' ||
-      options.responseFormat !== 'json' ||
-      completion.finishReason !== 'length'
-    ) {
-      return completion.content;
-    }
-
-    const retryTokens = options.maxTokens * 2;
-    const retry = await this.requestCompletion(options, retryTokens);
-    if (retry.finishReason === 'length') {
-      throw new Error(`LLM response was truncated after retrying with a ${retryTokens}-token limit`);
-    }
-    return retry.content;
+    return this.requestCompletion(options);
   }
 
   /**
@@ -119,7 +130,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
       messages: options.messages,
       stream: true,
     };
-    if (this.profile === 'openrouter-gpt5') body.max_completion_tokens = options.maxTokens;
+    if (this.usesMaxCompletionTokens()) body.max_completion_tokens = options.maxTokens;
     else body.max_tokens = options.maxTokens;
 
     const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
@@ -129,7 +140,9 @@ export class OpenAICompatibleProvider implements LLMProvider {
     });
 
     if (!response.ok || !response.body) {
-      const error = response.ok ? 'no response body' : await response.text().catch(() => `HTTP ${response.status}`);
+      const error = response.ok
+        ? 'no response body'
+        : await response.text().catch(() => `HTTP ${response.status}`);
       throw new Error(`LLM provider error: ${error}`);
     }
 
@@ -192,7 +205,11 @@ export class OpenAICompatibleProvider implements LLMProvider {
     const data = await response.json();
     const items: unknown[] = Array.isArray(data?.data) ? data.data : [];
     return items
-      .map((item) => (typeof item === 'object' && item && 'id' in item ? String((item as { id: unknown }).id) : ''))
+      .map((item) =>
+        typeof item === 'object' && item && 'id' in item
+          ? String((item as { id: unknown }).id)
+          : '',
+      )
       .filter((id) => id.length > 0);
   }
 }

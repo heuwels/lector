@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { streamText } from 'hono/streaming';
-import { getProvider, parseLooseJson } from '../lib/llm';
+import { completeJson, getProvider } from '../lib/llm';
 import { getSpelreelsContext } from '../lib/spelreels';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
@@ -15,15 +15,16 @@ import { entitlements, planLimitResponse } from '../lib/entitlements';
 
 // Parse a rich word-entry response and stitch the legacy translation/partOfSpeech
 // fields so existing call sites that only read those don't have to change.
-function stitchWordEntry(text: string, fallbackWord: string) {
-  const entry = parseLooseJson(text) as {
+function stitchWordEntry(
+  entry: {
     word?: string;
     senses?: Array<{ partOfSpeech: string; gloss: string }>;
     ipa?: string;
     etymology?: string;
     relatedForms?: Array<{ form: string; relation: string }>;
-  };
-
+  },
+  fallbackWord: string,
+) {
   const senses: Array<{ partOfSpeech: string; gloss: string }> = Array.isArray(entry.senses)
     ? entry.senses
     : [];
@@ -52,13 +53,18 @@ async function buildWordEntryResponse(
   sentence: string,
 ) {
   const provider = getProvider(userId);
-  const text = await provider.complete({
+  const entry = await completeJson<{
+    word?: string;
+    senses?: Array<{ partOfSpeech: string; gloss: string }>;
+    ipa?: string;
+    etymology?: string;
+    relatedForms?: Array<{ form: string; relation: string }>;
+  }>(provider, {
     messages: [{ role: 'user', content: buildWordEntryPrompt(langName, word, sentence) }],
     maxTokens: 1500,
     task: 'word-translation',
-    responseFormat: 'json',
   });
-  return stitchWordEntry(text, word);
+  return stitchWordEntry(entry, word);
 }
 
 const app = new Hono();
@@ -178,7 +184,7 @@ app.post('/', async (c) => {
         : '';
 
       const provider = getProvider(userId);
-      const text = await provider.complete({
+      const result = await completeJson<Record<string, unknown>>(provider, {
         messages: [
           {
             role: 'user',
@@ -187,11 +193,10 @@ app.post('/', async (c) => {
         ],
         maxTokens: 1500,
         task: 'phrase-translation',
-        responseFormat: 'json',
       });
 
       reservedLlm = false; // the managed call happened — the usage is earned
-      return c.json(parseLooseJson<Record<string, unknown>>(text));
+      return c.json(result);
     }
 
     const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
