@@ -152,6 +152,10 @@ test.describe('guided onboarding — selfhost', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
   });
 
+  test.afterEach(() => {
+    resetSelfhostOnboarding();
+  });
+
   test('legacy existing user bypasses onboarding when a target language already exists', async ({
     browser,
   }) => {
@@ -267,7 +271,8 @@ test.describe('guided onboarding — selfhost', () => {
       const word = GUIDED_WORDS[i];
       const trigger = page.getByRole('button', { name: `Look up ${word}`, exact: true }).first();
       await trigger.focus();
-      await page.keyboard.press('Enter');
+      await expect(trigger).toBeFocused();
+      await trigger.press('Enter');
       await expect(page.getByRole('dialog', { name: `Definition of ${word}` })).toBeVisible();
       await expect(page.getByText(`meaning of ${word}`, { exact: false })).toBeVisible({
         timeout: 5_000,
@@ -275,21 +280,34 @@ test.describe('guided onboarding — selfhost', () => {
 
       const level = page.getByTestId('word-level-1');
       await level.focus();
+      await expect(level).toBeFocused();
       const savedEvent = waitForSavedEvent(page);
-      await page.keyboard.press('Enter');
+      await level.press('Enter');
       const savedResponse = await savedEvent;
       expect(savedResponse.status(), await savedResponse.text()).toBeLessThan(300);
       const current = await snapshot(page);
       expect(current.events.filter((event) => event.eventType === 'vocab.saved')).toHaveLength(
         i + 1,
       );
+
+      if (i < GUIDED_WORDS.length - 1) {
+        await expect(page.getByTestId('onboarding-coach-save')).toContainText(
+          `${i + 1} of 3 saved`,
+        );
+      } else {
+        await expect(page.getByTestId('onboarding-coach-practice')).toBeVisible();
+      }
+
       await page.keyboard.press('Escape');
+      await expect(page.getByTestId('translation-drawer')).toHaveClass(/translate-x-full/);
+      await expect(trigger).not.toHaveAttribute('data-active-word', 'true');
     }
 
     const startPractice = page.getByTestId('start-onboarding-practice');
     await expect(startPractice).toBeVisible();
     await startPractice.focus();
-    await page.keyboard.press('Enter');
+    await expect(startPractice).toBeFocused();
+    await startPractice.press('Enter');
     await expect(page).toHaveURL(/\/practice\?onboarding=1$/, { timeout: 15_000 });
     await context.close();
   });

@@ -471,7 +471,7 @@ export async function updateClozeAfterReview(
   newMasteryLevel: ClozeMasteryLevel,
   nextReview: Date,
 ): Promise<number> {
-  const res = await apiFetch(`/api/cloze/${id}/review`, {
+  const res = await apiFetch(`/api/cloze/${id}/review${langParam()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

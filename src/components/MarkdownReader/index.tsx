@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -269,7 +270,9 @@ export default function MarkdownReader({
   // Drop the word/phrase highlight when the drawer closes (Esc, the X, or a
   // click away), so a dismissed lookup doesn't leave the reader marked up.
   // Only acts on close — opening/re-targeting keeps whatever was just set.
-  useEffect(() => {
+  // Clear before paint: a passive cleanup can replace a word node after a
+  // keyboard user has already focused it, sending their next keypress to body.
+  useLayoutEffect(() => {
     if (!wordPanelOpen) {
       setActiveWord(null);
       setHighlightedPhrase([]);
