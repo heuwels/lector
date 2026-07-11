@@ -3,12 +3,7 @@ name: CI
 on:
   pull_request:
     branches: [master]
-  # Direct pushes to master publish a Docker image (docker.yml) — run the same
-  # gates there so an image sha never ships without a green suite next to it
-  # (DX-02). True *blocking* requires a branch-protection rule; this gives the
-  # signal.
-  push:
-    branches: [master]
+  workflow_dispatch:
 
 jobs:
   deployment-script-tests:
@@ -166,14 +161,15 @@ jobs:
           cache: npm
       - uses: docker/setup-buildx-action@v4
       # Registry build cache is shared across branches (unlike type=gha, which is
-      # branch-isolated), so this PR build populates the cache that docker.yml's
-      # publish build on master then reuses — no second from-scratch image build.
+      # branch-isolated), so this PR/manual build populates the cache that
+      # docker.yml's publish build on master then reuses — no second from-scratch
+      # image build.
       # Fork PRs can't push to ghcr: skip the login; cache-to then fails soft
       # (ignore-error) and cache-from simply misses.
       - name: Log in to ghcr (build cache)
-        # Same-repo PRs and pushes to master can write the cache; fork PRs
-        # can't push to ghcr — skip login, cache-to fails soft (ignore-error).
-        if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+        # Same-repo PRs and manual runs can write the cache; fork PRs can't push
+        # to ghcr — skip login, cache-to fails soft (ignore-error).
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
         uses: docker/login-action@v4
         with:
           registry: ghcr.io

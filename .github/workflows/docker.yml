@@ -1,19 +1,17 @@
 name: Build and Push Docker Image
 
 on:
-  # Build/deploy only after the matching master CI run succeeds. This closes
-  # the old race where docker.yml could publish and deploy while ci.yml failed.
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  # Master only accepts up-to-date PRs whose required CI checks passed, with
+  # protection enforced for admins. Publish that already-validated merge once
+  # instead of rerunning the full suite after merge.
+  push:
     branches: [master]
 
 env:
-  IMAGE_SHA: ${{ github.event.workflow_run.head_sha }}
+  IMAGE_SHA: ${{ github.sha }}
 
 jobs:
   build-amd64:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -51,7 +49,6 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64,mode=max,ignore-error=true
 
   build-arm64:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -118,7 +115,7 @@ jobs:
             ghcr.io/heuwels/lector:sha-${{ env.IMAGE_SHA }}-amd64 \
             ghcr.io/heuwels/lector:sha-${{ env.IMAGE_SHA }}-arm64
 
-  # Trunk promotion: a successful master CI run produces one immutable image.
+  # Trunk promotion: a protected master merge produces one immutable image.
   # Staging receives it automatically. Production receives the SAME tag only
   # after the `production` GitHub Environment's required reviewer approves.
   deploy-staging:
