@@ -39,6 +39,7 @@ import { Construct } from 'constructs';
  *   /lector/canary/claude-oauth-token  SecureString  optional — CLAUDE_OAUTH_TOKEN (plan credits)
  *   /lector/canary/anthropic-api-key   SecureString  optional — ANTHROPIC_API_KEY
  *   /lector/canary/openrouter-api-key  SecureString  optional — OPENAI_COMPAT_API_KEY
+ *   /lector/canary/byok-encryption-key SecureString  required for BYOK — base64-encoded 32-byte AES key
  *   /lector/canary/google-api-key      SecureString  optional — GOOGLE_CLOUD_API_KEY (TTS)
  *   /lector/canary/llm-provider        String        optional — LLM_PROVIDER (default anthropic)
  *   /lector/canary/openai-compat-url   String        optional — e.g. https://openrouter.ai/api
@@ -306,6 +307,7 @@ put TUNNEL_TOKEN          tunnel-token
 put CLAUDE_OAUTH_TOKEN    claude-oauth-token
 put ANTHROPIC_API_KEY     anthropic-api-key
 put OPENAI_COMPAT_API_KEY openrouter-api-key
+put BYOK_ENCRYPTION_KEY   byok-encryption-key
 put GOOGLE_CLOUD_API_KEY  google-api-key
 put LLM_PROVIDER          llm-provider
 put OPENAI_COMPAT_URL     openai-compat-url

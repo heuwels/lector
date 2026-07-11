@@ -27,7 +27,7 @@ app.post('/', async (c) => {
     const lang = resolveLanguage(language, userId);
     const langName = getLanguageConfig(lang).name;
 
-    const provider = getProvider();
+    const provider = getProvider(userId);
     const text = await provider.complete({
       messages: [
         {

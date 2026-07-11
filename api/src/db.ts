@@ -132,6 +132,20 @@ function getDb(): Database {
       value TEXT NOT NULL
     );
 
+    -- Per-account bring-your-own-key credentials. Secrets are application-
+    -- encrypted before they reach SQLite and are deliberately separate from
+    -- settings/data exports. The compound key leaves room for additional
+    -- providers without ever sharing credentials between tenants.
+    CREATE TABLE IF NOT EXISTS user_provider_credentials (
+      userId TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      ciphertext TEXT NOT NULL,
+      model TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, provider)
+    );
+
     CREATE TABLE IF NOT EXISTS api_tokens (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -326,7 +340,9 @@ function getDb(): Database {
   // Mirrors src/lib/server/database.ts (both servers share the SQLite file).
   const collectionCols = _db.prepare('PRAGMA table_info(collections)').all() as { name: string }[];
   if (!collectionCols.some((col) => col.name === 'groupId')) {
-    _db.exec('ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL');
+    _db.exec(
+      'ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL',
+    );
   }
   if (!collectionCols.some((col) => col.name === 'sortOrder')) {
     _db.exec('ALTER TABLE collections ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0');
@@ -405,14 +421,22 @@ export function migrateFoldWordKeys(database: Database) {
 
   const knownRows = database
     .prepare('SELECT userId, word, language, state, domain FROM knownWords')
-    .all() as Array<{ userId: string; word: string; language: string; state: string; domain: string | null }>;
+    .all() as Array<{
+    userId: string;
+    word: string;
+    language: string;
+    state: string;
+    domain: string | null;
+  }>;
   const knownChanges = knownRows
     .map((row) => ({ row, folded: foldWord(row.word, packFor(row.language)) }))
     .filter(({ row, folded }) => folded !== row.word);
 
-  const vocabRows = database
-    .prepare('SELECT userId, id, text FROM vocab')
-    .all() as Array<{ userId: string; id: string; text: string }>;
+  const vocabRows = database.prepare('SELECT userId, id, text FROM vocab').all() as Array<{
+    userId: string;
+    id: string;
+    text: string;
+  }>;
   const vocabChanges = vocabRows
     .map((row) => ({ row, normalized: normalizeText(row.text) }))
     .filter(({ row, normalized }) => normalized !== row.text);
@@ -652,7 +676,18 @@ export function migrateCompositeTenantKeys(database: Database) {
           lastReadAt TEXT NOT NULL,
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'title', 'author', 'coverUrl', 'groupId', 'sortOrder', 'language', 'createdAt', 'lastReadAt'],
+      columns: [
+        'userId',
+        'id',
+        'title',
+        'author',
+        'coverUrl',
+        'groupId',
+        'sortOrder',
+        'language',
+        'createdAt',
+        'lastReadAt',
+      ],
       indexSql: [],
     },
     {
@@ -674,7 +709,20 @@ export function migrateCompositeTenantKeys(database: Database) {
           PRIMARY KEY (userId, id),
           FOREIGN KEY (userId, collectionId) REFERENCES collections(userId, id) ON DELETE CASCADE
         )`,
-      columns: ['userId', 'id', 'collectionId', 'title', 'sortOrder', 'textContent', 'progress_scrollPosition', 'progress_percentComplete', 'wordCount', 'language', 'createdAt', 'lastReadAt'],
+      columns: [
+        'userId',
+        'id',
+        'collectionId',
+        'title',
+        'sortOrder',
+        'textContent',
+        'progress_scrollPosition',
+        'progress_percentComplete',
+        'wordCount',
+        'language',
+        'createdAt',
+        'lastReadAt',
+      ],
       indexSql: [
         'CREATE INDEX IF NOT EXISTS idx_lessons_collectionId ON lessons(collectionId)',
         'CREATE INDEX IF NOT EXISTS idx_lessons_sortOrder ON lessons(collectionId, sortOrder)',
@@ -701,7 +749,23 @@ export function migrateCompositeTenantKeys(database: Database) {
           ankiNoteId INTEGER,
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'text', 'type', 'sentence', 'translation', 'state', 'stateUpdatedAt', 'reviewCount', 'bookId', 'chapter', 'language', 'createdAt', 'pushedToAnki', 'ankiNoteId'],
+      columns: [
+        'userId',
+        'id',
+        'text',
+        'type',
+        'sentence',
+        'translation',
+        'state',
+        'stateUpdatedAt',
+        'reviewCount',
+        'bookId',
+        'chapter',
+        'language',
+        'createdAt',
+        'pushedToAnki',
+        'ankiNoteId',
+      ],
       indexSql: [
         'CREATE INDEX IF NOT EXISTS idx_vocab_text ON vocab(text)',
         'CREATE INDEX IF NOT EXISTS idx_vocab_state ON vocab(state)',
@@ -734,7 +798,27 @@ export function migrateCompositeTenantKeys(database: Database) {
           language TEXT NOT NULL DEFAULT 'af',
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'sentence', 'clozeWord', 'clozeIndex', 'translation', 'source', 'collection', 'wordRank', 'tatoebaSentenceId', 'vocabEntryId', 'masteryLevel', 'nextReview', 'reviewCount', 'lastReviewed', 'timesCorrect', 'timesIncorrect', 'blacklisted', 'language'],
+      columns: [
+        'userId',
+        'id',
+        'sentence',
+        'clozeWord',
+        'clozeIndex',
+        'translation',
+        'source',
+        'collection',
+        'wordRank',
+        'tatoebaSentenceId',
+        'vocabEntryId',
+        'masteryLevel',
+        'nextReview',
+        'reviewCount',
+        'lastReviewed',
+        'timesCorrect',
+        'timesIncorrect',
+        'blacklisted',
+        'language',
+      ],
       indexSql: [
         'CREATE INDEX IF NOT EXISTS idx_cloze_collection ON clozeSentences(collection)',
         'CREATE INDEX IF NOT EXISTS idx_cloze_nextReview ON clozeSentences(nextReview)',
@@ -756,8 +840,19 @@ export function migrateCompositeTenantKeys(database: Database) {
           language TEXT NOT NULL DEFAULT 'af',
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'role', 'content', 'provider', 'responseId', 'createdAt', 'language'],
-      indexSql: ['CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt)'],
+      columns: [
+        'userId',
+        'id',
+        'role',
+        'content',
+        'provider',
+        'responseId',
+        'createdAt',
+        'language',
+      ],
+      indexSql: [
+        'CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt)',
+      ],
     },
     {
       table: 'journal_entries',
@@ -776,7 +871,19 @@ export function migrateCompositeTenantKeys(database: Database) {
           updatedAt TEXT NOT NULL,
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'body', 'correctedBody', 'corrections', 'status', 'wordCount', 'language', 'entryDate', 'createdAt', 'updatedAt'],
+      columns: [
+        'userId',
+        'id',
+        'body',
+        'correctedBody',
+        'corrections',
+        'status',
+        'wordCount',
+        'language',
+        'entryDate',
+        'createdAt',
+        'updatedAt',
+      ],
       indexSql: [
         'CREATE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate)',
         'CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status)',
@@ -813,7 +920,9 @@ export function migrateCompositeTenantKeys(database: Database) {
  */
 export function migrateLlmProviderSettings(database: Database) {
   const getSetting = (key: string): unknown => {
-    const row = database.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+    const row = database.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+      | { value: string }
+      | undefined;
     if (!row) return null;
     try {
       return JSON.parse(row.value);
@@ -822,7 +931,9 @@ export function migrateLlmProviderSettings(database: Database) {
     }
   };
   const setSetting = (key: string, value: unknown) => {
-    database.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, JSON.stringify(value));
+    database
+      .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+      .run(key, JSON.stringify(value));
   };
 
   const provider = getSetting('llmProvider');

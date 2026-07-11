@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { getProvider, resetProvider } from '../lib/llm';
+import { getCurrentUserId } from '../lib/user';
 
 const app = new Hono();
 
 // GET /api/llm-status
 app.get('/', async (c) => {
-  const provider = getProvider();
+  const provider = getProvider(getCurrentUserId(c));
   const health = await provider.healthCheck();
 
   return c.json({
@@ -18,7 +19,7 @@ app.get('/', async (c) => {
 // POST /api/llm-status/test — test with a trivial completion
 app.post('/test', async (c) => {
   try {
-    const provider = getProvider();
+    const provider = getProvider(getCurrentUserId(c));
     const result = await provider.complete({
       messages: [{ role: 'user', content: 'Respond with exactly: {"ok":true}' }],
       maxTokens: 32,
@@ -28,7 +29,7 @@ app.post('/test', async (c) => {
   } catch (error) {
     return c.json(
       { ok: false, error: error instanceof Error ? error.message : 'Test failed' },
-      500
+      500,
     );
   }
 });

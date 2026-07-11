@@ -13,6 +13,8 @@ import LLMSettings from './components/LLMSettings';
 import PracticeSettings from './components/PracticeSettings';
 import VersionInfo from './components/VersionInfo';
 import PageHeader from '@/components/PageHeader';
+import BYOKSettings from './components/BYOKSettings';
+import { lectorMode } from '@/lib/api-base';
 
 export default function SettingsPage() {
   return (
@@ -20,7 +22,7 @@ export default function SettingsPage() {
       <PageHeader title="Settings" />
       <div className="space-y-8">
         <PracticeSettings />
-        <LLMSettings />
+        {lectorMode() === 'cloud' ? <BYOKSettings /> : <LLMSettings />}
         <AnkiSettings />
         <TTSSettings />
         <ThemeSettings />
