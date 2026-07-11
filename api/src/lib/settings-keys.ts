@@ -42,6 +42,10 @@ export const KNOWN_SETTING_KEYS = new Set([
   'anthropicAuthMode',
   // Anki
   'ankiConnectUrl',
+  // Anki transport (#241): 'ankiconnect' (browser→localhost, the selfhost
+  // default) or 'addon' (server-side queue + Lector Sync addon — forced in
+  // cloud, opt-in for self-hosters whose Lector is HTTPS/remote).
+  'ankiTransport',
   // Legacy provider keys — no longer written by the UI, but db.ts boot
   // migrations still read them and older DBs/CLI flows may round-trip them.
   'ollamaModel',
@@ -57,8 +61,15 @@ export const KNOWN_SETTING_KEYS = new Set([
  * write is acceptable. An empty string is allowed for URL keys — it means
  * "unset the endpoint" (the settings UI writes '' to clear a field).
  */
+const ANKI_TRANSPORTS = new Set(['ankiconnect', 'addon']);
+
 export function validateSettingWrite(key: string, value: unknown): string | null {
   if (!KNOWN_SETTING_KEYS.has(key)) return `Unknown setting key: ${key}`;
+  if (key === 'ankiTransport' && value !== '' && value !== null) {
+    if (typeof value !== 'string' || !ANKI_TRANSPORTS.has(value)) {
+      return "ankiTransport must be 'ankiconnect' or 'addon'";
+    }
+  }
   if (URL_SETTING_KEYS.has(key) && value !== '' && value !== null) {
     if (typeof value !== 'string') return `${key} must be a string URL`;
     let parsed: URL;

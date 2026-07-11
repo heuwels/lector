@@ -23,7 +23,7 @@ import {
   getDeckNames,
 } from '@/lib/anki';
 import { queueForAnki } from '@/lib/anki-queue';
-import { useLectorMode } from '@/lib/use-env';
+import { useAnkiTransport } from '@/lib/anki-transport';
 import VocabStats from './components/VocabStats';
 import VocabDetailModal from './components/VocabDetailModal';
 import { toast } from 'sonner';
@@ -32,7 +32,7 @@ import { useActiveLanguage } from '@/utils/hooks';
 
 export default function VocabPage() {
   const activeLang = useActiveLanguage();
-  const mode = useLectorMode();
+  const ankiTransport = useAnkiTransport();
   const [entries, setEntries] = useState<VocabEntry[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [stats, setStats] = useState<{
@@ -50,10 +50,11 @@ export default function VocabPage() {
   }, []);
 
   useEffect(() => {
-    // Browser→AnkiConnect is selfhost-only (#241): in cloud the probe is
-    // blocked by Chrome's Local Network Access and export goes through the
-    // server-side queue instead, so there is no connection to check.
-    if (mode !== 'selfhost') return;
+    // Probe AnkiConnect only on the browser-direct transport (#241): on
+    // 'addon' (cloud always; selfhost by choice) export goes through the
+    // server-side queue, so there is no localhost connection to check — and
+    // from a hosted page the probe is blocked by Local Network Access anyway.
+    if (ankiTransport !== 'ankiconnect') return;
     checkAnkiConnection();
     // Load deck names from settings — match the keys the settings page writes
     const savedDeck = localStorage.getItem('lector-anki-deck');
@@ -65,7 +66,7 @@ export default function VocabPage() {
       setAnkiClozeDeck(savedClozeDeck);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [ankiTransport]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -181,10 +182,11 @@ export default function VocabPage() {
         return;
       }
 
-      // Cloud (#241): no browser→AnkiConnect — queue server-side; the Lector
-      // addon creates the notes on Anki's next sync and acks them (which is
-      // what flips pushedToAnki, so entries stay exportable until then).
-      if (mode === 'cloud') {
+      // Addon transport (#241): no browser→AnkiConnect — queue server-side;
+      // the Lector addon creates the notes on Anki's next sync and acks them
+      // (which is what flips pushedToAnki, so entries stay exportable until
+      // then).
+      if (ankiTransport === 'addon') {
         try {
           const result = await queueForAnki(
             entriesToExport.map((e) => ({ id: e.id, cardType })),
@@ -254,7 +256,7 @@ export default function VocabPage() {
         });
       }
     },
-    [entries, mode, ankiConnected, ankiDeck, ankiClozeDeck],
+    [entries, ankiTransport, ankiConnected, ankiDeck, ankiClozeDeck],
   );
 
   // Mark selected entries as known
@@ -342,7 +344,7 @@ export default function VocabPage() {
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <PageHeader title="Vocabulary">
         <div className="flex items-center gap-2">
-          {mode === 'cloud' ? (
+          {ankiTransport === 'addon' ? (
             <span
               className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] px-3 py-1 text-sm font-medium text-primary"
               data-testid="anki-addon-pill"
@@ -376,9 +378,9 @@ export default function VocabPage() {
         onEntryClick={handleEntryClick}
         onExportToAnki={handleExportToAnki}
         onMarkAsKnown={handleMarkAsKnown}
-        // Pull-sync is the browser→AnkiConnect path; in cloud the addon
-        // pushes review state itself, so the button would be a dead end.
-        onSyncWithAnki={mode === 'cloud' ? undefined : handleSyncWithAnki}
+        // Pull-sync is the browser→AnkiConnect path; on the addon transport
+        // review state pushes itself, so the button would be a dead end.
+        onSyncWithAnki={ankiTransport === 'addon' ? undefined : handleSyncWithAnki}
         isLoading={isLoading}
       />
       {selectedEntry && (

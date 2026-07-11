@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'fs';
 import path from 'path';
+import { apiUrl } from './api';
 
 /**
  * Anki in cloud mode (#241): the browser-direct AnkiConnect path is
@@ -245,10 +246,42 @@ test.describe.serial('Anki in cloud mode (#241)', () => {
   });
 });
 
-test.describe('Anki settings in selfhost mode (#241 invariant)', () => {
-  test('the browser-direct AnkiConnect panel is unchanged', async ({ page }) => {
+test.describe('Anki transport in selfhost mode (#241)', () => {
+  test('defaults to the browser-direct AnkiConnect panel', async ({ page }) => {
     await page.goto('/settings');
     await expect(page.getByText('AnkiConnect URL')).toBeVisible();
     await expect(page.getByTestId('anki-addon-panel')).not.toBeVisible();
+  });
+
+  test('a self-hoster can switch to the addon transport, and back', async ({ page }) => {
+    await page.goto('/settings');
+    await expect(page.getByText('AnkiConnect URL')).toBeVisible();
+
+    // Flip to the addon — the panel swaps to setup instructions pointing at
+    // this deployment's own API origin (whatever the self-hoster serves).
+    const writeAddon = page.waitForResponse(
+      (r) => r.url().includes('/api/settings/ankiTransport') && r.request().method() === 'PUT',
+    );
+    await page.getByTestId('anki-transport-addon').click();
+    await writeAddon;
+    await expect(page.getByTestId('anki-addon-panel')).toBeVisible();
+    await expect(page.getByText('AnkiConnect URL')).not.toBeVisible();
+
+    // The persisted choice drives the vocab page on a fresh load too.
+    await page.goto('/vocab');
+    await expect(page.getByTestId('anki-addon-pill')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sync with Anki' })).not.toBeVisible();
+
+    // Restore the default so later specs (reader-anki etc.) see AnkiConnect.
+    await page.goto('/settings');
+    const writeBack = page.waitForResponse(
+      (r) => r.url().includes('/api/settings/ankiTransport') && r.request().method() === 'PUT',
+    );
+    await page.getByTestId('anki-transport-ankiconnect').click();
+    await writeBack;
+    await expect(page.getByText('AnkiConnect URL')).toBeVisible();
+    expect(await (await page.request.get(apiUrl('/api/settings/ankiTransport'))).json()).toBe(
+      'ankiconnect',
+    );
   });
 });

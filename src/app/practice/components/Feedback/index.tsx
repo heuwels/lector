@@ -7,7 +7,7 @@ import ClozeFeedback from '@/components/ClozeFeedback';
 import { splitTrailingPunctuation } from '@/lib/words';
 import { addClozeCard } from '@/lib/anki';
 import { queueForAnki } from '@/lib/anki-queue';
-import { lectorMode } from '@/lib/api-base';
+import { useAnkiTransport } from '@/lib/anki-transport';
 import { foldWord } from '@/lib/languages';
 import { getVocabByText, saveVocab } from '@/lib/data-layer';
 import { ANKI_CLOZE_DECK_SETTING_KEY } from '../../constants';
@@ -27,6 +27,7 @@ export default function Feedback({
   onNext: () => void;
 }) {
   const activeLang = useActiveLanguage();
+  const ankiTransport = useAnkiTransport();
   const [isAddingToAnki, setIsAddingToAnki] = useState(false);
   const [ankiAdded, setAnkiAdded] = useState(false);
 
@@ -48,11 +49,11 @@ export default function Feedback({
 
       const cleanWord = splitTrailingPunctuation(current.sentence.clozeWord)[0];
 
-      // Cloud (#241): the queue is keyed on vocab entries, so resolve the
-      // practiced word to one (creating a level1 entry when it's a bank word
-      // that was never saved — it's being studied, so it belongs in vocab)
-      // and queue the cloze with THIS sentence as a per-item override.
-      if (lectorMode() === 'cloud') {
+      // Addon transport (#241): the queue is keyed on vocab entries, so
+      // resolve the practiced word to one (creating a level1 entry when it's
+      // a bank word that was never saved — it's being studied, so it belongs
+      // in vocab) and queue the cloze with THIS sentence as an override.
+      if (ankiTransport === 'addon') {
         let entry = await getVocabByText(foldWord(cleanWord, activeLang));
         if (!entry) {
           const now = new Date();

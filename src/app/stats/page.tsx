@@ -45,12 +45,18 @@ export default function StatsPage() {
       try {
         // Best-effort: pull Anki's review history into dailyStats first, so the
         // streak and activity heatmap below include today's Anki study. No-ops
-        // when Anki isn't running (see /api/anki/sync-reviews). Selfhost only
-        // (#241): that endpoint reaches AnkiConnect from the SERVER, which in
-        // cloud has no Anki — there the addon pushes the same per-day counts
-        // via POST /api/anki/reviews, so skipping avoids a dead 2.5s probe.
+        // when Anki isn't running (see /api/anki/sync-reviews). AnkiConnect
+        // transport only (#241): the endpoint reaches AnkiConnect from the
+        // SERVER — pointless in cloud and on the addon transport, where the
+        // addon pushes the same per-day counts via POST /api/anki/reviews.
+        // (Read the setting inline rather than via useAnkiTransport: this
+        // effect must run exactly once, and sync must finish before the
+        // dailyStats fetch below or the heatmap misses today's reviews.)
         if (lectorMode() !== 'cloud') {
-          await syncAnkiReviews().catch(() => {});
+          const transport = await getSetting<string>('ankiTransport').catch(() => null);
+          if (transport !== 'addon') {
+            await syncAnkiReviews().catch(() => {});
+          }
         }
 
         const [collectionCounts, fluency, reading, streakData, tzSetting] = await Promise.all([
