@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { apiUrl } from './api';
+import { mockSetupSkipPersistence } from './onboarding-helpers';
 
 // Starter-content seeding (#315). The dev-mode API serves a fixture 'es'
 // starter pack via STARTER_CONTENT_ROOT (playwright.config.ts) — real packs
@@ -42,14 +43,20 @@ test.describe('starter content seeding (#315)', () => {
 
     await page.goto('/');
     await expect(page).toHaveURL(/\/setup/, { timeout: 15000 });
+    await mockSetupSkipPersistence(page);
     await page.getByTestId('setup-language-es').click();
+    await page.getByTestId('skip-guided-onboarding').click();
     await expect(page).toHaveURL('/', { timeout: 15000 });
 
     // The starter collection is there on the FIRST library paint.
     await expect(page.getByText('Starter Fixture ES').first()).toBeVisible({ timeout: 15000 });
 
     // Open it: both lessons are listed, in order, and lesson 1 reads.
-    await page.locator('h3', { hasText: 'Starter Fixture ES' }).first().click();
+    await page
+      .getByRole('link', { name: /Starter Fixture ES/ })
+      .first()
+      .click();
+    await expect(page).toHaveURL('/collection/starter-es');
     await expect(page.getByText('Hola', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('La casa').first()).toBeVisible();
     await page.getByText('Hola', { exact: true }).first().click();
@@ -132,7 +139,9 @@ test.describe('starter content absent (#315 edge)', () => {
     await page.request.delete(apiUrl('/api/settings/targetLanguage'));
     await page.goto('/');
     await expect(page).toHaveURL(/\/setup/, { timeout: 15000 });
+    await mockSetupSkipPersistence(page);
     await page.getByTestId('setup-language-af').click();
+    await page.getByTestId('skip-guided-onboarding').click();
     await expect(page).toHaveURL('/', { timeout: 15000 });
     await expect(page.getByText('Your Library').first()).toBeVisible({ timeout: 15000 });
 

@@ -118,6 +118,23 @@ export function shuffle<T>(arr: T[]): T[] {
   return result;
 }
 
+// Build a multiple-choice set exclusively from the current practice pool.
+// Small rounds intentionally show fewer than four choices rather than padding
+// with words from an unrelated language.
+export function buildMultipleChoiceOptions(
+  correctWord: string,
+  pool: ClozeSentence[],
+): { options: string[]; correctIndex: number } {
+  const cleanCorrect = splitTrailingPunctuation(correctWord)[0];
+  const cleanDistractors = generateDistractors(correctWord, pool).map(
+    (distractor) => splitTrailingPunctuation(distractor)[0],
+  );
+  const options = shuffle([cleanCorrect, ...cleanDistractors]);
+  const correctIndex = options.findIndex((option) => normalize(option) === normalize(cleanCorrect));
+
+  return { options, correctIndex };
+}
+
 // --- Dictation scoring ------------------------------------------------------
 
 // Compare what the user typed against the actual sentence at the word level.

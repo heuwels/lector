@@ -6,6 +6,7 @@ import {
   getFuzzyStatus,
   calculateNextReview,
   calculatePoints,
+  buildMultipleChoiceOptions,
   generateDistractors,
   shuffle,
 } from '../utils';
@@ -250,6 +251,28 @@ describe('generateDistractors', () => {
   it('returns fewer distractors when the pool is small', () => {
     expect(generateDistractors('huis', [makeSentence('muis')])).toEqual(['muis']);
     expect(generateDistractors('huis', [])).toEqual([]);
+  });
+});
+
+describe('buildMultipleChoiceOptions', () => {
+  it('uses only the current pool when a guided round has fewer than four choices', () => {
+    const pool = ['casa', 'perro', 'gato'].map(makeSentence);
+    const result = buildMultipleChoiceOptions('casa', pool);
+
+    expect(result.options).toHaveLength(3);
+    expect([...result.options].sort()).toEqual(['casa', 'gato', 'perro']);
+    expect(result.options[result.correctIndex]).toBe('casa');
+  });
+
+  it('still caps a larger round at four choices', () => {
+    const pool = ['casa', 'perro', 'gato', 'libro', 'mesa'].map(makeSentence);
+    const result = buildMultipleChoiceOptions('casa', pool);
+
+    expect(result.options).toHaveLength(4);
+    expect(result.options[result.correctIndex]).toBe('casa');
+    expect(result.options.every((option) => pool.some((item) => item.clozeWord === option))).toBe(
+      true,
+    );
   });
 });
 

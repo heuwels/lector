@@ -23,6 +23,8 @@ const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   // predate the addon endpoints, which are the only thing worth calling here.)
   anki: { read: 'anki:read', write: 'anki:write' },
   'study-ping': { read: 'stats:read', write: 'stats:write' },
+  onboarding: { read: 'stats:read', write: 'stats:write' },
+  'learner-events': { read: 'stats:read', write: 'stats:write' },
   data: { read: 'data:export', write: 'data:import' },
   'extract-url': { read: 'collections:write', write: 'collections:write' },
   import: { read: 'collections:write', write: 'collections:write' },

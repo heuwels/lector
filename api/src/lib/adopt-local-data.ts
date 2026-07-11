@@ -45,6 +45,11 @@ export const TENANT_TABLES = [
   'knownWords',
   'dailyStats',
   'settings',
+  // Guided onboarding profile/progress and the learner activity stream (#331)
+  // are first-class learning history, so they move with the library.
+  'learner_profiles',
+  'onboarding_progress',
+  'learner_events',
   // BYOK credentials are not part of user-facing exports, but they are still
   // tenant-owned rows and must follow an explicit selfhost→cloud adoption.
   'user_provider_credentials',

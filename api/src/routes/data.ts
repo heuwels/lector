@@ -20,9 +20,7 @@ const app = new Hono();
 // NFC/fold keying (or hand-edited) may carry unnormalized words, and the boot
 // migration won't run again until the next restart.
 function packFor(language: string | undefined | null): LanguageConfig {
-  return getLanguageConfig(
-    language && isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE,
-  );
+  return getLanguageConfig(language && isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE);
 }
 
 // GET /api/data — full backup for the requesting user. The builder
@@ -56,6 +54,9 @@ app.post('/', async (c) => {
     knownWords: 0,
     clozeSentences: 0,
     dailyStats: 0,
+    learnerProfiles: 0,
+    onboardingProgress: 0,
+    learnerEvents: 0,
     settings: 0,
   };
 
@@ -298,6 +299,104 @@ app.post('/', async (c) => {
           userId,
         );
         results.dailyStats++;
+      }
+    }
+
+    if (data.learnerProfiles?.length) {
+      const stmt = db.prepare(`
+        INSERT INTO learner_profiles
+          (userId, language, approximateLevel, interests, dailyMinutes, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(userId, language) DO UPDATE SET
+          approximateLevel = excluded.approximateLevel,
+          interests = excluded.interests,
+          dailyMinutes = excluded.dailyMinutes,
+          createdAt = excluded.createdAt,
+          updatedAt = excluded.updatedAt
+      `);
+      for (const profile of data.learnerProfiles) {
+        const interests =
+          typeof profile.interests === 'string'
+            ? profile.interests
+            : JSON.stringify(profile.interests ?? []);
+        stmt.run(
+          userId,
+          profile.language || 'af',
+          profile.approximateLevel || 'not_sure',
+          interests,
+          profile.dailyMinutes || 10,
+          profile.createdAt || new Date().toISOString(),
+          profile.updatedAt || new Date().toISOString(),
+        );
+        results.learnerProfiles++;
+      }
+    }
+
+    if (data.onboardingProgress?.length) {
+      const stmt = db.prepare(`
+        INSERT INTO onboarding_progress
+          (userId, version, status, currentStep, language, starterCollectionId,
+           recommendedLessonId, recommendedLessonTitle, nextLessonId, nextLessonTitle,
+           startedAt, completedAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(userId) DO UPDATE SET
+          version = excluded.version,
+          status = excluded.status,
+          currentStep = excluded.currentStep,
+          language = excluded.language,
+          starterCollectionId = excluded.starterCollectionId,
+          recommendedLessonId = excluded.recommendedLessonId,
+          recommendedLessonTitle = excluded.recommendedLessonTitle,
+          nextLessonId = excluded.nextLessonId,
+          nextLessonTitle = excluded.nextLessonTitle,
+          startedAt = excluded.startedAt,
+          completedAt = excluded.completedAt,
+          updatedAt = excluded.updatedAt
+      `);
+      for (const progress of data.onboardingProgress) {
+        stmt.run(
+          userId,
+          progress.version || 1,
+          progress.status || 'in_progress',
+          progress.currentStep || 'reader',
+          progress.language || 'af',
+          progress.starterCollectionId || null,
+          progress.recommendedLessonId || null,
+          progress.recommendedLessonTitle || null,
+          progress.nextLessonId || null,
+          progress.nextLessonTitle || null,
+          progress.startedAt || new Date().toISOString(),
+          progress.completedAt || null,
+          progress.updatedAt || new Date().toISOString(),
+        );
+        results.onboardingProgress++;
+      }
+    }
+
+    if (data.learnerEvents?.length) {
+      const stmt = db.prepare(`
+        INSERT OR REPLACE INTO learner_events
+          (userId, id, eventType, language, lessonId, vocabId, properties,
+           idempotencyKey, occurredAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const event of data.learnerEvents) {
+        const properties =
+          typeof event.properties === 'string'
+            ? event.properties
+            : JSON.stringify(event.properties ?? {});
+        stmt.run(
+          userId,
+          event.id || randomUUID(),
+          event.eventType,
+          event.language || 'af',
+          event.lessonId || null,
+          event.vocabId || null,
+          properties,
+          event.idempotencyKey || null,
+          event.occurredAt || new Date().toISOString(),
+        );
+        results.learnerEvents++;
       }
     }
 

@@ -23,6 +23,27 @@ function isSeeded(userId: string, language: string): boolean {
     .get(userId, seededKey(language));
 }
 
+function firstStarterLesson(userId: string, language: string) {
+  return db
+    .prepare(
+      `SELECT id, title FROM lessons
+       WHERE userId = ? AND collectionId = ? AND language = ?
+       ORDER BY sortOrder, createdAt LIMIT 1`,
+    )
+    .get(userId, `starter-${language}`, language) as { id: string; title: string } | undefined;
+}
+
+function recommendation(userId: string, language: string) {
+  const lesson = firstStarterLesson(userId, language);
+  return lesson
+    ? {
+        collectionId: `starter-${language}`,
+        recommendedLessonId: lesson.id,
+        recommendedLessonTitle: lesson.title,
+      }
+    : {};
+}
+
 // GET /api/starter/status?language=es — drives the empty-library CTA.
 app.get('/status', (c) => {
   const userId = getCurrentUserId(c);
@@ -30,9 +51,11 @@ app.get('/status', (c) => {
   if (!language || !isValidLanguageCode(language)) {
     return c.json({ error: 'Invalid language' }, 400);
   }
+  const seeded = isSeeded(userId, language);
   return c.json({
     available: hasStarterContent(language),
-    seeded: isSeeded(userId, language),
+    seeded,
+    ...(seeded ? recommendation(userId, language) : {}),
   });
 });
 
@@ -46,7 +69,11 @@ app.post('/seed', async (c) => {
   }
 
   if (isSeeded(userId, language)) {
-    return c.json({ seeded: false, reason: 'already-seeded' });
+    return c.json({
+      seeded: false,
+      reason: 'already-seeded',
+      ...recommendation(userId, language),
+    });
   }
 
   // Malformed manifests throw here → app-level onError (500 + Sentry). A pack
@@ -56,7 +83,9 @@ app.post('/seed', async (c) => {
     return c.json({ seeded: false, reason: 'no-content' });
   }
 
-  const setFlag = db.prepare('INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)');
+  const setFlag = db.prepare(
+    'INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)',
+  );
 
   // A library that already has collections in this language isn't a fresh
   // start — don't inject content into it (e.g. rows imported via API token
@@ -75,6 +104,7 @@ app.post('/seed', async (c) => {
   const collectionId = `starter-${language}`;
   const now = new Date().toISOString();
   const pack = LANGUAGES[language];
+  const lessons = content.lessons.map((lesson) => ({ ...lesson, id: randomUUID() }));
 
   const insertCollection = db.prepare(`
     INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt, userId)
@@ -86,10 +116,19 @@ app.post('/seed', async (c) => {
   `);
 
   db.transaction(() => {
-    insertCollection.run(collectionId, content.title, content.author, null, language, now, now, userId);
-    content.lessons.forEach((lesson, i) => {
+    insertCollection.run(
+      collectionId,
+      content.title,
+      content.author,
+      null,
+      language,
+      now,
+      now,
+      userId,
+    );
+    lessons.forEach((lesson, i) => {
       insertLesson.run(
-        randomUUID(),
+        lesson.id,
         collectionId,
         lesson.title,
         i,
@@ -104,7 +143,13 @@ app.post('/seed', async (c) => {
     setFlag.run(userId, seededKey(language), JSON.stringify(true));
   })();
 
-  return c.json({ seeded: true, collectionId, lessonCount: content.lessons.length });
+  return c.json({
+    seeded: true,
+    collectionId,
+    lessonCount: lessons.length,
+    recommendedLessonId: lessons[0]?.id,
+    recommendedLessonTitle: lessons[0]?.title,
+  });
 });
 
 export default app;

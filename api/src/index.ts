@@ -31,6 +31,8 @@ import llmOpenai from './routes/llm-openai';
 import billing from './routes/billing';
 import admin from './routes/admin';
 import byok from './routes/byok';
+import onboarding from './routes/onboarding';
+import learnerEvents from './routes/learner-events';
 import { authMiddleware } from './lib/auth';
 import { sessionMiddleware } from './lib/session';
 import { assertBillingBootable, billingConfig, billingMiddleware } from './lib/billing';
@@ -169,6 +171,8 @@ app.route('/api/llm/openai', llmOpenai);
 app.route('/api/billing', billing);
 app.route('/api/admin', admin);
 app.route('/api/byok', byok);
+app.route('/api/onboarding', onboarding);
+app.route('/api/learner-events', learnerEvents);
 
 // Capture unhandled errors to Sentry/GlitchTip. Deliberate HTTP errors
 // (e.g. the identity seam's fail-closed 401, lib/user.ts) pass through with

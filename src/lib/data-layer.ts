@@ -471,7 +471,7 @@ export async function updateClozeAfterReview(
   newMasteryLevel: ClozeMasteryLevel,
   nextReview: Date,
 ): Promise<number> {
-  const res = await apiFetch(`/api/cloze/${id}/review`, {
+  const res = await apiFetch(`/api/cloze/${id}/review${langParam()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -652,7 +652,9 @@ export interface FluencyStats {
   pending: number;
 }
 
-export async function getFluencyStats(language: string = getActiveLanguage()): Promise<FluencyStats> {
+export async function getFluencyStats(
+  language: string = getActiveLanguage(),
+): Promise<FluencyStats> {
   const params = new URLSearchParams({ language });
   const res = await apiFetch(`/api/stats/fluency?${params}`);
   return res.json();
@@ -774,7 +776,9 @@ export async function getStatsForDateRange(
   startDate: string,
   endDate: string,
 ): Promise<DailyStats[]> {
-  const res = await apiFetch(`/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`);
+  const res = await apiFetch(
+    `/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`,
+  );
   return res.json();
 }
 
@@ -788,7 +792,10 @@ export async function getAllDailyStats(): Promise<DailyStats[]> {
 // App-wide activity per date (no language param on purpose, #238) — feeds the
 // heatmap so it agrees with the equally app-wide streak.
 export async function getAppWideActivity(): Promise<
-  Pick<DailyStats, 'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'>[]
+  Pick<
+    DailyStats,
+    'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'
+  >[]
 > {
   const res = await apiFetch('/api/stats/activity');
   return res.json();
@@ -846,10 +853,19 @@ export async function getAllSettings(): Promise<Record<string, unknown>> {
 
 export async function getStarterStatus(
   language: string,
-): Promise<{ available: boolean; seeded: boolean }> {
+): Promise<StarterContentResult & { available: boolean }> {
   const res = await apiFetch(`/api/starter/status?language=${language}`);
   if (!res.ok) return { available: false, seeded: false };
   return res.json();
+}
+
+export interface StarterContentResult {
+  seeded: boolean;
+  reason?: string;
+  collectionId?: string;
+  lessonCount?: number;
+  recommendedLessonId?: string;
+  recommendedLessonTitle?: string;
 }
 
 /**
@@ -858,7 +874,7 @@ export async function getStarterStatus(
  * rather than throwing when there's nothing to seed or the API errored —
  * language selection must never break on a missing starter pack.
  */
-export async function seedStarterContent(language: string): Promise<{ seeded: boolean }> {
+export async function seedStarterContent(language: string): Promise<StarterContentResult> {
   try {
     const res = await apiFetch('/api/starter/seed', {
       method: 'POST',
@@ -870,6 +886,52 @@ export async function seedStarterContent(language: string): Promise<{ seeded: bo
   } catch {
     return { seeded: false };
   }
+}
+
+// ============================================================================
+// Helper Functions - Guided onboarding practice (#331)
+// ============================================================================
+
+/**
+ * Materialise one idempotent mined cloze card from a word the learner saved in
+ * the reader. The API verifies ownership and finds the word's token position;
+ * callers never invent a card for another user's vocab row.
+ */
+export async function createOnboardingCloze(input: {
+  vocabId: string;
+  word: string;
+  sentence: string;
+  translation: string;
+}): Promise<ClozeSentence | null> {
+  const res = await apiFetch('/api/cloze/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...input, language: getActiveLanguage() }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return {
+    ...data,
+    nextReview: new Date(data.nextReview),
+    lastReviewed: data.lastReviewed ? new Date(data.lastReviewed) : undefined,
+  };
+}
+
+/** Fetch exactly the reader-mined cards named by the onboarding snapshot. */
+export async function getOnboardingCloze(vocabIds: string[]): Promise<ClozeSentence[]> {
+  if (vocabIds.length === 0) return [];
+  const params = new URLSearchParams({
+    vocabIds: [...new Set(vocabIds)].slice(0, 20).join(','),
+    language: getActiveLanguage(),
+  });
+  const res = await apiFetch(`/api/cloze/onboarding?${params}`);
+  if (!res.ok) return [];
+  const sentences = await res.json();
+  return sentences.map((sentence: Record<string, unknown>) => ({
+    ...sentence,
+    nextReview: new Date(sentence.nextReview as string),
+    lastReviewed: sentence.lastReviewed ? new Date(sentence.lastReviewed as string) : undefined,
+  }));
 }
 
 // ============================================================================

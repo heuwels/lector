@@ -33,6 +33,9 @@ function createSchema(db: Database): void {
     CREATE TABLE knownWords       (userId TEXT NOT NULL DEFAULT 'local', word TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af', PRIMARY KEY (userId, word, language));
     CREATE TABLE dailyStats       (userId TEXT NOT NULL DEFAULT 'local', date TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af', PRIMARY KEY (userId, date, language));
     CREATE TABLE settings         (userId TEXT NOT NULL DEFAULT 'local', key TEXT NOT NULL, value TEXT, PRIMARY KEY (userId, key));
+    CREATE TABLE learner_profiles (userId TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af', PRIMARY KEY (userId, language));
+    CREATE TABLE onboarding_progress (userId TEXT PRIMARY KEY);
+    CREATE TABLE learner_events   (userId TEXT NOT NULL DEFAULT 'local', id TEXT NOT NULL, PRIMARY KEY (userId, id));
     CREATE TABLE usage_counters   (userId TEXT NOT NULL, metric TEXT NOT NULL, period TEXT NOT NULL, value INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (userId, metric, period));
     CREATE TABLE anki_pending     (userId TEXT NOT NULL DEFAULT 'local', vocabId TEXT NOT NULL, cardType TEXT NOT NULL DEFAULT 'basic', queuedAt TEXT NOT NULL DEFAULT '', PRIMARY KEY (userId, vocabId, cardType));
     CREATE TABLE user_provider_credentials (userId TEXT NOT NULL, provider TEXT NOT NULL, ciphertext TEXT NOT NULL, model TEXT NOT NULL, PRIMARY KEY (userId, provider));
@@ -41,7 +44,7 @@ function createSchema(db: Database): void {
 }
 
 /** Rows per table for the given user. chat_messages left empty on purpose, to
- * cover a tenant table with nothing to move. Total for 'local' = 28. */
+ * cover a tenant table with nothing to move. Total for 'local' = 36. */
 function seedLocal(db: Database): void {
   const idRows: [string, number][] = [
     ['collections', 2],
@@ -52,6 +55,7 @@ function seedLocal(db: Database): void {
     ['chat_messages', 0],
     ['collection_groups', 1],
     ['api_tokens', 1],
+    ['learner_events', 2],
   ];
   for (const [table, n] of idRows) {
     for (let i = 0; i < n; i++) {
@@ -82,17 +86,24 @@ function seedLocal(db: Database): void {
       'v',
     );
   }
+  db.prepare('INSERT INTO learner_profiles (userId, language) VALUES (?, ?)').run(
+    LOCAL_USER_ID,
+    'af',
+  );
+  db.prepare('INSERT INTO onboarding_progress (userId) VALUES (?)').run(LOCAL_USER_ID);
   for (let i = 0; i < 2; i++) {
     db.prepare(
       'INSERT INTO usage_counters (userId, metric, period, value) VALUES (?, ?, ?, ?)',
     ).run(LOCAL_USER_ID, `m${i}`, '2026-01', 10);
   }
   for (let i = 0; i < 2; i++) {
-    db.prepare('INSERT INTO anki_pending (userId, vocabId, cardType, queuedAt) VALUES (?, ?, ?, ?)').run(LOCAL_USER_ID, `vocab-${i}`, 'basic', '2026-01-01');
+    db.prepare(
+      'INSERT INTO anki_pending (userId, vocabId, cardType, queuedAt) VALUES (?, ?, ?, ?)',
+    ).run(LOCAL_USER_ID, `vocab-${i}`, 'basic', '2026-01-01');
   }
 }
 
-const LOCAL_TOTAL = 32;
+const LOCAL_TOTAL = 36;
 
 describe('adoptLocalData', () => {
   let db: Database;

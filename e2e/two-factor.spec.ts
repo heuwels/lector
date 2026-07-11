@@ -107,6 +107,7 @@ test.describe.serial('TOTP two-factor lifecycle', () => {
     await page.waitForURL('http://localhost:3456/**');
     await page.goto('/setup');
     await page.getByTestId('setup-language-af').click();
+    await page.getByTestId('skip-guided-onboarding').click();
     await page.waitForURL((url) => url.pathname === '/');
   });
 
@@ -131,8 +132,9 @@ test.describe.serial('TOTP two-factor lifecycle', () => {
 
     // Backup codes are on screen now — keep one for the recovery test.
     backupCode =
-      (await page.getByTestId('twofactor-backup-codes').locator('span').first().textContent())?.trim() ??
-      '';
+      (
+        await page.getByTestId('twofactor-backup-codes').locator('span').first().textContent()
+      )?.trim() ?? '';
     expect(backupCode.length).toBeGreaterThan(5);
 
     // "Scan" the secret into our authenticator and feed back the live code.
