@@ -60,7 +60,7 @@ describe('POST /api/anki proxy allowlist (SECURITY-04)', () => {
     globalThis.fetch = ((..._args: Parameters<typeof fetch>) => {
       fetched = true;
       throw new Error('must not be called');
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     try {
       for (const action of ['importPackage', 'guiBrowse', 'multi', 'deleteDecks']) {
         const res = await post('/', { action });
@@ -86,7 +86,7 @@ describe('POST /api/anki proxy allowlist (SECURITY-04)', () => {
     try {
       const res = await post('/', { action: 'version' });
       expect(res.status).toBe(200);
-      expect((await res.json()) as { result: number }).toEqual({ result: 6, error: null });
+      expect((await res.json()) as { result: number; error: null }).toEqual({ result: 6, error: null });
       expect(actions).toEqual(['version']);
     } finally {
       globalThis.fetch = realFetch;
