@@ -16,8 +16,19 @@ cat > "$ROOT/lector/update.sh" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 "$LECTOR_ROOT/refresh-env.sh"
-grep -q '^put BYOK_ENCRYPTION_KEY byok-encryption-key$' "$LECTOR_ROOT/refresh-env.sh"
-[ "$(grep -c '^put BYOK_ENCRYPTION_KEY ' "$LECTOR_ROOT/refresh-env.sh")" -eq 1 ]
+while read -r env_key parameter_suffix; do
+  grep -q "^put $env_key $parameter_suffix$" "$LECTOR_ROOT/refresh-env.sh"
+  [ "$(grep -c "^put $env_key " "$LECTOR_ROOT/refresh-env.sh")" -eq 1 ]
+done <<'MAPPINGS'
+BYOK_ENCRYPTION_KEY byok-encryption-key
+OPENAI_COMPAT_WORD_GLOSS_MODEL openai-compat-word-gloss-model
+OPENAI_COMPAT_SIMPLE_PHRASE_MODEL openai-compat-simple-phrase-model
+OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL openai-compat-simple-context-model
+CLASSIFY_LLM_URL classify-llm-url
+CLASSIFY_LLM_MODEL classify-llm-model
+CLASSIFY_LLM_API_KEY openrouter-api-key
+LECTOR_FREE_TIER free-tier-enabled
+MAPPINGS
 grep -q '^BYOK_ENCRYPTION_KEY=fixture-key$' "$LECTOR_ROOT/.env"
 exit "${UPDATE_EXIT:-0}"
 EOF
@@ -73,8 +84,19 @@ export LECTOR_IMAGE_TAG=sha-2222222222222222222222222222222222222222
 bash deploy/cloud/deploy-cloud.sh >/dev/null
 grep -q "image: ghcr.io/heuwels/lector:$LECTOR_IMAGE_TAG" "$ROOT/lector/docker-compose.yml"
 grep -q -- '- SENTRY_ENVIRONMENT=staging' "$ROOT/lector/docker-compose.yml"
-grep -q '^put BYOK_ENCRYPTION_KEY byok-encryption-key$' "$ROOT/lector/refresh-env.sh"
-[ "$(grep -c '^put BYOK_ENCRYPTION_KEY ' "$ROOT/lector/refresh-env.sh")" -eq 1 ]
+while read -r env_key parameter_suffix; do
+  grep -q "^put $env_key $parameter_suffix$" "$ROOT/lector/refresh-env.sh"
+  [ "$(grep -c "^put $env_key " "$ROOT/lector/refresh-env.sh")" -eq 1 ]
+done <<'MAPPINGS'
+BYOK_ENCRYPTION_KEY byok-encryption-key
+OPENAI_COMPAT_WORD_GLOSS_MODEL openai-compat-word-gloss-model
+OPENAI_COMPAT_SIMPLE_PHRASE_MODEL openai-compat-simple-phrase-model
+OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL openai-compat-simple-context-model
+CLASSIFY_LLM_URL classify-llm-url
+CLASSIFY_LLM_MODEL classify-llm-model
+CLASSIFY_LLM_API_KEY openrouter-api-key
+LECTOR_FREE_TIER free-tier-enabled
+MAPPINGS
 grep -q '^BYOK_ENCRYPTION_KEY=fixture-key$' "$ROOT/lector/.env"
 
 # A failed update restores the previously healthy image.
@@ -85,7 +107,7 @@ if bash deploy/cloud/deploy-cloud.sh >/dev/null 2>&1; then
   exit 1
 fi
 grep -q 'image: ghcr.io/heuwels/lector:sha-2222222222222222222222222222222222222222' "$ROOT/lector/docker-compose.yml"
-[ "$(grep -c '^put BYOK_ENCRYPTION_KEY ' "$ROOT/lector/refresh-env.sh")" -eq 1 ]
+[ "$(grep -c '^put LECTOR_FREE_TIER ' "$ROOT/lector/refresh-env.sh")" -eq 1 ]
 
 # The first deploy from a mutable image rolls back by running-image digest.
 sed -i.bak 's#image: ghcr.io/heuwels/lector:sha-[0-9a-f]*#image: ghcr.io/heuwels/lector:latest#' "$ROOT/lector/docker-compose.yml"

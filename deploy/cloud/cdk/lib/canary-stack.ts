@@ -47,6 +47,8 @@ import { Construct } from 'constructs';
  *   /lector/canary/openai-compat-word-gloss-model String optional — managed gloss model (Free requires google/gemini-2.5-flash-lite)
  *   /lector/canary/openai-compat-simple-phrase-model String optional — managed simple phrase model (same Free pin)
  *   /lector/canary/openai-compat-simple-context-model String optional — managed simple context model (same Free pin)
+ *   /lector/canary/classify-llm-url    String        optional — dedicated classifier endpoint (Free + CLASSIFY_WORKER requires it)
+ *   /lector/canary/classify-llm-model  String        optional — dedicated classifier model (Free + CLASSIFY_WORKER requires it)
  *   /lector/canary/resend-api-key      SecureString  optional — RESEND_API_KEY (account emails, #218)
  *   /lector/canary/better-auth-secret  SecureString  optional — BETTER_AUTH_SECRET (session signing, #218; required to flip off the external gate)
  *   /lector/canary/turnstile-site-key  String        optional — TURNSTILE_SITE_KEY (bot protection on auth forms, #218)
@@ -319,6 +321,11 @@ put OPENAI_COMPAT_MODEL   openai-compat-model
 put OPENAI_COMPAT_WORD_GLOSS_MODEL openai-compat-word-gloss-model
 put OPENAI_COMPAT_SIMPLE_PHRASE_MODEL openai-compat-simple-phrase-model
 put OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL openai-compat-simple-context-model
+put CLASSIFY_LLM_URL     classify-llm-url
+put CLASSIFY_LLM_MODEL   classify-llm-model
+# Classification is isolated by its endpoint/model profile but uses the same
+# deployment-scoped OpenRouter credential unless a separate key seam is added.
+put CLASSIFY_LLM_API_KEY openrouter-api-key
 put RESEND_API_KEY        resend-api-key
 put BETTER_AUTH_SECRET    better-auth-secret
 put TURNSTILE_SITE_KEY    turnstile-site-key

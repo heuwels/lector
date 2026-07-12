@@ -129,9 +129,22 @@ if ! ensure_sentry_environment "$LECTOR_DEPLOYMENT"; then
 fi
 # UserData is first-boot-only, so retained instances need new SSM mappings
 # migrated before their on-box update helper refreshes the container env.
-if ! ensure_refresh_env_mapping BYOK_ENCRYPTION_KEY byok-encryption-key; then
-  exit 2
-fi
+# Keep the Free flag last: refresh-env.sh writes one atomic file, but this
+# ordering makes the dependency set explicit for humans reading deploy logs.
+while read -r env_key parameter_suffix; do
+  if ! ensure_refresh_env_mapping "$env_key" "$parameter_suffix"; then
+    exit 2
+  fi
+done <<'MAPPINGS'
+BYOK_ENCRYPTION_KEY byok-encryption-key
+OPENAI_COMPAT_WORD_GLOSS_MODEL openai-compat-word-gloss-model
+OPENAI_COMPAT_SIMPLE_PHRASE_MODEL openai-compat-simple-phrase-model
+OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL openai-compat-simple-context-model
+CLASSIFY_LLM_URL classify-llm-url
+CLASSIFY_LLM_MODEL classify-llm-model
+CLASSIFY_LLM_API_KEY openrouter-api-key
+LECTOR_FREE_TIER free-tier-enabled
+MAPPINGS
 if ! set_image "$DESIRED_IMAGE"; then
   echo "could not pin $DESIRED_IMAGE in $COMPOSE" >&2
   exit 2

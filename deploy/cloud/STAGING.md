@@ -79,6 +79,10 @@ three `openai-compat-{word-gloss,simple-phrase,simple-context}-model` parameters
 are present and pinned to `google/gemini-2.5-flash-lite`. A deployed staging
 image uses the same production boot checks as production; only isolated
 automated tests run with `NODE_ENV=test`.
+Because the cloud compose enables `CLASSIFY_WORKER=1`, also set
+`classify-llm-url=https://openrouter.ai/api` and
+`classify-llm-model=google/gemini-2.5-flash-lite`; the refresh script reuses the
+deployment-scoped OpenRouter key for this separately pinned provider.
 Staging also requires its own valid `byok-encryption-key`; never reuse the
 production key.
 
