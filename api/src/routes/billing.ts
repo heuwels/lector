@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { getCurrentUserId } from '../lib/user';
 import {
   applyPaddleEvent,
@@ -11,8 +12,10 @@ import {
   verifyPaddleSignature,
   type CreateTransaction,
 } from '../lib/billing';
-import { isBillingExempt } from '../lib/account-flags';
-import { currentPeriod, entitlements, type EntitlementsEngine } from '../lib/entitlements';
+import { isBillingExempt, isSuspended } from '../lib/account-flags';
+import { entitlements, type EntitlementsEngine } from '../lib/entitlements';
+
+const MAX_PADDLE_WEBHOOK_BODY_BYTES = 1024 * 1024;
 
 /**
  * Route factory (mirrors makeSessionMiddleware/makePatMiddleware): the prod
@@ -25,27 +28,32 @@ export function makeBillingRoutes(
   resolveEmail: (userId: string) => string | null = getUserEmail,
   createTransaction: CreateTransaction = makePaddleTransactionCreator(cfg),
   engine: EntitlementsEngine = entitlements,
+  checkSuspended: (userId: string) => boolean = isSuspended,
 ) {
   const app = new Hono();
 
   // GET /api/billing/entitlements — the client's read of the plan-limits
   // engine (#222): which plan, its limit values, and this month's usage.
   // Informational only — enforcement stays in the routes. Gate-exempt like
-  // the rest of /api/billing (an unsubscribed account just sees the base
-  // plan's numbers; it can't use any limited route anyway).
+  // the rest of /api/billing; when Free is enabled an unsubscribed account
+  // sees its derived Free limits.
   app.get('/entitlements', (c) => {
     const userId = getCurrentUserId(c);
     const resolved = engine.resolveEntitlements(userId);
+    const periods = engine.currentPeriods();
     return c.json({
       plan: resolved.plan,
       byok: resolved.byok,
       limits: resolved.limits,
       usage: {
-        journalWordsPerMonth: engine.getUsage(userId, 'journalWordsPerMonth'),
-        llmRequestsPerMonth: engine.getUsage(userId, 'llmRequestsPerMonth'),
-        ttsCharsPerMonth: engine.getUsage(userId, 'ttsCharsPerMonth'),
+        journalWordsPerMonth: engine.getUsage(userId, 'journalWordsPerMonth', periods),
+        llmRequestsPerMonth: engine.getUsage(userId, 'llmRequestsPerMonth', periods),
+        ttsCharsPerMonth: engine.getUsage(userId, 'ttsCharsPerMonth', periods),
+        wordGlossesPerMonth: engine.getUsage(userId, 'wordGlossesPerMonth', periods),
+        phraseTranslationsPerDay: engine.getUsage(userId, 'phraseTranslationsPerDay', periods),
+        contextTranslationsPerDay: engine.getUsage(userId, 'contextTranslationsPerDay', periods),
       },
-      period: currentPeriod(),
+      periods,
     });
   });
 
@@ -54,25 +62,37 @@ export function makeBillingRoutes(
   // billing is a browser concern, a token has no business reading it).
   // Exempt from the billing gate itself, so a locked account can render
   // /subscribe: the screen needs the plan `prices` to render its tiers and
-  // polls `active` afterwards until the webhook lands. Checkout no longer
+  // polls `subscriptionActive` afterwards until the webhook lands. Checkout no longer
   // opens here — POST /checkout creates it and the overlay opens on
   // lector.dev (app.lector.dev is not a Paddle-approved checkout domain).
   app.get('/status', (c) => {
+    const userId = getCurrentUserId(c);
+    const suspended = checkSuspended(userId);
     if (!cfg.enforced) {
-      return c.json({ enforced: false as const, active: true });
+      return c.json({
+        enforced: false as const,
+        accessAllowed: !suspended,
+        subscriptionActive: false,
+        freeTierEnabled: false,
+        suspended,
+        status: 'none',
+        exempt: false,
+        checkout: { prices: cfg.prices },
+      });
     }
 
-    const userId = getCurrentUserId(c);
     const email = resolveEmail(userId);
-    // Exempt via env allowlist OR a per-account comp flag (#221) — either way
-    // the account is "active" so the UI renders the app, not /subscribe.
     const exempt =
       (email !== null && cfg.exemptEmails.has(email.toLowerCase())) || isBillingExempt(userId);
     const status = resolveBillingStatus(userId, email);
+    const subscriptionActive = isEntitledStatus(status);
 
     return c.json({
       enforced: true as const,
-      active: exempt || isEntitledStatus(status),
+      accessAllowed: !suspended && (cfg.freeTierEnabled || subscriptionActive || exempt),
+      subscriptionActive,
+      freeTierEnabled: cfg.freeTierEnabled,
+      suspended,
       exempt,
       status: status ?? 'none',
       checkout: { prices: cfg.prices },
@@ -108,6 +128,9 @@ export function makeBillingRoutes(
     }
 
     const email = resolveEmail(userId);
+    if (isEntitledStatus(resolveBillingStatus(userId, email))) {
+      return c.json({ error: 'subscription_already_active' }, 409);
+    }
     try {
       const txn = await createTransaction({
         priceId,
@@ -129,29 +152,39 @@ export function makeBillingRoutes(
   // retryable, so: bad signature → 401 (a misconfiguration — retries keep
   // failing and surface in Paddle's delivery log), unparseable body → 400,
   // applied/stale/irrelevant → 200 (nothing to retry).
-  app.post('/webhook', async (c) => {
-    const secret = cfg.webhookSecret;
-    if (!cfg.enforced || !secret) {
-      return c.json({ error: 'Billing is not enabled on this deployment' }, 404);
-    }
+  app.post(
+    '/webhook',
+    bodyLimit({
+      maxSize: MAX_PADDLE_WEBHOOK_BODY_BYTES,
+      onError: (c) => c.json({ error: 'Webhook payload is too large' }, 413),
+    }),
+    async (c) => {
+      const secret = cfg.webhookSecret;
+      if (!cfg.enforced || !secret) {
+        return c.json({ error: 'Billing is not enabled on this deployment' }, 404);
+      }
 
-    const rawBody = await c.req.text();
-    if (!verifyPaddleSignature(rawBody, c.req.header('Paddle-Signature'), secret)) {
-      return c.json({ error: 'Invalid signature' }, 401);
-    }
+      // bodyLimit either leaves the original Request intact (Content-Length)
+      // or reconstructs it byte-for-byte after streaming. Reading text here
+      // therefore preserves Paddle's raw-body signature contract.
+      const rawBody = await c.req.text();
+      if (!verifyPaddleSignature(rawBody, c.req.header('Paddle-Signature'), secret)) {
+        return c.json({ error: 'Invalid signature' }, 401);
+      }
 
-    let event: unknown;
-    try {
-      event = JSON.parse(rawBody);
-    } catch {
-      return c.json({ error: 'Malformed JSON body' }, 400);
-    }
+      let event: unknown;
+      try {
+        event = JSON.parse(rawBody);
+      } catch {
+        return c.json({ error: 'Malformed JSON body' }, 400);
+      }
 
-    const applied = applyPaddleEvent(event as Parameters<typeof applyPaddleEvent>[0]);
-    const type = (event as { event_type?: string }).event_type ?? 'unknown';
-    console.log(`[billing] webhook ${type}: ${applied}`);
-    return c.json({ ok: true, applied });
-  });
+      const applied = applyPaddleEvent(event as Parameters<typeof applyPaddleEvent>[0]);
+      const type = (event as { event_type?: string }).event_type ?? 'unknown';
+      console.log(`[billing] webhook ${type}: ${applied}`);
+      return c.json({ ok: true, applied });
+    },
+  );
 
   return app;
 }

@@ -1,5 +1,7 @@
 import { db } from '../db';
 import { getTodayDate } from './dates';
+import { reserveDailyStatsRows } from './daily-stats-limits';
+import type { LimitVerdict } from './entitlements';
 
 // Record the once-per-day "study session started" ping for a language: ensure the
 // (date, language) dailyStats row exists, then stamp sessionStartedAt the first
@@ -16,14 +18,20 @@ import { getTodayDate } from './dates';
 // never raw UTC); callers that make a second same-day write (e.g. the dictionary
 // lookup's extra counter bump) pass a shared `today` so both writes target the
 // same row even if the clock rolls over between them.
-export function recordStudySessionPing(userId: string, language: string, today: string = getTodayDate(userId)): void {
+export function recordStudySessionPing(
+  userId: string,
+  language: string,
+  today: string = getTodayDate(userId),
+): LimitVerdict {
   const now = new Date().toISOString();
-  db.prepare(
-    `INSERT OR IGNORE INTO dailyStats
-      (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-     VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0)`,
-  ).run(userId, today, language);
-  db.prepare(
-    'UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE userId = ? AND date = ? AND language = ?',
-  ).run(now, userId, today, language);
+  return reserveDailyStatsRows(userId, [{ date: today, language }], () => {
+    db.prepare(
+      `INSERT OR IGNORE INTO dailyStats
+        (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
+       VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0)`,
+    ).run(userId, today, language);
+    db.prepare(
+      'UPDATE dailyStats SET sessionStartedAt = COALESCE(sessionStartedAt, ?) WHERE userId = ? AND date = ? AND language = ?',
+    ).run(now, userId, today, language);
+  });
 }

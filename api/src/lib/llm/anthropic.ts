@@ -99,9 +99,13 @@ export class AnthropicProvider implements LLMProvider {
   /** Resolve which model to use for a given task (see CompletionOptions.task). */
   modelForTask(task?: LLMTask): string {
     switch (task) {
-      case 'word-translation':
+      case 'word-gloss':
+      case 'word-enrichment':
+      case 'context-simple':
+      case 'context-rich':
         return this.models.word;
-      case 'phrase-translation':
+      case 'phrase-simple':
+      case 'phrase-rich':
         return this.models.phrase;
       case 'chat':
         return this.models.chat;

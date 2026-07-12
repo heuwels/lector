@@ -29,10 +29,7 @@ export interface PhraseTranslation {
  * @param sentence - The full sentence containing the word (for context)
  * @returns Translation with optional part of speech
  */
-export async function translateWord(
-  word: string,
-  sentence: string
-): Promise<WordTranslation> {
+export async function translateWord(word: string, sentence: string): Promise<WordTranslation> {
   const response = await apiFetch('/api/translate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -95,14 +92,21 @@ export async function streamWordGloss(
 }
 
 /**
+ * Minimal managed dictionary-miss lookup for non-streaming surfaces such as
+ * Practice. It intentionally uses the same cheap `/gloss` operation as the
+ * Reader rather than spending an in-context/rich translation allowance.
+ */
+export async function translateGloss(word: string, sentence: string): Promise<WordTranslation> {
+  const translation = await streamWordGloss(word, sentence, () => {});
+  return { translation };
+}
+
+/**
  * Opt-in rich dictionary entry for a word (senses, IPA, etymology, related
  * forms) — the "enrich" action behind the streamed gloss. Same shape as
  * translateWord; hits the dedicated /enrich endpoint.
  */
-export async function enrichWord(
-  word: string,
-  sentence: string,
-): Promise<WordTranslation> {
+export async function enrichWord(word: string, sentence: string): Promise<WordTranslation> {
   const response = await apiFetch('/api/translate/enrich', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -125,7 +129,7 @@ export async function enrichWord(
  */
 export async function translatePhrase(
   phrase: string,
-  sentence: string
+  sentence: string,
 ): Promise<PhraseTranslation> {
   const response = await apiFetch('/api/translate', {
     method: 'POST',

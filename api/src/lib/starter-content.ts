@@ -29,6 +29,8 @@ interface StarterManifest {
 }
 
 export interface StarterLesson {
+  /** Manifest-relative filename; this is the lesson's stable seed identity. */
+  sourceFile: string;
   title: string;
   markdown: string;
 }
@@ -68,6 +70,7 @@ export function loadStarterContent(language: LanguageCode): StarterContent | nul
     );
   }
 
+  const seenFiles = new Set<string>();
   const lessons = manifest.lessons.map((lesson) => {
     if (!lesson.file || !lesson.title) {
       throw new Error(`Starter manifest for '${language}' has a lesson missing file or title`);
@@ -78,7 +81,12 @@ export function loadStarterContent(language: LanguageCode): StarterContent | nul
     if (!filePath.startsWith(path.resolve(dir) + path.sep)) {
       throw new Error(`Starter lesson path escapes the pack: ${lesson.file}`);
     }
-    return { title: lesson.title, markdown: fs.readFileSync(filePath, 'utf8') };
+    const sourceFile = path.relative(dir, filePath);
+    if (seenFiles.has(sourceFile)) {
+      throw new Error(`Starter manifest for '${language}' repeats lesson file: ${lesson.file}`);
+    }
+    seenFiles.add(sourceFile);
+    return { sourceFile, title: lesson.title, markdown: fs.readFileSync(filePath, 'utf8') };
   });
 
   return { title: manifest.title, author: manifest.author || 'Lector', lessons };

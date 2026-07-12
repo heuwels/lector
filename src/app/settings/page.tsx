@@ -14,6 +14,7 @@ import PracticeSettings from './components/PracticeSettings';
 import VersionInfo from './components/VersionInfo';
 import PageHeader from '@/components/PageHeader';
 import BYOKSettings from './components/BYOKSettings';
+import CloudPlanSettings from './components/CloudPlanSettings';
 import { lectorMode } from '@/lib/api-base';
 
 export default function SettingsPage() {
@@ -21,6 +22,7 @@ export default function SettingsPage() {
     <main className="mx-auto max-w-3xl px-4 py-8">
       <PageHeader title="Settings" />
       <div className="space-y-8">
+        {lectorMode() === 'cloud' && <CloudPlanSettings />}
         <PracticeSettings />
         {lectorMode() === 'cloud' ? <BYOKSettings /> : <LLMSettings />}
         <AnkiSettings />

@@ -11,6 +11,7 @@ function setLang(code: string) {
 }
 
 function reset() {
+  db.prepare('DELETE FROM vocab').run();
   db.prepare('DELETE FROM lessons').run();
   db.prepare('DELETE FROM collections').run();
   db.prepare('DELETE FROM collection_groups').run();
@@ -24,7 +25,13 @@ function insertCollection(
   db.prepare(
     `INSERT INTO collections (id, title, author, coverUrl, groupId, sortOrder, language, createdAt, lastReadAt)
      VALUES (?, ?, 'Author', NULL, ?, ?, 'af', '2026-01-01T00:00:00Z', ?)`,
-  ).run(id, `Title ${id}`, opts.groupId ?? null, opts.sortOrder ?? 0, opts.lastReadAt ?? '2026-01-01T00:00:00Z');
+  ).run(
+    id,
+    `Title ${id}`,
+    opts.groupId ?? null,
+    opts.sortOrder ?? 0,
+    opts.lastReadAt ?? '2026-01-01T00:00:00Z',
+  );
 }
 
 function insertLesson(id: string, collectionId: string, sortOrder: number) {
@@ -35,7 +42,9 @@ function insertLesson(id: string, collectionId: string, sortOrder: number) {
 }
 
 function sortOrderOf(table: 'collections' | 'lessons', id: string): number {
-  return (db.prepare(`SELECT sortOrder FROM ${table} WHERE id = ?`).get(id) as { sortOrder: number }).sortOrder;
+  return (
+    db.prepare(`SELECT sortOrder FROM ${table} WHERE id = ?`).get(id) as { sortOrder: number }
+  ).sortOrder;
 }
 
 describe('collections route', () => {
@@ -80,13 +89,23 @@ describe('collections route', () => {
   });
 
   test('POST / persists groupId when provided, defaults to null when omitted', async () => {
+    db.prepare(
+      `INSERT INTO collection_groups (userId, id, name, sortOrder, createdAt)
+       VALUES ('local', 'grp-1', 'Group', 0, '2026-01-01T00:00:00Z')`,
+    ).run();
     const withGroup = await app.request('/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'New', groupId: 'grp-1', language: 'af' }),
     });
     const { id: id1 } = (await withGroup.json()) as { id: string };
-    expect((db.prepare('SELECT groupId FROM collections WHERE id = ?').get(id1) as { groupId: string | null }).groupId).toBe('grp-1');
+    expect(
+      (
+        db.prepare('SELECT groupId FROM collections WHERE id = ?').get(id1) as {
+          groupId: string | null;
+        }
+      ).groupId,
+    ).toBe('grp-1');
 
     const loose = await app.request('/', {
       method: 'POST',
@@ -94,7 +113,13 @@ describe('collections route', () => {
       body: JSON.stringify({ title: 'Loose', language: 'af' }),
     });
     const { id: id2 } = (await loose.json()) as { id: string };
-    expect((db.prepare('SELECT groupId FROM collections WHERE id = ?').get(id2) as { groupId: string | null }).groupId).toBeNull();
+    expect(
+      (
+        db.prepare('SELECT groupId FROM collections WHERE id = ?').get(id2) as {
+          groupId: string | null;
+        }
+      ).groupId,
+    ).toBeNull();
   });
 
   test('PUT /:id/lessons/reorder is scoped to the collection', async () => {
@@ -111,5 +136,37 @@ describe('collections route', () => {
     // `theirs` is in col-2, so the col-1-scoped update must not touch it.
     expect(sortOrderOf('lessons', 'theirs')).toBe(7);
     expect(sortOrderOf('lessons', 'mine')).toBe(1);
+  });
+
+  test('DELETE /:id retains vocabulary and clears removed lesson sources', async () => {
+    insertCollection('source');
+    insertLesson('lesson', 'source', 0);
+    const insertVocab = db.prepare(
+      `INSERT INTO vocab
+        (id, text, type, sentence, translation, state, stateUpdatedAt, bookId, language, createdAt, userId)
+       VALUES (?, ?, 'word', '', '', 'new', ?, ?, 'af', ?, 'local')`,
+    );
+    insertVocab.run('word', 'huis', '2026-01-01T00:00:00Z', 'lesson', '2026-01-01T00:00:00Z');
+    // Pre-lessons takeouts used the collection id in this legacy column.
+    insertVocab.run(
+      'legacy-word',
+      'boom',
+      '2026-01-01T00:00:00Z',
+      'source',
+      '2026-01-01T00:00:00Z',
+    );
+
+    const response = await app.request('/source?language=af', { method: 'DELETE' });
+    expect(response.status).toBe(200);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM collections WHERE id = 'source'").get()).toEqual({
+      n: 0,
+    });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM lessons WHERE id = 'lesson'").get()).toEqual({
+      n: 0,
+    });
+    expect(db.prepare('SELECT id, bookId FROM vocab ORDER BY id').all()).toEqual([
+      { id: 'legacy-word', bookId: null },
+      { id: 'word', bookId: null },
+    ]);
   });
 });

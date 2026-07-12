@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { getCurrentUserId } from '../lib/user';
 import {
   BYOK_CATALOG,
@@ -14,6 +15,7 @@ import {
 } from '../lib/byok';
 
 const app = new Hono();
+const MAX_BYOK_BODY_BYTES = 16 * 1024;
 
 function isProvider(value: unknown): value is ByokProvider {
   return typeof value === 'string' && BYOK_PROVIDERS.includes(value as ByokProvider);
@@ -37,46 +39,53 @@ app.get('/', (c) => {
   });
 });
 
-app.put('/', async (c) => {
-  const userId = getCurrentUserId(c);
-  if (!isByokAvailable()) {
-    return c.json({ error: 'BYOK is not available on this deployment' }, 503);
-  }
+app.put(
+  '/',
+  bodyLimit({
+    maxSize: MAX_BYOK_BODY_BYTES,
+    onError: (c) => c.json({ error: 'BYOK request is too large' }, 413),
+  }),
+  async (c) => {
+    const userId = getCurrentUserId(c);
+    if (!isByokAvailable()) {
+      return c.json({ error: 'BYOK is not available on this deployment' }, 503);
+    }
 
-  const body = (await c.req.json().catch(() => ({}))) as {
-    provider?: unknown;
-    apiKey?: unknown;
-    model?: unknown;
-  };
-  const provider = body.provider ?? DEFAULT_BYOK_PROVIDER;
-  if (!isProvider(provider)) return c.json({ error: 'Unsupported provider' }, 400);
-  const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
-  const catalog = BYOK_CATALOG[provider];
-  const model = typeof body.model === 'string' ? body.model : catalog.defaultModel;
-  if (apiKey.length > 512) return c.json({ error: 'API key is too long' }, 400);
-  if (!catalog.models.some((item) => item.id === model)) {
-    return c.json({ error: 'Unsupported model' }, 400);
-  }
+    const body = (await c.req.json().catch(() => ({}))) as {
+      provider?: unknown;
+      apiKey?: unknown;
+      model?: unknown;
+    };
+    const provider = body.provider ?? DEFAULT_BYOK_PROVIDER;
+    if (!isProvider(provider)) return c.json({ error: 'Unsupported provider' }, 400);
+    const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+    const catalog = BYOK_CATALOG[provider];
+    const model = typeof body.model === 'string' ? body.model : catalog.defaultModel;
+    if (apiKey.length > 512) return c.json({ error: 'API key is too long' }, 400);
+    if (!catalog.models.some((item) => item.id === model)) {
+      return c.json({ error: 'Unsupported model' }, 400);
+    }
 
-  // Validate before persisting. The generic error intentionally excludes the
-  // upstream response body, which can contain account/provider details.
-  const existing = getByokCredential(userId);
-  if (!apiKey && existing?.provider !== provider) {
-    return c.json({ error: `${catalog.label} API key is required` }, 400);
-  }
-  const effectiveKey = apiKey || existing!.apiKey;
-  if (apiKey) {
-    const valid =
-      provider === 'anthropic'
-        ? await validateAnthropicKey(apiKey)
-        : await validateOpenRouterKey(apiKey);
-    if (!valid)
-      return c.json({ error: `${catalog.label} rejected the key or could not be reached` }, 400);
-  }
+    // Validate before persisting. The generic error intentionally excludes the
+    // upstream response body, which can contain account/provider details.
+    const existing = getByokCredential(userId);
+    if (!apiKey && existing?.provider !== provider) {
+      return c.json({ error: `${catalog.label} API key is required` }, 400);
+    }
+    const effectiveKey = apiKey || existing!.apiKey;
+    if (apiKey) {
+      const valid =
+        provider === 'anthropic'
+          ? await validateAnthropicKey(apiKey)
+          : await validateOpenRouterKey(apiKey);
+      if (!valid)
+        return c.json({ error: `${catalog.label} rejected the key or could not be reached` }, 400);
+    }
 
-  saveByokCredential(userId, provider, effectiveKey, model);
-  return c.json({ enabled: true, provider, model });
-});
+    saveByokCredential(userId, provider, effectiveKey, model);
+    return c.json({ enabled: true, provider, model });
+  },
+);
 
 app.delete('/', (c) => {
   deleteByokCredential(getCurrentUserId(c));

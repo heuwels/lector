@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { correctJournalText } from '../lib/journal-correct';
 import { getCurrentUserId } from '../lib/user';
-import { entitlements, planLimitResponse } from '../lib/entitlements';
+import { entitlements, planLimitResponse, type UsageReservation } from '../lib/entitlements';
 
 const app = new Hono();
 
@@ -12,7 +12,7 @@ const app = new Hono();
 // (#222 review — it previously bypassed the allowance entirely).
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
-  let reservedLlm = false;
+  let reservation: UsageReservation | null = null;
   try {
     const { body, language } = await c.req.json();
 
@@ -22,13 +22,15 @@ app.post('/', async (c) => {
 
     const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
     if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
-    reservedLlm = true;
+    reservation = llmVerdict.reservation;
 
-    const result = await correctJournalText(userId, body, language);
-    reservedLlm = false; // the managed call happened — the usage is earned
+    const result = await correctJournalText(userId, body, language, {
+      byok: reservation.byok,
+    });
+    reservation = null; // the provider call happened — the usage is earned
     return c.json(result);
   } catch (error) {
-    if (reservedLlm) entitlements.refund(userId, 'llmRequestsPerMonth', 1);
+    if (reservation) entitlements.refund(reservation);
     console.error('Journal correction error:', error);
     return c.json({ error: 'Correction failed' }, 500);
   }

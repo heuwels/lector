@@ -2,19 +2,13 @@ import { Database, type Statement } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
 import { db as userDb } from '../db';
-import {
-  DEFAULT_LANGUAGE,
-  foldWord,
-  getLanguageConfig,
-  isValidLanguageCode,
-} from './languages';
+import { DEFAULT_LANGUAGE, foldWord, getLanguageConfig, isValidLanguageCode } from './languages';
+import { acceptedDictionaryContentBytes } from './storage-limits';
 
 // Dictionary keys are folded via the language pack (#289): NFC + case fold,
 // matching how the reader folds words before lookups.
 function foldKey(word: string, language: string): string {
-  const pack = getLanguageConfig(
-    isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE,
-  );
+  const pack = getLanguageConfig(isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE);
   return foldWord(word, pack);
 }
 
@@ -162,7 +156,9 @@ function getStmts(language: string): Stmts | null {
       selectEntry: db.prepare('SELECT word, rank, ipa, etymology FROM entries WHERE word = ?'),
       selectSenses: db.prepare('SELECT pos, gloss FROM senses WHERE word = ? ORDER BY sort_order'),
       selectRelated: db.prepare('SELECT related_word, relation FROM related_forms WHERE word = ?'),
-      selectInflectionLemma: db.prepare('SELECT lemma, type FROM inflections WHERE inflected_form = ? LIMIT 1'),
+      selectInflectionLemma: db.prepare(
+        'SELECT lemma, type FROM inflections WHERE inflected_form = ? LIMIT 1',
+      ),
     };
     _stmtsByLang.set(language, stmts);
     return stmts;
@@ -230,20 +226,30 @@ interface CachedEntryRow {
   etymology: string | null;
 }
 
-function lookupCached(word: string, language: string): ExpandedDictionaryEntry | undefined {
+function lookupCached(
+  userId: string,
+  word: string,
+  language: string,
+): ExpandedDictionaryEntry | undefined {
   const row = userDb
-    .prepare('SELECT word, ipa, etymology FROM cached_entries WHERE word = ? AND language = ?')
-    .get(word, language) as CachedEntryRow | undefined;
+    .prepare(
+      'SELECT word, ipa, etymology FROM cached_entries WHERE userId = ? AND word = ? AND language = ?',
+    )
+    .get(userId, word, language) as CachedEntryRow | undefined;
   if (!row) return undefined;
 
   const senses = userDb
-    .prepare('SELECT pos, gloss FROM cached_senses WHERE word = ? AND language = ? ORDER BY sort_order')
-    .all(row.word, language) as Array<{ pos: string | null; gloss: string }>;
+    .prepare(
+      'SELECT pos, gloss FROM cached_senses WHERE userId = ? AND word = ? AND language = ? ORDER BY sort_order',
+    )
+    .all(userId, row.word, language) as Array<{ pos: string | null; gloss: string }>;
   if (senses.length === 0) return undefined;
 
   const related = userDb
-    .prepare('SELECT related_word, relation FROM cached_related_forms WHERE word = ? AND language = ?')
-    .all(row.word, language) as Array<{ related_word: string; relation: string }>;
+    .prepare(
+      'SELECT related_word, relation FROM cached_related_forms WHERE userId = ? AND word = ? AND language = ?',
+    )
+    .all(userId, row.word, language) as Array<{ related_word: string; relation: string }>;
 
   const entry: ExpandedDictionaryEntry = {
     word: row.word,
@@ -265,37 +271,276 @@ export interface CacheAcceptedInput {
   etymology?: string;
   relatedForms?: Array<{ form: string; relation: string }>;
   sourceSentence?: string;
-  language?: string;
+  language: string;
+}
+
+export type CacheAcceptedValidation =
+  | { ok: true; value: CacheAcceptedInput }
+  | { ok: false; error: string };
+
+export const CACHE_ACCEPTED_LIMITS = {
+  word: 128,
+  senses: 20,
+  partOfSpeech: 64,
+  gloss: 512,
+  ipa: 256,
+  etymology: 2_000,
+  sourceSentence: 2_000,
+  relatedForms: 50,
+  relatedValue: 128,
+} as const;
+
+function optionalString(
+  value: unknown,
+  label: string,
+  maxLength: number,
+): { ok: true; value?: string } | { ok: false; error: string } {
+  if (value === undefined || value === null || value === '') return { ok: true };
+  if (typeof value !== 'string') return { ok: false, error: `${label} must be a string` };
+  if (value.length > maxLength) {
+    return { ok: false, error: `${label} must be at most ${maxLength} characters` };
+  }
+  return { ok: true, value };
+}
+
+/** Validate the complete public/restore cache contract before any SQL write. */
+export function validateCacheAcceptedInput(value: unknown): CacheAcceptedValidation {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { ok: false, error: 'Dictionary entry must be an object' };
+  }
+  const input = value as Record<string, unknown>;
+  if (typeof input.word !== 'string' || input.word.trim().length === 0) {
+    return { ok: false, error: 'Word is required' };
+  }
+  if (input.word.length > CACHE_ACCEPTED_LIMITS.word) {
+    return {
+      ok: false,
+      error: `Word must be at most ${CACHE_ACCEPTED_LIMITS.word} characters`,
+    };
+  }
+  if (typeof input.language !== 'string' || !isValidLanguageCode(input.language)) {
+    return { ok: false, error: 'Language is required' };
+  }
+  if (
+    !Array.isArray(input.senses) ||
+    input.senses.length < 1 ||
+    input.senses.length > CACHE_ACCEPTED_LIMITS.senses
+  ) {
+    return {
+      ok: false,
+      error: `Senses must contain between 1 and ${CACHE_ACCEPTED_LIMITS.senses} entries`,
+    };
+  }
+
+  const senses: CacheAcceptedInput['senses'] = [];
+  for (const candidate of input.senses) {
+    if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+      return { ok: false, error: 'Each sense must be an object' };
+    }
+    const sense = candidate as Record<string, unknown>;
+    if (
+      typeof sense.partOfSpeech !== 'string' ||
+      sense.partOfSpeech.length > CACHE_ACCEPTED_LIMITS.partOfSpeech
+    ) {
+      return {
+        ok: false,
+        error: `Each part of speech must be a string of at most ${CACHE_ACCEPTED_LIMITS.partOfSpeech} characters`,
+      };
+    }
+    if (
+      typeof sense.gloss !== 'string' ||
+      sense.gloss.trim().length === 0 ||
+      sense.gloss.length > CACHE_ACCEPTED_LIMITS.gloss
+    ) {
+      return {
+        ok: false,
+        error: `Each gloss must contain 1 to ${CACHE_ACCEPTED_LIMITS.gloss} characters`,
+      };
+    }
+    senses.push({ partOfSpeech: sense.partOfSpeech, gloss: sense.gloss });
+  }
+
+  const ipa = optionalString(input.ipa, 'IPA', CACHE_ACCEPTED_LIMITS.ipa);
+  if (!ipa.ok) return ipa;
+  const etymology = optionalString(input.etymology, 'Etymology', CACHE_ACCEPTED_LIMITS.etymology);
+  if (!etymology.ok) return etymology;
+  const sourceSentence = optionalString(
+    input.sourceSentence,
+    'Source sentence',
+    CACHE_ACCEPTED_LIMITS.sourceSentence,
+  );
+  if (!sourceSentence.ok) return sourceSentence;
+
+  if (
+    input.relatedForms !== undefined &&
+    (!Array.isArray(input.relatedForms) ||
+      input.relatedForms.length > CACHE_ACCEPTED_LIMITS.relatedForms)
+  ) {
+    return {
+      ok: false,
+      error: `Related forms must be an array of at most ${CACHE_ACCEPTED_LIMITS.relatedForms} entries`,
+    };
+  }
+  const relatedForms: NonNullable<CacheAcceptedInput['relatedForms']> = [];
+  for (const candidate of (input.relatedForms as unknown[] | undefined) ?? []) {
+    if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+      return { ok: false, error: 'Each related form must be an object' };
+    }
+    const related = candidate as Record<string, unknown>;
+    if (
+      typeof related.form !== 'string' ||
+      related.form.trim().length === 0 ||
+      related.form.length > CACHE_ACCEPTED_LIMITS.relatedValue ||
+      typeof related.relation !== 'string' ||
+      related.relation.trim().length === 0 ||
+      related.relation.length > CACHE_ACCEPTED_LIMITS.relatedValue
+    ) {
+      return {
+        ok: false,
+        error: `Each related form and relation must contain 1 to ${CACHE_ACCEPTED_LIMITS.relatedValue} characters`,
+      };
+    }
+    relatedForms.push({ form: related.form, relation: related.relation });
+  }
+
+  return {
+    ok: true,
+    value: {
+      word: input.word.trim(),
+      language: input.language,
+      senses,
+      ...(ipa.value === undefined ? {} : { ipa: ipa.value }),
+      ...(etymology.value === undefined ? {} : { etymology: etymology.value }),
+      ...(sourceSentence.value === undefined ? {} : { sourceSentence: sourceSentence.value }),
+      ...(relatedForms.length === 0 ? {} : { relatedForms }),
+    },
+  };
+}
+
+/**
+ * Old cache rows predate the public write bounds above. Keep takeouts
+ * restore-ready by retaining the usable entry and clipping only derived
+ * teaching metadata; an invalid identity (word/language) or an entry with no
+ * usable sense is omitted instead of making the user's entire backup fail.
+ */
+export function sanitizeLegacyCacheAcceptedInput(value: unknown): CacheAcceptedInput | null {
+  const current = validateCacheAcceptedInput(value);
+  if (current.ok) return current.value;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+
+  const input = value as Record<string, unknown>;
+  if (
+    typeof input.word !== 'string' ||
+    input.word.trim().length === 0 ||
+    input.word.length > CACHE_ACCEPTED_LIMITS.word ||
+    typeof input.language !== 'string' ||
+    !isValidLanguageCode(input.language) ||
+    !Array.isArray(input.senses)
+  ) {
+    return null;
+  }
+
+  const senses = input.senses
+    .slice(0, CACHE_ACCEPTED_LIMITS.senses)
+    .flatMap((candidate): CacheAcceptedInput['senses'] => {
+      if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+        return [];
+      }
+      const sense = candidate as Record<string, unknown>;
+      if (typeof sense.gloss !== 'string' || sense.gloss.trim().length === 0) return [];
+      return [
+        {
+          partOfSpeech:
+            typeof sense.partOfSpeech === 'string'
+              ? sense.partOfSpeech.slice(0, CACHE_ACCEPTED_LIMITS.partOfSpeech)
+              : '',
+          gloss: sense.gloss.trim().slice(0, CACHE_ACCEPTED_LIMITS.gloss),
+        },
+      ];
+    });
+  if (senses.length === 0) return null;
+
+  const optional = (candidate: unknown, maxLength: number): string | undefined =>
+    typeof candidate === 'string' && candidate.length > 0
+      ? candidate.slice(0, maxLength)
+      : undefined;
+  const ipa = optional(input.ipa, CACHE_ACCEPTED_LIMITS.ipa);
+  const etymology = optional(input.etymology, CACHE_ACCEPTED_LIMITS.etymology);
+  const sourceSentence = optional(input.sourceSentence, CACHE_ACCEPTED_LIMITS.sourceSentence);
+  const relatedForms = Array.isArray(input.relatedForms)
+    ? input.relatedForms
+        .slice(0, CACHE_ACCEPTED_LIMITS.relatedForms)
+        .flatMap((candidate): NonNullable<CacheAcceptedInput['relatedForms']> => {
+          if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+            return [];
+          }
+          const related = candidate as Record<string, unknown>;
+          if (
+            typeof related.form !== 'string' ||
+            related.form.trim().length === 0 ||
+            typeof related.relation !== 'string' ||
+            related.relation.trim().length === 0
+          ) {
+            return [];
+          }
+          return [
+            {
+              form: related.form.trim().slice(0, CACHE_ACCEPTED_LIMITS.relatedValue),
+              relation: related.relation.trim().slice(0, CACHE_ACCEPTED_LIMITS.relatedValue),
+            },
+          ];
+        })
+    : [];
+
+  const candidate: CacheAcceptedInput = {
+    word: input.word.trim(),
+    language: input.language,
+    senses,
+    ...(ipa === undefined ? {} : { ipa }),
+    ...(etymology === undefined ? {} : { etymology }),
+    ...(sourceSentence === undefined ? {} : { sourceSentence }),
+    ...(relatedForms.length === 0 ? {} : { relatedForms }),
+  };
+  const sanitized = validateCacheAcceptedInput(candidate);
+  return sanitized.ok ? sanitized.value : null;
 }
 
 /** Persist an accepted AI translation into the on-device cache. Idempotent on
  *  word (upsert replaces senses + related forms). Returns the cached word. */
-export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
-  if (!input.word || !input.senses || input.senses.length === 0) return null;
-  const language = input.language || 'af';
+export function cacheAcceptedEntry(userId: string, input: CacheAcceptedInput): string | null {
+  const validated = validateCacheAcceptedInput(input);
+  if (!validated.ok) return null;
+  input = validated.value;
+  const language = input.language;
   const word = foldKey(input.word, language);
   const now = new Date().toISOString();
 
   const upsertEntry = userDb.prepare(`
-    INSERT INTO cached_entries (word, language, ipa, etymology, sourceSentence, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(word, language) DO UPDATE SET
+    INSERT INTO cached_entries
+      (userId, word, language, ipa, etymology, sourceSentence, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(userId, word, language) DO UPDATE SET
       ipa = excluded.ipa,
       etymology = excluded.etymology,
       sourceSentence = excluded.sourceSentence,
       updatedAt = excluded.updatedAt
   `);
-  const deleteSenses = userDb.prepare('DELETE FROM cached_senses WHERE word = ? AND language = ?');
-  const insertSense = userDb.prepare(
-    'INSERT INTO cached_senses (word, language, pos, gloss, sort_order) VALUES (?, ?, ?, ?, ?)',
+  const deleteSenses = userDb.prepare(
+    'DELETE FROM cached_senses WHERE userId = ? AND word = ? AND language = ?',
   );
-  const deleteRelated = userDb.prepare('DELETE FROM cached_related_forms WHERE word = ? AND language = ?');
+  const insertSense = userDb.prepare(
+    'INSERT INTO cached_senses (userId, word, language, pos, gloss, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+  );
+  const deleteRelated = userDb.prepare(
+    'DELETE FROM cached_related_forms WHERE userId = ? AND word = ? AND language = ?',
+  );
   const insertRelated = userDb.prepare(
-    'INSERT INTO cached_related_forms (word, language, related_word, relation) VALUES (?, ?, ?, ?)',
+    'INSERT INTO cached_related_forms (userId, word, language, related_word, relation) VALUES (?, ?, ?, ?, ?)',
   );
 
   userDb.transaction(() => {
     upsertEntry.run(
+      userId,
       word,
       language,
       input.ipa ?? null,
@@ -304,18 +549,66 @@ export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
       now,
       now,
     );
-    deleteSenses.run(word, language);
+    deleteSenses.run(userId, word, language);
     input.senses.forEach((s, i) => {
       if (!s.gloss) return;
-      insertSense.run(word, language, s.partOfSpeech || null, s.gloss, i);
+      insertSense.run(userId, word, language, s.partOfSpeech || null, s.gloss, i);
     });
-    deleteRelated.run(word, language);
+    deleteRelated.run(userId, word, language);
     (input.relatedForms || []).forEach((r) => {
       if (!r.form || !r.relation) return;
-      insertRelated.run(word, language, r.form, r.relation);
+      insertRelated.run(userId, word, language, r.form, r.relation);
     });
   })();
   return word;
+}
+
+export function acceptedCacheIdentity(input: CacheAcceptedInput): {
+  word: string;
+  language: string;
+} {
+  return { word: foldKey(input.word, input.language), language: input.language };
+}
+
+/** Exact UTF-8 TEXT bytes this accepted entry contributes across its parent,
+ * senses, and related forms. Mirrors the aggregate SQL in entitlements.ts. */
+export function acceptedCacheContentBytes(input: CacheAcceptedInput): number {
+  const { word } = acceptedCacheIdentity(input);
+  return acceptedDictionaryContentBytes({ ...input, word });
+}
+
+export function storedAcceptedCacheContentBytes(
+  userId: string,
+  word: string,
+  language: string,
+): number {
+  const parent = userDb
+    .prepare(
+      `SELECT
+         length(CAST(word AS BLOB)) + length(CAST(COALESCE(ipa, '') AS BLOB)) +
+         length(CAST(COALESCE(etymology, '') AS BLOB)) +
+         length(CAST(COALESCE(sourceSentence, '') AS BLOB)) AS bytes
+       FROM cached_entries WHERE userId = ? AND word = ? AND language = ?`,
+    )
+    .get(userId, word, language) as { bytes: number } | undefined;
+  if (!parent) return 0;
+  const senses = userDb
+    .prepare(
+      `SELECT COALESCE(SUM(
+         length(CAST(COALESCE(pos, '') AS BLOB)) + length(CAST(gloss AS BLOB))
+       ), 0) AS bytes FROM cached_senses
+       WHERE userId = ? AND word = ? AND language = ?`,
+    )
+    .get(userId, word, language) as { bytes: number };
+  const related = userDb
+    .prepare(
+      `SELECT COALESCE(SUM(
+         length(CAST(related_word AS BLOB)) + length(CAST(relation AS BLOB))
+       ), 0) AS bytes FROM cached_related_forms
+       WHERE userId = ? AND word = ? AND language = ?`,
+    )
+    .get(userId, word, language) as { bytes: number };
+  return parent.bytes + senses.bytes + related.bytes;
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +616,7 @@ export function cacheAcceptedEntry(input: CacheAcceptedInput): string | null {
 // ---------------------------------------------------------------------------
 
 export function lookupWord(
+  userId: string,
   word: string,
   language: string,
 ): ExpandedDictionaryEntry | undefined {
@@ -374,7 +668,10 @@ export function lookupWord(
         if (undoubled && undoubled.length >= MIN_STEM) {
           const uRow = stmts.selectEntry.get(undoubled) as EntryRow | undefined;
           if (uRow) {
-            return buildEntry(uRow, stmts, lower, { stem: undoubled, label: SUFFIX_LABELS[suffix] });
+            return buildEntry(uRow, stmts, lower, {
+              stem: undoubled,
+              label: SUFFIX_LABELS[suffix],
+            });
           }
         }
       }
@@ -382,7 +679,7 @@ export function lookupWord(
   }
 
   // 5. AI cache fallthrough — user-accepted translations persisted in lector.db.
-  const cached = lookupCached(lower, language);
+  const cached = lookupCached(userId, lower, language);
   if (cached) return cached;
 
   return undefined;

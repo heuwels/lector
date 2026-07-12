@@ -44,6 +44,9 @@ import { Construct } from 'constructs';
  *   /lector/canary/llm-provider        String        optional — LLM_PROVIDER (default anthropic)
  *   /lector/canary/openai-compat-url   String        optional — e.g. https://openrouter.ai/api
  *   /lector/canary/openai-compat-model String        optional — e.g. google/gemini-flash-lite
+ *   /lector/canary/openai-compat-word-gloss-model String optional — managed gloss model (Free requires google/gemini-2.5-flash-lite)
+ *   /lector/canary/openai-compat-simple-phrase-model String optional — managed simple phrase model (same Free pin)
+ *   /lector/canary/openai-compat-simple-context-model String optional — managed simple context model (same Free pin)
  *   /lector/canary/resend-api-key      SecureString  optional — RESEND_API_KEY (account emails, #218)
  *   /lector/canary/better-auth-secret  SecureString  optional — BETTER_AUTH_SECRET (session signing, #218; required to flip off the external gate)
  *   /lector/canary/turnstile-site-key  String        optional — TURNSTILE_SITE_KEY (bot protection on auth forms, #218)
@@ -53,6 +56,7 @@ import { Construct } from 'constructs';
  *   /lector/canary/oidc-client-secret  SecureString  optional — OIDC_CLIENT_SECRET
  *   /lector/canary/oidc-provider-name  String        optional — OIDC_PROVIDER_NAME (login-button label)
  *   /lector/canary/lector-billing      String        optional — LECTOR_BILLING ("paddle" arms the subscription gate, #224)
+ *   /lector/canary/free-tier-enabled   String        optional — LECTOR_FREE_TIER (strict "true" enables derived Free access)
  *   /lector/canary/paddle-webhook-secret SecureString optional — PADDLE_WEBHOOK_SECRET (required once billing is armed)
  *   /lector/canary/paddle-api-key      SecureString  optional — PADDLE_API_KEY (server key that creates checkout transactions; required once billing is armed)
  *   /lector/canary/paddle-env          String        optional — PADDLE_ENV (staging sets "sandbox"; production leaves unset)
@@ -312,6 +316,9 @@ put GOOGLE_CLOUD_API_KEY  google-api-key
 put LLM_PROVIDER          llm-provider
 put OPENAI_COMPAT_URL     openai-compat-url
 put OPENAI_COMPAT_MODEL   openai-compat-model
+put OPENAI_COMPAT_WORD_GLOSS_MODEL openai-compat-word-gloss-model
+put OPENAI_COMPAT_SIMPLE_PHRASE_MODEL openai-compat-simple-phrase-model
+put OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL openai-compat-simple-context-model
 put RESEND_API_KEY        resend-api-key
 put BETTER_AUTH_SECRET    better-auth-secret
 put TURNSTILE_SITE_KEY    turnstile-site-key
@@ -321,6 +328,7 @@ put OIDC_CLIENT_ID        oidc-client-id
 put OIDC_CLIENT_SECRET    oidc-client-secret
 put OIDC_PROVIDER_NAME    oidc-provider-name
 put LECTOR_BILLING        lector-billing
+put LECTOR_FREE_TIER      free-tier-enabled
 put PADDLE_WEBHOOK_SECRET paddle-webhook-secret
 put PADDLE_API_KEY        paddle-api-key
 put PADDLE_ENV            paddle-env
@@ -389,6 +397,9 @@ services:
     environment:
       - NODE_ENV=production
       - LECTOR_MODE=cloud
+      # The origin has no inbound listener; only the colocated Cloudflare
+      # Tunnel can reach it, so CF-Connecting-IP is authoritative here.
+      - LECTOR_TRUSTED_PROXY=cloudflare
       - API_URL=https://${this.hostname}
       - BETTER_AUTH_URL=https://${this.hostname}
       - SENTRY_ENVIRONMENT=${this.deploymentName === 'staging' ? 'staging' : 'production'}

@@ -64,7 +64,14 @@ function reset() {
 function seedUser(id: string, opts: { verified?: boolean; createdAt?: string } = {}) {
   db.prepare(
     'INSERT INTO user (id, email, name, emailVerified, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(id, EMAILS[id], id, opts.verified ? 1 : 0, opts.createdAt ?? '2026-06-01T00:00:00Z', '2026-06-01T00:00:00Z');
+  ).run(
+    id,
+    EMAILS[id],
+    id,
+    opts.verified ? 1 : 0,
+    opts.createdAt ?? '2026-06-01T00:00:00Z',
+    '2026-06-01T00:00:00Z',
+  );
 }
 
 function seedSubscription(userId: string, status: string, priceId: string) {
@@ -72,7 +79,16 @@ function seedSubscription(userId: string, status: string, priceId: string) {
     `INSERT INTO billing_subscriptions
        (paddleSubscriptionId, paddleCustomerId, userId, status, priceId, currentPeriodEnd, occurredAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(`sub_${userId}`, `ctm_${userId}`, userId, status, priceId, '2999-01-01T00:00:00Z', '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z');
+  ).run(
+    `sub_${userId}`,
+    `ctm_${userId}`,
+    userId,
+    status,
+    priceId,
+    '2999-01-01T00:00:00Z',
+    '2026-07-01T00:00:00Z',
+    '2026-07-01T00:00:00Z',
+  );
 }
 
 const gate: AdminGateOptions = {
@@ -94,14 +110,14 @@ const authStub = {
 };
 
 /** App with the admin routes behind a stand-in tenant resolver. */
-function buildApp(g: AdminGateOptions = gate) {
+function buildApp(g: AdminGateOptions = gate, options: Parameters<typeof makeAdminRoutes>[2] = {}) {
   const app = new Hono();
   app.use('/api/*', async (c, next) => {
     const u = c.req.header('X-Test-User');
     if (u) c.set('userId', u);
     return next();
   });
-  app.route('/api/admin', makeAdminRoutes(g, authStub));
+  app.route('/api/admin', makeAdminRoutes(g, authStub, options));
   return app;
 }
 
@@ -178,6 +194,81 @@ describe('GET /api/admin/users', () => {
     const { users } = (await res.json()) as { users: Array<Record<string, unknown>> };
     expect(users.find((u) => u.id === BOB)!.plan).toBe('cloud');
   });
+
+  test('derives Free rows only when the Free tier is enabled', async () => {
+    seedSubscription(ALICE, 'active', 'pri_monthly');
+    seedSubscription(BOB, 'canceled', 'pri_monthly');
+
+    const enabled = await buildApp(gate, { freeTierEnabled: true }).request(
+      '/api/admin/users',
+      asUser(ADMIN),
+    );
+    const enabledUsers = (await enabled.json()).users as Array<{ id: string; plan: string | null }>;
+    expect(enabledUsers.find((u) => u.id === ALICE)!.plan).toBe('cloud');
+    expect(enabledUsers.find((u) => u.id === BOB)!.plan).toBe('free');
+    expect(enabledUsers.find((u) => u.id === ADMIN)!.plan).toBe('free');
+
+    const disabled = await buildApp(gate, { freeTierEnabled: false }).request(
+      '/api/admin/users',
+      asUser(ADMIN),
+    );
+    const disabledUsers = (await disabled.json()).users as Array<{
+      id: string;
+      plan: string | null;
+    }>;
+    expect(disabledUsers.find((u) => u.id === BOB)!.plan).toBeNull();
+    expect(disabledUsers.find((u) => u.id === ADMIN)!.plan).toBeNull();
+  });
+
+  test('does not classify billing-exempt unlimited accounts as Free', async () => {
+    const response = await buildApp(gate, {
+      freeTierEnabled: true,
+      billingExemptEmails: new Set([EMAILS[BOB]]),
+    }).request('/api/admin/users', asUser(ADMIN));
+    const users = (await response.json()).users as Array<{
+      id: string;
+      plan: string | null;
+    }>;
+
+    expect(users.find((user) => user.id === BOB)!.plan).toBeNull();
+    expect(users.find((user) => user.id === ADMIN)!.plan).toBe('free');
+  });
+
+  test('reports monthly glosses and current-day phrase/context usage per account', async () => {
+    const insert = db.prepare(
+      'INSERT INTO usage_counters (userId, metric, period, value, updatedAt) VALUES (?, ?, ?, ?, ?)',
+    );
+    const updatedAt = '2026-07-11T12:00:00Z';
+    insert.run(ALICE, 'wordGlossesPerMonth', '2026-07', 321, updatedAt);
+    insert.run(ALICE, 'phraseTranslationsPerDay', '2026-07-11', 7, updatedAt);
+    insert.run(ALICE, 'contextTranslationsPerDay', '2026-07-11', 4, updatedAt);
+    insert.run(ALICE, 'phraseTranslationsPerDay', '2026-07-10', 99, updatedAt);
+
+    const res = await buildApp(gate, {
+      freeTierEnabled: true,
+      now: () => new Date('2026-07-11T23:59:00Z'),
+    }).request('/api/admin/users', asUser(ADMIN));
+    const { users } = (await res.json()) as {
+      users: Array<{
+        id: string;
+        usage: {
+          period: string;
+          dayPeriod: string;
+          wordGlossesPerMonth: number;
+          phraseTranslationsPerDay: number;
+          contextTranslationsPerDay: number;
+        };
+      }>;
+    };
+    const alice = users.find((u) => u.id === ALICE)!;
+    expect(alice.usage).toMatchObject({
+      period: '2026-07',
+      dayPeriod: '2026-07-11',
+      wordGlossesPerMonth: 321,
+      phraseTranslationsPerDay: 7,
+      contextTranslationsPerDay: 4,
+    });
+  });
 });
 
 describe('GET /api/admin/summary', () => {
@@ -197,6 +288,57 @@ describe('GET /api/admin/summary', () => {
     expect(body.byStatus.active).toBe(1);
     expect(body.byStatus.canceled).toBe(1);
     expect(body.byStatus.none).toBe(1); // admin has no sub
+  });
+
+  test('counts Free separately without changing subscriber semantics and totals its cost drivers', async () => {
+    seedSubscription(ALICE, 'active', 'pri_monthly');
+    seedSubscription(BOB, 'canceled', 'pri_monthly');
+    const insert = db.prepare(
+      'INSERT INTO usage_counters (userId, metric, period, value, updatedAt) VALUES (?, ?, ?, ?, ?)',
+    );
+    const updatedAt = '2026-07-11T12:00:00Z';
+    insert.run(ADMIN, 'wordGlossesPerMonth', '2026-07', 10, updatedAt);
+    insert.run(BOB, 'wordGlossesPerMonth', '2026-07', 20, updatedAt);
+    insert.run(ALICE, 'wordGlossesPerMonth', '2026-07', 5, updatedAt);
+    insert.run(BOB, 'phraseTranslationsPerDay', '2026-07-11', 3, updatedAt);
+    insert.run(ADMIN, 'contextTranslationsPerDay', '2026-07-11', 2, updatedAt);
+
+    const res = await buildApp(gate, {
+      freeTierEnabled: true,
+      now: () => new Date('2026-07-11T12:30:00Z'),
+    }).request('/api/admin/summary', asUser(ADMIN));
+    const body = (await res.json()) as {
+      subscribers: number;
+      freeAccounts: number;
+      byPlan: Record<string, number>;
+      period: string;
+      dayPeriod: string;
+      usageTotals: {
+        wordGlossesPerMonth: number;
+        phraseTranslationsPerDay: number;
+        contextTranslationsPerDay: number;
+      };
+      freeUsageTotals: {
+        wordGlossesPerMonth: number;
+        phraseTranslationsPerDay: number;
+        contextTranslationsPerDay: number;
+      };
+    };
+    expect(body.subscribers).toBe(1);
+    expect(body.freeAccounts).toBe(2);
+    expect(body.byPlan).toEqual({ cloud: 1 });
+    expect(body.period).toBe('2026-07');
+    expect(body.dayPeriod).toBe('2026-07-11');
+    expect(body.usageTotals).toMatchObject({
+      wordGlossesPerMonth: 35,
+      phraseTranslationsPerDay: 3,
+      contextTranslationsPerDay: 2,
+    });
+    expect(body.freeUsageTotals).toEqual({
+      wordGlossesPerMonth: 30,
+      phraseTranslationsPerDay: 3,
+      contextTranslationsPerDay: 2,
+    });
   });
 });
 
@@ -360,8 +502,17 @@ describe('auth support actions', () => {
     );
     const res = await post(`${ALICE}/reset-mfa`);
     expect(res.status).toBe(200);
-    expect((db.prepare('SELECT twoFactorEnabled FROM user WHERE id = ?').get(ALICE) as { twoFactorEnabled: number }).twoFactorEnabled).toBe(0);
-    expect((db.prepare('SELECT COUNT(*) n FROM twoFactor WHERE userId = ?').get(ALICE) as { n: number }).n).toBe(0);
+    expect(
+      (
+        db.prepare('SELECT twoFactorEnabled FROM user WHERE id = ?').get(ALICE) as {
+          twoFactorEnabled: number;
+        }
+      ).twoFactorEnabled,
+    ).toBe(0);
+    expect(
+      (db.prepare('SELECT COUNT(*) n FROM twoFactor WHERE userId = ?').get(ALICE) as { n: number })
+        .n,
+    ).toBe(0);
   });
 
   test('password-reset triggers the reset email for the account', async () => {
@@ -382,7 +533,13 @@ describe('auth support actions', () => {
   test('force verify flips emailVerified', async () => {
     const res = await post(`${BOB}/verify`);
     expect(res.status).toBe(200);
-    expect((db.prepare('SELECT emailVerified FROM user WHERE id = ?').get(BOB) as { emailVerified: number }).emailVerified).toBe(1);
+    expect(
+      (
+        db.prepare('SELECT emailVerified FROM user WHERE id = ?').get(BOB) as {
+          emailVerified: number;
+        }
+      ).emailVerified,
+    ).toBe(1);
   });
 
   test('revoke-sessions deletes all the account’s sessions and reports the count', async () => {
@@ -393,12 +550,22 @@ describe('auth support actions', () => {
     const res = await post(`${ALICE}/revoke-sessions`);
     expect(res.status).toBe(200);
     expect((await res.json()).revoked).toBe(2);
-    expect((db.prepare('SELECT COUNT(*) n FROM session WHERE userId = ?').get(ALICE) as { n: number }).n).toBe(0);
-    expect((db.prepare('SELECT COUNT(*) n FROM session WHERE userId = ?').get(BOB) as { n: number }).n).toBe(1);
+    expect(
+      (db.prepare('SELECT COUNT(*) n FROM session WHERE userId = ?').get(ALICE) as { n: number }).n,
+    ).toBe(0);
+    expect(
+      (db.prepare('SELECT COUNT(*) n FROM session WHERE userId = ?').get(BOB) as { n: number }).n,
+    ).toBe(1);
   });
 
   test('each action 404s for an unknown user', async () => {
-    for (const action of ['reset-mfa', 'password-reset', 'resend-verification', 'verify', 'revoke-sessions']) {
+    for (const action of [
+      'reset-mfa',
+      'password-reset',
+      'resend-verification',
+      'verify',
+      'revoke-sessions',
+    ]) {
       expect((await post(`nobody/${action}`)).status).toBe(404);
     }
   });
@@ -411,12 +578,20 @@ describe('audit log', () => {
       headers: { 'X-Test-User': ADMIN, 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason: 'spam' }),
     });
-    await buildApp().request(`/api/admin/users/${ALICE}/reset-mfa`, { method: 'POST', ...asUser(ADMIN) });
+    await buildApp().request(`/api/admin/users/${ALICE}/reset-mfa`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
 
     const res = await buildApp().request('/api/admin/audit', asUser(ADMIN));
     expect(res.status).toBe(200);
     const { entries } = (await res.json()) as {
-      entries: Array<{ action: string; actorEmail: string; targetEmail: string; detail: string | null }>;
+      entries: Array<{
+        action: string;
+        actorEmail: string;
+        targetEmail: string;
+        detail: string | null;
+      }>;
     };
     // Newest first: reset_mfa then suspend.
     expect(entries[0].action).toBe('reset_mfa');

@@ -1,4 +1,4 @@
-import { completeJson, getProvider } from './llm';
+import { completeJson, getProvider, type ProviderAccessOptions } from './llm';
 import { resolveLanguage } from './active-language';
 import { getLanguageConfig } from './languages';
 
@@ -9,12 +9,13 @@ import { getLanguageConfig } from './languages';
 export async function correctJournalText(
   userId: string,
   body: string,
-  language?: string,
+  language: string | undefined,
+  access: ProviderAccessOptions,
 ): Promise<Record<string, unknown>> {
   const lang = resolveLanguage(language, userId);
   const langName = getLanguageConfig(lang).name;
 
-  const provider = getProvider(userId);
+  const provider = getProvider(userId, access);
   return completeJson<Record<string, unknown>>(provider, {
     messages: [
       {

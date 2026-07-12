@@ -1,4 +1,4 @@
-import type { LLMProvider, CompletionOptions } from './types';
+import type { LLMProvider, CompletionOptions, LLMTask, LLMUsageEvent } from './types';
 import { LLMTruncatedError } from './errors';
 
 const DEFAULT_URL = 'http://localhost:11434';
@@ -13,6 +13,17 @@ export interface OpenAICompatibleOptions {
   timeoutMs?: number;
   /** Opt into request fields verified for a specific API/model pair. */
   profile?: OpenAICompatibleProfile;
+  /** Server-owned model overrides. Never pass these to a BYOK provider. */
+  taskModels?: Partial<Record<LLMTask, string>>;
+  /** Text-free structured-attempt sink. Defaults to console.info. */
+  usageLogger?: (event: LLMUsageEvent) => void;
+}
+
+interface ProviderUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  reasoningTokens?: number;
+  totalTokens?: number;
 }
 
 /**
@@ -29,6 +40,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
   private apiKey?: string;
   private timeoutMs: number;
   private profile: OpenAICompatibleProfile;
+  private taskModels: Partial<Record<LLMTask, string>>;
+  private usageLogger: (event: LLMUsageEvent) => void;
 
   constructor(options?: OpenAICompatibleOptions) {
     this.baseUrl = (options?.baseUrl || process.env.OPENAI_COMPAT_URL || DEFAULT_URL).replace(
@@ -39,6 +52,9 @@ export class OpenAICompatibleProvider implements LLMProvider {
     this.apiKey = options?.apiKey || process.env.OPENAI_COMPAT_API_KEY || undefined;
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.profile = options?.profile ?? 'generic';
+    this.taskModels = { ...(options?.taskModels ?? {}) };
+    this.usageLogger =
+      options?.usageLogger ?? ((event) => console.info('[llm-attempt]', JSON.stringify(event)));
   }
 
   private headers(): Record<string, string> {
@@ -47,14 +63,65 @@ export class OpenAICompatibleProvider implements LLMProvider {
     return h;
   }
 
-  private usesMaxCompletionTokens(): boolean {
+  modelForTask(task?: LLMTask): string {
+    return (task && this.taskModels[task]) || this.model;
+  }
+
+  private usesMaxCompletionTokens(model: string): boolean {
     // OpenRouter's route capability filter still advertises max_tokens for
     // several catalog models. GPT-5 is the model we have verified requires the
     // newer field; using it gateway-wide can make require_parameters reject
     // otherwise valid Gemini/Mistral/Gemma routes.
     // BYOK model IDs are allowlisted exactly; future GPT-5 variants must be
     // evaluated and added deliberately rather than inheriting this implicitly.
-    return this.profile === 'openrouter' && this.model === 'openai/gpt-5';
+    return this.profile === 'openrouter' && model === 'openai/gpt-5';
+  }
+
+  private parseUsage(raw: unknown): ProviderUsage | undefined {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const usage = raw as Record<string, unknown>;
+    const details =
+      usage.completion_tokens_details && typeof usage.completion_tokens_details === 'object'
+        ? (usage.completion_tokens_details as Record<string, unknown>)
+        : undefined;
+    const number = (value: unknown) =>
+      typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+    return {
+      promptTokens: number(usage.prompt_tokens),
+      completionTokens: number(usage.completion_tokens),
+      reasoningTokens: number(details?.reasoning_tokens),
+      totalTokens: number(usage.total_tokens),
+    };
+  }
+
+  private emitAttempt(
+    options: CompletionOptions,
+    model: string,
+    startedAt: number,
+    success: boolean,
+    usage?: ProviderUsage,
+  ): void {
+    const usageAvailable =
+      usage !== undefined && Object.values(usage).some((value) => value !== undefined);
+    const event: LLMUsageEvent = {
+      task: options.task,
+      model,
+      attempt: options.attempt ?? 1,
+      latencyMs: Math.max(0, Date.now() - startedAt),
+      success,
+      usageAvailable,
+      ...(usageAvailable ? usage : {}),
+    };
+    try {
+      options.onUsage?.(event);
+    } catch {
+      // Observability must never turn a successful provider call into a 500.
+    }
+    try {
+      this.usageLogger(event);
+    } catch {
+      // Ditto for a deployment-provided logger.
+    }
   }
 
   private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
@@ -68,9 +135,11 @@ export class OpenAICompatibleProvider implements LLMProvider {
   }
 
   private async requestCompletion(options: CompletionOptions): Promise<string> {
+    const startedAt = Date.now();
     const maxTokens = options.maxTokens;
-    const body: Record<string, unknown> = { model: this.model, messages: options.messages };
-    if (this.usesMaxCompletionTokens()) body.max_completion_tokens = maxTokens;
+    const selectedModel = this.modelForTask(options.task);
+    const body: Record<string, unknown> = { model: selectedModel, messages: options.messages };
+    if (this.usesMaxCompletionTokens(selectedModel)) body.max_completion_tokens = maxTokens;
     else body.max_tokens = maxTokens;
     // No response_format value works across every compatible backend: LM Studio
     // rejects json_object and Ollama ignores json_schema. Keep prompt-driven JSON
@@ -79,42 +148,57 @@ export class OpenAICompatibleProvider implements LLMProvider {
     if (this.profile === 'openrouter' && options.responseFormat === 'json-object') {
       body.response_format = { type: 'json_object' };
       body.provider = { require_parameters: true };
-      if (this.model === 'openai/gpt-5' && options.task === 'phrase-translation') {
+      if (selectedModel === 'openai/gpt-5' && options.task === 'phrase-rich') {
         // Keep the quality-affecting reasoning override on the observed phrase
         // path; other tasks retain the model default until separately evaluated.
         body.reasoning = { effort: 'minimal' };
       }
     }
 
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify(body),
-    });
+    // Gemini 2.5 Flash-Lite defaults to thinking disabled. Do not send a
+    // reasoning option for the bounded 32/48-token translation paths: asking
+    // OpenRouter for even "minimal" reasoning enables a much larger thinking
+    // budget and defeats both the output ceiling and the Free-tier cost model.
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`LLM provider error: ${error}`);
-    }
+    let actualModel = selectedModel;
+    let usage: ProviderUsage | undefined;
+    try {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify(body),
+      });
 
-    const data = await response.json();
-    if (data.error) {
-      const detail = data.error.message || data.error.code || 'Unknown provider error';
-      throw new Error(`LLM provider error: ${detail}`);
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`LLM provider error: ${error}`);
+      }
+
+      const data = await response.json();
+      if (typeof data.model === 'string' && data.model) actualModel = data.model;
+      usage = this.parseUsage(data.usage);
+      if (data.error) {
+        const detail = data.error.message || data.error.code || 'Unknown provider error';
+        throw new Error(`LLM provider error: ${detail}`);
+      }
+      const choice = data.choices?.[0];
+      if (choice?.error || choice?.finish_reason === 'error') {
+        const detail =
+          choice?.error?.message || choice?.native_finish_reason || 'Unknown provider error';
+        throw new Error(`LLM provider error: ${detail}`);
+      }
+      if (
+        (options.responseFormat === 'json-object' || options.responseFormat === 'json-array') &&
+        choice?.finish_reason === 'length'
+      ) {
+        throw new LLMTruncatedError(maxTokens);
+      }
+      this.emitAttempt(options, actualModel, startedAt, true, usage);
+      return choice?.message?.content || '';
+    } catch (error) {
+      this.emitAttempt(options, actualModel, startedAt, false, usage);
+      throw error;
     }
-    const choice = data.choices?.[0];
-    if (choice?.error || choice?.finish_reason === 'error') {
-      const detail =
-        choice?.error?.message || choice?.native_finish_reason || 'Unknown provider error';
-      throw new Error(`LLM provider error: ${detail}`);
-    }
-    if (
-      (options.responseFormat === 'json-object' || options.responseFormat === 'json-array') &&
-      choice?.finish_reason === 'length'
-    ) {
-      throw new LLMTruncatedError(maxTokens);
-    }
-    return choice?.message?.content || '';
   }
 
   async complete(options: CompletionOptions): Promise<string> {
@@ -129,31 +213,39 @@ export class OpenAICompatibleProvider implements LLMProvider {
    * cleared, so a long stream body isn't cut off mid-generation.
    */
   async *stream(options: CompletionOptions): AsyncGenerator<string> {
+    const startedAt = Date.now();
+    const selectedModel = this.modelForTask(options.task);
     const body: Record<string, unknown> = {
-      model: this.model,
+      model: selectedModel,
       messages: options.messages,
       stream: true,
     };
-    if (this.usesMaxCompletionTokens()) body.max_completion_tokens = options.maxTokens;
+    if (this.usesMaxCompletionTokens(selectedModel)) body.max_completion_tokens = options.maxTokens;
     else body.max_tokens = options.maxTokens;
-
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok || !response.body) {
-      const error = response.ok
-        ? 'no response body'
-        : await response.text().catch(() => `HTTP ${response.status}`);
-      throw new Error(`LLM provider error: ${error}`);
+    if (this.profile === 'openrouter') {
+      body.stream_options = { include_usage: true };
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    let actualModel = selectedModel;
+    let usage: ProviderUsage | undefined;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok || !response.body) {
+        const error = response.ok
+          ? 'no response body'
+          : await response.text().catch(() => `HTTP ${response.status}`);
+        throw new Error(`LLM provider error: ${error}`);
+      }
+
+      reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -166,18 +258,35 @@ export class OpenAICompatibleProvider implements LLMProvider {
           buffer = buffer.slice(nl + 1);
           if (!line.startsWith('data:')) continue; // skip blank lines / comments
           const data = line.slice(5).trim();
-          if (data === '[DONE]') return;
+          if (data === '[DONE]') {
+            this.emitAttempt(options, actualModel, startedAt, true, usage);
+            return;
+          }
           try {
             const json = JSON.parse(data);
+            if (typeof json.model === 'string' && json.model) actualModel = json.model;
+            const frameUsage = this.parseUsage(json.usage);
+            if (frameUsage) usage = frameUsage;
+            if (json.error) {
+              const detail = json.error.message || json.error.code || 'Unknown provider error';
+              throw new Error(`LLM provider error: ${detail}`);
+            }
             const delta = json.choices?.[0]?.delta?.content;
             if (delta) yield delta as string;
-          } catch {
+          } catch (error) {
+            if (error instanceof Error && error.message.startsWith('LLM provider error:')) {
+              throw error;
+            }
             // keep-alive ping or non-JSON line — ignore
           }
         }
       }
+      this.emitAttempt(options, actualModel, startedAt, true, usage);
+    } catch (error) {
+      this.emitAttempt(options, actualModel, startedAt, false, usage);
+      throw error;
     } finally {
-      reader.releaseLock();
+      reader?.releaseLock();
     }
   }
 

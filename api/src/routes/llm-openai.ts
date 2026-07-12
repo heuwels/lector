@@ -2,8 +2,7 @@ import { Hono } from 'hono';
 import { OpenAICompatibleProvider } from '../lib/llm/openai-compatible';
 import { getCurrentUserId } from '../lib/user';
 import { db } from '../db';
-
-const app = new Hono();
+import { config, type LectorMode } from '../lib/config';
 
 interface ModelsBody {
   endpoint?: string;
@@ -30,34 +29,51 @@ function resolveApiKey(userId: string, bodyKey: string | undefined): string | un
   }
 }
 
-// POST /api/llm/openai/models — list models the OpenAI-compatible endpoint reports.
-// Server-side proxy so the browser doesn't hit the endpoint cross-origin and so the
-// API key (if any) stays out of the browser network tab beyond the lector form submit.
-app.post('/models', async (c) => {
-  let body: ModelsBody;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'invalid JSON body' }, 400);
-  }
+/**
+ * Route factory keeps deployment mode injectable in tests. In any hosted
+ * cloud shape, accepting a caller-controlled base URL would turn this
+ * convenience proxy into an SSRF/credential-forwarding surface. Selfhost
+ * keeps the existing endpoint-discovery behavior.
+ */
+export function makeLlmOpenaiRoutes(mode: LectorMode = config.mode): Hono {
+  const app = new Hono();
 
-  const baseUrl = (body.endpoint || '').trim();
-  if (!baseUrl) {
-    return c.json({ error: 'endpoint is required' }, 400);
-  }
+  // POST /api/llm/openai/models — list models the OpenAI-compatible endpoint reports.
+  // Server-side proxy so the browser doesn't hit the endpoint cross-origin and so the
+  // API key (if any) stays out of the browser network tab beyond the lector form submit.
+  app.post('/models', async (c) => {
+    // Check the deployment boundary before reading/parsing the body, resolving
+    // saved credentials, or making any outbound request. A 404 deliberately
+    // does not advertise this selfhost-only capability to cloud accounts.
+    if (mode !== 'selfhost') return c.json({ error: 'Not found' }, 404);
 
-  const provider = new OpenAICompatibleProvider({
-    baseUrl,
-    apiKey: resolveApiKey(getCurrentUserId(c), body.apiKey),
+    let body: ModelsBody;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'invalid JSON body' }, 400);
+    }
+
+    const baseUrl = (body.endpoint || '').trim();
+    if (!baseUrl) {
+      return c.json({ error: 'endpoint is required' }, 400);
+    }
+
+    const provider = new OpenAICompatibleProvider({
+      baseUrl,
+      apiKey: resolveApiKey(getCurrentUserId(c), body.apiKey),
+    });
+
+    try {
+      const models = await provider.listModels();
+      return c.json({ models });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return c.json({ error: message }, 502);
+    }
   });
 
-  try {
-    const models = await provider.listModels();
-    return c.json({ models });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return c.json({ error: message }, 502);
-  }
-});
+  return app;
+}
 
-export default app;
+export default makeLlmOpenaiRoutes();

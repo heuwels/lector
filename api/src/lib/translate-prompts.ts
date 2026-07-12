@@ -22,6 +22,33 @@ Reply with ONLY the concise English meaning — the natural translation(s), most
 }
 
 /**
+ * Bounded Free phrase path. It intentionally asks for one plain-text answer
+ * and never receives the Afrikaans spelling rules or rich teaching schema.
+ */
+export function buildSimplePhrasePrompt(
+  langName: string,
+  phrase: string,
+  sentence: string,
+): string {
+  return `Translate the selected ${langName} phrase into natural English as it is used in the sentence.
+
+Selected phrase: "${phrase}"
+Sentence context: "${sentence || phrase}"
+
+Return ONLY the concise English translation. Do not explain it. Do not use quotes, labels, JSON, or Markdown.`;
+}
+
+/** Bounded Free explicit word-in-context path; one sense, plain text only. */
+export function buildSimpleContextPrompt(langName: string, word: string, sentence: string): string {
+  return `Translate the selected ${langName} word into the concise English sense that fits this sentence.
+
+Selected word: "${word}"
+Sentence context: "${sentence || word}"
+
+Return ONLY the context-appropriate English translation. Do not list other senses. Do not explain it. Do not use quotes, labels, JSON, or Markdown.`;
+}
+
+/**
  * Rich dictionary-quality word entry (senses + IPA + etymology + related forms).
  * Used by the opt-in "enrich" action and by legacy structured word lookups
  * (in-context / re-translate). No spelreels — the full orthography ruleset adds
@@ -67,7 +94,12 @@ Backwards-compat fields the server adds (do NOT include these yourself — serve
  * benefit from the orthography/register rules, and phrases are looked up far
  * less often than single words, so the extra tokens are an acceptable cost here.
  */
-export function buildPhrasePrompt(langName: string, spelreelsSection: string, word: string, sentence: string): string {
+export function buildPhrasePrompt(
+  langName: string,
+  spelreelsSection: string,
+  word: string,
+  sentence: string,
+): string {
   return `You are a ${langName} to English translator with deep knowledge of ${langName} orthography, idiom, and register.
 
 ${spelreelsSection}A learner has selected a ${langName} phrase from a text they're reading. Help them understand it the way a native speaker would — not just what the words say, but what the phrase actually means, why it's phrased this way, and when it would be used.

@@ -39,6 +39,12 @@ export interface AdminAuthActions {
   sendVerificationEmail: (email: string) => Promise<void>;
 }
 
+export interface AdminRouteOptions {
+  freeTierEnabled?: boolean;
+  billingExemptEmails?: Set<string>;
+  now?: () => Date;
+}
+
 const realAuthActions: AdminAuthActions = {
   requestPasswordReset: async (email) => {
     await getAuthEngine().api.requestPasswordReset({ body: { email } });
@@ -108,14 +114,12 @@ function hasUsageCounters(): boolean {
   // bun:sqlite .get() returns null (not undefined) for no rows — test
   // truthiness, not `!== undefined`, or an absent table reads as present.
   return Boolean(
-    db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='usage_counters'")
-      .get(),
+    db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='usage_counters'").get(),
   );
 }
 
-/** This-month usage per user for a metric, keyed by userId (empty if #222 absent). */
-function usageForMonth(metric: string, period: string): Map<string, number> {
+/** Usage per user for a metric+window, keyed by userId (empty if #222 absent). */
+function usageForPeriod(metric: string, period: string): Map<string, number> {
   if (!hasUsageCounters()) return new Map();
   const rows = db
     .prepare('SELECT userId, value FROM usage_counters WHERE metric = ? AND period = ?')
@@ -123,14 +127,16 @@ function usageForMonth(metric: string, period: string): Map<string, number> {
   return new Map(rows.map((r) => [r.userId, r.value]));
 }
 
-function currentPeriod(): string {
-  return new Date().toISOString().slice(0, 7);
+function currentPeriods(now: () => Date): { month: string; day: string } {
+  const iso = now().toISOString();
+  return { month: iso.slice(0, 7), day: iso.slice(0, 10) };
 }
 
 function countBy(table: string): Map<string, number> {
-  const rows = db
-    .prepare(`SELECT userId, COUNT(*) AS n FROM ${table} GROUP BY userId`)
-    .all() as { userId: string; n: number }[];
+  const rows = db.prepare(`SELECT userId, COUNT(*) AS n FROM ${table} GROUP BY userId`).all() as {
+    userId: string;
+    n: number;
+  }[];
   return new Map(rows.map((r) => [r.userId, r.n]));
 }
 
@@ -143,9 +149,13 @@ function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {
 export function makeAdminRoutes(
   gate: AdminGateOptions = adminConfig,
   authActions: AdminAuthActions = realAuthActions,
+  options: AdminRouteOptions = {},
 ) {
   const app = new Hono();
   const resolveEmail = gate.resolveEmail ?? getUserEmail;
+  const freeTierEnabled = options.freeTierEnabled ?? billingConfig.freeTierEnabled;
+  const billingExemptEmails = options.billingExemptEmails ?? billingConfig.exemptEmails;
+  const now = options.now ?? (() => new Date());
 
   app.use('*', makeRequireAdmin(gate));
 
@@ -177,7 +187,7 @@ export function makeAdminRoutes(
   }
 
   // Shared assembly: every account with its plan/status/usage/library facts.
-  function buildUserRows() {
+  function buildUserRows(periods = currentPeriods(now)) {
     const users = db
       .prepare('SELECT id, email, name, emailVerified, createdAt FROM user')
       .all() as AuthUserRow[];
@@ -193,9 +203,10 @@ export function makeAdminRoutes(
       if (s.userId) pushInto(subsByUser, s.userId, s);
       pushInto(subsByCustomer, s.paddleCustomerId, s);
     }
-    const customers = db
-      .prepare('SELECT paddleCustomerId, email FROM billing_customers')
-      .all() as { paddleCustomerId: string; email: string }[];
+    const customers = db.prepare('SELECT paddleCustomerId, email FROM billing_customers').all() as {
+      paddleCustomerId: string;
+      email: string;
+    }[];
     const customerIdsByEmail = new Map<string, string[]>();
     for (const cust of customers) {
       pushInto(customerIdsByEmail, cust.email.toLowerCase(), cust.paddleCustomerId);
@@ -211,7 +222,9 @@ export function makeAdminRoutes(
     const storage = new Map<string, number>(
       (
         db
-          .prepare('SELECT userId, COALESCE(SUM(LENGTH(textContent)), 0) AS bytes FROM lessons GROUP BY userId')
+          .prepare(
+            'SELECT userId, COALESCE(SUM(LENGTH(textContent)), 0) AS bytes FROM lessons GROUP BY userId',
+          )
           .all() as { userId: string; bytes: number }[]
       ).map((r) => [r.userId, r.bytes]),
     );
@@ -220,43 +233,56 @@ export function makeAdminRoutes(
     // stat day. Sessions are the truer "seen recently" signal.
     const lastSession = new Map<string, string>(
       (
-        db
-          .prepare('SELECT userId, MAX(updatedAt) AS t FROM session GROUP BY userId')
-          .all() as { userId: string; t: string | null }[]
+        db.prepare('SELECT userId, MAX(updatedAt) AS t FROM session GROUP BY userId').all() as {
+          userId: string;
+          t: string | null;
+        }[]
       )
         .filter((r) => r.t)
         .map((r) => [r.userId, r.t as string]),
     );
     const lastStat = new Map<string, string>(
       (
-        db
-          .prepare('SELECT userId, MAX(date) AS d FROM dailyStats GROUP BY userId')
-          .all() as { userId: string; d: string | null }[]
+        db.prepare('SELECT userId, MAX(date) AS d FROM dailyStats GROUP BY userId').all() as {
+          userId: string;
+          d: string | null;
+        }[]
       )
         .filter((r) => r.d)
         .map((r) => [r.userId, r.d as string]),
     );
 
-    const period = currentPeriod();
-    const llm = usageForMonth('llmRequestsPerMonth', period);
-    const tts = usageForMonth('ttsCharsPerMonth', period);
-    const journalWords = usageForMonth('journalWordsPerMonth', period);
+    const llm = usageForPeriod('llmRequestsPerMonth', periods.month);
+    const tts = usageForPeriod('ttsCharsPerMonth', periods.month);
+    const journalWords = usageForPeriod('journalWordsPerMonth', periods.month);
+    const wordGlosses = usageForPeriod('wordGlossesPerMonth', periods.month);
+    const phraseTranslations = usageForPeriod('phraseTranslationsPerDay', periods.day);
+    const contextTranslations = usageForPeriod('contextTranslationsPerDay', periods.day);
     const suspended = suspendedMap();
     const comped = compedPlanMap();
 
     return users.map((u) => {
       const sub = resolveSub(u, subsByUser, subsByCustomer, customerIdsByEmail);
       const entitled = sub !== null && ENTITLED.has(sub.status);
+      const compedPlan = comped.get(u.id) ?? null;
+      // Env-exempt accounts resolve to `unlimited` in the entitlement engine,
+      // so they are neither paid subscribers nor Free cost centres here.
+      const billingExempt = billingExemptEmails.has(u.email.toLowerCase());
+      const plan = entitled
+        ? (priceToPlan(sub!.priceId) ?? 'cloud')
+        : freeTierEnabled && compedPlan === null && !billingExempt
+          ? 'free'
+          : null;
       return {
         id: u.id,
         email: u.email,
         name: u.name,
         emailVerified: u.emailVerified === 1,
         createdAt: u.createdAt,
-        plan: entitled ? (priceToPlan(sub!.priceId) ?? 'cloud') : null,
+        plan,
         status: sub?.status ?? 'none',
         entitled,
-        compedPlan: comped.get(u.id) ?? null,
+        compedPlan,
         currentPeriodEnd: sub?.currentPeriodEnd ?? null,
         suspended: suspended.has(u.id),
         suspendedReason: suspended.get(u.id) ?? null,
@@ -269,10 +295,14 @@ export function makeAdminRoutes(
           storageBytes: storage.get(u.id) ?? 0,
         },
         usage: {
-          period,
+          period: periods.month,
+          dayPeriod: periods.day,
           llmRequests: llm.get(u.id) ?? 0,
           ttsChars: tts.get(u.id) ?? 0,
           journalWords: journalWords.get(u.id) ?? 0,
+          wordGlossesPerMonth: wordGlosses.get(u.id) ?? 0,
+          phraseTranslationsPerDay: phraseTranslations.get(u.id) ?? 0,
+          contextTranslationsPerDay: contextTranslations.get(u.id) ?? 0,
           tracked: hasUsageCounters(),
         },
       };
@@ -287,34 +317,60 @@ export function makeAdminRoutes(
 
   // GET /api/admin/summary — service-wide aggregates.
   app.get('/summary', (c) => {
-    const rows = buildUserRows();
+    const periods = currentPeriods(now);
+    const rows = buildUserRows(periods);
     const byPlan: Record<string, number> = {};
     const byStatus: Record<string, number> = {};
     let subscribers = 0;
+    let freeAccounts = 0;
     let verified = 0;
     let suspended = 0;
-    const usageTotals = { llmRequests: 0, ttsChars: 0, journalWords: 0 };
+    const usageTotals = {
+      llmRequests: 0,
+      ttsChars: 0,
+      journalWords: 0,
+      wordGlossesPerMonth: 0,
+      phraseTranslationsPerDay: 0,
+      contextTranslationsPerDay: 0,
+    };
+    const freeUsageTotals = {
+      wordGlossesPerMonth: 0,
+      phraseTranslationsPerDay: 0,
+      contextTranslationsPerDay: 0,
+    };
     for (const r of rows) {
       byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
       if (r.entitled) {
         subscribers++;
         byPlan[r.plan ?? 'cloud'] = (byPlan[r.plan ?? 'cloud'] ?? 0) + 1;
       }
+      if (r.plan === 'free') {
+        freeAccounts++;
+        freeUsageTotals.wordGlossesPerMonth += r.usage.wordGlossesPerMonth;
+        freeUsageTotals.phraseTranslationsPerDay += r.usage.phraseTranslationsPerDay;
+        freeUsageTotals.contextTranslationsPerDay += r.usage.contextTranslationsPerDay;
+      }
       if (r.emailVerified) verified++;
       if (r.suspended) suspended++;
       usageTotals.llmRequests += r.usage.llmRequests;
       usageTotals.ttsChars += r.usage.ttsChars;
       usageTotals.journalWords += r.usage.journalWords;
+      usageTotals.wordGlossesPerMonth += r.usage.wordGlossesPerMonth;
+      usageTotals.phraseTranslationsPerDay += r.usage.phraseTranslationsPerDay;
+      usageTotals.contextTranslationsPerDay += r.usage.contextTranslationsPerDay;
     }
     return c.json({
       users: rows.length,
       verified,
       subscribers,
+      freeAccounts,
       suspended,
       byPlan,
       byStatus,
-      period: currentPeriod(),
+      period: periods.month,
+      dayPeriod: periods.day,
       usageTotals,
+      freeUsageTotals,
       usageTracked: hasUsageCounters(),
     });
   });

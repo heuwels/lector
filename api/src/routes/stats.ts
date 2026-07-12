@@ -7,6 +7,9 @@ import { activeDateSet, computeStreaks } from '../lib/streak';
 import { deriveReadingStats } from '../lib/stats-derive';
 import { deriveCefrProgress } from '../lib/cefr';
 import { deriveDomainFluency, type DomainStateRow } from '../lib/domains';
+import { reserveDailyStatsRows } from '../lib/daily-stats-limits';
+import { planLimitResponse } from '../lib/entitlements';
+import { validateSafeInteger } from '../lib/persisted-input';
 
 const app = new Hono();
 
@@ -47,12 +50,15 @@ app.get('/today', (c) => {
     .get(userId, today, lang) as DailyStatsRow | undefined;
 
   if (!stats) {
-    db.prepare(
-      `
-      INSERT INTO dailyStats (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-      VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0)
-    `,
-    ).run(userId, today, lang);
+    const verdict = reserveDailyStatsRows(userId, [{ date: today, language: lang }], () => {
+      db.prepare(
+        `
+        INSERT INTO dailyStats (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
+        VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0)
+      `,
+      ).run(userId, today, lang);
+    });
+    if (!verdict.allowed) return planLimitResponse(c, verdict);
 
     stats = db
       .prepare('SELECT * FROM dailyStats WHERE userId = ? AND date = ? AND language = ?')
@@ -68,13 +74,6 @@ app.put('/today', async (c) => {
   const lang = resolveLanguage(c.req.query('language'), userId);
   const today = getTodayDate(userId);
   const body = await c.req.json();
-
-  db.prepare(
-    `
-    INSERT OR IGNORE INTO dailyStats (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
-    VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0)
-  `,
-  ).run(userId, today, lang);
 
   const field = body.field as string;
   const amount = body.amount ?? 1;
@@ -92,13 +91,32 @@ app.put('/today', async (c) => {
   if (!allowedFields.includes(field)) {
     return c.json({ error: 'Invalid field' }, 400);
   }
+  const amountError = validateSafeInteger(amount, 'amount', { optional: false, min: 0 });
+  if (amountError) return c.json({ error: amountError }, 400);
 
-  db.prepare(`UPDATE dailyStats SET ${field} = ${field} + ? WHERE userId = ? AND date = ? AND language = ?`).run(
-    amount,
-    userId,
-    today,
-    lang,
-  );
+  const existing = db
+    .prepare(
+      `SELECT ${field} AS value FROM dailyStats
+       WHERE userId = ? AND date = ? AND language = ?`,
+    )
+    .get(userId, today, lang) as { value: number } | undefined;
+  const current = existing?.value ?? 0;
+  const next = current + amount;
+  const nextError = validateSafeInteger(next, field, { optional: false, min: 0 });
+  if (nextError) return c.json({ error: `${field} would exceed the safe counter range` }, 400);
+
+  const verdict = reserveDailyStatsRows(userId, [{ date: today, language: lang }], () => {
+    db.prepare(
+      `INSERT OR IGNORE INTO dailyStats
+        (userId, date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead, clozePracticed, points, dictionaryLookups)
+       VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0)`,
+    ).run(userId, today, lang);
+    db.prepare(
+      `UPDATE dailyStats SET ${field} = ?
+       WHERE userId = ? AND date = ? AND language = ?`,
+    ).run(next, userId, today, lang);
+  });
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   return c.json({ success: true });
 });
@@ -110,7 +128,9 @@ app.get('/fluency', (c) => {
 
   // Count words by state from knownWords table
   const stateCounts = db
-    .prepare('SELECT state, COUNT(*) as count FROM knownWords WHERE userId = ? AND language = ? GROUP BY state')
+    .prepare(
+      'SELECT state, COUNT(*) as count FROM knownWords WHERE userId = ? AND language = ? GROUP BY state',
+    )
     .all(userId, lang) as { state: string; count: number }[];
 
   const countMap: Record<string, number> = {};
@@ -250,7 +270,9 @@ app.get('/reading', (c) => {
   const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'), userId);
   const rows = db
-    .prepare('SELECT wordCount, progress_percentComplete AS percentComplete FROM lessons WHERE userId = ? AND language = ?')
+    .prepare(
+      'SELECT wordCount, progress_percentComplete AS percentComplete FROM lessons WHERE userId = ? AND language = ?',
+    )
     .all(userId, lang) as { wordCount: number; percentComplete: number }[];
 
   return c.json(deriveReadingStats(rows));

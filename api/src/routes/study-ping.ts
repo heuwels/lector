@@ -4,6 +4,7 @@ import { db } from '../db';
 import { getTodayDate } from '../lib/dates';
 import { resolveLanguage } from '../lib/active-language';
 import { recordStudySessionPing } from '../lib/study-session';
+import { planLimitResponse } from '../lib/entitlements';
 
 const app = new Hono();
 
@@ -57,7 +58,8 @@ app.post('/', (c) => {
   const today = getTodayDate(userId);
   const lang = resolveLanguage(c.req.query('language'), userId);
 
-  recordStudySessionPing(userId, lang, today);
+  const verdict = recordStudySessionPing(userId, lang, today);
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   const activity = getDayActivity(userId, today);
   return c.json({

@@ -21,6 +21,22 @@ import {
   upgradeAnkiRequest,
 } from '../lib/anki-protocol';
 import { randomUUID } from 'crypto';
+import { entitlements, planLimitResponse, type AtomicLimitCheck } from '../lib/entitlements';
+import {
+  aggregateGrowthCheck,
+  ankiPendingContentBytes,
+  batchGrowthCheck,
+  growingRowCheck,
+  utf8Bytes,
+  vocabContentBytes,
+} from '../lib/storage-limits';
+import { reserveDailyStatsRows } from '../lib/daily-stats-limits';
+import {
+  validateDateKey,
+  validateOptionalLanguage,
+  validateSafeInteger,
+  validateWordKey,
+} from '../lib/persisted-input';
 
 const ANKI_CONNECT_URL = process.env.ANKI_CONNECT_URL || 'http://localhost:8765';
 
@@ -122,6 +138,7 @@ app.post('/', async (c) => {
 // ---------------------------------------------------------------------------
 
 const CARD_TYPES: readonly AnkiCardType[] = ['basic', 'word', 'cloze'];
+const ANKI_REVIEW_TYPES = new Set([0, 1, 2, 3]);
 const MAX_QUEUE_ITEMS = 500;
 const MAX_REVIEW_ITEMS = 10_000;
 const MAX_REVIEW_DAYS = 3_660;
@@ -188,6 +205,15 @@ app.post('/queue', async (c) => {
   let queued = 0;
   const failed: Array<{ id: string; error: string }> = [];
   const now = new Date().toISOString();
+  type PlannedQueueWrite = {
+    id: string;
+    cardType: AnkiCardType;
+    word: string | null;
+    sentence: string | null;
+    translation: string | null;
+    meaning: string | null;
+  };
+  const planned: PlannedQueueWrite[] = [];
 
   for (const raw of items as unknown[]) {
     const item = raw as QueueItem;
@@ -197,6 +223,14 @@ app.post('/queue', async (c) => {
         id: id || '(missing id)',
         error: 'Each item needs an id and a valid cardType',
       });
+      continue;
+    }
+    const invalidOverride = (['word', 'sentence', 'translation', 'meaning'] as const).find(
+      (field) =>
+        item[field] !== undefined && item[field] !== null && typeof item[field] !== 'string',
+    );
+    if (invalidOverride) {
+      failed.push({ id, error: `${invalidOverride} must be a string` });
       continue;
     }
 
@@ -216,18 +250,70 @@ app.post('/queue', async (c) => {
       continue;
     }
 
-    upsertPending.run(
-      userId,
+    planned.push({
       id,
-      item.cardType,
-      optionalString(item.word),
-      optionalString(item.sentence),
-      optionalString(item.translation),
-      optionalString(item.meaning),
-      now,
-    );
-    queued++;
+      cardType: item.cardType,
+      word: optionalString(item.word),
+      sentence: optionalString(item.sentence),
+      translation: optionalString(item.translation),
+      meaning: optionalString(item.meaning),
+    });
   }
+
+  const finalByKey = new Map(planned.map((item) => [`${item.id}\0${item.cardType}`, item]));
+  const existing = new Map(
+    (
+      db
+        .prepare(
+          `SELECT vocabId, cardType, word, sentence, translation, meaning
+           FROM anki_pending WHERE userId = ?`,
+        )
+        .all(userId) as Array<{
+        vocabId: string;
+        cardType: AnkiCardType;
+        word: string | null;
+        sentence: string | null;
+        translation: string | null;
+        meaning: string | null;
+      }>
+    ).map((row) => [`${row.vocabId}\0${row.cardType}`, row]),
+  );
+  let previousBytes = 0;
+  let nextBytes = 0;
+  let largestGrowingRow = 0;
+  let netNew = 0;
+  for (const [key, item] of finalByKey) {
+    const before = existing.get(key);
+    const beforeBytes = before ? ankiPendingContentBytes(before) : 0;
+    const afterBytes = ankiPendingContentBytes(item);
+    if (!before) netNew++;
+    if (afterBytes > beforeBytes) largestGrowingRow = Math.max(largestGrowingRow, afterBytes);
+    previousBytes += beforeBytes;
+    nextBytes += afterBytes;
+  }
+  const growth = Math.max(0, nextBytes - previousBytes);
+  const checks: AtomicLimitCheck[] = [
+    ...(netNew > 0 ? [{ metric: 'maxAnkiPendingRows' as const, requested: netNew }] : []),
+    ...growingRowCheck('maxAnkiPendingEntryBytes', largestGrowingRow),
+    ...aggregateGrowthCheck('maxAnkiPendingTextBytesTotal', nextBytes, previousBytes),
+    ...batchGrowthCheck(growth),
+  ];
+  const verdict = entitlements.reserveCount(userId, checks, () => {
+    for (const item of planned) {
+      upsertPending.run(
+        userId,
+        item.id,
+        item.cardType,
+        item.word,
+        item.sentence,
+        item.translation,
+        item.meaning,
+        now,
+      );
+    }
+  });
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
+  queued = planned.length;
 
   return c.json({ queued, failed });
 });
@@ -351,6 +437,28 @@ app.post('/ack', async (c) => {
     return c.json({ error: `Too many results (max ${MAX_QUEUE_ITEMS})` }, 400);
   }
 
+  for (const [index, raw] of (results as unknown[]).entries()) {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      return c.json({ error: `results[${index}] must be an object` }, 400);
+    }
+    const item = raw as Record<string, unknown>;
+    if (typeof item.lectorId !== 'string' || item.lectorId.length === 0) {
+      return c.json({ error: `results[${index}].lectorId is required` }, 400);
+    }
+    const noteIdError = validateSafeInteger(item.noteId, `results[${index}].noteId`, {
+      optional: false,
+      min: 0,
+    });
+    if (noteIdError) return c.json({ error: noteIdError }, 400);
+    if (item.cardType !== undefined && !CARD_TYPES.includes(item.cardType as AnkiCardType)) {
+      return c.json({ error: `results[${index}].cardType is invalid` }, 400);
+    }
+    const versionError = validateSafeInteger(item.version, `results[${index}].version`, {
+      min: 0,
+    });
+    if (versionError) return c.json({ error: versionError }, 400);
+  }
+
   const markPushed = db.prepare(
     'UPDATE vocab SET pushedToAnki = 1, ankiNoteId = ? WHERE id = ? AND userId = ?',
   );
@@ -371,11 +479,7 @@ app.post('/ack', async (c) => {
         version?: unknown;
       };
       const lectorId = typeof item.lectorId === 'string' ? item.lectorId : '';
-      const noteId =
-        typeof item.noteId === 'number' && Number.isFinite(item.noteId)
-          ? Math.trunc(item.noteId)
-          : null;
-      if (!lectorId || noteId === null) continue;
+      const noteId = item.noteId as number;
 
       const res = markPushed.run(noteId, lectorId, userId);
       if (CARD_TYPES.includes(item.cardType as AnkiCardType)) {
@@ -434,6 +538,35 @@ app.post('/reviews', async (c) => {
   if (Array.isArray(reviewsByDay) && reviewsByDay.length > MAX_REVIEW_DAYS) {
     return c.json({ error: `Too many reviewsByDay rows (max ${MAX_REVIEW_DAYS})` }, 400);
   }
+  const reviewDays: Array<[string, number]> = [];
+  if (Array.isArray(reviewsByDay)) {
+    const normalized = new Map<string, number>();
+    for (const [index, raw] of (reviewsByDay as unknown[]).entries()) {
+      if (!Array.isArray(raw) || raw.length !== 2) {
+        return c.json({ error: `reviewsByDay[${index}] must be a [date, count] pair` }, 400);
+      }
+      const dateError = validateDateKey(raw[0], `reviewsByDay[${index}].date`, {
+        optional: false,
+      });
+      if (dateError) return c.json({ error: dateError }, 400);
+      const countError = validateSafeInteger(raw[1], `reviewsByDay[${index}].count`, {
+        optional: false,
+        min: 0,
+      });
+      if (countError) return c.json({ error: countError }, 400);
+      normalized.set(raw[0] as string, raw[1] as number);
+    }
+    reviewDays.push(...normalized);
+  }
+  if (reviewDays.length > 0) {
+    const language = getActiveLanguageCode(userId);
+    const preflight = reserveDailyStatsRows(
+      userId,
+      reviewDays.map(([date]) => ({ date, language })),
+      () => {},
+    );
+    if (!preflight.allowed) return planLimitResponse(c, preflight);
+  }
 
   let updated = 0;
   let created = 0;
@@ -444,9 +577,42 @@ app.post('/reviews', async (c) => {
     // has several cards (basic + cloze) and only the strongest signal counts
     // (same rule as the browser's syncWordStates).
     const best = new Map<string, { item: ReviewItem; state: WordState }>();
-    for (const raw of reviews as unknown[]) {
+    for (const [index, raw] of (reviews as unknown[]).entries()) {
+      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+        return c.json({ error: `reviews[${index}] must be an object` }, 400);
+      }
       const item = raw as ReviewItem;
-      if (typeof item?.type !== 'number' || typeof item?.interval !== 'number') continue;
+      const typeError = validateSafeInteger(item.type, `reviews[${index}].type`, {
+        optional: false,
+        min: 0,
+        max: 3,
+      });
+      if (typeError || !ANKI_REVIEW_TYPES.has(item.type)) {
+        return c.json({ error: typeError ?? `reviews[${index}].type is invalid` }, 400);
+      }
+      const intervalError = validateSafeInteger(item.interval, `reviews[${index}].interval`, {
+        optional: false,
+      });
+      if (intervalError) return c.json({ error: intervalError }, 400);
+      const languageError = validateOptionalLanguage(item.lang, `reviews[${index}].lang`);
+      if (languageError) return c.json({ error: languageError }, 400);
+      if (item.lectorId !== undefined && typeof item.lectorId !== 'string') {
+        return c.json({ error: `reviews[${index}].lectorId must be a string` }, 400);
+      }
+      if (item.word !== undefined) {
+        const wordError = validateWordKey(item.word, `reviews[${index}].word`);
+        if (wordError) return c.json({ error: wordError }, 400);
+      }
+      for (const field of ['sentence', 'translation'] as const) {
+        if (item[field] !== undefined && typeof item[field] !== 'string') {
+          return c.json({ error: `reviews[${index}].${field} must be a string` }, 400);
+        }
+      }
+      const noteIdError = validateSafeInteger(item.noteId, `reviews[${index}].noteId`, {
+        min: 0,
+        nullable: true,
+      });
+      if (noteIdError) return c.json({ error: noteIdError }, 400);
       const state = ankiCardToState(item.type, item.interval);
       if (!state) continue; // New card → no learning signal
 
@@ -480,83 +646,177 @@ app.post('/reviews', async (c) => {
       );
     }
 
+    const now = new Date().toISOString();
+    type PlannedReviewWrite =
+      | { kind: 'update'; id: string; state: WordState; word: string; language: string }
+      | {
+          kind: 'create';
+          id: string;
+          state: WordState;
+          word: string;
+          language: string;
+          sentence: string;
+          translation: string;
+          noteId: number | null;
+        };
+    const planned: PlannedReviewWrite[] = [];
+
+    for (const { item, state } of best.values()) {
+      const lang = resolveLanguage(typeof item.lang === 'string' ? item.lang : undefined, userId);
+      const pack = getLanguageConfig(lang);
+      const word = typeof item.word === 'string' ? item.word.trim() : '';
+      const folded = word ? foldWord(word, pack) : '';
+
+      const entry =
+        (typeof item.lectorId === 'string' ? byId.get(item.lectorId) : undefined) ??
+        (folded ? byWord.get(`${lang}:${folded}`) : undefined);
+
+      if (entry) {
+        if (entry.state === 'ignored' || stateRank(state) <= stateRank(entry.state)) {
+          unchanged++;
+          continue;
+        }
+        const entryLang = resolveLanguage(entry.language, userId);
+        planned.push({
+          kind: 'update',
+          id: entry.id,
+          state,
+          word: foldWord(entry.text, getLanguageConfig(entryLang)),
+          language: entryLang,
+        });
+        entry.state = state; // keep the planning snapshot honest for repeated targets
+        continue;
+      }
+
+      if (!folded) {
+        unchanged++;
+        continue;
+      }
+
+      // Import: a studied Lector-note card with no matching entry (created
+      // in Anki, or the entry was deleted here). Mirrors findNewAnkiWords.
+      const noteId = typeof item.noteId === 'number' ? item.noteId : null;
+      const id = randomUUID();
+      const createdRow = {
+        kind: 'create' as const,
+        id,
+        state,
+        word: folded,
+        language: lang,
+        sentence: typeof item.sentence === 'string' ? item.sentence : '',
+        translation: typeof item.translation === 'string' ? item.translation : '',
+        noteId,
+      };
+      planned.push(createdRow);
+      const importedRow = { id, text: folded, state, language: lang };
+      byId.set(id, importedRow);
+      byWord.set(`${lang}:${folded}`, importedRow);
+    }
+
+    const creates = planned.filter(
+      (write): write is Extract<PlannedReviewWrite, { kind: 'create' }> => write.kind === 'create',
+    );
+    const knownExisting = new Set(
+      (
+        db.prepare('SELECT word, language FROM knownWords WHERE userId = ?').all(userId) as Array<{
+          word: string;
+          language: string;
+        }>
+      ).map((row) => `${row.language}:${row.word}`),
+    );
+    const plannedKnown = new Map<string, { word: string; language: string }>();
+    for (const write of planned) {
+      plannedKnown.set(`${write.language}:${write.word}`, {
+        word: write.word,
+        language: write.language,
+      });
+    }
+    const newKnown = [...plannedKnown.entries()]
+      .filter(([key]) => !knownExisting.has(key))
+      .map(([, value]) => value);
+    const vocabGrowth = creates.reduce(
+      (total, write) =>
+        total +
+        vocabContentBytes({
+          text: write.word,
+          sentence: write.sentence,
+          translation: write.translation,
+        }),
+      0,
+    );
+    const knownGrowth = newKnown.reduce((total, row) => total + utf8Bytes(row.word), 0);
+    const largestVocab = creates.reduce(
+      (largest, write) =>
+        Math.max(
+          largest,
+          vocabContentBytes({
+            text: write.word,
+            sentence: write.sentence,
+            translation: write.translation,
+          }),
+        ),
+      0,
+    );
+    const largestKnown = newKnown.reduce(
+      (largest, row) => Math.max(largest, utf8Bytes(row.word)),
+      0,
+    );
+    const checks: AtomicLimitCheck[] = [
+      ...(creates.length > 0
+        ? [{ metric: 'maxVocabEntries' as const, requested: creates.length }]
+        : []),
+      ...growingRowCheck('maxVocabEntryBytes', largestVocab),
+      ...aggregateGrowthCheck('maxVocabTextBytesTotal', vocabGrowth),
+      ...(newKnown.length > 0
+        ? [{ metric: 'maxKnownWords' as const, requested: newKnown.length }]
+        : []),
+      ...growingRowCheck('maxKnownWordBytes', largestKnown),
+      ...aggregateGrowthCheck('maxKnownWordsTextBytesTotal', knownGrowth),
+      ...batchGrowthCheck(vocabGrowth + knownGrowth),
+    ];
+
     const updateState = db.prepare(
       'UPDATE vocab SET state = ?, stateUpdatedAt = ? WHERE id = ? AND userId = ?',
     );
     const upsertKnown = db.prepare(
-      'INSERT OR REPLACE INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)',
+      `INSERT INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)
+       ON CONFLICT(userId, word, language) DO UPDATE SET state = excluded.state`,
     );
     const insertVocab = db.prepare(`
       INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId)
       VALUES (?, ?, 'word', ?, ?, ?, ?, 0, NULL, NULL, ?, 1, ?, ?, ?)
     `);
-
-    const now = new Date().toISOString();
-    db.transaction(() => {
-      for (const { item, state } of best.values()) {
-        const lang = resolveLanguage(typeof item.lang === 'string' ? item.lang : undefined, userId);
-        const pack = getLanguageConfig(lang);
-        const word = typeof item.word === 'string' ? item.word.trim() : '';
-        const folded = word ? foldWord(word, pack) : '';
-
-        const entry =
-          (typeof item.lectorId === 'string' ? byId.get(item.lectorId) : undefined) ??
-          (folded ? byWord.get(`${lang}:${folded}`) : undefined);
-
-        if (entry) {
-          if (entry.state === 'ignored' || stateRank(state) <= stateRank(entry.state)) {
-            unchanged++;
-            continue;
-          }
-          updateState.run(state, now, entry.id, userId);
-          const entryLang = resolveLanguage(entry.language, userId);
-          upsertKnown.run(
+    const verdict = entitlements.reserveCount(userId, checks, () => {
+      for (const write of planned) {
+        if (write.kind === 'update') {
+          updateState.run(write.state, now, write.id, userId);
+        } else {
+          insertVocab.run(
+            write.id,
+            write.word,
+            write.sentence,
+            write.translation,
+            write.state,
+            now,
+            now,
+            write.noteId,
+            write.language,
             userId,
-            foldWord(entry.text, getLanguageConfig(entryLang)),
-            entryLang,
-            state,
           );
-          entry.state = state; // keep the snapshot honest for repeated targets
-          updated++;
-          continue;
         }
-
-        if (!folded) {
-          unchanged++;
-          continue;
-        }
-
-        // Import: a studied Lector-note card with no matching entry (created
-        // in Anki, or the entry was deleted here). Mirrors findNewAnkiWords.
-        const noteId =
-          typeof item.noteId === 'number' && Number.isFinite(item.noteId)
-            ? Math.trunc(item.noteId)
-            : null;
-        const id = randomUUID();
-        insertVocab.run(
-          id,
-          folded,
-          typeof item.sentence === 'string' ? item.sentence : '',
-          typeof item.translation === 'string' ? item.translation : '',
-          state,
-          now,
-          now,
-          noteId,
-          lang,
-          userId,
-        );
-        upsertKnown.run(userId, folded, lang, state);
-        const importedRow = { id, text: folded, state, language: lang };
-        byId.set(id, importedRow);
-        byWord.set(`${lang}:${folded}`, importedRow);
-        created++;
+        upsertKnown.run(userId, write.word, write.language, write.state);
       }
-    })();
+    });
+    if (!verdict.allowed) return planLimitResponse(c, verdict);
+    updated += planned.length - creates.length;
+    created += creates.length;
   }
 
   let syncedDays = 0;
-  if (Array.isArray(reviewsByDay) && reviewsByDay.length > 0) {
-    syncedDays = upsertAnkiReviewDays(userId, reviewsByDay as Array<[string, number]>);
+  if (reviewDays.length > 0) {
+    const result = upsertAnkiReviewDays(userId, reviewDays);
+    if (!result.verdict.allowed) return planLimitResponse(c, result.verdict);
+    syncedDays = result.synced;
   }
 
   return c.json(
@@ -631,23 +891,36 @@ async function ankiRequestWithUrl<T>(
  * attributed to the active language — Anki's per-day totals aren't
  * language-partitioned (same behaviour sync-reviews always had).
  */
-function upsertAnkiReviewDays(userId: string, byDay: Array<[string, number]>): number {
+function normalizeAnkiReviewDays(byDay: Array<[string, number]>): Array<[string, number]> {
+  const normalized = new Map<string, number>();
+  for (const row of byDay) {
+    const [date, count] = Array.isArray(row) ? row : ['', NaN];
+    if (validateDateKey(date, 'date', { optional: false })) continue;
+    if (validateSafeInteger(count, 'count', { optional: false, min: 0 })) continue;
+    normalized.set(date, count);
+  }
+  return [...normalized];
+}
+
+function upsertAnkiReviewDays(userId: string, byDay: Array<[string, number]>) {
   const language = getActiveLanguageCode(userId);
   const upsert = db.prepare(
     `INSERT INTO dailyStats (userId, date, language, ankiReviews) VALUES (?, ?, ?, ?)
      ON CONFLICT(userId, date, language) DO UPDATE SET ankiReviews = excluded.ankiReviews`,
   );
-  let synced = 0;
-  db.transaction((rows: Array<[string, number]>) => {
-    for (const row of rows) {
-      const [date, count] = Array.isArray(row) ? row : ['', NaN];
-      if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(count)) {
-        upsert.run(userId, date, language, Math.trunc(count as number));
-        synced++;
+  const verdict = reserveDailyStatsRows(
+    userId,
+    byDay.map(([date]) => ({ date, language })),
+    () => {
+      for (const [date, count] of byDay) {
+        upsert.run(userId, date, language, count);
       }
-    }
-  })(byDay);
-  return synced;
+    },
+  );
+  return {
+    synced: verdict.allowed ? byDay.length : 0,
+    verdict,
+  };
 }
 
 // POST /api/anki/sync-reviews — persist Anki's per-day review counts into
@@ -668,11 +941,13 @@ app.post('/sync-reviews', async (c) => {
     });
   }
 
-  const synced = upsertAnkiReviewDays(userId, byDay);
+  const normalized = normalizeAnkiReviewDays(byDay);
+  const result = upsertAnkiReviewDays(userId, normalized);
+  if (!result.verdict.allowed) return planLimitResponse(c, result.verdict);
 
-  const reviewsToday = byDay.find(([d]) => d === getTodayDate(userId))?.[1] ?? 0;
+  const reviewsToday = normalized.find(([d]) => d === getTodayDate(userId))?.[1] ?? 0;
 
-  return c.json({ connected: true, synced, reviewsToday });
+  return c.json({ connected: true, synced: result.synced, reviewsToday });
 });
 
 export default app;

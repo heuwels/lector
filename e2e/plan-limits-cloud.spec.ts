@@ -15,7 +15,7 @@ import path from 'path';
  *     keeps working (no error wall, no redirect).
  */
 
-const CLOUD_API = 'http://localhost:3469';
+const CLOUD_API = `http://localhost:${process.env.E2E_BILLING_API_PORT || '3469'}`;
 const WEBHOOK_SECRET = 'e2e-paddle-webhook-secret';
 const EMAILS = path.join(__dirname, '..', 'tmp', 'e2e-billing-data', 'emails.jsonl');
 
@@ -130,7 +130,7 @@ test.describe.serial('plan limits (#222)', () => {
     await expect
       .poll(async () => {
         const res = await page.request.get(`${CLOUD_API}/api/billing/status`);
-        return ((await res.json()) as { active: boolean }).active;
+        return ((await res.json()) as { subscriptionActive: boolean }).subscriptionActive;
       })
       .toBe(true);
 
@@ -165,7 +165,10 @@ test.describe.serial('plan limits (#222)', () => {
     expect(res.status()).toBe(200);
 
     const ent = await page.request.get(`${CLOUD_API}/api/billing/entitlements`);
-    expect(((await ent.json()) as { usage: { journalWordsPerMonth: number } }).usage.journalWordsPerMonth).toBe(20);
+    expect(
+      ((await ent.json()) as { usage: { journalWordsPerMonth: number } }).usage
+        .journalWordsPerMonth,
+    ).toBe(20);
   });
 
   test('crossing the cap 429s server-side and shows a soft upsell in the UI', async ({ page }) => {
