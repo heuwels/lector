@@ -1,18 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import TurnstileWidget, { turnstileSiteKey } from '@/components/TurnstileWidget';
 import { authClient } from '@/lib/auth-client';
+import { authHref, sanitizeAuthReturnPath } from '@/lib/auth-return';
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const { data: session, isPending } = authClient.useSession();
+  const returnPath = sanitizeAuthReturnPath(params.get('next'));
+  const destination = returnPath ?? '/';
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,8 +35,8 @@ export default function RegisterPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isPending && session) router.replace('/');
-  }, [isPending, session, router]);
+    if (!isPending && session) router.replace(destination);
+  }, [destination, isPending, session, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,7 +49,7 @@ export default function RegisterPage() {
       password,
       // Absolute: the verification link lives on the API origin and redirects
       // here after confirming; a bare '/' would resolve against the API.
-      callbackURL: `${window.location.origin}/`,
+      callbackURL: `${window.location.origin}${destination}`,
       fetchOptions: {
         headers: captchaToken ? { 'x-captcha-response': captchaToken } : {},
       },
@@ -58,10 +70,11 @@ export default function RegisterPage() {
       <div className="space-y-4" data-testid="register-check-email">
         <h2 className="text-lg font-semibold text-foreground">Check your inbox</h2>
         <p className="text-sm text-muted-foreground">
-          We sent a verification link to <span className="font-medium text-foreground">{sentTo}</span>.
-          Click it to activate your account, then sign in.
+          We sent a verification link to{' '}
+          <span className="font-medium text-foreground">{sentTo}</span>. Click it to activate your
+          account, then sign in.
         </p>
-        <Button className="w-full" onClick={() => router.push('/login')}>
+        <Button className="w-full" onClick={() => router.push(authHref('/login', returnPath))}>
           Go to sign in
         </Button>
       </div>
@@ -124,7 +137,10 @@ export default function RegisterPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{' '}
-        <Link href="/login" className="font-medium text-primary hover:underline">
+        <Link
+          href={authHref('/login', returnPath)}
+          className="font-medium text-primary hover:underline"
+        >
           Sign in
         </Link>
       </p>

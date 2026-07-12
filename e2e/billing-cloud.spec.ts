@@ -88,16 +88,27 @@ test.describe.serial('billing gate lifecycle', () => {
     page,
   }) => {
     await useBillingEnv(page);
-    await page.goto('/register');
+
+    // A paid-tier marketing deep link keeps its allowlisted destination
+    // through the unauthenticated bounce and the register/sign-in handoff.
+    await page.goto('/subscribe?plan=plus');
+    await page.waitForURL((url) => url.pathname === '/login');
+    expect(new URL(page.url()).searchParams.get('next')).toBe('/subscribe?plan=plus');
+    await page.getByRole('link', { name: 'Create one' }).click();
+    await page.waitForURL((url) => url.pathname === '/register');
+    expect(new URL(page.url()).searchParams.get('next')).toBe('/subscribe?plan=plus');
+
     await page.getByTestId('register-name').fill('Payer');
     await page.getByTestId('register-email').fill(EMAIL);
     await page.getByTestId('register-password').fill(PASSWORD);
     await page.getByTestId('register-submit').click();
     await expect(page.getByTestId('register-check-email')).toBeVisible();
 
-    // Verify → auto-sign-in → BillingGuard finds no subscription → /subscribe.
+    // Verify → auto-sign-in → the requested paid plan survives on /subscribe.
     await page.goto(lastVerifyLink(EMAIL));
-    await page.waitForURL('**/subscribe');
+    await page.waitForURL(
+      (url) => url.pathname === '/subscribe' && url.searchParams.get('plan') === 'plus',
+    );
     await expect(page.getByTestId('subscribe-panel')).toBeVisible();
     // No prices / CHECKOUT_URL on the e2e server → the graceful fallback.
     await expect(page.getByText(/Checkout isn't available/)).toBeVisible();
@@ -172,8 +183,9 @@ test.describe.serial('billing gate lifecycle', () => {
     expect((await page.request.get(`${CLOUD_API}/api/collections`)).status()).toBe(402);
   });
 
-  test('starting checkout redirects to the site with the transaction id', async ({ page }) => {
+  test('a plan deep link selects that tier and starts its checkout', async ({ page }) => {
     const CHECKOUT = 'https://lector.test/checkout';
+    let requestedPriceId = '';
     // Runtime env: point the browser at the billing API and give it a
     // marketing checkout URL (the real e2e server ships neither prices nor
     // CHECKOUT_URL, so the screen would otherwise show its fallback).
@@ -200,16 +212,22 @@ test.describe.serial('billing gate lifecycle', () => {
           suspended: false,
           exempt: false,
           status: 'none',
-          checkout: { prices: [{ id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' }] },
+          checkout: {
+            prices: [
+              { id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' },
+              { id: 'pri_e2e_plus_monthly', plan: 'plus', cycle: 'month' },
+            ],
+          },
         }),
       }),
     );
-    await page.route(`${CLOUD_API}/api/billing/checkout`, (route) =>
-      route.fulfill({
+    await page.route(`${CLOUD_API}/api/billing/checkout`, async (route) => {
+      requestedPriceId = (route.request().postDataJSON() as { priceId: string }).priceId;
+      await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({ txnId: 'txn_e2e_redirect' }),
-      }),
-    );
+      });
+    });
     // Absorb the cross-site navigation so it resolves without a real network hit.
     await page.route('https://lector.test/**', (route) =>
       route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>checkout</title>' }),
@@ -217,8 +235,13 @@ test.describe.serial('billing gate lifecycle', () => {
 
     await signIn(page);
     await page.waitForURL('**/subscribe');
-    await page.getByTestId('subscribe-price-cloud-month').click();
+    await page.goto('/subscribe?plan=plus');
+    const requestedTier = page.getByTestId('subscribe-tier-plus');
+    await expect(requestedTier).toHaveAttribute('data-requested', 'true');
+    await expect(requestedTier.getByText('Selected')).toBeVisible();
+    await requestedTier.getByTestId('subscribe-price-plus-month').click();
     await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_redirect/);
+    expect(requestedPriceId).toBe('pri_e2e_plus_monthly');
     expect(page.url()).toContain('_ptxn=txn_e2e_redirect');
   });
 });

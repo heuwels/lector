@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import TurnstileWidget, { turnstileSiteKey } from '@/components/TurnstileWidget';
 import { authClient } from '@/lib/auth-client';
+import { authHref, sanitizeAuthReturnPath } from '@/lib/auth-return';
 
 /**
  * Two forms on one route (#218):
@@ -29,6 +30,7 @@ function ResetPasswordInner() {
   const params = useSearchParams();
   const token = params.get('token');
   const linkError = params.get('error');
+  const returnPath = sanitizeAuthReturnPath(params.get('next'));
 
   if (linkError) {
     return (
@@ -37,17 +39,24 @@ function ResetPasswordInner() {
         <p className="text-sm text-muted-foreground">
           That reset link is invalid or has expired. Request a new one below.
         </p>
-        <Button className="w-full" onClick={() => window.location.assign('/reset-password')}>
+        <Button
+          className="w-full"
+          onClick={() => window.location.assign(authHref('/reset-password', returnPath))}
+        >
           Request a new link
         </Button>
       </div>
     );
   }
 
-  return token ? <NewPasswordForm token={token} /> : <RequestResetForm />;
+  return token ? (
+    <NewPasswordForm token={token} returnPath={returnPath} />
+  ) : (
+    <RequestResetForm returnPath={returnPath} />
+  );
 }
 
-function RequestResetForm() {
+function RequestResetForm({ returnPath }: { returnPath: string | null }) {
   const [email, setEmail] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
   const [captchaRound, setCaptchaRound] = useState(0);
@@ -61,7 +70,7 @@ function RequestResetForm() {
 
     const { error } = await authClient.requestPasswordReset({
       email,
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}${authHref('/reset-password', returnPath)}`,
       fetchOptions: {
         headers: captchaToken ? { 'x-captcha-response': captchaToken } : {},
       },
@@ -82,10 +91,10 @@ function RequestResetForm() {
       <div className="space-y-4" data-testid="reset-check-email">
         <h2 className="text-lg font-semibold text-foreground">Check your inbox</h2>
         <p className="text-sm text-muted-foreground">
-          If an account exists for <span className="font-medium text-foreground">{email}</span>,
-          a reset link is on its way.
+          If an account exists for <span className="font-medium text-foreground">{email}</span>, a
+          reset link is on its way.
         </p>
-        <Link href="/login" className="block">
+        <Link href={authHref('/login', returnPath)} className="block">
           <Button className="w-full">Back to sign in</Button>
         </Link>
       </div>
@@ -124,7 +133,10 @@ function RequestResetForm() {
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
-        <Link href="/login" className="font-medium text-primary hover:underline">
+        <Link
+          href={authHref('/login', returnPath)}
+          className="font-medium text-primary hover:underline"
+        >
           Back to sign in
         </Link>
       </p>
@@ -132,7 +144,7 @@ function RequestResetForm() {
   );
 }
 
-function NewPasswordForm({ token }: { token: string }) {
+function NewPasswordForm({ token, returnPath }: { token: string; returnPath: string | null }) {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -150,7 +162,7 @@ function NewPasswordForm({ token }: { token: string }) {
       return;
     }
     toast.success('Password updated — sign in with the new one.');
-    router.replace('/login');
+    router.replace(authHref('/login', returnPath));
   }
 
   return (
