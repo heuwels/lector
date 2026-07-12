@@ -71,6 +71,8 @@ Design notes:
    | `openai-compat-word-gloss-model`     | String       | `OPENAI_COMPAT_WORD_GLOSS_MODEL` — production Free requires `google/gemini-2.5-flash-lite`                                                                                                                                                                           |
    | `openai-compat-simple-phrase-model`  | String       | `OPENAI_COMPAT_SIMPLE_PHRASE_MODEL` — production Free requires `google/gemini-2.5-flash-lite`                                                                                                                                                                        |
    | `openai-compat-simple-context-model` | String       | `OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL` — production Free requires `google/gemini-2.5-flash-lite`                                                                                                                                                                       |
+   | `classify-llm-url`                   | String       | `CLASSIFY_LLM_URL` — dedicated classifier endpoint required when production Free runs `CLASSIFY_WORKER=1`                                                                                                                                                            |
+   | `classify-llm-model`                 | String       | `CLASSIFY_LLM_MODEL` — dedicated classifier model required when production Free runs `CLASSIFY_WORKER=1`; the deployment-scoped `openrouter-api-key` is reused as `CLASSIFY_LLM_API_KEY`                                                                             |
    | `resend-api-key`                     | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — the sending domain must be verified at resend.com/domains or sends 403)                                                                                                                                  |
    | `better-auth-secret`                 | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — **required**: cloud proper refuses to boot without it. Generate: `openssl rand -base64 32`)                                                                                                                            |
    | `turnstile-site-key`                 | String       | `TURNSTILE_SITE_KEY` (Cloudflare Turnstile widget on the auth forms, #218 — public key, rides `window.__ENV__`)                                                                                                                                                      |
@@ -116,6 +118,10 @@ Design notes:
    aws ssm put-parameter --name /lector/canary/openai-compat-simple-phrase-model \
      --type String --value 'google/gemini-2.5-flash-lite'
    aws ssm put-parameter --name /lector/canary/openai-compat-simple-context-model \
+     --type String --value 'google/gemini-2.5-flash-lite'
+   aws ssm put-parameter --name /lector/canary/classify-llm-url \
+     --type String --value 'https://openrouter.ai/api'
+   aws ssm put-parameter --name /lector/canary/classify-llm-model \
      --type String --value 'google/gemini-2.5-flash-lite'
    # Per-user BYOK credential encryption (generate once per deployment and
    # keep it in SSM; never reuse the same key between staging and production):
