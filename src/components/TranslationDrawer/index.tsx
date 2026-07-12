@@ -30,6 +30,7 @@ export default function TranslationDrawer({
   isEnriching,
   error,
   existingEntry,
+  onboardingSaveProgress,
   onClose,
   onSpeak,
   onSetLevel,
@@ -448,6 +449,35 @@ export default function TranslationDrawer({
       {/* Footer — action buttons. */}
       {(onSetLevel || onMarkKnown || onIgnore || onRetranslate || onAddToAnki || onAddCloze) && (
         <div className="flex-shrink-0 space-y-2 border-t border-border bg-muted/50 px-4 py-3">
+          {onboardingSaveProgress && (
+            <div
+              className="rounded-xl border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-3"
+              data-testid="onboarding-drawer-progress"
+              role="status"
+            >
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="font-semibold text-foreground">
+                  {onboardingSaveProgress.currentWordSaved
+                    ? 'Added to your first review'
+                    : 'Choose level 1–4 to add this word'}
+                </span>
+                <span className="shrink-0 font-bold text-[var(--gold-strong)]">
+                  {Math.min(onboardingSaveProgress.savedCount, onboardingSaveProgress.target)}/
+                  {onboardingSaveProgress.target} ready
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-1.5" aria-hidden="true">
+                {Array.from({ length: onboardingSaveProgress.target }, (_, index) => (
+                  <span
+                    key={index}
+                    className={`h-1.5 rounded-full transition-colors duration-300 ${
+                      index < onboardingSaveProgress.savedCount ? 'bg-primary' : 'bg-border'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           {(onSetLevel || onMarkKnown || onIgnore) && (
             <div className="flex flex-wrap items-center gap-2">
               {onSetLevel && (

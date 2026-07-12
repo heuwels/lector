@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import VocabList from '@/components/VocabList';
 import {
   type VocabEntry,
@@ -29,10 +30,15 @@ import VocabDetailModal from './components/VocabDetailModal';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
 import { useActiveLanguage } from '@/utils/hooks';
+import OnboardingTip from '@/components/OnboardingTip';
+import { finishPostOnboardingTour, usePostOnboardingTour } from '@/lib/post-onboarding-tour';
 
 export default function VocabPage() {
+  const router = useRouter();
   const activeLang = useActiveLanguage();
   const ankiTransport = useAnkiTransport();
+  const postOnboardingTour = usePostOnboardingTour();
+  const showAnkiOnboardingTip = postOnboardingTour?.stage === 'anki';
   const [entries, setEntries] = useState<VocabEntry[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [stats, setStats] = useState<{
@@ -71,18 +77,23 @@ export default function VocabPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [vocabData, collectionsData] = await Promise.all([
-        getAllVocab(),
-        getAllCollections(),
-      ]);
+      const [vocabData, collectionsData] = await Promise.all([getAllVocab(), getAllCollections()]);
       setEntries(vocabData);
       setCollections(collectionsData);
       // Derive the state breakdown from the list we already fetched — this was
       // a second identical full-list fetch via getVocabStats (#240).
       const byState: Record<WordState, number> = {
-        new: 0, level1: 0, level2: 0, level3: 0, level4: 0, known: 0, ignored: 0,
+        new: 0,
+        level1: 0,
+        level2: 0,
+        level3: 0,
+        level4: 0,
+        known: 0,
+        ignored: 0,
       };
-      vocabData.forEach((v) => { byState[v.state]++; });
+      vocabData.forEach((v) => {
+        byState[v.state]++;
+      });
       setStats({ total: vocabData.length, byState });
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -188,9 +199,7 @@ export default function VocabPage() {
       // then).
       if (ankiTransport === 'addon') {
         try {
-          const result = await queueForAnki(
-            entriesToExport.map((e) => ({ id: e.id, cardType })),
-          );
+          const result = await queueForAnki(entriesToExport.map((e) => ({ id: e.id, cardType })));
           if (result.failed.length > 0) {
             toast.error(
               `Queued ${result.queued} card${result.queued === 1 ? '' : 's'}, ${result.failed.length} failed (${result.failed[0].error})`,
@@ -288,9 +297,7 @@ export default function VocabPage() {
   //   Mature (type 2, ≥ 21 d)   → known
   const handleSyncWithAnki = useCallback(async () => {
     if (!ankiConnected) {
-      toast.error('Anki is not connected. Make sure Anki is running with AnkiConnect.', {
-        duration: 5000,
-      });
+      router.push('/settings#anki-integration');
       return;
     }
 
@@ -338,20 +345,43 @@ export default function VocabPage() {
       console.error('Failed to sync with Anki:', error);
       toast.error('Failed to sync with Anki', { duration: 5000 });
     }
-  }, [entries, ankiConnected]);
+  }, [entries, ankiConnected, router]);
+
+  const openAnkiSetup = useCallback(() => {
+    finishPostOnboardingTour();
+    router.push('/settings#anki-integration');
+  }, [router]);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <PageHeader title="Vocabulary">
         <div className="flex items-center gap-2">
           {ankiTransport === 'addon' ? (
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] px-3 py-1 text-sm font-medium text-primary"
-              data-testid="anki-addon-pill"
-            >
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              Anki syncs via add-on
-            </span>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={openAnkiSetup}
+                className={`inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] px-3 py-1 text-sm font-medium text-primary transition-shadow ${
+                  showAnkiOnboardingTip
+                    ? 'relative z-[60] ring-2 ring-[var(--gold-strong)] ring-offset-2 ring-offset-background'
+                    : 'hover:ring-2 hover:ring-primary/30'
+                }`}
+                data-testid="anki-addon-pill"
+                title="Open Anki setup"
+              >
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                Anki syncs via add-on
+              </button>
+              {showAnkiOnboardingTip && (
+                <OnboardingTip
+                  title="Anki setup"
+                  body="Click here if you need help setting up your Anki."
+                  onDismiss={finishPostOnboardingTour}
+                  testId="post-onboarding-anki-tip"
+                  className="absolute top-[calc(100%+0.75rem)] right-0"
+                />
+              )}
+            </div>
           ) : ankiConnected === null ? (
             <span className="text-sm text-muted-foreground">Checking Anki connection...</span>
           ) : ankiConnected ? (
@@ -381,6 +411,8 @@ export default function VocabPage() {
         // Pull-sync is the browser→AnkiConnect path; on the addon transport
         // review state pushes itself, so the button would be a dead end.
         onSyncWithAnki={ankiTransport === 'addon' ? undefined : handleSyncWithAnki}
+        showAnkiOnboardingTip={showAnkiOnboardingTip && ankiTransport !== 'addon'}
+        onAnkiOnboardingTipDone={finishPostOnboardingTour}
         isLoading={isLoading}
       />
       {selectedEntry && (

@@ -274,6 +274,21 @@ describe('buildMultipleChoiceOptions', () => {
       true,
     );
   });
+
+  it('fills a one-card guided round with words from its starter text', () => {
+    const pool = [makeSentence('casa')];
+    const contextWords = ['La', 'casa', 'tiene', 'una', 'puerta', 'roja'];
+    const result = buildMultipleChoiceOptions('casa', pool, contextWords);
+
+    expect(result.options).toHaveLength(4);
+    expect(result.options[result.correctIndex]).toBe('casa');
+    expect(result.options.filter((option) => option !== 'casa')).toHaveLength(3);
+    expect(
+      result.options.every((option) =>
+        contextWords.some((word) => normalize(word) === normalize(option)),
+      ),
+    ).toBe(true);
+  });
 });
 
 describe('shuffle', () => {

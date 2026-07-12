@@ -40,6 +40,7 @@ import { useActiveLanguage } from '@/utils/hooks';
 import {
   encounteredOnboardingTerms,
   getOnboardingSnapshot,
+  hasOnboardingPhraseLookup,
   recordLearnerEvent,
   savedOnboardingWords,
   updateOnboardingProgress,
@@ -179,7 +180,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
 
   const trackOnboardingVocab = useCallback(
     async (entry: VocabEntry, state: VocabEntry['state']) => {
-      if (!onboardingActive) return;
+      if (!onboardingActive) return null;
 
       const shared = {
         language: activeLang.code,
@@ -214,10 +215,11 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
             });
           }
         }
-        await refreshOnboarding();
+        return await refreshOnboarding();
       } catch {
         // Learning-state persistence already succeeded. Onboarding telemetry
         // and coaching are deliberately non-blocking around the core reader.
+        return null;
       }
     },
     [activeLang.code, lessonId, onboardingActive, refreshOnboarding],
@@ -688,13 +690,28 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       }
 
       persistAcceptedTranslation();
-      void trackOnboardingVocab(trackedEntry, state);
+      const savedBefore = savedOnboardingWords(onboarding).length;
+      const nextOnboarding = await trackOnboardingVocab(trackedEntry, state);
       setReaderRefreshTrigger((prev) => prev + 1);
+
+      if (onboardingActive && trackedEntry.type === 'word' && nextOnboarding) {
+        const savedAfter = savedOnboardingWords(nextOnboarding).length;
+        if (savedAfter > savedBefore) {
+          toast.success(
+            `“${wordPanel.word}” added — ${Math.min(savedAfter, 3)} of 3 review words ready`,
+            { id: `onboarding-saved-${trackedEntry.id}`, duration: 3500 },
+          );
+          closeWordPanel();
+        }
+      }
     },
     [
       wordPanel,
       lessonId,
       activeLang,
+      onboarding,
+      onboardingActive,
+      closeWordPanel,
       resolveExistingEntry,
       persistAcceptedTranslation,
       trackOnboardingVocab,
@@ -1026,10 +1043,21 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     !wordPanel.isLoading &&
     !wordPanel.isStreamingGloss;
 
-  const onboardingSavedCount = savedOnboardingWords(onboarding).length;
+  const onboardingSavedWords = savedOnboardingWords(onboarding);
+  const onboardingSavedCount = onboardingSavedWords.length;
   const onboardingEncounteredCount = encounteredOnboardingTerms(onboarding).length;
+  const onboardingPhraseLookedUp = hasOnboardingPhraseLookup(onboarding);
   const onboardingCoachStage =
-    onboardingSavedCount >= 3 ? 'practice' : onboardingEncounteredCount > 0 ? 'save' : 'lookup';
+    onboardingSavedCount >= 3
+      ? 'practice'
+      : onboardingSavedCount > 0 && !onboardingPhraseLookedUp
+        ? 'phrase'
+        : onboardingEncounteredCount > 0
+          ? 'save'
+          : 'lookup';
+  const onboardingCurrentWordSaved = onboardingSavedWords.some(
+    (savedWord) => savedWord.id === wordPanel.existingEntry?.id,
+  );
 
   return (
     <div className="flex h-dvh flex-col overflow-x-hidden bg-card print:block print:h-auto print:overflow-visible">
@@ -1066,6 +1094,15 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         isEnriching={wordPanel.isEnriching}
         error={wordPanel.error}
         existingEntry={wordPanel.existingEntry}
+        onboardingSaveProgress={
+          onboardingActive && !wordPanel.word.includes(' ')
+            ? {
+                savedCount: onboardingSavedCount,
+                target: 3,
+                currentWordSaved: onboardingCurrentWordSaved,
+              }
+            : undefined
+        }
         onClose={closeWordPanel}
         onSpeak={(text) => speak(text.split(/\s+/).slice(0, 15).join(' '))}
         onSetLevel={setWordLevel}
@@ -1082,6 +1119,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         <OnboardingCoach
           stage={onboardingCoachStage}
           savedCount={onboardingSavedCount}
+          savedWords={onboardingSavedWords.map((word) => word.text)}
           onStartPractice={
             onboardingCoachStage === 'practice' ? startOnboardingPractice : undefined
           }

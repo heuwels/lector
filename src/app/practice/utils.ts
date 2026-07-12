@@ -73,7 +73,11 @@ export function calculatePoints(
 }
 
 // Generate distractors from the queue/pool of cloze words
-export function generateDistractors(correctWord: string, pool: ClozeSentence[]): string[] {
+export function generateDistractors(
+  correctWord: string,
+  pool: ClozeSentence[],
+  contextWords: string[] = [],
+): string[] {
   const correctNorm = normalize(correctWord);
   // Grapheme count, not code units (#289): combining marks and surrogate
   // pairs would otherwise skew the length-similarity sort.
@@ -88,6 +92,17 @@ export function generateDistractors(correctWord: string, pool: ClozeSentence[]):
     if (!seen.has(norm) && norm.length > 0) {
       seen.add(norm);
       candidates.push(s.clozeWord);
+    }
+  }
+
+  // A very small guided round eventually shrinks to one remaining card. Its
+  // source-text words keep multiple choice meaningful without introducing
+  // generic fallback words from the wrong language.
+  for (const word of contextWords) {
+    const norm = normalize(word);
+    if (!seen.has(norm) && norm.length > 0) {
+      seen.add(norm);
+      candidates.push(word);
     }
   }
 
@@ -118,15 +133,16 @@ export function shuffle<T>(arr: T[]): T[] {
   return result;
 }
 
-// Build a multiple-choice set exclusively from the current practice pool.
-// Small rounds intentionally show fewer than four choices rather than padding
-// with words from an unrelated language.
+// Build a multiple-choice set from the current practice pool, optionally
+// supplemented by words from the source text. Small normal rounds still show
+// fewer choices; guided onboarding supplies its own same-language text words.
 export function buildMultipleChoiceOptions(
   correctWord: string,
   pool: ClozeSentence[],
+  contextWords: string[] = [],
 ): { options: string[]; correctIndex: number } {
   const cleanCorrect = splitTrailingPunctuation(correctWord)[0];
-  const cleanDistractors = generateDistractors(correctWord, pool).map(
+  const cleanDistractors = generateDistractors(correctWord, pool, contextWords).map(
     (distractor) => splitTrailingPunctuation(distractor)[0],
   );
   const options = shuffle([cleanCorrect, ...cleanDistractors]);
