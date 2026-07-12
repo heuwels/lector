@@ -20,6 +20,7 @@ const languageCards: { code: LanguageCode; flag: string; native: string; name: s
   { code: 'de', flag: LANGUAGES.de.flag, native: LANGUAGES.de.native, name: LANGUAGES.de.name },
   { code: 'es', flag: LANGUAGES.es.flag, native: LANGUAGES.es.native, name: LANGUAGES.es.name },
   { code: 'fr', flag: LANGUAGES.fr.flag, native: LANGUAGES.fr.native, name: LANGUAGES.fr.name },
+  { code: 'it', flag: LANGUAGES.it.flag, native: LANGUAGES.it.native, name: LANGUAGES.it.name },
   { code: 'nl', flag: LANGUAGES.nl.flag, native: LANGUAGES.nl.native, name: LANGUAGES.nl.name },
 ];
 

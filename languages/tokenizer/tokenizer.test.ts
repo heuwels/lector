@@ -53,6 +53,11 @@ const CORPUS: Record<LanguageCode, string[]> = {
     "L'eau est belle aujourd'hui, n'est-ce pas ?",
     "C'était l'été où j'ai vu «le grand œuvre» à Noël.",
   ],
+  it: [
+    'Ciao! Come stai?',
+    "L'acqua è fresca e un'amica beve il caffè.",
+    "Dov'è l'università? È nell'edificio più antico.",
+  ],
   nl: [
     'Hallo, hoe gaat het met je?',
     "'t Is zo'n mooie dag, foto's van m'n huis.",
@@ -146,6 +151,16 @@ describe('tokenize — byte-identical with the legacy reader for shipped languag
     expect(tokenizeWords(withNbHyphen, de).map((t) => t.text)).toEqual([withNbHyphen]);
   });
 
+  it('splits Italian elisions into clitic and content tokens', () => {
+    expect(tokenizeWords("L'acqua e un'amica", LANGUAGES.it).map((token) => token.text)).toEqual([
+      'L',
+      'acqua',
+      'e',
+      'un',
+      'amica',
+    ]);
+  });
+
   it('treats en/em dashes as boundaries, exactly like legacy', () => {
     const de = LANGUAGES.de;
     const enDash = 'Paris' + String.fromCharCode(0x2013) + 'Dakar';
@@ -174,7 +189,12 @@ const grc = synth({ bcp47: 'grc', sentenceTerminators: '.;·' });
 const ar = synth({ bcp47: 'ar', direction: 'rtl', hasCase: false, sentenceTerminators: '؟.!' });
 const hbo = synth({ bcp47: 'he', direction: 'rtl', hasCase: false });
 const ko = synth({ bcp47: 'ko', kind: 'hangul', hasCase: false });
-const zh = synth({ bcp47: 'zh-Hans', kind: 'cjk-unspaced', hasCase: false, sentenceTerminators: '。．！？!?' });
+const zh = synth({
+  bcp47: 'zh-Hans',
+  kind: 'cjk-unspaced',
+  hasCase: false,
+  sentenceTerminators: '。．！？!?',
+});
 
 describe('multi-script goldens (synthetic packs — no per-language code)', () => {
   it('tokenizes Russian, including hyphenated compounds', () => {
@@ -241,9 +261,7 @@ describe('multi-script goldens (synthetic packs — no per-language code)', () =
 describe('splitSentences', () => {
   it('matches the legacy reader split for default terminators', () => {
     const text = 'Die kat slaap. Die hond blaf! Waar is hulle? Hier.';
-    expect(splitSentences(text, LANGUAGES.af)).toEqual(
-      text.split(/(?<=[.!?])\s+/),
-    );
+    expect(splitSentences(text, LANGUAGES.af)).toEqual(text.split(/(?<=[.!?])\s+/));
   });
 
   it('splits after abbreviation dots followed by space, exactly like legacy', () => {
