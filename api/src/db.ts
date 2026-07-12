@@ -204,7 +204,6 @@ function getDb(): Database {
       updatedAt TEXT NOT NULL,
       PRIMARY KEY (userId, word, language)
     );
-    CREATE INDEX IF NOT EXISTS idx_cached_entries_user_language ON cached_entries(userId, language);
 
     CREATE TABLE IF NOT EXISTS cached_senses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,8 +216,6 @@ function getDb(): Database {
       FOREIGN KEY (userId, word, language)
         REFERENCES cached_entries(userId, word, language) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_cached_senses_user_word
-      ON cached_senses(userId, word, language);
 
     CREATE TABLE IF NOT EXISTS cached_related_forms (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -230,8 +227,6 @@ function getDb(): Database {
       FOREIGN KEY (userId, word, language)
         REFERENCES cached_entries(userId, word, language) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_cached_related_user_word
-      ON cached_related_forms(userId, word, language);
 
     -- Paddle billing mirror (#224). Written ONLY by the signature-verified
     -- webhook (routes/billing.ts); read by the billing gate (lib/billing.ts).
@@ -1202,6 +1197,17 @@ function migrateCachedEntriesCompoundKey(database: Database) {
  * implicit self-hosted `local` tenant. This runs after the old word/language
  * compound-key migration and is intentionally idempotent.
  */
+function ensureAcceptedCacheUserIndexes(database: Database) {
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_cached_entries_user_language
+      ON cached_entries(userId, language);
+    CREATE INDEX IF NOT EXISTS idx_cached_senses_user_word
+      ON cached_senses(userId, word, language);
+    CREATE INDEX IF NOT EXISTS idx_cached_related_user_word
+      ON cached_related_forms(userId, word, language);
+  `);
+}
+
 export function migrateAcceptedCacheUserKey(database: Database) {
   const columns = database.prepare('PRAGMA table_info(cached_entries)').all() as Array<{
     name: string;
@@ -1213,7 +1219,10 @@ export function migrateAcceptedCacheUserKey(database: Database) {
     .filter((column) => column.pk > 0)
     .sort((a, b) => a.pk - b.pk)
     .map((column) => column.name);
-  if (primaryKey.join(',') === 'userId,word,language') return;
+  if (primaryKey.join(',') === 'userId,word,language') {
+    ensureAcceptedCacheUserIndexes(database);
+    return;
+  }
 
   database.transaction(() => {
     database.exec(`
@@ -1268,15 +1277,10 @@ export function migrateAcceptedCacheUserKey(database: Database) {
       ALTER TABLE cached_entries_tenant_new RENAME TO cached_entries;
       ALTER TABLE cached_senses_tenant_new RENAME TO cached_senses;
       ALTER TABLE cached_related_forms_tenant_new RENAME TO cached_related_forms;
-
-      CREATE INDEX idx_cached_entries_user_language
-        ON cached_entries(userId, language);
-      CREATE INDEX idx_cached_senses_user_word
-        ON cached_senses(userId, word, language);
-      CREATE INDEX idx_cached_related_user_word
-        ON cached_related_forms(userId, word, language);
     `);
   })();
+
+  ensureAcceptedCacheUserIndexes(database);
 }
 
 function migrateVocabForeignKey(database: Database) {
