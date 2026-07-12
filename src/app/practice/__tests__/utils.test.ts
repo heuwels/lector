@@ -51,6 +51,11 @@ describe('normalize', () => {
     expect(normalize('Coördinatie')).toBe('coördinatie');
     expect(normalize('reëel!')).toBe('reëel');
   });
+
+  it('keeps Italian accents and strips surrounding punctuation', () => {
+    expect(normalize('Caffè!')).toBe('caffè');
+    expect(normalize('«Perché?»')).toBe('perché');
+  });
 });
 
 describe('checkAnswer', () => {
@@ -99,6 +104,13 @@ describe('checkAnswer', () => {
   it('distinguishes Dutch diacritics (een vs één, e vs ë)', () => {
     expect(checkAnswer('een', 'één')).toBe(false);
     expect(checkAnswer('reeel', 'reëel')).toBe(false);
+  });
+
+  it('matches Italian words while distinguishing grave and acute accents', () => {
+    expect(checkAnswer('caffè', 'Caffè.')).toBe(true);
+    expect(checkAnswer('perché', 'Perché?')).toBe(true);
+    expect(checkAnswer('caffe', 'caffè')).toBe(false);
+    expect(checkAnswer('perchè', 'perché')).toBe(false);
   });
 });
 
