@@ -37,17 +37,18 @@ import {
 const TIERS: Array<{
   plan: BillingPrice['plan'];
   name: string;
-  price: string;
+  monthlyPrice: string;
+  annualPrice: string;
   badge?: string;
   tagline: string;
   features: string[];
-  annualNote: string;
   featured: boolean;
 }> = [
   {
     plan: 'cloud',
     name: 'Cloud',
-    price: '$5',
+    monthlyPrice: '$5',
+    annualPrice: '$50',
     badge: 'Beta',
     tagline: "We host it for you — no Docker, no setup. For when you'd rather just read.",
     features: [
@@ -58,13 +59,13 @@ const TIERS: Array<{
       'Automatic backups and updates',
       'Email support',
     ],
-    annualNote: 'or $50/year — two months free',
     featured: true,
   },
   {
     plan: 'plus',
     name: 'Cloud Plus',
-    price: '$12',
+    monthlyPrice: '$12',
+    annualPrice: '$120',
     tagline: 'For heavy readers who want the whole thing handled.',
     features: [
       'Everything in Cloud',
@@ -72,7 +73,6 @@ const TIERS: Array<{
       'Priority support',
       'Early access to new language packs',
     ],
-    annualNote: 'or ~$120/year — two months free',
     featured: false,
   },
 ];
@@ -319,8 +319,25 @@ export default function SubscribePage() {
             (p) => p.plan === tier.plan && p.cycle === 'year',
           );
           if (!monthly && !annual) return null;
-          const primary = monthly ?? annual!;
           const requested = tier.plan === requestedPlan;
+          // Annual is the recommended/default action when both cycles exist:
+          // pay for ten months and get twelve. An explicit marketing plan
+          // intent still selects/sorts the requested tier; it does not make
+          // monthly billing the hidden default inside that tier.
+          const primary = annual ?? monthly!;
+          const secondary = primary.cycle === 'year' ? monthly : annual;
+          const primaryCopy =
+            primary.cycle === 'year'
+              ? requested
+                ? `Continue to checkout — ${tier.annualPrice}/year`
+                : `Subscribe annually — ${tier.annualPrice}/year`
+              : requested
+                ? `Continue to checkout — ${tier.monthlyPrice}/month`
+                : `Subscribe — ${tier.monthlyPrice}/month`;
+          const secondaryCopy =
+            secondary?.cycle === 'month'
+              ? `or ${tier.monthlyPrice}/month`
+              : `or ${tier.annualPrice}/year — two months free`;
           return (
             <div
               key={tier.plan}
@@ -346,9 +363,14 @@ export default function SubscribePage() {
                 </span>
               </div>
               <p className="mt-1">
-                <span className="text-2xl font-bold text-foreground">{tier.price}</span>
+                <span className="text-2xl font-bold text-foreground">{tier.monthlyPrice}</span>
                 <span className="text-sm text-muted-foreground">/month</span>
               </p>
+              {annual && (
+                <p className="mt-1 text-xs font-medium text-primary">
+                  {tier.annualPrice}/year — two months free
+                </p>
+              )}
               <p className="mt-1 text-xs text-muted-foreground">{tier.tagline}</p>
               <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
                 {tier.features.map((feature) => (
@@ -377,21 +399,19 @@ export default function SubscribePage() {
                     />
                     Opening checkout…
                   </>
-                ) : requested ? (
-                  `Continue to checkout — ${tier.price}/month`
                 ) : (
-                  `Subscribe — ${tier.price}/month`
+                  primaryCopy
                 )}
               </Button>
-              {annual && monthly && (
+              {secondary && (
                 <button
                   type="button"
                   className="mt-2 w-full cursor-pointer text-center text-xs font-medium text-primary hover:underline disabled:cursor-default disabled:opacity-70"
                   disabled={opening !== null}
-                  onClick={() => openCheckout(annual)}
-                  data-testid={`subscribe-price-${annual.plan}-${annual.cycle}`}
+                  onClick={() => openCheckout(secondary)}
+                  data-testid={`subscribe-price-${secondary.plan}-${secondary.cycle}`}
                 >
-                  {opening === annual.id ? 'Opening checkout…' : tier.annualNote}
+                  {opening === secondary.id ? 'Opening checkout…' : secondaryCopy}
                 </button>
               )}
             </div>

@@ -1,5 +1,5 @@
 import '../test-guard';
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { Hono } from 'hono';
 import { createHmac } from 'crypto';
 import { db } from '../db';
@@ -20,6 +20,7 @@ import {
 import { makeBillingRoutes } from '../routes/billing';
 import { makeSessionMiddleware } from './session';
 import type { AuthEngine } from './accounts';
+import type { PaddleBillingOperations } from './paddle-billing';
 
 const SECRET = 'pdl_ntfset_test_secret';
 const NOW = 1_700_000_000;
@@ -28,6 +29,10 @@ function resetBillingTables() {
   db.prepare('DELETE FROM billing_subscriptions').run();
   db.prepare('DELETE FROM billing_customers').run();
 }
+
+// These tables are process-global in the Bun suite. Leave no paid mirror row
+// behind for later Free-tier route tests that share the same test database.
+afterEach(resetBillingTables);
 
 function sign(body: string, ts: number = NOW, secret: string = SECRET): string {
   const h1 = createHmac('sha256', secret).update(`${ts}:${body}`).digest('hex');
@@ -523,15 +528,48 @@ describe('billing routes', () => {
     exemptEmails: new Set<string>(),
   };
 
+  const managedCfg: typeof billingConfig = {
+    ...enforcedCfg,
+    prices: [
+      { id: 'pri_cloud_month', plan: 'cloud', cycle: 'month' },
+      { id: 'pri_cloud_year', plan: 'cloud', cycle: 'year' },
+      { id: 'pri_plus_month', plan: 'plus', cycle: 'month' },
+      { id: 'pri_plus_year', plan: 'plus', cycle: 'year' },
+    ],
+  };
+
+  function operations(overrides: Partial<PaddleBillingOperations> = {}): PaddleBillingOperations {
+    return {
+      createPortalSession: async () => {
+        throw new Error('unexpected portal call');
+      },
+      previewSubscriptionChange: async () => {
+        throw new Error('unexpected preview call');
+      },
+      applySubscriptionChange: async () => {
+        throw new Error('unexpected change call');
+      },
+      ...overrides,
+    };
+  }
+
   function buildApp(
     cfg: typeof billingConfig,
     email: string | null = 'local@example.com',
     createTransaction?: CreateTransaction,
+    billingOperations?: PaddleBillingOperations,
   ) {
     const app = new Hono();
     app.route(
       '/api/billing',
-      makeBillingRoutes(cfg, () => email, createTransaction),
+      makeBillingRoutes(
+        cfg,
+        () => email,
+        createTransaction,
+        undefined,
+        undefined,
+        billingOperations,
+      ),
     );
     return app;
   }
@@ -557,6 +595,7 @@ describe('billing routes', () => {
       status: 'none',
       exempt: false,
       checkout: { prices: [] },
+      management: { customerPortal: false, subscription: null },
     });
   });
 
@@ -589,6 +628,7 @@ describe('billing routes', () => {
     expect(body.checkout).toEqual({
       prices: [{ id: 'pri_monthly', plan: 'cloud', cycle: 'month' }],
     });
+    expect(body.management).toEqual({ customerPortal: false, subscription: null });
   });
 
   test('status flips subscriptionActive once a webhook lands for the account email', async () => {
@@ -605,6 +645,10 @@ describe('billing routes', () => {
     expect(body.accessAllowed).toBe(true);
     expect(body.subscriptionActive).toBe(true);
     expect(body.status).toBe('active');
+    expect(body.management).toEqual({
+      customerPortal: true,
+      subscription: { plan: 'cloud', cycle: 'month', canChange: true },
+    });
   });
 
   test('status honours exempt emails', async () => {
@@ -772,6 +816,219 @@ describe('billing routes', () => {
       headers: { 'Content-Type': 'application/json' },
     });
     expect(res.status).toBe(404);
+  });
+
+  test('portal session uses only mirrored customer and subscription ids', async () => {
+    applyPaddleEvent(customerEvent({ id: 'ctm_portal', email: 'local@example.com' }));
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_portal',
+        customerId: 'ctm_portal',
+        lectorUserId: 'local',
+        priceId: 'pri_cloud_month',
+      }),
+    );
+    const calls: Array<{ customerId: string; subscriptionIds: readonly string[] }> = [];
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        createPortalSession: async (args) => {
+          calls.push(args);
+          return 'https://customer-portal.paddle.com/session?token=secret';
+        },
+      }),
+    );
+
+    const response = await app.request('/api/billing/portal', { method: 'POST' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(await response.json()).toEqual({
+      url: 'https://customer-portal.paddle.com/session?token=secret',
+    });
+    expect(calls).toEqual([{ customerId: 'ctm_portal', subscriptionIds: ['sub_portal'] }]);
+  });
+
+  test('portal and plan changes reject accounts without one manageable subscription', async () => {
+    let called = false;
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        createPortalSession: async () => {
+          called = true;
+          return 'https://customer-portal.paddle.com/session';
+        },
+        previewSubscriptionChange: async () => {
+          called = true;
+          return { immediateCharge: null, nextCharge: null, recurringCharge: null };
+        },
+      }),
+    );
+    expect((await app.request('/api/billing/portal', { method: 'POST' })).status).toBe(409);
+    const preview = await app.request('/api/billing/change/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_plus_month' }),
+    });
+    expect(preview.status).toBe(409);
+    expect(await preview.json()).toEqual({ error: 'subscription_not_active' });
+    expect(called).toBe(false);
+  });
+
+  test('previews an allowlisted upgrade with Paddle-computed totals', async () => {
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_change',
+        customerId: 'ctm_change',
+        lectorUserId: 'local',
+        priceId: 'pri_cloud_month',
+      }),
+    );
+    const calls: Parameters<PaddleBillingOperations['previewSubscriptionChange']>[0][] = [];
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        previewSubscriptionChange: async (args) => {
+          calls.push(args);
+          return {
+            immediateCharge: { amount: '325', currencyCode: 'USD' },
+            nextCharge: null,
+            recurringCharge: { amount: '1200', currencyCode: 'USD' },
+          };
+        },
+      }),
+    );
+    const response = await app.request('/api/billing/change/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_plus_month' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      target: { id: 'pri_plus_month', plan: 'plus', cycle: 'month' },
+      prorationBillingMode: 'prorated_immediately',
+      immediateCharge: { amount: '325', currencyCode: 'USD' },
+      nextCharge: null,
+      recurringCharge: { amount: '1200', currencyCode: 'USD' },
+    });
+    expect(calls).toEqual([
+      {
+        subscriptionId: 'sub_change',
+        targetPriceId: 'pri_plus_month',
+        managedPriceIds: managedCfg.prices.map((price) => price.id),
+        prorationBillingMode: 'prorated_immediately',
+      },
+    ]);
+  });
+
+  test('same-cycle downgrade defers proration and past-due changes stay in the portal', async () => {
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_change',
+        status: 'active',
+        lectorUserId: 'local',
+        priceId: 'pri_plus_month',
+      }),
+    );
+    let mode = '';
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        previewSubscriptionChange: async (args) => {
+          mode = args.prorationBillingMode;
+          return { immediateCharge: null, nextCharge: null, recurringCharge: null };
+        },
+      }),
+    );
+    const downgrade = await app.request('/api/billing/change/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_cloud_month' }),
+    });
+    expect(downgrade.status).toBe(200);
+    expect(mode).toBe('prorated_next_billing_period');
+
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_change',
+        status: 'past_due',
+        lectorUserId: 'local',
+        priceId: 'pri_plus_month',
+        occurredAt: '2026-07-08T00:00:01Z',
+      }),
+    );
+    const pastDue = await app.request('/api/billing/change/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_cloud_month' }),
+    });
+    expect(pastDue.status).toBe(409);
+    expect(await pastDue.json()).toEqual({ error: 'subscription_past_due' });
+  });
+
+  test('applies a confirmed target but waits for the webhook to change local entitlement', async () => {
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_apply',
+        customerId: 'ctm_apply',
+        lectorUserId: 'local',
+        priceId: 'pri_cloud_month',
+      }),
+    );
+    const calls: Parameters<PaddleBillingOperations['applySubscriptionChange']>[0][] = [];
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        applySubscriptionChange: async (args) => {
+          calls.push(args);
+        },
+      }),
+    );
+
+    const response = await app.request('/api/billing/change', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_plus_year' }),
+    });
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      accepted: true,
+      target: { id: 'pri_plus_year', plan: 'plus', cycle: 'year' },
+    });
+    expect(calls[0]).toMatchObject({
+      subscriptionId: 'sub_apply',
+      targetPriceId: 'pri_plus_year',
+      prorationBillingMode: 'prorated_immediately',
+    });
+
+    // The Paddle API response is not entitlement: the mirror still says Cloud
+    // until a newer, signature-authenticated webhook updates the row.
+    let status = (await (await app.request('/api/billing/status')).json()) as {
+      management: { subscription: { plan: string; cycle: string } };
+    };
+    expect(status.management.subscription).toMatchObject({ plan: 'cloud', cycle: 'month' });
+
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_apply',
+        customerId: 'ctm_apply',
+        lectorUserId: 'local',
+        priceId: 'pri_plus_year',
+        occurredAt: '2026-07-08T00:00:01Z',
+      }),
+    );
+    status = (await (await app.request('/api/billing/status')).json()) as typeof status;
+    expect(status.management.subscription).toMatchObject({ plan: 'plus', cycle: 'year' });
   });
 });
 

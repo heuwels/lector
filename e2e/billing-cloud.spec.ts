@@ -215,7 +215,9 @@ test.describe.serial('billing gate lifecycle', () => {
           checkout: {
             prices: [
               { id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' },
+              { id: 'pri_e2e_annual', plan: 'cloud', cycle: 'year' },
               { id: 'pri_e2e_plus_monthly', plan: 'plus', cycle: 'month' },
+              { id: 'pri_e2e_plus_annual', plan: 'plus', cycle: 'year' },
             ],
           },
         }),
@@ -239,9 +241,10 @@ test.describe.serial('billing gate lifecycle', () => {
     const requestedTier = page.getByTestId('subscribe-tier-plus');
     await expect(requestedTier).toHaveAttribute('data-requested', 'true');
     await expect(requestedTier.getByText('Selected')).toBeVisible();
-    await requestedTier.getByTestId('subscribe-price-plus-month').click();
+    await expect(requestedTier.getByTestId('subscribe-price-plus-year')).toContainText('$120/year');
+    await requestedTier.getByTestId('subscribe-price-plus-year').click();
     await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_redirect/);
-    expect(requestedPriceId).toBe('pri_e2e_plus_monthly');
+    expect(requestedPriceId).toBe('pri_e2e_plus_annual');
     expect(page.url()).toContain('_ptxn=txn_e2e_redirect');
   });
 });

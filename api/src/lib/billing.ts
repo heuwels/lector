@@ -6,10 +6,9 @@
  *
  * Moving parts:
  *   - Paddle (merchant of record) owns checkout, tax, dunning, and the
- *     subscription state machine. Our only outbound call is creating a
- *     checkout transaction (makePaddleTransactionCreator → POST /transactions)
- *     so checkout can be opened on the approved lector.dev domain — we never
- *     poll or read subscription state. Entitlement flows the other way:
+ *     subscription state machine. Authenticated account-management routes may
+ *     create checkout/portal sessions and preview or request allowlisted plan
+ *     changes. Entitlement still flows only the other way:
  *     signature-verified webhooks (routes/billing.ts) are mirrored into
  *     billing_customers / billing_subscriptions and that mirror is the whole
  *     source of truth here.
@@ -354,6 +353,41 @@ export function findPaddleCustomerId(email: string | null): string | null {
   return row?.paddleCustomerId ?? null;
 }
 
+export interface BillingSubscriptionRecord {
+  paddleSubscriptionId: string;
+  paddleCustomerId: string;
+  status: string;
+  priceId: string | null;
+  currentPeriodEnd: string | null;
+  occurredAt: string;
+}
+
+/**
+ * Every mirrored subscription belonging to an account, newest first. Tenant
+ * metadata is authoritative when checkout started in-app; the customer-email
+ * fallback preserves purchases made on lector.dev before signup.
+ */
+export function findBillingSubscriptions(
+  userId: string,
+  email: string | null,
+): BillingSubscriptionRecord[] {
+  return db
+    .prepare(
+      `SELECT DISTINCT
+         s.paddleSubscriptionId,
+         s.paddleCustomerId,
+         s.status,
+         s.priceId,
+         s.currentPeriodEnd,
+         s.occurredAt
+       FROM billing_subscriptions s
+       LEFT JOIN billing_customers c ON c.paddleCustomerId = s.paddleCustomerId
+       WHERE s.userId = ? OR (? IS NOT NULL AND c.email = lower(?))
+       ORDER BY s.occurredAt DESC`,
+    )
+    .all(userId, email, email) as BillingSubscriptionRecord[];
+}
+
 /**
  * Verify a Paddle webhook signature: `Paddle-Signature: ts=<unix>;h1=<hex>`,
  * where h1 = HMAC-SHA256(`${ts}:${rawBody}`, endpoint secret). Multiple h1
@@ -490,13 +524,7 @@ export function applyPaddleEvent(evt: PaddleEvent): AppliedEvent {
  * entitled one wins.
  */
 export function resolveBillingStatus(userId: string, email: string | null): string | null {
-  const rows = db
-    .prepare(
-      `SELECT DISTINCT s.status FROM billing_subscriptions s
-       LEFT JOIN billing_customers c ON c.paddleCustomerId = s.paddleCustomerId
-       WHERE s.userId = ? OR (? IS NOT NULL AND c.email = lower(?))`,
-    )
-    .all(userId, email, email) as Array<{ status: string }>;
+  const rows = findBillingSubscriptions(userId, email);
   if (rows.length === 0) return null;
 
   const rank: readonly string[] = ['active', 'trialing', 'past_due', 'paused', 'canceled'];

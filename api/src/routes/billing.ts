@@ -1,21 +1,60 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { getCurrentUserId } from '../lib/user';
 import {
   applyPaddleEvent,
   billingConfig,
+  findBillingSubscriptions,
   findPaddleCustomerId,
   getUserEmail,
   isEntitledStatus,
   makePaddleTransactionCreator,
   resolveBillingStatus,
   verifyPaddleSignature,
+  type BillingPrice,
+  type BillingSubscriptionRecord,
   type CreateTransaction,
 } from '../lib/billing';
 import { isBillingExempt, isSuspended } from '../lib/account-flags';
 import { entitlements, type EntitlementsEngine } from '../lib/entitlements';
+import {
+  makePaddleBillingOperations,
+  PaddleBillingError,
+  type PaddleBillingOperations,
+  type ProrationBillingMode,
+} from '../lib/paddle-billing';
 
 const MAX_PADDLE_WEBHOOK_BODY_BYTES = 1024 * 1024;
+const MAX_BILLING_ACTION_BODY_BYTES = 4 * 1024;
+
+function accountManagementSubscription(
+  rows: readonly BillingSubscriptionRecord[],
+): BillingSubscriptionRecord | null {
+  const entitled = rows.filter((row) => isEntitledStatus(row.status));
+  return entitled.length === 1 ? entitled[0] : null;
+}
+
+function portalAccount(rows: readonly BillingSubscriptionRecord[]): {
+  customerId: string;
+  subscriptionIds: string[];
+} | null {
+  const preferred = rows.find((row) => isEntitledStatus(row.status)) ?? rows[0];
+  if (!preferred) return null;
+  return {
+    customerId: preferred.paddleCustomerId,
+    subscriptionIds: rows
+      .filter((row) => row.paddleCustomerId === preferred.paddleCustomerId)
+      .map((row) => row.paddleSubscriptionId),
+  };
+}
+
+function prorationMode(current: BillingPrice, target: BillingPrice): ProrationBillingMode {
+  if (current.cycle !== target.cycle) return 'prorated_immediately';
+  if (current.plan === 'plus' && target.plan === 'cloud') {
+    return 'prorated_next_billing_period';
+  }
+  return 'prorated_immediately';
+}
 
 /**
  * Route factory (mirrors makeSessionMiddleware/makePatMiddleware): the prod
@@ -29,6 +68,7 @@ export function makeBillingRoutes(
   createTransaction: CreateTransaction = makePaddleTransactionCreator(cfg),
   engine: EntitlementsEngine = entitlements,
   checkSuspended: (userId: string) => boolean = isSuspended,
+  billingOperations: PaddleBillingOperations = makePaddleBillingOperations(cfg),
 ) {
   const app = new Hono();
 
@@ -78,6 +118,7 @@ export function makeBillingRoutes(
         status: 'none',
         exempt: false,
         checkout: { prices: cfg.prices },
+        management: { customerPortal: false, subscription: null },
       });
     }
 
@@ -86,6 +127,11 @@ export function makeBillingRoutes(
       (email !== null && cfg.exemptEmails.has(email.toLowerCase())) || isBillingExempt(userId);
     const status = resolveBillingStatus(userId, email);
     const subscriptionActive = isEntitledStatus(status);
+    const rows = findBillingSubscriptions(userId, email);
+    const subscription = accountManagementSubscription(rows);
+    const currentPrice = subscription
+      ? cfg.prices.find((price) => price.id === subscription.priceId)
+      : undefined;
 
     return c.json({
       enforced: true as const,
@@ -96,6 +142,17 @@ export function makeBillingRoutes(
       exempt,
       status: status ?? 'none',
       checkout: { prices: cfg.prices },
+      management: {
+        customerPortal: rows.length > 0,
+        subscription:
+          subscription && currentPrice
+            ? {
+                plan: currentPrice.plan,
+                cycle: currentPrice.cycle,
+                canChange: subscription.status === 'active',
+              }
+            : null,
+      },
     });
   });
 
@@ -143,6 +200,132 @@ export function makeBillingRoutes(
       // non-2xx into its "try again" state; nothing is charged.
       console.error(`[billing] checkout create failed: ${(err as Error).message}`);
       return c.json({ error: 'checkout_unavailable' }, 502);
+    }
+  });
+
+  // POST /api/billing/portal — mint a short-lived Paddle-hosted customer
+  // portal link for invoices, payment methods, and cancellation. Customer and
+  // subscription ids come only from the signed webhook mirror; the browser
+  // supplies no redirect or Paddle identifier.
+  app.post('/portal', async (c) => {
+    if (!cfg.enforced || !cfg.apiKey) {
+      return c.json({ error: 'Billing is not enabled on this deployment' }, 404);
+    }
+    const userId = getCurrentUserId(c);
+    const account = portalAccount(findBillingSubscriptions(userId, resolveEmail(userId)));
+    if (!account) return c.json({ error: 'billing_account_not_found' }, 409);
+    try {
+      const url = await billingOperations.createPortalSession(account);
+      c.header('Cache-Control', 'no-store');
+      return c.json({ url });
+    } catch (error) {
+      const code = error instanceof PaddleBillingError ? error.code : 'unknown';
+      console.error(`[billing] portal session failed: ${code}`);
+      return c.json({ error: 'customer_portal_unavailable' }, 502);
+    }
+  });
+
+  function planChangeContext(
+    userId: string,
+    targetPriceId: string,
+  ):
+    | {
+        subscription: BillingSubscriptionRecord;
+        current: BillingPrice;
+        target: BillingPrice;
+        prorationBillingMode: ProrationBillingMode;
+      }
+    | { error: string; status: 400 | 409 } {
+    const target = cfg.prices.find((price) => price.id === targetPriceId);
+    if (!target) return { error: 'unknown_price', status: 400 };
+
+    const rows = findBillingSubscriptions(userId, resolveEmail(userId));
+    const entitled = rows.filter((row) => isEntitledStatus(row.status));
+    if (entitled.length === 0) return { error: 'subscription_not_active', status: 409 };
+    if (entitled.length !== 1) return { error: 'subscription_ambiguous', status: 409 };
+
+    const subscription = entitled[0];
+    if (subscription.status !== 'active') {
+      return {
+        error: subscription.status === 'past_due' ? 'subscription_past_due' : 'subscription_busy',
+        status: 409,
+      };
+    }
+    const current = cfg.prices.find((price) => price.id === subscription.priceId);
+    if (!current) return { error: 'subscription_price_unmanaged', status: 409 };
+    if (current.id === target.id) return { error: 'plan_already_current', status: 409 };
+
+    return {
+      subscription,
+      current,
+      target,
+      prorationBillingMode: prorationMode(current, target),
+    };
+  }
+
+  async function targetPriceId(c: Context) {
+    const body = (await c.req.json().catch(() => ({}))) as { priceId?: unknown };
+    return typeof body.priceId === 'string' ? body.priceId : '';
+  }
+
+  const actionBodyLimit = bodyLimit({
+    maxSize: MAX_BILLING_ACTION_BODY_BYTES,
+    onError: (c) => c.json({ error: 'Billing request is too large' }, 413),
+  });
+
+  // Preview and apply are deliberately separate. Paddle computes tax and
+  // proration; the client confirms that preview, then this route recomputes
+  // the complete item list before applying. The webhook remains the only
+  // writer of local entitlement state.
+  app.post('/change/preview', actionBodyLimit, async (c) => {
+    if (!cfg.enforced || !cfg.apiKey) {
+      return c.json({ error: 'Billing is not enabled on this deployment' }, 404);
+    }
+    const context = planChangeContext(getCurrentUserId(c), await targetPriceId(c));
+    if ('error' in context) return c.json({ error: context.error }, context.status);
+    try {
+      const preview = await billingOperations.previewSubscriptionChange({
+        subscriptionId: context.subscription.paddleSubscriptionId,
+        targetPriceId: context.target.id,
+        managedPriceIds: cfg.prices.map((price) => price.id),
+        prorationBillingMode: context.prorationBillingMode,
+      });
+      return c.json({
+        target: context.target,
+        prorationBillingMode: context.prorationBillingMode,
+        ...preview,
+      });
+    } catch (error) {
+      if (error instanceof PaddleBillingError && error.code === 'already_current') {
+        return c.json({ error: 'plan_already_current' }, 409);
+      }
+      const code = error instanceof PaddleBillingError ? error.code : 'unknown';
+      console.error(`[billing] subscription preview failed: ${code}`);
+      return c.json({ error: 'subscription_change_unavailable' }, 502);
+    }
+  });
+
+  app.post('/change', actionBodyLimit, async (c) => {
+    if (!cfg.enforced || !cfg.apiKey) {
+      return c.json({ error: 'Billing is not enabled on this deployment' }, 404);
+    }
+    const context = planChangeContext(getCurrentUserId(c), await targetPriceId(c));
+    if ('error' in context) return c.json({ error: context.error }, context.status);
+    try {
+      await billingOperations.applySubscriptionChange({
+        subscriptionId: context.subscription.paddleSubscriptionId,
+        targetPriceId: context.target.id,
+        managedPriceIds: cfg.prices.map((price) => price.id),
+        prorationBillingMode: context.prorationBillingMode,
+      });
+      return c.json({ accepted: true, target: context.target }, 202);
+    } catch (error) {
+      if (error instanceof PaddleBillingError && error.code === 'already_current') {
+        return c.json({ error: 'plan_already_current' }, 409);
+      }
+      const code = error instanceof PaddleBillingError ? error.code : 'unknown';
+      console.error(`[billing] subscription change failed: ${code}`);
+      return c.json({ error: 'subscription_change_unavailable' }, 502);
     }
   });
 
