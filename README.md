@@ -1,6 +1,6 @@
 # Lector
 
-A self-hosted language learning reader — LingQ-style reading, Clozemaster-style cloze practice, and AnkiConnect integration.
+A self-hosted and cloud language learning reader — LingQ-style reading, Clozemaster-style cloze practice, and a first party Anki integration.
 
 ## Features
 
@@ -20,6 +20,22 @@ A self-hosted language learning reader — LingQ-style reading, Clozemaster-styl
 
 - Node.js 22+ (see `.nvmrc`)
 - npm
+
+### Styleguide
+
+#### Folder structure 
+
+Where appropriate, files should be broken into a folder with categorised files. e.g. components/TranslationDrawer.tsx should become
+
+```
+components/TranslationDrawer
+    -> index.tsx
+    -> utils.ts
+    -> types.ts
+    -> tests.ts
+    -> components/
+        -> Gloss/index.tsx
+```
 
 ### Development
 
