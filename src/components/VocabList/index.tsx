@@ -11,6 +11,7 @@ import { stateFilters, stateOrder, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '
 import { AnkiCardType, SortDirection, SortField, VocabListProps } from './types';
 import { useActiveLanguage } from '@/utils/hooks';
 import { Button } from '../ui/button';
+import OnboardingTip from '@/components/OnboardingTip';
 
 export default function VocabList({
   entries,
@@ -19,6 +20,8 @@ export default function VocabList({
   onExportToAnki,
   onMarkAsKnown,
   onSyncWithAnki,
+  showAnkiOnboardingTip = false,
+  onAnkiOnboardingTipDone,
   isLoading = false,
 }: VocabListProps) {
   // Filter state
@@ -130,7 +133,16 @@ export default function VocabList({
     });
 
     return result;
-  }, [entries, stateFilter, bookFilter, searchQuery, sortField, sortDirection, bookTitleMap, collator]);
+  }, [
+    entries,
+    stateFilter,
+    bookFilter,
+    searchQuery,
+    sortField,
+    sortDirection,
+    bookTitleMap,
+    collator,
+  ]);
 
   // Pagination derivation: the visible slice of the filtered/sorted set.
   const pageCount = getPageCount(filteredEntries.length, pageSize);
@@ -241,6 +253,7 @@ export default function VocabList({
 
   const handleSyncWithAnki = async () => {
     if (!onSyncWithAnki) return;
+    onAnkiOnboardingTipDone?.();
     setIsSyncing(true);
     try {
       await onSyncWithAnki();
@@ -329,19 +342,39 @@ export default function VocabList({
         <div className="flex-1" />
 
         {onSyncWithAnki && (
-          <Button onClick={handleSyncWithAnki} disabled={isSyncing}>
-            {isSyncing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Syncing...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4" />
-                Sync with Anki
-              </>
+          <div className="relative">
+            <Button
+              onClick={handleSyncWithAnki}
+              disabled={isSyncing}
+              className={
+                showAnkiOnboardingTip
+                  ? 'relative z-[60] ring-2 ring-[var(--gold-strong)] ring-offset-2 ring-offset-background'
+                  : undefined
+              }
+              data-testid="sync-with-anki"
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Sync with Anki
+                </>
+              )}
+            </Button>
+            {showAnkiOnboardingTip && onAnkiOnboardingTipDone && (
+              <OnboardingTip
+                title="Anki setup"
+                body="Click here if you need help setting up your Anki."
+                onDismiss={onAnkiOnboardingTipDone}
+                testId="post-onboarding-anki-tip"
+                className="absolute top-[calc(100%+0.75rem)] right-0"
+              />
             )}
-          </Button>
+          </div>
         )}
       </div>
 
@@ -372,9 +405,7 @@ export default function VocabList({
                 Word/Phrase
                 <SortIndicator field="text" />
               </th>
-              <th className="px-4 py-3 text-sm font-semibold text-foreground">
-                Translation
-              </th>
+              <th className="px-4 py-3 text-sm font-semibold text-foreground">Translation</th>
               <th
                 className="cursor-pointer px-4 py-3 text-center text-sm font-semibold text-foreground hover:text-foreground"
                 onClick={() => handleSort('state')}
@@ -396,9 +427,7 @@ export default function VocabList({
                 Date Added
                 <SortIndicator field="createdAt" />
               </th>
-              <th className="px-4 py-3 text-sm font-semibold text-foreground">
-                Anki
-              </th>
+              <th className="px-4 py-3 text-sm font-semibold text-foreground">Anki</th>
             </tr>
           </thead>
           <tbody>
@@ -460,9 +489,7 @@ export default function VocabList({
             className="w-full max-w-md rounded-xl bg-card p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-1 text-lg font-semibold text-foreground">
-              Export to Anki
-            </h2>
+            <h2 className="mb-1 text-lg font-semibold text-foreground">Export to Anki</h2>
             <p className="mb-5 text-sm text-muted-foreground">
               {selectedIds.size} {selectedIds.size === 1 ? 'word' : 'words'} selected. Choose a card
               type.
@@ -515,18 +542,10 @@ export default function VocabList({
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setExportModalOpen(false)}
-              >
+              <Button type="button" variant="ghost" onClick={() => setExportModalOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                type="button"
-                data-testid="anki-export-confirm"
-                onClick={confirmExportToAnki}
-              >
+              <Button type="button" data-testid="anki-export-confirm" onClick={confirmExportToAnki}>
                 Export {selectedIds.size} {selectedIds.size === 1 ? 'card' : 'cards'}
               </Button>
             </div>

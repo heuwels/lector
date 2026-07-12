@@ -22,7 +22,13 @@ import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
 import { translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 import { splitTrailingPunctuation } from '@/lib/words';
-import { graphemeLength, graphemeSplit } from '@/lib/languages';
+import {
+  getLanguageConfig,
+  graphemeLength,
+  graphemeSplit,
+  isValidLanguageCode,
+  tokenizeWords,
+} from '@/lib/languages';
 import {
   createBlankedSentence,
   calculateDictationPoints,
@@ -68,6 +74,7 @@ import {
   savedOnboardingWords,
   type OnboardingSnapshot,
 } from '@/lib/onboarding';
+import { startPostOnboardingTour } from '@/lib/post-onboarding-tour';
 
 export default function PracticePage() {
   const router = useRouter();
@@ -140,6 +147,7 @@ export default function PracticePage() {
   const onboardingStartRef = useRef(false);
   const onboardingRoundStartedRef = useRef(false);
   const onboardingCompletionRef = useRef(false);
+  const onboardingDistractorWordsRef = useRef<string[]>([]);
   // Pending MC feedback timer — must be cancelled on navigation/unmount so a
   // stale closure can't record a review for a screen the user already left.
   const mcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -291,6 +299,7 @@ export default function PracticePage() {
       const { options, correctIndex } = buildMultipleChoiceOptions(
         sentence.clozeWord,
         sentenceQueue,
+        onboardingDistractorWordsRef.current,
       );
       setMcOptions(options);
       setMcCorrectIdx(correctIndex);
@@ -384,6 +393,12 @@ export default function PracticePage() {
         }
 
         const guidedQueue = sentences.slice(0, 3);
+        if (isValidLanguageCode(snapshot.progress.language)) {
+          const pack = getLanguageConfig(snapshot.progress.language);
+          onboardingDistractorWordsRef.current = guidedQueue.flatMap((sentence) =>
+            tokenizeWords(sentence.sentence, pack).map((token) => token.text),
+          );
+        }
         setSelectedCollection('mined');
         setOriginalRoundSize(guidedQueue.length);
         setRoundSize(guidedQueue.length);
@@ -1271,6 +1286,7 @@ export default function PracticePage() {
                             <button
                               key={idx}
                               type="button"
+                              data-testid="mc-option"
                               onClick={() => handleMcSelect(idx)}
                               disabled={mcLocked}
                               className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left text-lg font-medium transition-all active:scale-[0.98] ${btnClass}`}
@@ -1495,7 +1511,11 @@ export default function PracticePage() {
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => router.push('/')}
+                    onClick={() => {
+                      const completedAt = onboardingSnapshot?.progress?.completedAt;
+                      if (completedAt) startPostOnboardingTour(completedAt);
+                      router.push('/');
+                    }}
                     disabled={onboardingCompletionStatus !== 'complete'}
                     data-testid="onboarding-library"
                   >
@@ -1504,7 +1524,11 @@ export default function PracticePage() {
                   {onboardingProgress?.nextLessonId && (
                     <Button
                       type="button"
-                      onClick={() => router.push(`/read/${onboardingProgress.nextLessonId}`)}
+                      onClick={() => {
+                        const completedAt = onboardingSnapshot?.progress?.completedAt;
+                        if (completedAt) startPostOnboardingTour(completedAt);
+                        router.push(`/read/${onboardingProgress.nextLessonId}`);
+                      }}
                       disabled={onboardingCompletionStatus !== 'complete'}
                       data-testid="onboarding-next-lesson"
                     >

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   encounteredOnboardingTerms,
+  hasOnboardingPhraseLookup,
   onboardingEvents,
   savedOnboardingWords,
   type LearnerEvent,
@@ -87,5 +88,21 @@ describe('onboarding event derivation', () => {
     });
 
     expect(encounteredOnboardingTerms(snapshot([hola, holaAgain, casa]))).toEqual(['Hola', 'casa']);
+  });
+
+  it('recognises a translated phrase from its event kind or term', () => {
+    const word = event('reader.term_looked_up', {
+      properties: { source: 'onboarding', term: 'Hola', kind: 'word' },
+    });
+    const phraseByKind = event('reader.term_looked_up', {
+      properties: { source: 'onboarding', term: 'buenos-dias', kind: 'phrase' },
+    });
+    const legacyPhrase = event('reader.term_looked_up', {
+      properties: { source: 'onboarding', term: 'buenos días' },
+    });
+
+    expect(hasOnboardingPhraseLookup(snapshot([word]))).toBe(false);
+    expect(hasOnboardingPhraseLookup(snapshot([word, phraseByKind]))).toBe(true);
+    expect(hasOnboardingPhraseLookup(snapshot([legacyPhrase]))).toBe(true);
   });
 });

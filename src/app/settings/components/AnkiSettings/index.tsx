@@ -46,9 +46,8 @@ function AnkiAddonBody() {
         </li>
         <li>
           In Anki, open Tools → Add-ons → Lector Sync → Config and set{' '}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">api_url</code> to the address
-          below and <code className="rounded bg-muted px-1 py-0.5 text-xs">api_token</code> to
-          your token.
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">api_url</code> to the address below
+          and <code className="rounded bg-muted px-1 py-0.5 text-xs">api_token</code> to your token.
         </li>
       </ol>
       <div>
@@ -133,7 +132,11 @@ export default function AnkiSettings() {
   // Cloud: the add-on is the only transport that can work — no picker.
   if (mode === 'cloud') {
     return (
-      <section className="panel space-y-4 p-6" data-testid="anki-addon-panel">
+      <section
+        id="anki-integration"
+        className="panel scroll-mt-6 space-y-4 p-6"
+        data-testid="anki-addon-panel"
+      >
         <h2 className="text-lg font-semibold text-foreground">Anki Integration</h2>
         <AnkiAddonBody />
       </section>
@@ -142,7 +145,8 @@ export default function AnkiSettings() {
 
   return (
     <section
-      className="panel space-y-4 p-6"
+      id="anki-integration"
+      className="panel scroll-mt-6 space-y-4 p-6"
       data-testid={transport === 'addon' ? 'anki-addon-panel' : undefined}
     >
       <div className="flex items-center justify-between">
@@ -193,15 +197,13 @@ export default function AnkiSettings() {
       ) : (
         <>
           {ankiError && (
-            <div className="rounded-md bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] p-3 text-sm text-destructive ">
+            <div className="rounded-md bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] p-3 text-sm text-destructive">
               {ankiError}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-foreground">
-              AnkiConnect URL
-            </label>
+            <label className="block text-sm font-medium text-foreground">AnkiConnect URL</label>
             <p className="mb-2 text-xs text-muted-foreground">
               Hint: Use Tailscale IP for remote Anki (e.g., http://100.x.x.x:8765)
             </p>
@@ -221,9 +223,7 @@ export default function AnkiSettings() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground">
-              Vocab Deck
-            </label>
+            <label className="block text-sm font-medium text-foreground">Vocab Deck</label>
             <p className="mb-1 text-xs text-muted-foreground">
               Deck for basic cards from reader vocabulary
             </p>
@@ -250,9 +250,7 @@ export default function AnkiSettings() {
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground">
-              Cloze Practice Deck
-            </label>
+            <label className="block text-sm font-medium text-foreground">Cloze Practice Deck</label>
             <p className="mb-2 text-xs text-muted-foreground">
               Deck for cloze cards from practice mode
             </p>
@@ -286,9 +284,7 @@ export default function AnkiSettings() {
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground">
-              Default Card Type
-            </label>
+            <label className="block text-sm font-medium text-foreground">Default Card Type</label>
             <p className="mb-2 text-xs text-muted-foreground">
               Basic shows front/back, Cloze creates fill-in-the-blank cards
             </p>

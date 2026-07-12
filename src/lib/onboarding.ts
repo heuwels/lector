@@ -180,3 +180,12 @@ export function encounteredOnboardingTerms(snapshot: OnboardingSnapshot | null):
   }
   return [...terms];
 }
+
+export function hasOnboardingPhraseLookup(snapshot: OnboardingSnapshot | null): boolean {
+  return onboardingEvents(snapshot).some((event) => {
+    if (event.eventType !== 'reader.term_looked_up') return false;
+    if (event.properties.kind === 'phrase') return true;
+    const term = typeof event.properties.term === 'string' ? event.properties.term.trim() : '';
+    return /\s/u.test(term);
+  });
+}
