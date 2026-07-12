@@ -32,4 +32,9 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'How do separable verbs work (e.g. "opbellen", "meenemen")?',
     'What\'s the difference between "kennen" and "weten"?',
   ],
+  pt: [
+    'When do I use "ser" vs "estar" (both mean "to be")?',
+    'What\'s the difference between "por" and "para"?',
+    'How does the personal infinitive work?',
+  ],
 };

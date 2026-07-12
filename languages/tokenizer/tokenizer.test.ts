@@ -63,6 +63,13 @@ const CORPUS: Record<LanguageCode, string[]> = {
     "'t Is zo'n mooie dag, foto's van m'n huis.",
     "Hij zei: 'De brontosaurussen aten 's ochtends.'",
   ],
+  pt: [
+    'Olá! Tudo bem?',
+    'A menina comprou pães, açúcar e café na padaria.',
+    'Ele não recebeu as informações corretas — que confusão!',
+    'Compramos um guarda-chuva na segunda-feira, por volta das 3 horas.',
+    '“Você viu a canção número 42?”, perguntou o avô.',
+  ],
 };
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {

@@ -159,6 +159,26 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-nl.txt',
     glossFilter: true,
   },
+  pt: {
+    // Canonical /Portuguese/ URL (kaikki has no /downloads/pt/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Portuguese/kaikki.org-dictionary-Portuguese.jsonl'],
+    // a-z + Portuguese diacritics á à â ã ç é ê í ó ô õ ú (ü survives in some
+    // pre-1990 spellings/proper names). Apostrophe stays a word char for the rare
+    // d'água elision; hyphen for compounds (guarda-chuva, segunda-feira) and
+    // enclitic pronouns (chamo-me), matching the runtime WORD_PATTERN. Brazilian
+    // orthography is the default (pt-BR) — kaikki Portuguese covers both variants.
+    letterClass: "a-zàáâãçéêíóôõúüA-ZÀÁÂÃÇÉÊÍÓÔÕÚÜ'-",
+    // No hand affix rules: Portuguese is highly inflected, but kaikki carries each
+    // conjugated/plural surface form as its own "form of <lemma>" entry (which
+    // keeps a gloss, so it survives glossFilter) — lookup resolves via those +
+    // the inflections table, same strategy as de/es/fr/nl (exact → inflections → UDPipe → AI).
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouàáâãéêíóôõúü',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-pt.txt',
+    glossFilter: true,
+  },
 };
 
 function parseLangArg(): string {
