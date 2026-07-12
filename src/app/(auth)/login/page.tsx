@@ -1,22 +1,34 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import TurnstileWidget, { turnstileSiteKey } from '@/components/TurnstileWidget';
 import { authClient } from '@/lib/auth-client';
+import { authHref, sanitizeAuthReturnPath } from '@/lib/auth-return';
 import { useGithubLogin, useOidcLogin, useOidcProviderName } from '@/lib/use-env';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const { data: session, isPending } = authClient.useSession();
   const githubEnabled = useGithubLogin();
   const oidcEnabled = useOidcLogin();
   const oidcName = useOidcProviderName();
+  const returnPath = sanitizeAuthReturnPath(params.get('next'));
+  const destination = returnPath ?? '/';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,10 +39,10 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
-  // Signed in already (or just now) → into the app.
+  // Signed in already (or just now) → the requested plan, or into the app.
   useEffect(() => {
-    if (!isPending && session) router.replace('/');
-  }, [isPending, session, router]);
+    if (!isPending && session) router.replace(destination);
+  }, [destination, isPending, session, router]);
 
   function captchaHeaders(): Record<string, string> {
     return captchaToken ? { 'x-captcha-response': captchaToken } : {};
@@ -52,9 +64,9 @@ export default function LoginPage() {
       // A 2FA-enrolled account answers with a challenge instead of a session —
       // the TOTP code on /two-factor completes the sign-in.
       if (data && 'twoFactorRedirect' in data && data.twoFactorRedirect) {
-        router.replace('/two-factor');
+        router.replace(authHref('/two-factor', returnPath));
       } else {
-        router.replace('/');
+        router.replace(destination);
       }
       return;
     }
@@ -75,7 +87,7 @@ export default function LoginPage() {
     if (!unverifiedEmail) return;
     const { error } = await authClient.sendVerificationEmail({
       email: unverifiedEmail,
-      callbackURL: `${window.location.origin}/`,
+      callbackURL: `${window.location.origin}${destination}`,
     });
     if (error) toast.error(error.message ?? 'Could not resend the email.');
     else toast.success('Verification email sent — check your inbox.');
@@ -84,7 +96,7 @@ export default function LoginPage() {
   async function handleGithub() {
     await authClient.signIn.social({
       provider: 'github',
-      callbackURL: `${window.location.origin}/`,
+      callbackURL: `${window.location.origin}${destination}`,
     });
   }
 
@@ -92,7 +104,7 @@ export default function LoginPage() {
     // BYO OIDC (#218) — providerId 'oidc' is fixed server-side (accounts.ts).
     await authClient.signIn.oauth2({
       providerId: 'oidc',
-      callbackURL: `${window.location.origin}/`,
+      callbackURL: `${window.location.origin}${destination}`,
     });
   }
 
@@ -135,7 +147,10 @@ export default function LoginPage() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Password</Label>
-          <Link href="/reset-password" className="text-xs text-primary hover:underline">
+          <Link
+            href={authHref('/reset-password', returnPath)}
+            className="text-xs text-primary hover:underline"
+          >
             Forgot password?
           </Link>
         </div>
@@ -187,7 +202,10 @@ export default function LoginPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         No account yet?{' '}
-        <Link href="/register" className="font-medium text-primary hover:underline">
+        <Link
+          href={authHref('/register', returnPath)}
+          className="font-medium text-primary hover:underline"
+        >
           Create one
         </Link>
       </p>

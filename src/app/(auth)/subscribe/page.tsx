@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { apiUrl, checkoutUrl } from '@/lib/api-base';
 import { authClient } from '@/lib/auth-client';
+import { paidPlanFromSearch, type PaidPlan } from '@/lib/auth-return';
 import {
   fetchBillingStatus,
   startCheckout,
@@ -95,6 +96,7 @@ export default function SubscribePage() {
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [opening, setOpening] = useState<string | null>(null);
+  const [requestedPlan, setRequestedPlan] = useState<PaidPlan | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // One-shot activation poll: the webhook usually lands within seconds of
@@ -122,9 +124,12 @@ export default function SubscribePage() {
 
   useEffect(() => {
     let cancelled = false;
+    const requested = paidPlanFromSearch(window.location.search);
 
     fetchBillingStatus().then((s) => {
       if (cancelled) return;
+
+      setRequestedPlan(requested);
 
       // Billing off, already paid/exempt, or status unreachable → this page
       // has no business rendering; the rest of the app knows better than us.
@@ -198,6 +203,9 @@ export default function SubscribePage() {
 
   const lapsed = status !== null && status.status !== 'none';
   const showFree = status?.freeTierEnabled === true && !status.suspended;
+  const paidTiers = requestedPlan
+    ? [...TIERS].sort((a, b) => Number(b.plan === requestedPlan) - Number(a.plan === requestedPlan))
+    : TIERS;
 
   return (
     <div className="space-y-4" data-testid="subscribe-panel">
@@ -303,7 +311,7 @@ export default function SubscribePage() {
 
       {phase === 'pick' &&
         status !== null &&
-        TIERS.map((tier) => {
+        paidTiers.map((tier) => {
           const monthly = status.checkout.prices.find(
             (p) => p.plan === tier.plan && p.cycle === 'month',
           );
@@ -312,21 +320,30 @@ export default function SubscribePage() {
           );
           if (!monthly && !annual) return null;
           const primary = monthly ?? annual!;
+          const requested = tier.plan === requestedPlan;
           return (
             <div
               key={tier.plan}
               className={`rounded-xl border p-4 ${
-                tier.featured ? 'border-primary' : 'border-border'
+                tier.featured || requested ? 'border-primary' : 'border-border'
               }`}
               data-testid={`subscribe-tier-${tier.plan}`}
+              data-requested={requested || undefined}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-foreground">{tier.name}</span>
-                {tier.badge && (
-                  <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-medium text-primary">
-                    {tier.badge}
-                  </span>
-                )}
+                <span className="flex items-center gap-1.5">
+                  {requested && (
+                    <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+                      Selected
+                    </span>
+                  )}
+                  {tier.badge && (
+                    <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-medium text-primary">
+                      {tier.badge}
+                    </span>
+                  )}
+                </span>
               </div>
               <p className="mt-1">
                 <span className="text-2xl font-bold text-foreground">{tier.price}</span>
@@ -360,6 +377,8 @@ export default function SubscribePage() {
                     />
                     Opening checkout…
                   </>
+                ) : requested ? (
+                  `Continue to checkout — ${tier.price}/month`
                 ) : (
                   `Subscribe — ${tier.price}/month`
                 )}

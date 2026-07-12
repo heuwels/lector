@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { authClient } from '@/lib/auth-client';
+import { authHref, sanitizeAuthReturnPath } from '@/lib/auth-return';
 
 /**
  * Second step of a 2FA sign-in. The password step answered with
@@ -18,7 +19,18 @@ import { authClient } from '@/lib/auth-client';
  * visitors back to sign in.
  */
 export default function TwoFactorPage() {
+  return (
+    <Suspense fallback={null}>
+      <TwoFactorForm />
+    </Suspense>
+  );
+}
+
+function TwoFactorForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const returnPath = sanitizeAuthReturnPath(params.get('next'));
+  const destination = returnPath ?? '/';
   const [code, setCode] = useState('');
   const [trustDevice, setTrustDevice] = useState(false);
   const [useBackup, setUseBackup] = useState(false);
@@ -35,14 +47,14 @@ export default function TwoFactorPage() {
       : await authClient.twoFactor.verifyTotp({ code: trimmed, trustDevice });
 
     if (!error) {
-      router.replace('/');
+      router.replace(destination);
       return;
     }
 
     setSubmitting(false);
     if (error.code === 'INVALID_TWO_FACTOR_COOKIE') {
       toast.error('This sign-in attempt has expired — enter your password again.');
-      router.replace('/login');
+      router.replace(authHref('/login', returnPath));
       return;
     }
     if (
@@ -119,7 +131,10 @@ export default function TwoFactorPage() {
       </button>
 
       <p className="text-center text-sm text-muted-foreground">
-        <Link href="/login" className="font-medium text-primary hover:underline">
+        <Link
+          href={authHref('/login', returnPath)}
+          className="font-medium text-primary hover:underline"
+        >
           Back to sign in
         </Link>
       </p>

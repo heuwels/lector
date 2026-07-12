@@ -19,6 +19,7 @@
  */
 
 import { interceptPlanLimit } from './plan-limits';
+import { authHref, sanitizeAuthReturnPath } from './auth-return';
 
 declare global {
   interface Window {
@@ -119,7 +120,8 @@ export function bounceToLogin(): void {
   if (bouncedToLogin || typeof window === 'undefined') return;
   if (isAuthRoute(window.location.pathname)) return;
   bouncedToLogin = true;
-  window.location.replace('/login');
+  const returnPath = sanitizeAuthReturnPath(`${window.location.pathname}${window.location.search}`);
+  window.location.replace(authHref('/login', returnPath));
 }
 
 let bouncedToSubscribe = false;
