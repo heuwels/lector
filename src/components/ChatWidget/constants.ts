@@ -8,11 +8,14 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'How do diminutives work in Afrikaans?',
   ],
   de: [
-    'Explain the "case" system in German',
-    // TODO
+    'How does the German case system work?',
+    'When do I use "der", "die", and "das"?',
+    'How do separable verbs work in German?',
   ],
   es: [
-    // TODO
+    'When do I use "ser" vs "estar"?',
+    'What\'s the difference between "por" and "para"?',
+    'When should I use the Spanish subjunctive?',
   ],
   fr: [
     'When do I use "tu" vs "vous"?',
