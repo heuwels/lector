@@ -376,6 +376,21 @@ function getDb(): Database {
       version INTEGER NOT NULL DEFAULT 1,
       PRIMARY KEY (userId, vocabId, cardType)
     );
+
+    -- In-flight classify-worker batch job (#226): when classification runs
+    -- through a provider Batch API (50% off), the submitted batch is recorded
+    -- here so a restart resumes POLLING instead of resubmitting (and paying
+    -- for) the same words. At most one row exists at a time — the worker never
+    -- submits while one is in flight. requests is JSON: the selected pending
+    -- rows grouped per batch custom_id, so results map back to the exact
+    -- (userId, word, language) rows that were submitted.
+    CREATE TABLE IF NOT EXISTS classify_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      providerBatchId TEXT NOT NULL UNIQUE,
+      provider TEXT NOT NULL,
+      submittedAt TEXT NOT NULL,
+      requests TEXT NOT NULL
+    );
   `);
 
   // Migrations for existing databases

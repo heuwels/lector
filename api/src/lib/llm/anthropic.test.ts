@@ -21,6 +21,7 @@ mock.module('@anthropic-ai/claude-agent-sdk', () => ({
 }));
 
 const { AnthropicProvider } = await import('./anthropic');
+const Anthropic = (await import('@anthropic-ai/sdk')).default;
 
 const ENV_KEYS = [
   'ANTHROPIC_MODEL',
@@ -236,5 +237,129 @@ describe('Anthropic API truncation metadata', () => {
       }),
     ).resolves.toEqual({ ok: true });
     expect(budgets).toEqual([100, 200]);
+  });
+});
+
+describe('AnthropicProvider message batches (#226)', () => {
+  function injectBatches(
+    p: InstanceType<typeof AnthropicProvider>,
+    batches: Record<string, unknown>,
+  ): void {
+    (p as unknown as { client: unknown }).client = { messages: { batches } };
+  }
+
+  test('supportsBatch: API-key auth yes, OAuth/Agent-SDK path no', () => {
+    expect(new AnthropicProvider({ apiKey: 'sk-ant-test' }).supportsBatch()).toBe(true);
+    // OAuth runs through the Agent SDK, which has no batch endpoint.
+    expect(new AnthropicProvider({ oauthToken: 'oauth-token' }).supportsBatch()).toBe(false);
+  });
+
+  test('createBatch maps requests onto batch params, resolving per-task models', async () => {
+    const p = new AnthropicProvider({ apiKey: 'sk-ant-test' });
+    let captured: unknown;
+    injectBatches(p, {
+      create: async (params: unknown) => {
+        captured = params;
+        return { id: 'msgbatch_test' };
+      },
+    });
+
+    const id = await p.createBatch([
+      {
+        customId: 'req-0',
+        options: {
+          messages: [{ role: 'user', content: 'classify these words' }],
+          maxTokens: 2048,
+          task: 'word-classification',
+          responseFormat: 'json-array',
+        },
+      },
+    ]);
+
+    expect(id).toBe('msgbatch_test');
+    expect(captured).toEqual({
+      requests: [
+        {
+          custom_id: 'req-0',
+          params: {
+            // The classification task must resolve to the cheap tier inside
+            // batches too — batch pricing halves whatever model runs.
+            model: 'claude-haiku-4-5',
+            max_tokens: 2048,
+            messages: [{ role: 'user', content: 'classify these words' }],
+          },
+        },
+      ],
+    });
+  });
+
+  test('getBatch reports in_progress until the provider ends the batch', async () => {
+    const p = new AnthropicProvider({ apiKey: 'sk-ant-test' });
+    injectBatches(p, {
+      retrieve: async () => ({ processing_status: 'in_progress' }),
+      results: async () => {
+        throw new Error('results must not be fetched before the batch ends');
+      },
+    });
+    expect(await p.getBatch('msgbatch_test')).toEqual({ state: 'in_progress' });
+  });
+
+  test('getBatch collects only succeeded results once ended', async () => {
+    const p = new AnthropicProvider({ apiKey: 'sk-ant-test' });
+    injectBatches(p, {
+      retrieve: async () => ({ processing_status: 'ended' }),
+      results: async () =>
+        (async function* () {
+          yield {
+            custom_id: 'req-0',
+            result: {
+              type: 'succeeded',
+              message: { content: [{ type: 'text', text: '[{"word":"kos","domain":"food"}]' }] },
+            },
+          };
+          yield { custom_id: 'req-1', result: { type: 'errored', error: { type: 'api_error' } } };
+          yield {
+            custom_id: 'req-2',
+            result: { type: 'succeeded', message: { content: [{ type: 'thinking' }] } },
+          };
+        })(),
+    });
+
+    const status = await p.getBatch('msgbatch_test');
+    expect(status.state).toBe('ended');
+    if (status.state !== 'ended') throw new Error('unreachable');
+    // req-1 errored; req-2 succeeded but had no text block — neither may appear.
+    expect([...status.results.entries()]).toEqual([
+      ['req-0', '[{"word":"kos","domain":"food"}]'],
+    ]);
+  });
+
+  test('getBatch maps a batch the provider no longer knows to a terminal failure', async () => {
+    const p = new AnthropicProvider({ apiKey: 'sk-ant-test' });
+    injectBatches(p, {
+      retrieve: async () => {
+        // instanceof is what the code checks; constructing via prototype skips
+        // the version-sensitive APIError constructor signature.
+        throw Object.assign(Object.create(Anthropic.NotFoundError.prototype), {
+          status: 404,
+          message: 'batch not found',
+        });
+      },
+    });
+
+    expect(await p.getBatch('msgbatch_gone')).toEqual({
+      state: 'failed',
+      error: 'batch msgbatch_gone not found',
+    });
+  });
+
+  test('transient retrieve errors propagate for the caller to retry', async () => {
+    const p = new AnthropicProvider({ apiKey: 'sk-ant-test' });
+    injectBatches(p, {
+      retrieve: async () => {
+        throw new Error('ECONNRESET');
+      },
+    });
+    await expect(p.getBatch('msgbatch_test')).rejects.toThrow('ECONNRESET');
   });
 });

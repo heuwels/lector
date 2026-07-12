@@ -5,7 +5,15 @@ import { db } from '../../db';
 import { LOCAL_USER_ID } from '../user';
 import { getByokCredential, OPENROUTER_URL } from '../byok';
 
-export type { LLMProvider, LLMTask, ChatMessage, CompletionOptions, LLMUsageEvent } from './types';
+export type {
+  BatchRequest,
+  BatchStatus,
+  LLMProvider,
+  LLMTask,
+  ChatMessage,
+  CompletionOptions,
+  LLMUsageEvent,
+} from './types';
 export { parseLooseJson } from './parse-json';
 export { completeJson } from './complete-json';
 export { LLMInvalidJsonError } from './errors';

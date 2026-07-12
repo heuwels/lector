@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { LLMProvider, CompletionOptions, LLMTask } from './types';
+import type { BatchRequest, BatchStatus, LLMProvider, CompletionOptions, LLMTask } from './types';
 import { LLMTruncatedError } from './errors';
 
 function expectsJson(options: CompletionOptions): boolean {
@@ -240,5 +240,61 @@ export class AnthropicProvider implements LLMProvider {
       const message = err instanceof Error ? err.message : 'Unknown error';
       return { ok: false, error: message };
     }
+  }
+
+  // ── Message Batches (#226): the 50%-off asynchronous tier ─────────────────
+  // Only the direct Messages API has a batch endpoint; the Agent-SDK/OAuth path
+  // cannot submit batches, so it reports unsupported and callers fall back to
+  // synchronous complete().
+
+  supportsBatch(): boolean {
+    return !this.useAgentSdk && this.client !== null;
+  }
+
+  async createBatch(requests: BatchRequest[]): Promise<string> {
+    if (!this.supportsBatch()) {
+      throw new Error('Anthropic batches require API-key auth (not OAuth/Agent SDK)');
+    }
+    const batch = await this.client!.messages.batches.create({
+      requests: requests.map((request) => ({
+        custom_id: request.customId,
+        params: {
+          model: this.modelForTask(request.options.task),
+          max_tokens: request.options.maxTokens,
+          messages: request.options.messages.map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          })),
+        },
+      })),
+    });
+    return batch.id;
+  }
+
+  async getBatch(batchId: string): Promise<BatchStatus> {
+    if (!this.supportsBatch()) {
+      throw new Error('Anthropic batches require API-key auth (not OAuth/Agent SDK)');
+    }
+    let processingStatus: string;
+    try {
+      processingStatus = (await this.client!.messages.batches.retrieve(batchId)).processing_status;
+    } catch (error) {
+      // A batch Anthropic no longer knows (deleted, expired out of retention,
+      // or created under a different key) can never complete — surface it as
+      // terminal so the caller stops polling. Other errors are transient.
+      if (error instanceof Anthropic.NotFoundError) {
+        return { state: 'failed', error: `batch ${batchId} not found` };
+      }
+      throw error;
+    }
+    if (processingStatus !== 'ended') return { state: 'in_progress' };
+
+    const results = new Map<string, string>();
+    for await (const entry of await this.client!.messages.batches.results(batchId)) {
+      if (entry.result.type !== 'succeeded') continue; // errored/canceled/expired → caller resubmits
+      const text = entry.result.message.content.find((block) => block.type === 'text');
+      if (text && text.type === 'text') results.set(entry.custom_id, text.text);
+    }
+    return { state: 'ended', results };
   }
 }
