@@ -5,6 +5,7 @@ import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { getLanguageConfig } from '../lib/languages';
 import { entitlements, planLimitResponse, type UsageReservation } from '../lib/entitlements';
+import { getTtsCache, ttsCacheKey } from '../lib/tts-cache';
 
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 const MAX_TTS_BODY_BYTES = 32 * 1024;
@@ -49,6 +50,32 @@ app.post(
         return c.json({ error: 'Text is too long (max 5,000 bytes)', fallback: true }, 400);
       }
 
+      const lang = resolveLanguage(language, userId);
+      const langConfig = getLanguageConfig(lang);
+      const speakingRate = Math.max(0.25, Math.min(4.0, rate)); // Google's range is 0.25–4.0
+
+      // Cache first (#226): identical (language, voice, rate, text) always
+      // renders identical audio, so a hit skips Google entirely — checked
+      // before the key gate (cached audio plays even keyless) and before
+      // metering, since ttsCharsPerMonth meters *synthesized* characters and a
+      // hit synthesizes nothing. This is what makes read-along affordable:
+      // re-reads and cross-user vocab overlap stop billing.
+      const cache = getTtsCache();
+      const cacheKey = ttsCacheKey({
+        language: lang,
+        voice: `${langConfig.ttsCode}:${langConfig.ttsVoice}`,
+        rate: speakingRate,
+        text,
+      });
+      const hit = await cache.get(cacheKey);
+      if (hit) {
+        return c.json({
+          audioContent: Buffer.from(hit).toString('base64'),
+          contentType: 'audio/mp3',
+          cached: true,
+        });
+      }
+
       const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
       if (!apiKey) {
         return c.json({ error: 'Google Cloud API key not configured', fallback: true }, 503);
@@ -63,9 +90,6 @@ app.post(
       if (!ttsVerdict.allowed) return planLimitResponse(c, ttsVerdict);
       reservation = ttsVerdict.reservation;
 
-      const lang = resolveLanguage(language, userId);
-      const langConfig = getLanguageConfig(lang);
-
       const synthesizeRequest: SynthesizeRequest = {
         input: { text },
         voice: {
@@ -74,7 +98,7 @@ app.post(
         },
         audioConfig: {
           audioEncoding: 'MP3',
-          speakingRate: Math.max(0.25, Math.min(4.0, rate)), // Google's range is 0.25–4.0
+          speakingRate,
           pitch: 0,
         },
       };
@@ -102,6 +126,9 @@ app.post(
       }
 
       earned = true; // Google synthesized the characters — the usage is real
+      // Best-effort store (put never throws): the next request for this tuple —
+      // from any user — is served from cache instead of re-billed.
+      await cache.put(cacheKey, new Uint8Array(Buffer.from(data.audioContent, 'base64')));
       return c.json({ audioContent: data.audioContent, contentType: 'audio/mp3' });
     } catch (error) {
       console.error('TTS route error:', error);

@@ -54,6 +54,25 @@ export interface CompletionOptions {
   onUsage?: (event: LLMUsageEvent) => void;
 }
 
+/** One request inside a provider batch job (see LLMProvider.createBatch). */
+export interface BatchRequest {
+  /** Caller-chosen id echoed back with the result; unique within the batch. */
+  customId: string;
+  options: CompletionOptions;
+}
+
+/**
+ * Lifecycle of a submitted batch. `ended` carries only the requests that
+ * SUCCEEDED (customId → raw completion text) — errored/expired entries are
+ * simply absent, and the caller decides whether to resubmit them. `failed`
+ * is terminal for the whole batch (unknown/expired batch id): the caller
+ * should discard its bookkeeping and start over.
+ */
+export type BatchStatus =
+  | { state: 'in_progress' }
+  | { state: 'ended'; results: Map<string, string> }
+  | { state: 'failed'; error: string };
+
 export interface LLMProvider {
   name: string;
   /** The configured model identifier, surfaced for status reporting. */
@@ -70,4 +89,16 @@ export interface LLMProvider {
   stream(options: CompletionOptions): AsyncIterable<string>;
   /** Check if the provider is reachable and configured */
   healthCheck(): Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Optional async-batch surface (50%-off tier, e.g. Anthropic Message
+   * Batches). Absent or supportsBatch() === false on providers without one
+   * (OpenAI-compatible backends have no universal batch endpoint) — callers
+   * must feature-detect and fall back to complete(). Batches are minutes-to-
+   * hours async: submit with createBatch, then poll getBatch until it leaves
+   * 'in_progress'. Transient errors (network) throw; a batch the provider no
+   * longer knows resolves to state 'failed'.
+   */
+  supportsBatch?(): boolean;
+  createBatch?(requests: BatchRequest[]): Promise<string>;
+  getBatch?(batchId: string): Promise<BatchStatus>;
 }

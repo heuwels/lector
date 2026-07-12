@@ -1,10 +1,12 @@
 import '../test-guard';
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { db } from '../db';
+import { resetTtsCache } from '../lib/tts-cache';
 import app from './tts';
 
 const originalFetch = globalThis.fetch;
 const previousApiKey = process.env.GOOGLE_CLOUD_API_KEY;
+const previousTtsCache = process.env.TTS_CACHE;
 
 function ttsUsage(): number | null {
   const row = db
@@ -26,6 +28,9 @@ afterAll(() => {
   globalThis.fetch = originalFetch;
   if (previousApiKey === undefined) delete process.env.GOOGLE_CLOUD_API_KEY;
   else process.env.GOOGLE_CLOUD_API_KEY = previousApiKey;
+  if (previousTtsCache === undefined) delete process.env.TTS_CACHE;
+  else process.env.TTS_CACHE = previousTtsCache;
+  resetTtsCache();
 });
 
 describe('TTS route request boundaries', () => {
@@ -98,5 +103,91 @@ describe('TTS route request boundaries', () => {
     );
     expect(JSON.parse((await captured.request?.text()) ?? '{}').input.text).toBe(text);
     expect(ttsUsage()).toBe(2_500);
+  });
+});
+
+describe('TTS caching (#226)', () => {
+  const synthesize = (text: string) =>
+    app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+
+  test('replays of the same tuple are served from cache: one Google call, metered once', async () => {
+    delete process.env.TTS_CACHE;
+    resetTtsCache();
+    let fetchCalls = 0;
+    globalThis.fetch = (async () => {
+      fetchCalls++;
+      return Response.json({ audioContent: 'Y2FjaGVkLWF1ZGlv' }); // "cached-audio"
+    }) as unknown as typeof fetch;
+
+    const first = await synthesize('kandelaar');
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({
+      audioContent: 'Y2FjaGVkLWF1ZGlv',
+      contentType: 'audio/mp3',
+    });
+    expect(fetchCalls).toBe(1);
+    expect(ttsUsage()).toBe('kandelaar'.length);
+
+    // The replay must not need the Google key at all — drop it to prove the
+    // request never leaves the cache.
+    delete process.env.GOOGLE_CLOUD_API_KEY;
+    const second = await synthesize('kandelaar');
+    expect(second.status).toBe(200);
+    expect(await second.json()).toEqual({
+      audioContent: 'Y2FjaGVkLWF1ZGlv',
+      contentType: 'audio/mp3',
+      cached: true,
+    });
+    expect(fetchCalls).toBe(1);
+    expect(ttsUsage()).toBe('kandelaar'.length);
+  });
+
+  test('failed synthesis is not cached and the retry re-fetches', async () => {
+    delete process.env.TTS_CACHE;
+    resetTtsCache();
+    let fetchCalls = 0;
+    globalThis.fetch = (async () => {
+      fetchCalls++;
+      if (fetchCalls === 1) {
+        return Response.json({ error: { message: 'boom' } }, { status: 500 });
+      }
+      return Response.json({ audioContent: 'aGVyc3RlbA==' });
+    }) as unknown as typeof fetch;
+
+    const failed = await synthesize('herstelbaar');
+    expect(failed.status).toBe(500);
+    expect(ttsUsage()).toBe(0); // reserved, then refunded
+
+    const retried = await synthesize('herstelbaar');
+    expect(retried.status).toBe(200);
+    expect(await retried.json()).toEqual({
+      audioContent: 'aGVyc3RlbA==',
+      contentType: 'audio/mp3',
+    });
+    expect(fetchCalls).toBe(2);
+  });
+
+  test('TTS_CACHE=0 keeps every request on the synthesis path', async () => {
+    process.env.TTS_CACHE = '0';
+    resetTtsCache();
+    try {
+      let fetchCalls = 0;
+      globalThis.fetch = (async () => {
+        fetchCalls++;
+        return Response.json({ audioContent: 'b25nZWNhY2hl' });
+      }) as unknown as typeof fetch;
+
+      expect((await synthesize('ongecached')).status).toBe(200);
+      expect((await synthesize('ongecached')).status).toBe(200);
+      expect(fetchCalls).toBe(2);
+      expect(ttsUsage()).toBe('ongecached'.length * 2);
+    } finally {
+      delete process.env.TTS_CACHE;
+      resetTtsCache();
+    }
   });
 });
