@@ -1,7 +1,10 @@
 import { paddleApiBase, type PaddleEnvironment } from './billing';
 
 const PADDLE_REQUEST_TIMEOUT_MS = 15_000;
-const CUSTOMER_PORTAL_HOSTS = new Set(['customer-portal.paddle.com', 'buyer-portal.paddle.com']);
+const CUSTOMER_PORTAL_HOSTS: Record<PaddleEnvironment, ReadonlySet<string>> = {
+  sandbox: new Set(['sandbox-customer-portal.paddle.com', 'sandbox-buyer-portal.paddle.com']),
+  production: new Set(['customer-portal.paddle.com', 'buyer-portal.paddle.com']),
+};
 
 export type ProrationBillingMode = 'prorated_immediately' | 'prorated_next_billing_period';
 
@@ -74,7 +77,7 @@ function asBillingMoney(value: unknown, fallbackCurrency: string | null): Billin
   return { amount, currencyCode: currency };
 }
 
-function assertCustomerPortalUrl(value: unknown): string {
+function assertCustomerPortalUrl(value: unknown, environment: PaddleEnvironment): string {
   if (typeof value !== 'string') {
     throw new PaddleBillingError('invalid_response', 'Paddle portal response omitted its URL');
   }
@@ -87,7 +90,7 @@ function assertCustomerPortalUrl(value: unknown): string {
       'Paddle portal response returned an invalid URL',
     );
   }
-  if (url.protocol !== 'https:' || !CUSTOMER_PORTAL_HOSTS.has(url.hostname)) {
+  if (url.protocol !== 'https:' || !CUSTOMER_PORTAL_HOSTS[environment].has(url.hostname)) {
     throw new PaddleBillingError(
       'invalid_response',
       'Paddle portal response returned an unexpected host',
@@ -237,7 +240,7 @@ export function makePaddleBillingOperations(cfg: {
         },
       );
       const overview = asRecord(asRecord(asRecord(response)?.data)?.urls)?.general;
-      return assertCustomerPortalUrl(asRecord(overview)?.overview);
+      return assertCustomerPortalUrl(asRecord(overview)?.overview, cfg.environment);
     },
 
     async previewSubscriptionChange(args) {
