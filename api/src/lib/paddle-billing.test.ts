@@ -32,7 +32,8 @@ describe('Paddle account-management operations', () => {
           data: {
             urls: {
               general: {
-                overview: 'https://customer-portal.paddle.com/cpl_test?action=overview&token=x',
+                overview:
+                  'https://sandbox-customer-portal.paddle.com/cpl_test?action=overview&token=x',
               },
             },
           },
@@ -50,7 +51,7 @@ describe('Paddle account-management operations', () => {
       subscriptionIds: ['sub_test', 'sub_test', 'sub_old'],
     });
 
-    expect(url).toBe('https://customer-portal.paddle.com/cpl_test?action=overview&token=x');
+    expect(url).toBe('https://sandbox-customer-portal.paddle.com/cpl_test?action=overview&token=x');
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('https://sandbox-api.paddle.com/customers/ctm_test/portal-sessions');
     expect(calls[0].init?.method).toBe('POST');
@@ -63,6 +64,31 @@ describe('Paddle account-management operations', () => {
   test('rejects a portal redirect outside Paddle', async () => {
     globalThis.fetch = mock(async () =>
       json({ data: { urls: { general: { overview: 'https://evil.example/steal' } } } }, 201),
+    ) as unknown as typeof fetch;
+    const operations = makePaddleBillingOperations({
+      apiKey: 'pdl_key',
+      environment: 'production',
+    });
+
+    await expect(
+      operations.createPortalSession({ customerId: 'ctm_test', subscriptionIds: [] }),
+    ).rejects.toMatchObject({ code: 'invalid_response' });
+  });
+
+  test('rejects a portal redirect for the other Paddle environment', async () => {
+    globalThis.fetch = mock(async () =>
+      json(
+        {
+          data: {
+            urls: {
+              general: {
+                overview: 'https://sandbox-customer-portal.paddle.com/cpl_test?token=x',
+              },
+            },
+          },
+        },
+        201,
+      ),
     ) as unknown as typeof fetch;
     const operations = makePaddleBillingOperations({
       apiKey: 'pdl_key',
