@@ -1,4 +1,4 @@
-import { VocabEntry } from "@/types";
+import { VocabEntry } from '@/types';
 
 /**
  * Shape returned by /api/dictionary/lookup. Mirror of the server-side type — kept in
@@ -54,6 +54,14 @@ export interface TranslationDrawerProps {
 
   /** Existing vocab record (if word was previously saved). */
   existingEntry?: VocabEntry | null;
+
+  /** Guided-onboarding progress, shown beside the level buttons so the action
+      and its effect on the first review stay visually connected. */
+  onboardingSaveProgress?: {
+    savedCount: number;
+    target: number;
+    currentWordSaved: boolean;
+  };
 
   onClose: () => void;
   onSpeak: (text: string) => void;

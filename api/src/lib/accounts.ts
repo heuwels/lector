@@ -1,13 +1,13 @@
 /**
  * Better Auth engine (#218): accounts, sessions, email verification, and
  * password reset, run in-process. Its tables (`user`, `session`, `account`,
- * `verification`) live in the same lector.db as user data so a single
- * replication stream covers both (#217). Only constructed, migrated, and
- * mounted in cloud proper (`config.authRequired`) — selfhost never touches
- * it. Session → userId: lib/session.ts; route-side reads: lib/user.ts.
+ * `verification`, `twoFactor`) live in the same lector.db as user data so a
+ * single replication stream covers both (#217). Only constructed, migrated,
+ * and mounted in cloud proper (`config.authRequired`) — selfhost never
+ * touches it. Session → userId: lib/session.ts; route-side reads: lib/user.ts.
  */
-import { betterAuth } from 'better-auth';
-import { captcha, genericOAuth } from 'better-auth/plugins';
+import { betterAuth, type BetterAuthPlugin } from 'better-auth';
+import { captcha, genericOAuth, twoFactor } from 'better-auth/plugins';
 import { getMigrations } from 'better-auth/db/migration';
 import type { Database } from 'bun:sqlite';
 import { config } from './config';
@@ -62,7 +62,14 @@ export function oidcDiscoveryUrl(issuer: string): string {
 
 /** Factory shared by the prod singleton and tests (in-memory DB aside). */
 export function createAuthEngine(opts: AuthEngineOptions) {
-  const plugins = [];
+  const plugins: BetterAuthPlugin[] = [
+    // TOTP two-factor auth (Google Authenticator et al), per-user opt-in from
+    // Settings. Enrolment is verify-to-arm (skipVerificationOnEnable stays
+    // false): `twoFactorEnabled` only flips after the first valid code, so a
+    // user who closes the QR dialog early is never locked out. Email OTP is
+    // deliberately not configured — TOTP + backup codes only.
+    twoFactor({ issuer: 'Lector' }),
+  ];
   if (opts.turnstileSecretKey) {
     plugins.push(captcha({ provider: 'cloudflare-turnstile', secretKey: opts.turnstileSecretKey }));
   }

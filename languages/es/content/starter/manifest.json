@@ -1,0 +1,120 @@
+{
+  "title": "Tus primeras 1000 palabras",
+  "author": "Lector",
+  "allow": [
+    "Ana",
+    "Leo",
+    "Rex",
+    "María",
+    "Luis"
+  ],
+  "maxNewLemmasPerLesson": 60,
+  "lessons": [
+    {
+      "file": "01-yo-soy-ana.md",
+      "title": "Yo soy Ana",
+      "maxRank": 250,
+      "maxNewLemmas": 110
+    },
+    {
+      "file": "02-la-casa.md",
+      "title": "La casa",
+      "maxRank": 250
+    },
+    {
+      "file": "03-el-trabajo.md",
+      "title": "El trabajo",
+      "maxRank": 250
+    },
+    {
+      "file": "04-la-ciudad.md",
+      "title": "La ciudad",
+      "maxRank": 250
+    },
+    {
+      "file": "05-la-noche.md",
+      "title": "La noche",
+      "maxRank": 250
+    },
+    {
+      "file": "06-el-amigo-leo.md",
+      "title": "El amigo Leo",
+      "maxRank": 500,
+      "maxNewLemmas": 75
+    },
+    {
+      "file": "07-la-semana.md",
+      "title": "La semana",
+      "maxRank": 500
+    },
+    {
+      "file": "08-el-dinero.md",
+      "title": "El dinero",
+      "maxRank": 500
+    },
+    {
+      "file": "09-la-escuela.md",
+      "title": "La escuela",
+      "maxRank": 500
+    },
+    {
+      "file": "10-la-calle.md",
+      "title": "La calle",
+      "maxRank": 500
+    },
+    {
+      "file": "11-la-comida.md",
+      "title": "La comida",
+      "maxRank": 750,
+      "maxNewLemmas": 75
+    },
+    {
+      "file": "12-el-viaje-al-mar.md",
+      "title": "El viaje al mar",
+      "maxRank": 750
+    },
+    {
+      "file": "13-maria-y-la-musica.md",
+      "title": "María y la música",
+      "maxRank": 750
+    },
+    {
+      "file": "14-la-familia-de-leo.md",
+      "title": "La familia de Leo",
+      "maxRank": 750
+    },
+    {
+      "file": "15-el-plan.md",
+      "title": "El plan",
+      "maxRank": 750,
+      "maxNewLemmas": 70
+    },
+    {
+      "file": "16-la-fiesta.md",
+      "title": "La fiesta",
+      "maxRank": 1000
+    },
+    {
+      "file": "17-el-banco.md",
+      "title": "El banco",
+      "maxRank": 1000
+    },
+    {
+      "file": "18-el-mundo.md",
+      "title": "El mundo",
+      "maxRank": 1000,
+      "maxNewLemmas": 70
+    },
+    {
+      "file": "19-el-curso.md",
+      "title": "El curso",
+      "maxRank": 1000
+    },
+    {
+      "file": "20-un-ano-una-vida.md",
+      "title": "Un año, una vida",
+      "maxRank": 1000,
+      "maxNewLemmas": 70
+    }
+  ]
+}

@@ -1,7 +1,11 @@
+import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, CollectionGroupRow } from '../db';
 import { getCurrentUserId } from '../lib/user';
 import { randomUUID } from 'crypto';
+import { entitlements, planLimitResponse } from '../lib/entitlements';
+import { growingRowCheck, utf8Bytes } from '../lib/storage-limits';
+import { validateSafeInteger } from '../lib/persisted-input';
 
 const app = new Hono();
 
@@ -35,23 +39,37 @@ app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
   const { name } = await c.req.json();
 
-  if (!name?.trim()) {
+  if (typeof name !== 'string' || !name.trim()) {
     return c.json({ error: 'name is required' }, 400);
   }
 
+  const normalizedName = name.trim();
   const id = randomUUID();
   const now = new Date().toISOString();
   const maxOrder = db
-    .prepare('SELECT COALESCE(MAX(sortOrder), -1) as maxOrder FROM collection_groups WHERE userId = ?')
+    .prepare(
+      'SELECT COALESCE(MAX(sortOrder), -1) as maxOrder FROM collection_groups WHERE userId = ?',
+    )
     .get(userId) as { maxOrder: number };
+  const nextOrder = maxOrder.maxOrder + 1;
+  const nextOrderError = validateSafeInteger(nextOrder, 'sortOrder', { optional: false, min: 0 });
+  if (nextOrderError) {
+    return c.json({ error: 'Group sort order exceeds the safe integer range' }, 409);
+  }
 
-  db.prepare('INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId) VALUES (?, ?, ?, ?, ?)').run(
-    id,
-    name.trim(),
-    maxOrder.maxOrder + 1,
-    now,
+  const verdict = entitlements.reserveCount(
     userId,
+    [
+      { metric: 'maxCollectionGroups' },
+      ...growingRowCheck('maxGroupNameBytes', utf8Bytes(normalizedName)),
+    ],
+    () => {
+      db.prepare(
+        'INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId) VALUES (?, ?, ?, ?, ?)',
+      ).run(id, normalizedName, nextOrder, now, userId);
+    },
   );
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   return c.json({ id });
 });
@@ -61,18 +79,23 @@ app.put('/:id', async (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
   const body = await c.req.json();
+  const existing = db
+    .prepare('SELECT name FROM collection_groups WHERE id = ? AND userId = ?')
+    .get(id, userId) as { name: string } | undefined;
 
   const updates: string[] = [];
-  const values: unknown[] = [];
+  const values: SQLQueryBindings[] = [];
 
   if (body.name !== undefined) {
-    if (!body.name.trim()) {
+    if (typeof body.name !== 'string' || !body.name.trim()) {
       return c.json({ error: 'name cannot be empty' }, 400);
     }
     updates.push('name = ?');
     values.push(body.name.trim());
   }
   if (body.sortOrder !== undefined) {
+    const sortOrderError = validateSafeInteger(body.sortOrder, 'sortOrder', { min: 0 });
+    if (sortOrderError) return c.json({ error: sortOrderError }, 400);
     updates.push('sortOrder = ?');
     values.push(body.sortOrder);
   }
@@ -83,7 +106,16 @@ app.put('/:id', async (c) => {
 
   values.push(id);
   values.push(userId);
-  db.prepare(`UPDATE collection_groups SET ${updates.join(', ')} WHERE id = ? AND userId = ?`).run(...values);
+  const checks =
+    body.name !== undefined && existing
+      ? growingRowCheck('maxGroupNameBytes', utf8Bytes(body.name.trim()), utf8Bytes(existing.name))
+      : [];
+  const verdict = entitlements.reserveCount(userId, checks, () => {
+    db.prepare(
+      `UPDATE collection_groups SET ${updates.join(', ')} WHERE id = ? AND userId = ?`,
+    ).run(...values);
+  });
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   return c.json({ success: true });
 });
@@ -94,7 +126,10 @@ app.delete('/:id', (c) => {
   const id = c.req.param('id');
   // Manually ungroup collections — SQLite's FK ON DELETE SET NULL only fires
   // with PRAGMA foreign_keys = ON, which isn't enabled here.
-  db.prepare('UPDATE collections SET groupId = NULL WHERE groupId = ? AND userId = ?').run(id, userId);
+  db.prepare('UPDATE collections SET groupId = NULL WHERE groupId = ? AND userId = ?').run(
+    id,
+    userId,
+  );
   db.prepare('DELETE FROM collection_groups WHERE id = ? AND userId = ?').run(id, userId);
   return c.json({ success: true });
 });

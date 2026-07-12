@@ -9,7 +9,9 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "test": "rm -rf .test-data && DATA_DIR=.test-data bun test"
+    "adopt-local-data": "bun run src/scripts/adopt-local-data.ts",
+    "test": "rm -rf .test-data && DATA_DIR=.test-data bun test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.114",
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "typescript": "5.9.3"
   }
 }

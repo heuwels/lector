@@ -15,6 +15,7 @@ import {
   getSetting,
   syncAnkiReviews,
 } from '@/lib/data-layer';
+import { lectorMode } from '@/lib/api-base';
 import { dateStringInTimeZone, isValidTimeZone } from '@/lib/dates';
 import { compositeActivityCount, deriveVocabGrowth, sliceSeriesByDays } from '@/lib/stats-derive';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
@@ -44,8 +45,19 @@ export default function StatsPage() {
       try {
         // Best-effort: pull Anki's review history into dailyStats first, so the
         // streak and activity heatmap below include today's Anki study. No-ops
-        // when Anki isn't running (see /api/anki/sync-reviews).
-        await syncAnkiReviews().catch(() => {});
+        // when Anki isn't running (see /api/anki/sync-reviews). AnkiConnect
+        // transport only (#241): the endpoint reaches AnkiConnect from the
+        // SERVER — pointless in cloud and on the addon transport, where the
+        // addon pushes the same per-day counts via POST /api/anki/reviews.
+        // (Read the setting inline rather than via useAnkiTransport: this
+        // effect must run exactly once, and sync must finish before the
+        // dailyStats fetch below or the heatmap misses today's reviews.)
+        if (lectorMode() !== 'cloud') {
+          const transport = await getSetting<string>('ankiTransport').catch(() => null);
+          if (transport !== 'addon') {
+            await syncAnkiReviews().catch(() => {});
+          }
+        }
 
         const [collectionCounts, fluency, reading, streakData, tzSetting] = await Promise.all([
           getCollectionCounts(),

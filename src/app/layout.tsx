@@ -11,15 +11,20 @@ import './globals.css';
 import NavHeader from '@/components/NavHeader';
 
 // Nunito is the UI/chrome font; Literata stays the reading body (issue #147 §2.1).
+// Script subsets beyond Latin are #289 Phase 1.1: Literata ships Cyrillic and
+// Greek incl. polytonic (greek-ext), so ru/grc reading is a config flag — the
+// files are served per-subset with unicode-range, so browsers only fetch the
+// slices a page actually uses. Nunito has no Greek; UI chrome is English, so
+// cyrillic alone covers the odd target-language string in the chrome.
 const nunito = Nunito({
   variable: '--font-nunito',
-  subsets: ['latin'],
+  subsets: ['latin', 'cyrillic'],
   weight: ['400', '600', '700', '800'],
 });
 
 const literata = Literata({
   variable: '--font-literata',
-  subsets: ['latin', 'latin-ext'],
+  subsets: ['latin', 'latin-ext', 'cyrillic', 'greek', 'greek-ext'],
 });
 
 export const metadata: Metadata = {

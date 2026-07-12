@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { ChevronDown, Folder, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, ChevronDown, Folder, Plus, Sparkles } from 'lucide-react';
 import AddCollectionTile from './components/AddCollectionTile';
 import EmptyState from './components/EmptyState';
 import GroupMenu from './components/GroupMenu';
@@ -26,8 +27,10 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import {
+  getActiveLanguage,
   getAllCollections,
   getAllGroups,
+  getStarterStatus,
   createCollection,
   createGroup,
   updateGroup,
@@ -35,13 +38,16 @@ import {
   reorderCollections,
   createStandaloneLesson,
   importEpub,
+  seedStarterContent,
   type Collection,
   type CollectionGroup,
 } from '@/lib/data-layer';
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/PageHeader';
+import { getOnboardingSnapshot, type OnboardingSnapshot } from '@/lib/onboarding';
 
 export default function Home() {
+  const router = useRouter();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [groups, setGroups] = useState<CollectionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +59,9 @@ export default function Home() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
   const [newCollectionTitle, setNewCollectionTitle] = useState('');
+  const [starterAvailable, setStarterAvailable] = useState(false);
+  const [isAddingStarter, setIsAddingStarter] = useState(false);
+  const [onboarding, setOnboarding] = useState<OnboardingSnapshot | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
@@ -90,17 +99,42 @@ export default function Home() {
 
   async function loadData() {
     try {
-      const [collectionsData, groupsData] = await Promise.all([
+      const [collectionsData, groupsData, onboardingData] = await Promise.all([
         getAllCollections(),
         getAllGroups(),
+        getOnboardingSnapshot().catch(() => null),
       ]);
 
       setCollections(collectionsData);
       setGroups(groupsData);
+      setOnboarding(onboardingData);
+
+      // Empty-library CTA (#315): offer the starter pack to users who selected
+      // this language before seeding existed. Seeded-once users (flag set)
+      // don't get it re-offered after deleting the collection.
+      if (collectionsData.length === 0) {
+        const status = await getStarterStatus(getActiveLanguage());
+        setStarterAvailable(status.available && !status.seeded);
+      } else {
+        setStarterAvailable(false);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleAddStarter() {
+    setIsAddingStarter(true);
+    try {
+      const { seeded } = await seedStarterContent(getActiveLanguage());
+      if (seeded) {
+        setStarterAvailable(false);
+        setCollections(await getAllCollections());
+      }
+    } finally {
+      setIsAddingStarter(false);
     }
   }
 
@@ -309,6 +343,47 @@ export default function Home() {
           />
         </div>
       </PageHeader>
+      {onboarding?.progress?.status === 'in_progress' && (
+        <section
+          aria-labelledby="resume-guide-heading"
+          data-testid="onboarding-resume"
+          className="mb-6 flex flex-col gap-4 rounded-2xl border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-5 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-[var(--gold-strong)]">
+              <Sparkles className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 id="resume-guide-heading" className="font-bold text-foreground">
+                Continue your first learning loop
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {onboarding.progress.currentStep === 'practice'
+                  ? 'Your three saved words are ready for a quick review.'
+                  : `Resume ${onboarding.progress.recommendedLessonTitle || 'your starter lesson'} where you left off.`}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            onClick={() =>
+              router.push(
+                onboarding.progress?.currentStep === 'practice'
+                  ? '/practice?onboarding=1'
+                  : `/read/${onboarding.progress?.recommendedLessonId}?onboarding=1`,
+              )
+            }
+            disabled={
+              onboarding.progress.currentStep !== 'practice' &&
+              !onboarding.progress.recommendedLessonId
+            }
+            className="self-start sm:self-auto"
+          >
+            Resume
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </section>
+      )}
       {isLoading ? (
         <div className="flex h-64 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-foreground" />
@@ -333,11 +408,7 @@ export default function Home() {
                 const items = groupedCollections.get(group.id) || [];
                 const isCollapsed = collapsedGroups.has(group.id);
                 return (
-                  <div
-                    key={group.id}
-                    data-testid={`group-${group.id}`}
-                    className="panel p-5"
-                  >
+                  <div key={group.id} data-testid={`group-${group.id}`} className="panel p-5">
                     <div className="mb-4 flex items-center gap-3">
                       <button
                         onClick={() => toggleGroup(group.id)}
@@ -349,9 +420,7 @@ export default function Home() {
                         <ChevronDown
                           className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
                         />
-                        <h3 className="text-lg font-semibold text-foreground">
-                          {group.name}
-                        </h3>
+                        <h3 className="text-lg font-semibold text-foreground">{group.name}</h3>
                       </button>
                       <span className="text-sm text-muted-foreground">
                         {items.length} {items.length === 1 ? 'item' : 'items'}
@@ -410,14 +479,9 @@ export default function Home() {
 
               {/* Ungrouped */}
               {ungrouped.length > 0 && (
-                <div
-                  data-testid="ungrouped-section"
-                  className="panel p-5"
-                >
+                <div data-testid="ungrouped-section" className="panel p-5">
                   {hasGroups && (
-                    <h3 className="mb-4 text-lg font-semibold text-foreground">
-                      Ungrouped
-                    </h3>
+                    <h3 className="mb-4 text-lg font-semibold text-foreground">Ungrouped</h3>
                   )}
                   <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                     {ungrouped.map((collection) => (
@@ -428,7 +492,11 @@ export default function Home() {
               )}
             </div>
           ) : (
-            <EmptyState onImport={handleImportClick} />
+            <EmptyState
+              onImport={handleImportClick}
+              onAddStarter={starterAvailable ? handleAddStarter : undefined}
+              isAddingStarter={isAddingStarter}
+            />
           )}
         </section>
       )}

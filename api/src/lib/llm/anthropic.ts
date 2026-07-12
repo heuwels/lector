@@ -1,6 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { LLMProvider, CompletionOptions, LLMTask } from './types';
+import type { BatchRequest, BatchStatus, LLMProvider, CompletionOptions, LLMTask } from './types';
+import { LLMTruncatedError } from './errors';
+
+function expectsJson(options: CompletionOptions): boolean {
+  return options.responseFormat === 'json-object' || options.responseFormat === 'json-array';
+}
 
 // General-purpose default. Use a plain alias (no date suffix) so it doesn't get
 // retired out from under us the way a pinned snapshot does — that's exactly what
@@ -94,9 +99,13 @@ export class AnthropicProvider implements LLMProvider {
   /** Resolve which model to use for a given task (see CompletionOptions.task). */
   modelForTask(task?: LLMTask): string {
     switch (task) {
-      case 'word-translation':
+      case 'word-gloss':
+      case 'word-enrichment':
+      case 'context-simple':
+      case 'context-rich':
         return this.models.word;
-      case 'phrase-translation':
+      case 'phrase-simple':
+      case 'phrase-rich':
         return this.models.phrase;
       case 'chat':
         return this.models.chat;
@@ -154,6 +163,9 @@ export class AnthropicProvider implements LLMProvider {
     });
 
     const content = message.content[0];
+    if (expectsJson(options) && message.stop_reason === 'max_tokens') {
+      throw new LLMTruncatedError(options.maxTokens);
+    }
     if (content.type !== 'text') {
       throw new Error('Unexpected response type from Anthropic');
     }
@@ -166,6 +178,7 @@ export class AnthropicProvider implements LLMProvider {
     const prompt = options.messages.map((m) => m.content).join('\n\n');
 
     let resultText = '';
+    let stopReason: string | null = null;
 
     for await (const message of query({
       prompt,
@@ -195,13 +208,20 @@ export class AnthropicProvider implements LLMProvider {
         }
       }
       if (message.type === 'result') {
-        const result = (message as { result?: string }).result;
+        const resultMessage = message as { result?: string; stop_reason?: string | null };
+        stopReason = resultMessage.stop_reason ?? null;
+        const result = resultMessage.result;
         if (result) {
           resultText = result;
         }
       }
     }
 
+    if (expectsJson(options) && stopReason === 'max_tokens') {
+      // The Agent SDK does not expose an output-token option, so a retry can
+      // regenerate but cannot request a larger cap the way the Messages API can.
+      throw new LLMTruncatedError(options.maxTokens, false);
+    }
     if (!resultText) {
       throw new Error('No text response from Agent SDK');
     }
@@ -220,5 +240,61 @@ export class AnthropicProvider implements LLMProvider {
       const message = err instanceof Error ? err.message : 'Unknown error';
       return { ok: false, error: message };
     }
+  }
+
+  // ── Message Batches (#226): the 50%-off asynchronous tier ─────────────────
+  // Only the direct Messages API has a batch endpoint; the Agent-SDK/OAuth path
+  // cannot submit batches, so it reports unsupported and callers fall back to
+  // synchronous complete().
+
+  supportsBatch(): boolean {
+    return !this.useAgentSdk && this.client !== null;
+  }
+
+  async createBatch(requests: BatchRequest[]): Promise<string> {
+    if (!this.supportsBatch()) {
+      throw new Error('Anthropic batches require API-key auth (not OAuth/Agent SDK)');
+    }
+    const batch = await this.client!.messages.batches.create({
+      requests: requests.map((request) => ({
+        custom_id: request.customId,
+        params: {
+          model: this.modelForTask(request.options.task),
+          max_tokens: request.options.maxTokens,
+          messages: request.options.messages.map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          })),
+        },
+      })),
+    });
+    return batch.id;
+  }
+
+  async getBatch(batchId: string): Promise<BatchStatus> {
+    if (!this.supportsBatch()) {
+      throw new Error('Anthropic batches require API-key auth (not OAuth/Agent SDK)');
+    }
+    let processingStatus: string;
+    try {
+      processingStatus = (await this.client!.messages.batches.retrieve(batchId)).processing_status;
+    } catch (error) {
+      // A batch Anthropic no longer knows (deleted, expired out of retention,
+      // or created under a different key) can never complete — surface it as
+      // terminal so the caller stops polling. Other errors are transient.
+      if (error instanceof Anthropic.NotFoundError) {
+        return { state: 'failed', error: `batch ${batchId} not found` };
+      }
+      throw error;
+    }
+    if (processingStatus !== 'ended') return { state: 'in_progress' };
+
+    const results = new Map<string, string>();
+    for await (const entry of await this.client!.messages.batches.results(batchId)) {
+      if (entry.result.type !== 'succeeded') continue; // errored/canceled/expired → caller resubmits
+      const text = entry.result.message.content.find((block) => block.type === 'text');
+      if (text && text.type === 'text') results.set(entry.custom_id, text.text);
+    }
+    return { state: 'ended', results };
   }
 }

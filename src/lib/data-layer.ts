@@ -6,9 +6,9 @@
  * src/types.
  */
 
-import { DEFAULT_LANGUAGE } from './languages';
+import { DEFAULT_LANGUAGE, foldWord, getLanguageConfig, isValidLanguageCode } from './languages';
 import { apiFetch } from './api-base';
-import { readLanguageCache } from './language-cache';
+import { activeTenantId, readLanguageCache } from './language-cache';
 
 // Active language helper — reads the tenant-keyed cache (#281), falls back
 // to the default (SSR, cloud pre-session, or simply nothing cached yet).
@@ -16,8 +16,22 @@ export function getActiveLanguage(): string {
   return readLanguageCache() || DEFAULT_LANGUAGE;
 }
 
+/** The active language's full pack (non-hook twin of useActiveLanguage). */
+export function getActivePack() {
+  const code = getActiveLanguage();
+  return getLanguageConfig(isValidLanguageCode(code) ? code : DEFAULT_LANGUAGE);
+}
+
 function langParam(prefix: '?' | '&' = '?'): string {
   return `${prefix}language=${getActiveLanguage()}`;
+}
+
+async function apiError(res: Response, fallback: string): Promise<Error> {
+  const body = (await res
+    .clone()
+    .json()
+    .catch(() => ({}))) as { error?: unknown };
+  return new Error(typeof body.error === 'string' ? body.error : fallback);
 }
 
 // Re-export the shared domain types for convenience
@@ -79,6 +93,7 @@ export async function createCollection(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...data, language: getActiveLanguage() }),
   });
+  if (!res.ok) throw await apiError(res, 'Could not create collection');
   const { id } = await res.json();
   return id;
 }
@@ -164,6 +179,7 @@ export async function addLessonToCollection(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+  if (!res.ok) throw await apiError(res, 'Could not create lesson');
   const { id } = await res.json();
   return id;
 }
@@ -234,6 +250,13 @@ export async function createStandaloneLesson(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title: data.title, textContent: data.textContent }),
   });
+  if (!res.ok) {
+    // The operation spans two legacy endpoints. If the authoritative lesson
+    // limit rejects the second half, remove the collection created solely for
+    // this import so a capped Free account does not accumulate empty shells.
+    await apiFetch(`/api/collections/${collectionId}`, { method: 'DELETE' });
+    throw await apiError(res, 'Could not create imported lesson');
+  }
   const { id: lessonId } = await res.json();
   return { collectionId, lessonId };
 }
@@ -348,7 +371,7 @@ export async function deleteVocabEntry(id: string): Promise<void> {
 
 export async function getWordState(word: string): Promise<WordState | undefined> {
   const map = await getKnownWordsMap();
-  return map.get(word.toLowerCase());
+  return map.get(foldWord(word, getActivePack()));
 }
 
 export async function updateWordState(word: string, state: WordState): Promise<boolean> {
@@ -359,7 +382,7 @@ export async function updateWordState(word: string, state: WordState): Promise<b
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      updates: [{ word: word.toLowerCase(), state }],
+      updates: [{ word: foldWord(word, getActivePack()), state }],
       language: getActiveLanguage(),
     }),
   });
@@ -370,6 +393,54 @@ export async function getKnownWordsMap(): Promise<Map<string, WordState>> {
   const res = await apiFetch(`/api/known-words${langParam()}`);
   const data = await res.json();
   return new Map(Object.entries(data) as [string, WordState][]);
+}
+
+// ============================================================================
+// Plan entitlements (#222) — informational; enforcement is server-side
+// ============================================================================
+
+export interface ClientEntitlements {
+  plan: 'free' | 'cloud' | 'plus' | 'unlimited';
+  byok: boolean;
+  limits: Record<string, number | null>;
+  usage: Record<string, number>;
+  periods: { day: string; month: string };
+}
+
+let entitlementsCache: {
+  tenantId: string;
+  value: ClientEntitlements;
+  at: number;
+} | null = null;
+
+/** Provider/funding changes alter effective limits immediately. */
+export function invalidateEntitlementsCache(): void {
+  entitlementsCache = null;
+}
+
+/**
+ * The account's plan limits + this month's usage, cached for five minutes —
+ * surfaces read it to REFLECT limits (reader selection cap, journal meter);
+ * the API enforces them regardless. Null when the endpoint is unavailable
+ * (network hiccup) — callers must treat null as "don't reflect anything".
+ */
+export async function getEntitlements(): Promise<ClientEntitlements | null> {
+  const tenantId = activeTenantId();
+  if (
+    tenantId !== null &&
+    entitlementsCache?.tenantId === tenantId &&
+    Date.now() - entitlementsCache.at < 5 * 60_000
+  ) {
+    return entitlementsCache.value;
+  }
+  const res = await apiFetch('/api/billing/entitlements');
+  if (!res.ok) return null;
+  const value = (await res.json()) as ClientEntitlements;
+  // Cloud pre-session reads must never become a browser-global cache entry.
+  // AuthGuard records the tenant before app surfaces mount; selfhost uses the
+  // stable `local` namespace.
+  if (tenantId !== null) entitlementsCache = { tenantId, value, at: Date.now() };
+  return value;
 }
 
 export async function getAllKnownWords(): Promise<KnownWord[]> {
@@ -434,7 +505,7 @@ export async function updateClozeAfterReview(
   newMasteryLevel: ClozeMasteryLevel,
   nextReview: Date,
 ): Promise<number> {
-  const res = await apiFetch(`/api/cloze/${id}/review`, {
+  const res = await apiFetch(`/api/cloze/${id}/review${langParam()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -615,8 +686,11 @@ export interface FluencyStats {
   pending: number;
 }
 
-export async function getFluencyStats(): Promise<FluencyStats> {
-  const res = await apiFetch(`/api/stats/fluency${langParam()}`);
+export async function getFluencyStats(
+  language: string = getActiveLanguage(),
+): Promise<FluencyStats> {
+  const params = new URLSearchParams({ language });
+  const res = await apiFetch(`/api/stats/fluency?${params}`);
   return res.json();
 }
 
@@ -672,19 +746,18 @@ export async function getJournalEntry(id: string): Promise<JournalEntry | undefi
   return res.json();
 }
 
-export async function createJournalEntry(body: string): Promise<{ id: string }> {
+export function createJournalEntry(body: string): Promise<Response> {
   const entryDate = new Date().toISOString().split('T')[0];
 
-  const res = await apiFetch('/api/journal', {
+  return apiFetch('/api/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body, entryDate, language: getActiveLanguage() }),
   });
-  return res.json();
 }
 
-export async function updateJournalDraft(id: string, body: string): Promise<void> {
-  await apiFetch(`/api/journal/${id}`, {
+export function updateJournalDraft(id: string, body: string): Promise<Response> {
+  return apiFetch(`/api/journal/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body }),
@@ -737,7 +810,9 @@ export async function getStatsForDateRange(
   startDate: string,
   endDate: string,
 ): Promise<DailyStats[]> {
-  const res = await apiFetch(`/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`);
+  const res = await apiFetch(
+    `/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`,
+  );
   return res.json();
 }
 
@@ -751,7 +826,10 @@ export async function getAllDailyStats(): Promise<DailyStats[]> {
 // App-wide activity per date (no language param on purpose, #238) — feeds the
 // heatmap so it agrees with the equally app-wide streak.
 export async function getAppWideActivity(): Promise<
-  Pick<DailyStats, 'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'>[]
+  Pick<
+    DailyStats,
+    'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'
+  >[]
 > {
   const res = await apiFetch('/api/stats/activity');
   return res.json();
@@ -801,6 +879,93 @@ export async function deleteSetting(key: string): Promise<void> {
 export async function getAllSettings(): Promise<Record<string, unknown>> {
   const res = await apiFetch('/api/settings');
   return res.json();
+}
+
+// ============================================================================
+// Helper Functions - Starter Content (#315)
+// ============================================================================
+
+export async function getStarterStatus(
+  language: string,
+): Promise<StarterContentResult & { available: boolean }> {
+  const res = await apiFetch(`/api/starter/status?language=${language}`);
+  if (!res.ok) return { available: false, seeded: false };
+  return res.json();
+}
+
+export interface StarterContentResult {
+  seeded: boolean;
+  reason?: string;
+  collectionId?: string;
+  lessonCount?: number;
+  recommendedLessonId?: string;
+  recommendedLessonTitle?: string;
+}
+
+/**
+ * Copy the language pack's starter collection into the user's library.
+ * Idempotent server-side (once per user+language); resolves { seeded: false }
+ * rather than throwing when there's nothing to seed or the API errored —
+ * language selection must never break on a missing starter pack.
+ */
+export async function seedStarterContent(language: string): Promise<StarterContentResult> {
+  try {
+    const res = await apiFetch('/api/starter/seed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language }),
+    });
+    if (!res.ok) return { seeded: false };
+    return await res.json();
+  } catch {
+    return { seeded: false };
+  }
+}
+
+// ============================================================================
+// Helper Functions - Guided onboarding practice (#331)
+// ============================================================================
+
+/**
+ * Materialise one idempotent mined cloze card from a word the learner saved in
+ * the reader. The API verifies ownership and finds the word's token position;
+ * callers never invent a card for another user's vocab row.
+ */
+export async function createOnboardingCloze(input: {
+  vocabId: string;
+  word: string;
+  sentence: string;
+  translation: string;
+}): Promise<ClozeSentence | null> {
+  const res = await apiFetch('/api/cloze/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...input, language: getActiveLanguage() }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return {
+    ...data,
+    nextReview: new Date(data.nextReview),
+    lastReviewed: data.lastReviewed ? new Date(data.lastReviewed) : undefined,
+  };
+}
+
+/** Fetch exactly the reader-mined cards named by the onboarding snapshot. */
+export async function getOnboardingCloze(vocabIds: string[]): Promise<ClozeSentence[]> {
+  if (vocabIds.length === 0) return [];
+  const params = new URLSearchParams({
+    vocabIds: [...new Set(vocabIds)].slice(0, 20).join(','),
+    language: getActiveLanguage(),
+  });
+  const res = await apiFetch(`/api/cloze/onboarding?${params}`);
+  if (!res.ok) return [];
+  const sentences = await res.json();
+  return sentences.map((sentence: Record<string, unknown>) => ({
+    ...sentence,
+    nextReview: new Date(sentence.nextReview as string),
+    lastReviewed: sentence.lastReviewed ? new Date(sentence.lastReviewed as string) : undefined,
+  }));
 }
 
 // ============================================================================

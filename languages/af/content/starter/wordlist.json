@@ -1,0 +1,6008 @@
+{
+ "language": "af",
+ "source": "csv",
+ "bandSize": 250,
+ "count": 1000,
+ "words": [
+  {
+   "rank": 1,
+   "lemma": "die",
+   "zipf": 7.87,
+   "band": 1
+  },
+  {
+   "rank": 2,
+   "lemma": "van",
+   "zipf": 7.51,
+   "band": 1
+  },
+  {
+   "rank": 3,
+   "lemma": "en",
+   "zipf": 7.45,
+   "band": 1
+  },
+  {
+   "rank": 4,
+   "lemma": "in",
+   "zipf": 7.44,
+   "band": 1
+  },
+  {
+   "rank": 5,
+   "lemma": "'n",
+   "zipf": 7.34,
+   "band": 1
+  },
+  {
+   "rank": 6,
+   "lemma": "is",
+   "zipf": 7.32,
+   "band": 1
+  },
+  {
+   "rank": 7,
+   "lemma": "het",
+   "zipf": 7.25,
+   "band": 1
+  },
+  {
+   "rank": 8,
+   "lemma": "wat",
+   "zipf": 6.97,
+   "band": 1
+  },
+  {
+   "rank": 9,
+   "lemma": "op",
+   "zipf": 6.89,
+   "band": 1
+  },
+  {
+   "rank": 10,
+   "lemma": "sy",
+   "zipf": 6.87,
+   "band": 1
+  },
+  {
+   "rank": 11,
+   "lemma": "met",
+   "zipf": 6.85,
+   "band": 1
+  },
+  {
+   "rank": 12,
+   "lemma": "word",
+   "zipf": 6.84,
+   "band": 1
+  },
+  {
+   "rank": 13,
+   "lemma": "as",
+   "zipf": 6.83,
+   "band": 1
+  },
+  {
+   "rank": 14,
+   "lemma": "of",
+   "zipf": 6.82,
+   "band": 1
+  },
+  {
+   "rank": 15,
+   "lemma": "vir",
+   "zipf": 6.8,
+   "band": 1
+  },
+  {
+   "rank": 16,
+   "lemma": "te",
+   "zipf": 6.8,
+   "band": 1
+  },
+  {
+   "rank": 17,
+   "lemma": "was",
+   "zipf": 6.8,
+   "band": 1
+  },
+  {
+   "rank": 18,
+   "lemma": "hy",
+   "zipf": 6.77,
+   "band": 1
+  },
+  {
+   "rank": 19,
+   "lemma": "om",
+   "zipf": 6.71,
+   "band": 1
+  },
+  {
+   "rank": 20,
+   "lemma": "dit",
+   "zipf": 6.71,
+   "band": 1
+  },
+  {
+   "rank": 21,
+   "lemma": "deur",
+   "zipf": 6.7,
+   "band": 1
+  },
+  {
+   "rank": 22,
+   "lemma": "nie",
+   "zipf": 6.69,
+   "band": 1
+  },
+  {
+   "rank": 23,
+   "lemma": "se",
+   "zipf": 6.68,
+   "band": 1
+  },
+  {
+   "rank": 24,
+   "lemma": "aan",
+   "zipf": 6.67,
+   "band": 1
+  },
+  {
+   "rank": 25,
+   "lemma": "tot",
+   "zipf": 6.58,
+   "band": 1
+  },
+  {
+   "rank": 26,
+   "lemma": "ook",
+   "zipf": 6.56,
+   "band": 1
+  },
+  {
+   "rank": 27,
+   "lemma": "na",
+   "zipf": 6.52,
+   "band": 1
+  },
+  {
+   "rank": 28,
+   "lemma": "dat",
+   "zipf": 6.45,
+   "band": 1
+  },
+  {
+   "rank": 29,
+   "lemma": "hulle",
+   "zipf": 6.44,
+   "band": 1
+  },
+  {
+   "rank": 30,
+   "lemma": "by",
+   "zipf": 6.42,
+   "band": 1
+  },
+  {
+   "rank": 31,
+   "lemma": "uit",
+   "zipf": 6.41,
+   "band": 1
+  },
+  {
+   "rank": 32,
+   "lemma": "eerste",
+   "zipf": 6.34,
+   "band": 1
+  },
+  {
+   "rank": 33,
+   "lemma": "hierdie",
+   "zipf": 6.28,
+   "band": 1
+  },
+  {
+   "rank": 34,
+   "lemma": "maar",
+   "zipf": 6.27,
+   "band": 1
+  },
+  {
+   "rank": 35,
+   "lemma": "kan",
+   "zipf": 6.26,
+   "band": 1
+  },
+  {
+   "rank": 36,
+   "lemma": "oor",
+   "zipf": 6.26,
+   "band": 1
+  },
+  {
+   "rank": 37,
+   "lemma": "daar",
+   "zipf": 6.24,
+   "band": 1
+  },
+  {
+   "rank": 38,
+   "lemma": "ander",
+   "zipf": 6.23,
+   "band": 1
+  },
+  {
+   "rank": 39,
+   "lemma": "soos",
+   "zipf": 6.23,
+   "band": 1
+  },
+  {
+   "rank": 40,
+   "lemma": "een",
+   "zipf": 6.21,
+   "band": 1
+  },
+  {
+   "rank": 41,
+   "lemma": "jaar",
+   "zipf": 6.21,
+   "band": 1
+  },
+  {
+   "rank": 42,
+   "lemma": "gebruik",
+   "zipf": 6.2,
+   "band": 1
+  },
+  {
+   "rank": 43,
+   "lemma": "bekend",
+   "zipf": 6.19,
+   "band": 1
+  },
+  {
+   "rank": 44,
+   "lemma": "ekstern",
+   "zipf": 6.18,
+   "band": 1
+  },
+  {
+   "rank": 45,
+   "lemma": "haar",
+   "zipf": 6.17,
+   "band": 1
+  },
+  {
+   "rank": 46,
+   "lemma": "verwysing",
+   "zipf": 6.14,
+   "band": 1
+  },
+  {
+   "rank": 47,
+   "lemma": "onder",
+   "zipf": 6.12,
+   "band": 1
+  },
+  {
+   "rank": 48,
+   "lemma": "twee",
+   "zipf": 6.12,
+   "band": 1
+  },
+  {
+   "rank": 49,
+   "lemma": "rolprente",
+   "zipf": 6.11,
+   "band": 1
+  },
+  {
+   "rank": 50,
+   "lemma": "meer",
+   "zipf": 6.11,
+   "band": 1
+  },
+  {
+   "rank": 51,
+   "lemma": "baie",
+   "zipf": 6.11,
+   "band": 1
+  },
+  {
+   "rank": 52,
+   "lemma": "groot",
+   "zipf": 6.1,
+   "band": 1
+  },
+  {
+   "rank": 53,
+   "lemma": "teen",
+   "zipf": 6.09,
+   "band": 1
+  },
+  {
+   "rank": 54,
+   "lemma": "hul",
+   "zipf": 6.06,
+   "band": 1
+  },
+  {
+   "rank": 55,
+   "lemma": "tussen",
+   "zipf": 6.06,
+   "band": 1
+  },
+  {
+   "rank": 56,
+   "lemma": "toe",
+   "zipf": 6.05,
+   "band": 1
+  },
+  {
+   "rank": 57,
+   "lemma": "deel",
+   "zipf": 6.05,
+   "band": 1
+  },
+  {
+   "rank": 58,
+   "lemma": "begin",
+   "zipf": 6.01,
+   "band": 1
+  },
+  {
+   "rank": 59,
+   "lemma": "waar",
+   "zipf": 6.0,
+   "band": 1
+  },
+  {
+   "rank": 60,
+   "lemma": "voor",
+   "zipf": 5.99,
+   "band": 1
+  },
+  {
+   "rank": 61,
+   "lemma": "hom",
+   "zipf": 5.97,
+   "band": 1
+  },
+  {
+   "rank": 62,
+   "lemma": "tydens",
+   "zipf": 5.95,
+   "band": 1
+  },
+  {
+   "rank": 63,
+   "lemma": "dié",
+   "zipf": 5.95,
+   "band": 1
+  },
+  {
+   "rank": 64,
+   "lemma": "naam",
+   "zipf": 5.91,
+   "band": 1
+  },
+  {
+   "rank": 65,
+   "lemma": "nuwe",
+   "zipf": 5.91,
+   "band": 1
+  },
+  {
+   "rank": 66,
+   "lemma": "later",
+   "zipf": 5.9,
+   "band": 1
+  },
+  {
+   "rank": 67,
+   "lemma": "gebore",
+   "zipf": 5.9,
+   "band": 1
+  },
+  {
+   "rank": 68,
+   "lemma": "bestaan",
+   "zipf": 5.9,
+   "band": 1
+  },
+  {
+   "rank": 69,
+   "lemma": "al",
+   "zipf": 5.89,
+   "band": 1
+  },
+  {
+   "rank": 70,
+   "lemma": "sien",
+   "zipf": 5.88,
+   "band": 1
+  },
+  {
+   "rank": 71,
+   "lemma": "kom",
+   "zipf": 5.88,
+   "band": 1
+  },
+  {
+   "rank": 72,
+   "lemma": "spesie",
+   "zipf": 5.87,
+   "band": 1
+  },
+  {
+   "rank": 73,
+   "lemma": "net",
+   "zipf": 5.86,
+   "band": 1
+  },
+  {
+   "rank": 74,
+   "lemma": "keer",
+   "zipf": 5.86,
+   "band": 1
+  },
+  {
+   "rank": 75,
+   "lemma": "sou",
+   "zipf": 5.86,
+   "band": 1
+  },
+  {
+   "rank": 76,
+   "lemma": "familie",
+   "zipf": 5.85,
+   "band": 1
+  },
+  {
+   "rank": 77,
+   "lemma": "volgens",
+   "zipf": 5.85,
+   "band": 1
+  },
+  {
+   "rank": 78,
+   "lemma": "egter",
+   "zipf": 5.85,
+   "band": 1
+  },
+  {
+   "rank": 79,
+   "lemma": "tweede",
+   "zipf": 5.85,
+   "band": 1
+  },
+  {
+   "rank": 80,
+   "lemma": "rolle",
+   "zipf": 5.85,
+   "band": 1
+  },
+  {
+   "rank": 81,
+   "lemma": "nog",
+   "zipf": 5.85,
+   "band": 1
+  },
+  {
+   "rank": 82,
+   "lemma": "nasionale",
+   "zipf": 5.85,
+   "band": 1
+  },
+  {
+   "rank": 83,
+   "lemma": "so",
+   "zipf": 5.83,
+   "band": 1
+  },
+  {
+   "rank": 84,
+   "lemma": "drie",
+   "zipf": 5.83,
+   "band": 1
+  },
+  {
+   "rank": 85,
+   "lemma": "kerk",
+   "zipf": 5.83,
+   "band": 1
+  },
+  {
+   "rank": 86,
+   "lemma": "saam",
+   "zipf": 5.82,
+   "band": 1
+  },
+  {
+   "rank": 87,
+   "lemma": "werk",
+   "zipf": 5.82,
+   "band": 1
+  },
+  {
+   "rank": 88,
+   "lemma": "lys",
+   "zipf": 5.82,
+   "band": 1
+  },
+  {
+   "rank": 89,
+   "lemma": "eeu",
+   "zipf": 5.81,
+   "band": 1
+  },
+  {
+   "rank": 90,
+   "lemma": "kon",
+   "zipf": 5.81,
+   "band": 1
+  },
+  {
+   "rank": 91,
+   "lemma": "terwyl",
+   "zipf": 5.81,
+   "band": 1
+  },
+  {
+   "rank": 92,
+   "lemma": "mense",
+   "zipf": 5.81,
+   "band": 1
+  },
+  {
+   "rank": 93,
+   "lemma": "gehad",
+   "zipf": 5.79,
+   "band": 1
+  },
+  {
+   "rank": 94,
+   "lemma": "verskeie",
+   "zipf": 5.79,
+   "band": 1
+  },
+  {
+   "rank": 95,
+   "lemma": "tyd",
+   "zipf": 5.78,
+   "band": 1
+  },
+  {
+   "rank": 96,
+   "lemma": "veral",
+   "zipf": 5.77,
+   "band": 1
+  },
+  {
+   "rank": 97,
+   "lemma": "land",
+   "zipf": 5.76,
+   "band": 1
+  },
+  {
+   "rank": 98,
+   "lemma": "geword",
+   "zipf": 5.76,
+   "band": 1
+  },
+  {
+   "rank": 99,
+   "lemma": "sal",
+   "zipf": 5.76,
+   "band": 1
+  },
+  {
+   "rank": 100,
+   "lemma": "gemeente",
+   "zipf": 5.76,
+   "band": 1
+  },
+  {
+   "rank": 101,
+   "lemma": "maak",
+   "zipf": 5.75,
+   "band": 1
+  },
+  {
+   "rank": 102,
+   "lemma": "bron",
+   "zipf": 5.75,
+   "band": 1
+  },
+  {
+   "rank": 103,
+   "lemma": "stad",
+   "zipf": 5.75,
+   "band": 1
+  },
+  {
+   "rank": 104,
+   "lemma": "vorm",
+   "zipf": 5.74,
+   "band": 1
+  },
+  {
+   "rank": 105,
+   "lemma": "laat",
+   "zipf": 5.74,
+   "band": 1
+  },
+  {
+   "rank": 106,
+   "lemma": "akteur",
+   "zipf": 5.73,
+   "band": 1
+  },
+  {
+   "rank": 107,
+   "lemma": "gemaak",
+   "zipf": 5.72,
+   "band": 1
+  },
+  {
+   "rank": 108,
+   "lemma": "wees",
+   "zipf": 5.72,
+   "band": 1
+  },
+  {
+   "rank": 109,
+   "lemma": "lewe",
+   "zipf": 5.71,
+   "band": 1
+  },
+  {
+   "rank": 110,
+   "lemma": "water",
+   "zipf": 5.71,
+   "band": 1
+  },
+  {
+   "rank": 111,
+   "lemma": "nadat",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 112,
+   "lemma": "noem",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 113,
+   "lemma": "vanaf",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 114,
+   "lemma": "klein",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 115,
+   "lemma": "weer",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 116,
+   "lemma": "man",
+   "zipf": 5.69,
+   "band": 1
+  },
+  {
+   "rank": 117,
+   "lemma": "grootste",
+   "zipf": 5.69,
+   "band": 1
+  },
+  {
+   "rank": 118,
+   "lemma": "af",
+   "zipf": 5.68,
+   "band": 1
+  },
+  {
+   "rank": 119,
+   "lemma": "moet",
+   "zipf": 5.68,
+   "band": 1
+  },
+  {
+   "rank": 120,
+   "lemma": "sowat",
+   "zipf": 5.66,
+   "band": 1
+  },
+  {
+   "rank": 121,
+   "lemma": "geskiedenis",
+   "zipf": 5.66,
+   "band": 1
+  },
+  {
+   "rank": 122,
+   "lemma": "omdat",
+   "zipf": 5.66,
+   "band": 1
+  },
+  {
+   "rank": 123,
+   "lemma": "beskou",
+   "zipf": 5.66,
+   "band": 1
+  },
+  {
+   "rank": 124,
+   "lemma": "genus",
+   "zipf": 5.66,
+   "band": 1
+  },
+  {
+   "rank": 125,
+   "lemma": "geen",
+   "zipf": 5.66,
+   "band": 1
+  },
+  {
+   "rank": 126,
+   "lemma": "gebied",
+   "zipf": 5.65,
+   "band": 1
+  },
+  {
+   "rank": 127,
+   "lemma": "gevolg",
+   "zipf": 5.65,
+   "band": 1
+  },
+  {
+   "rank": 128,
+   "lemma": "neem",
+   "zipf": 5.65,
+   "band": 1
+  },
+  {
+   "rank": 129,
+   "lemma": "besoek",
+   "zipf": 5.65,
+   "band": 1
+  },
+  {
+   "rank": 130,
+   "lemma": "aktrise",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 131,
+   "lemma": "dan",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 132,
+   "lemma": "behoort",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 133,
+   "lemma": "dikwels",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 134,
+   "lemma": "dood",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 135,
+   "lemma": "km",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 136,
+   "lemma": "sedert",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 137,
+   "lemma": "slegs",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 138,
+   "lemma": "vier",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 139,
+   "lemma": "universiteit",
+   "zipf": 5.62,
+   "band": 1
+  },
+  {
+   "rank": 140,
+   "lemma": "dieselfde",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 141,
+   "lemma": "ons",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 142,
+   "lemma": "meeste",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 143,
+   "lemma": "alle",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 144,
+   "lemma": "publiseer",
+   "zipf": 5.6,
+   "band": 1
+  },
+  {
+   "rank": 145,
+   "lemma": "wanneer",
+   "zipf": 5.59,
+   "band": 1
+  },
+  {
+   "rank": 146,
+   "lemma": "staan",
+   "zipf": 5.59,
+   "band": 1
+  },
+  {
+   "rank": 147,
+   "lemma": "gaan",
+   "zipf": 5.59,
+   "band": 1
+  },
+  {
+   "rank": 148,
+   "lemma": "sommige",
+   "zipf": 5.59,
+   "band": 1
+  },
+  {
+   "rank": 149,
+   "lemma": "sluit",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 150,
+   "lemma": "dus",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 151,
+   "lemma": "spons",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 152,
+   "lemma": "reeds",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 153,
+   "lemma": "staat",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 154,
+   "lemma": "my",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 155,
+   "lemma": "lank",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 156,
+   "lemma": "wetenskaplike",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 157,
+   "lemma": "wêreld",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 158,
+   "lemma": "ten",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 159,
+   "lemma": "groep",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 160,
+   "lemma": "gebou",
+   "zipf": 5.56,
+   "band": 1
+  },
+  {
+   "rank": 161,
+   "lemma": "hier",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 162,
+   "lemma": "bevolking",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 163,
+   "lemma": "eie",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 164,
+   "lemma": "aantal",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 165,
+   "lemma": "plant",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 166,
+   "lemma": "elke",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 167,
+   "lemma": "party",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 168,
+   "lemma": "daarna",
+   "zipf": 5.54,
+   "band": 1
+  },
+  {
+   "rank": 169,
+   "lemma": "la",
+   "zipf": 5.54,
+   "band": 1
+  },
+  {
+   "rank": 170,
+   "lemma": "einde",
+   "zipf": 5.54,
+   "band": 1
+  },
+  {
+   "rank": 171,
+   "lemma": "gewoonlik",
+   "zipf": 5.54,
+   "band": 1
+  },
+  {
+   "rank": 172,
+   "lemma": "moes",
+   "zipf": 5.54,
+   "band": 1
+  },
+  {
+   "rank": 173,
+   "lemma": "volgende",
+   "zipf": 5.54,
+   "band": 1
+  },
+  {
+   "rank": 174,
+   "lemma": "nou",
+   "zipf": 5.53,
+   "band": 1
+  },
+  {
+   "rank": 175,
+   "lemma": "skrywer",
+   "zipf": 5.53,
+   "band": 1
+  },
+  {
+   "rank": 176,
+   "lemma": "amptelik",
+   "zipf": 5.53,
+   "band": 1
+  },
+  {
+   "rank": 177,
+   "lemma": "vroeë",
+   "zipf": 5.53,
+   "band": 1
+  },
+  {
+   "rank": 178,
+   "lemma": "plek",
+   "zipf": 5.53,
+   "band": 1
+  },
+  {
+   "rank": 179,
+   "lemma": "jare",
+   "zipf": 5.52,
+   "band": 1
+  },
+  {
+   "rank": 180,
+   "lemma": "ontwikkel",
+   "zipf": 5.52,
+   "band": 1
+  },
+  {
+   "rank": 181,
+   "lemma": "beste",
+   "zipf": 5.52,
+   "band": 1
+  },
+  {
+   "rank": 182,
+   "lemma": "koning",
+   "zipf": 5.52,
+   "band": 1
+  },
+  {
+   "rank": 183,
+   "lemma": "waarin",
+   "zipf": 5.52,
+   "band": 1
+  },
+  {
+   "rank": 184,
+   "lemma": "daarvan",
+   "zipf": 5.51,
+   "band": 1
+  },
+  {
+   "rank": 185,
+   "lemma": "gedurende",
+   "zipf": 5.51,
+   "band": 1
+  },
+  {
+   "rank": 186,
+   "lemma": "gebaseer",
+   "zipf": 5.51,
+   "band": 1
+  },
+  {
+   "rank": 187,
+   "lemma": "geleë",
+   "zipf": 5.5,
+   "band": 1
+  },
+  {
+   "rank": 188,
+   "lemma": "pous",
+   "zipf": 5.5,
+   "band": 1
+  },
+  {
+   "rank": 189,
+   "lemma": "miljoen",
+   "zipf": 5.5,
+   "band": 1
+  },
+  {
+   "rank": 190,
+   "lemma": "laaste",
+   "zipf": 5.5,
+   "band": 1
+  },
+  {
+   "rank": 191,
+   "lemma": "rol",
+   "zipf": 5.5,
+   "band": 1
+  },
+  {
+   "rank": 192,
+   "lemma": "seun",
+   "zipf": 5.49,
+   "band": 1
+  },
+  {
+   "rank": 193,
+   "lemma": "inligting",
+   "zipf": 5.49,
+   "band": 1
+  },
+  {
+   "rank": 194,
+   "lemma": "span",
+   "zipf": 5.49,
+   "band": 1
+  },
+  {
+   "rank": 195,
+   "lemma": "red",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 196,
+   "lemma": "naby",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 197,
+   "lemma": "stel",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 198,
+   "lemma": "eers",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 199,
+   "lemma": "verwys",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 200,
+   "lemma": "asook",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 201,
+   "lemma": "steeds",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 202,
+   "lemma": "plaas",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 203,
+   "lemma": "regering",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 204,
+   "lemma": "ongeveer",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 205,
+   "lemma": "oorlog",
+   "zipf": 5.48,
+   "band": 1
+  },
+  {
+   "rank": 206,
+   "lemma": "belangrik",
+   "zipf": 5.47,
+   "band": 1
+  },
+  {
+   "rank": 207,
+   "lemma": "geskryf",
+   "zipf": 5.47,
+   "band": 1
+  },
+  {
+   "rank": 208,
+   "lemma": "ontvang",
+   "zipf": 5.46,
+   "band": 1
+  },
+  {
+   "rank": 209,
+   "lemma": "vrou",
+   "zipf": 5.46,
+   "band": 1
+  },
+  {
+   "rank": 210,
+   "lemma": "speel",
+   "zipf": 5.46,
+   "band": 1
+  },
+  {
+   "rank": 211,
+   "lemma": "kinders",
+   "zipf": 5.46,
+   "band": 1
+  },
+  {
+   "rank": 212,
+   "lemma": "hoewel",
+   "zipf": 5.46,
+   "band": 1
+  },
+  {
+   "rank": 213,
+   "lemma": "kort",
+   "zipf": 5.46,
+   "band": 1
+  },
+  {
+   "rank": 214,
+   "lemma": "byvoorbeeld",
+   "zipf": 5.45,
+   "band": 1
+  },
+  {
+   "rank": 215,
+   "lemma": "gewen",
+   "zipf": 5.45,
+   "band": 1
+  },
+  {
+   "rank": 216,
+   "lemma": "ontstaan",
+   "zipf": 5.45,
+   "band": 1
+  },
+  {
+   "rank": 217,
+   "lemma": "ryk",
+   "zipf": 5.45,
+   "band": 1
+  },
+  {
+   "rank": 218,
+   "lemma": "dorp",
+   "zipf": 5.45,
+   "band": 1
+  },
+  {
+   "rank": 219,
+   "lemma": "mens",
+   "zipf": 5.44,
+   "band": 1
+  },
+  {
+   "rank": 220,
+   "lemma": "derde",
+   "zipf": 5.44,
+   "band": 1
+  },
+  {
+   "rank": 221,
+   "lemma": "taal",
+   "zipf": 5.44,
+   "band": 1
+  },
+  {
+   "rank": 222,
+   "lemma": "binne",
+   "zipf": 5.44,
+   "band": 1
+  },
+  {
+   "rank": 223,
+   "lemma": "bevat",
+   "zipf": 5.44,
+   "band": 1
+  },
+  {
+   "rank": 224,
+   "lemma": "liggaam",
+   "zipf": 5.44,
+   "band": 1
+  },
+  {
+   "rank": 225,
+   "lemma": "soms",
+   "zipf": 5.44,
+   "band": 1
+  },
+  {
+   "rank": 226,
+   "lemma": "moontlik",
+   "zipf": 5.44,
+   "band": 1
+  },
+  {
+   "rank": 227,
+   "lemma": "per",
+   "zipf": 5.44,
+   "band": 1
+  },
+  {
+   "rank": 228,
+   "lemma": "selfs",
+   "zipf": 5.43,
+   "band": 1
+  },
+  {
+   "rank": 229,
+   "lemma": "hoe",
+   "zipf": 5.43,
+   "band": 1
+  },
+  {
+   "rank": 230,
+   "lemma": "sonder",
+   "zipf": 5.43,
+   "band": 1
+  },
+  {
+   "rank": 231,
+   "lemma": "lande",
+   "zipf": 5.43,
+   "band": 1
+  },
+  {
+   "rank": 232,
+   "lemma": "weens",
+   "zipf": 5.43,
+   "band": 1
+  },
+  {
+   "rank": 233,
+   "lemma": "hou",
+   "zipf": 5.43,
+   "band": 1
+  },
+  {
+   "rank": 234,
+   "lemma": "vyf",
+   "zipf": 5.42,
+   "band": 1
+  },
+  {
+   "rank": 235,
+   "lemma": "voorkom",
+   "zipf": 5.42,
+   "band": 1
+  },
+  {
+   "rank": 236,
+   "lemma": "tydperk",
+   "zipf": 5.42,
+   "band": 1
+  },
+  {
+   "rank": 237,
+   "lemma": "ou",
+   "zipf": 5.42,
+   "band": 1
+  },
+  {
+   "rank": 238,
+   "lemma": "dae",
+   "zipf": 5.41,
+   "band": 1
+  },
+  {
+   "rank": 239,
+   "lemma": "gee",
+   "zipf": 5.41,
+   "band": 1
+  },
+  {
+   "rank": 240,
+   "lemma": "paar",
+   "zipf": 5.41,
+   "band": 1
+  },
+  {
+   "rank": 241,
+   "lemma": "algemeen",
+   "zipf": 5.41,
+   "band": 1
+  },
+  {
+   "rank": 242,
+   "lemma": "skryf",
+   "zipf": 5.41,
+   "band": 1
+  },
+  {
+   "rank": 243,
+   "lemma": "beskryf",
+   "zipf": 5.41,
+   "band": 1
+  },
+  {
+   "rank": 244,
+   "lemma": "lei",
+   "zipf": 5.41,
+   "band": 1
+  },
+  {
+   "rank": 245,
+   "lemma": "president",
+   "zipf": 5.41,
+   "band": 1
+  },
+  {
+   "rank": 246,
+   "lemma": "besluit",
+   "zipf": 5.4,
+   "band": 1
+  },
+  {
+   "rank": 247,
+   "lemma": "verder",
+   "zipf": 5.4,
+   "band": 1
+  },
+  {
+   "rank": 248,
+   "lemma": "vlag",
+   "zipf": 5.4,
+   "band": 1
+  },
+  {
+   "rank": 249,
+   "lemma": "moderne",
+   "zipf": 5.4,
+   "band": 1
+  },
+  {
+   "rank": 250,
+   "lemma": "waarvan",
+   "zipf": 5.4,
+   "band": 1
+  },
+  {
+   "rank": 251,
+   "lemma": "groter",
+   "zipf": 5.4,
+   "band": 2
+  },
+  {
+   "rank": 252,
+   "lemma": "middel",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 253,
+   "lemma": "video",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 254,
+   "lemma": "lê",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 255,
+   "lemma": "self",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 256,
+   "lemma": "aarde",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 257,
+   "lemma": "bereik",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 258,
+   "lemma": "enige",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 259,
+   "lemma": "verskyn",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 260,
+   "lemma": "uitgawe",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 261,
+   "lemma": "artikel",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 262,
+   "lemma": "boek",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 263,
+   "lemma": "swart",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 264,
+   "lemma": "mag",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 265,
+   "lemma": "ontwerp",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 266,
+   "lemma": "bly",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 267,
+   "lemma": "hele",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 268,
+   "lemma": "veroorsaak",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 269,
+   "lemma": "reeks",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 270,
+   "lemma": "ontwikkeling",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 271,
+   "lemma": "wie",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 272,
+   "lemma": "aangesien",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 273,
+   "lemma": "vertaal",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 274,
+   "lemma": "werke",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 275,
+   "lemma": "beide",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 276,
+   "lemma": "wit",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 277,
+   "lemma": "rolprent",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 278,
+   "lemma": "spesies",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 279,
+   "lemma": "huis",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 280,
+   "lemma": "hoofsaaklik",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 281,
+   "lemma": "daardie",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 282,
+   "lemma": "dag",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 283,
+   "lemma": "grond",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 284,
+   "lemma": "kry",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 285,
+   "lemma": "verander",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 286,
+   "lemma": "lid",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 287,
+   "lemma": "maande",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 288,
+   "lemma": "minder",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 289,
+   "lemma": "ek",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 290,
+   "lemma": "gegee",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 291,
+   "lemma": "sterk",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 292,
+   "lemma": "see",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 293,
+   "lemma": "beteken",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 294,
+   "lemma": "gekom",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 295,
+   "lemma": "skool",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 296,
+   "lemma": "vervaardiger",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 297,
+   "lemma": "tans",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 298,
+   "lemma": "ses",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 299,
+   "lemma": "sowel",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 300,
+   "lemma": "hoofstad",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 301,
+   "lemma": "ter",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 302,
+   "lemma": "huidige",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 303,
+   "lemma": "doen",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 304,
+   "lemma": "name",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 305,
+   "lemma": "volg",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 306,
+   "lemma": "bo",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 307,
+   "lemma": "gedoen",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 308,
+   "lemma": "vandag",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 309,
+   "lemma": "beeld",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 310,
+   "lemma": "hoë",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 311,
+   "lemma": "voëls",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 312,
+   "lemma": "beheer",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 313,
+   "lemma": "druk",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 314,
+   "lemma": "musiek",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 315,
+   "lemma": "enkele",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 316,
+   "lemma": "aanvaar",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 317,
+   "lemma": "minister",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 318,
+   "lemma": "woord",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 319,
+   "lemma": "mekaar",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 320,
+   "lemma": "geldig",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 321,
+   "lemma": "koninkryk",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 322,
+   "lemma": "sodat",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 323,
+   "lemma": "gevind",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 324,
+   "lemma": "enigste",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 325,
+   "lemma": "lede",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 326,
+   "lemma": "ontdek",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 327,
+   "lemma": "aanvanklik",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 328,
+   "lemma": "mees",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 329,
+   "lemma": "lang",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 330,
+   "lemma": "voormalige",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 331,
+   "lemma": "langs",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 332,
+   "lemma": "struik",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 333,
+   "lemma": "tale",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 334,
+   "lemma": "min",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 335,
+   "lemma": "gekry",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 336,
+   "lemma": "oorspronklik",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 337,
+   "lemma": "loopbaan",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 338,
+   "lemma": "gesien",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 339,
+   "lemma": "provinsie",
+   "zipf": 5.25,
+   "band": 2
+  },
+  {
+   "rank": 340,
+   "lemma": "alhoewel",
+   "zipf": 5.25,
+   "band": 2
+  },
+  {
+   "rank": 341,
+   "lemma": "an",
+   "zipf": 5.25,
+   "band": 2
+  },
+  {
+   "rank": 342,
+   "lemma": "webwerf",
+   "zipf": 5.25,
+   "band": 2
+  },
+  {
+   "rank": 343,
+   "lemma": "inwoners",
+   "zipf": 5.25,
+   "band": 2
+  },
+  {
+   "rank": 344,
+   "lemma": "terug",
+   "zipf": 5.24,
+   "band": 2
+  },
+  {
+   "rank": 345,
+   "lemma": "eiland",
+   "zipf": 5.24,
+   "band": 2
+  },
+  {
+   "rank": 346,
+   "lemma": "ouderdom",
+   "zipf": 5.24,
+   "band": 2
+  },
+  {
+   "rank": 347,
+   "lemma": "vind",
+   "zipf": 5.24,
+   "band": 2
+  },
+  {
+   "rank": 348,
+   "lemma": "rooi",
+   "zipf": 5.24,
+   "band": 2
+  },
+  {
+   "rank": 349,
+   "lemma": "pad",
+   "zipf": 5.23,
+   "band": 2
+  },
+  {
+   "rank": 350,
+   "lemma": "bou",
+   "zipf": 5.23,
+   "band": 2
+  },
+  {
+   "rank": 351,
+   "lemma": "verklaar",
+   "zipf": 5.23,
+   "band": 2
+  },
+  {
+   "rank": 352,
+   "lemma": "oorlede",
+   "zipf": 5.23,
+   "band": 2
+  },
+  {
+   "rank": 353,
+   "lemma": "jong",
+   "zipf": 5.23,
+   "band": 2
+  },
+  {
+   "rank": 354,
+   "lemma": "munisipaliteit",
+   "zipf": 5.23,
+   "band": 2
+  },
+  {
+   "rank": 355,
+   "lemma": "verkry",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 356,
+   "lemma": "talle",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 357,
+   "lemma": "verloor",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 358,
+   "lemma": "gesê",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 359,
+   "lemma": "voltooi",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 360,
+   "lemma": "albei",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 361,
+   "lemma": "verbind",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 362,
+   "lemma": "gevorm",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 363,
+   "lemma": "sekere",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 364,
+   "lemma": "uiteindelik",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 365,
+   "lemma": "voordat",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 366,
+   "lemma": "dui",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 367,
+   "lemma": "boom",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 368,
+   "lemma": "vader",
+   "zipf": 5.22,
+   "band": 2
+  },
+  {
+   "rank": 369,
+   "lemma": "titel",
+   "zipf": 5.21,
+   "band": 2
+  },
+  {
+   "rank": 370,
+   "lemma": "val",
+   "zipf": 5.21,
+   "band": 2
+  },
+  {
+   "rank": 371,
+   "lemma": "alfabeties",
+   "zipf": 5.21,
+   "band": 2
+  },
+  {
+   "rank": 372,
+   "lemma": "daarop",
+   "zipf": 5.21,
+   "band": 2
+  },
+  {
+   "rank": 373,
+   "lemma": "probeer",
+   "zipf": 5.21,
+   "band": 2
+  },
+  {
+   "rank": 374,
+   "lemma": "goed",
+   "zipf": 5.21,
+   "band": 2
+  },
+  {
+   "rank": 375,
+   "lemma": "waarskynlik",
+   "zipf": 5.21,
+   "band": 2
+  },
+  {
+   "rank": 376,
+   "lemma": "wil",
+   "zipf": 5.21,
+   "band": 2
+  },
+  {
+   "rank": 377,
+   "lemma": "meter",
+   "zipf": 5.21,
+   "band": 2
+  },
+  {
+   "rank": 378,
+   "lemma": "roman",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 379,
+   "lemma": "vis",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 380,
+   "lemma": "omgewing",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 381,
+   "lemma": "diens",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 382,
+   "lemma": "suidelike",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 383,
+   "lemma": "vroue",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 384,
+   "lemma": "term",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 385,
+   "lemma": "sosiale",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 386,
+   "lemma": "vervang",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 387,
+   "lemma": "goeie",
+   "zipf": 5.2,
+   "band": 2
+  },
+  {
+   "rank": 388,
+   "lemma": "noord",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 389,
+   "lemma": "buite",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 390,
+   "lemma": "want",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 391,
+   "lemma": "groei",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 392,
+   "lemma": "verkies",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 393,
+   "lemma": "behaal",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 394,
+   "lemma": "bepaal",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 395,
+   "lemma": "vervaardig",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 396,
+   "lemma": "invloed",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 397,
+   "lemma": "boeke",
+   "zipf": 5.19,
+   "band": 2
+  },
+  {
+   "rank": 398,
+   "lemma": "den",
+   "zipf": 5.18,
+   "band": 2
+  },
+  {
+   "rank": 399,
+   "lemma": "insluitend",
+   "zipf": 5.18,
+   "band": 2
+  },
+  {
+   "rank": 400,
+   "lemma": "wel",
+   "zipf": 5.18,
+   "band": 2
+  },
+  {
+   "rank": 401,
+   "lemma": "letterkunde",
+   "zipf": 5.18,
+   "band": 2
+  },
+  {
+   "rank": 402,
+   "lemma": "beperk",
+   "zipf": 5.18,
+   "band": 2
+  },
+  {
+   "rank": 403,
+   "lemma": "nooit",
+   "zipf": 5.18,
+   "band": 2
+  },
+  {
+   "rank": 404,
+   "lemma": "stigting",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 405,
+   "lemma": "rondte",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 406,
+   "lemma": "inheems",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 407,
+   "lemma": "totaal",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 408,
+   "lemma": "diere",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 409,
+   "lemma": "styl",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 410,
+   "lemma": "dien",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 411,
+   "lemma": "pa",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 412,
+   "lemma": "ondersoek",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 413,
+   "lemma": "tydskrif",
+   "zipf": 5.17,
+   "band": 2
+  },
+  {
+   "rank": 414,
+   "lemma": "almal",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 415,
+   "lemma": "geval",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 416,
+   "lemma": "beweging",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 417,
+   "lemma": "gebly",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 418,
+   "lemma": "sewe",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 419,
+   "lemma": "film",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 420,
+   "lemma": "lughawe",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 421,
+   "lemma": "wet",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 422,
+   "lemma": "verkoop",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 423,
+   "lemma": "vol",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 424,
+   "lemma": "kleiner",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 425,
+   "lemma": "handel",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 426,
+   "lemma": "hoër",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 427,
+   "lemma": "keiser",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 428,
+   "lemma": "suid",
+   "zipf": 5.16,
+   "band": 2
+  },
+  {
+   "rank": 429,
+   "lemma": "loop",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 430,
+   "lemma": "trek",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 431,
+   "lemma": "persoon",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 432,
+   "lemma": "byna",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 433,
+   "lemma": "voorheen",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 434,
+   "lemma": "betrokke",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 435,
+   "lemma": "wedstryd",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 436,
+   "lemma": "raad",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 437,
+   "lemma": "bome",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 438,
+   "lemma": "antiek",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 439,
+   "lemma": "hê",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 440,
+   "lemma": "verteenwoordig",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 441,
+   "lemma": "bied",
+   "zipf": 5.15,
+   "band": 2
+  },
+  {
+   "rank": 442,
+   "lemma": "verdere",
+   "zipf": 5.14,
+   "band": 2
+  },
+  {
+   "rank": 443,
+   "lemma": "groepe",
+   "zipf": 5.14,
+   "band": 2
+  },
+  {
+   "rank": 444,
+   "lemma": "sê",
+   "zipf": 5.14,
+   "band": 2
+  },
+  {
+   "rank": 445,
+   "lemma": "oudste",
+   "zipf": 5.14,
+   "band": 2
+  },
+  {
+   "rank": 446,
+   "lemma": "verskil",
+   "zipf": 5.14,
+   "band": 2
+  },
+  {
+   "rank": 447,
+   "lemma": "streek",
+   "zipf": 5.14,
+   "band": 2
+  },
+  {
+   "rank": 448,
+   "lemma": "lig",
+   "zipf": 5.14,
+   "band": 2
+  },
+  {
+   "rank": 449,
+   "lemma": "kuns",
+   "zipf": 5.14,
+   "band": 2
+  },
+  {
+   "rank": 450,
+   "lemma": "regisseur",
+   "zipf": 5.14,
+   "band": 2
+  },
+  {
+   "rank": 451,
+   "lemma": "kennis",
+   "zipf": 5.13,
+   "band": 2
+  },
+  {
+   "rank": 452,
+   "lemma": "museum",
+   "zipf": 5.13,
+   "band": 2
+  },
+  {
+   "rank": 453,
+   "lemma": "eerder",
+   "zipf": 5.13,
+   "band": 2
+  },
+  {
+   "rank": 454,
+   "lemma": "grens",
+   "zipf": 5.13,
+   "band": 2
+  },
+  {
+   "rank": 455,
+   "lemma": "seisoen",
+   "zipf": 5.13,
+   "band": 2
+  },
+  {
+   "rank": 456,
+   "lemma": "vierde",
+   "zipf": 5.13,
+   "band": 2
+  },
+  {
+   "rank": 457,
+   "lemma": "verkiesing",
+   "zipf": 5.13,
+   "band": 2
+  },
+  {
+   "rank": 458,
+   "lemma": "dogter",
+   "zipf": 5.13,
+   "band": 2
+  },
+  {
+   "rank": 459,
+   "lemma": "meestal",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 460,
+   "lemma": "lyk",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 461,
+   "lemma": "gedigte",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 462,
+   "lemma": "vanweë",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 463,
+   "lemma": "los",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 464,
+   "lemma": "u",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 465,
+   "lemma": "kerke",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 466,
+   "lemma": "stelsel",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 467,
+   "lemma": "woorde",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 468,
+   "lemma": "dra",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 469,
+   "lemma": "park",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 470,
+   "lemma": "hoogste",
+   "zipf": 5.12,
+   "band": 2
+  },
+  {
+   "rank": 471,
+   "lemma": "mans",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 472,
+   "lemma": "beskikbaar",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 473,
+   "lemma": "verlaat",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 474,
+   "lemma": "altyd",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 475,
+   "lemma": "hoof",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 476,
+   "lemma": "rivier",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 477,
+   "lemma": "skep",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 478,
+   "lemma": "vergadering",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 479,
+   "lemma": "geplaas",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 480,
+   "lemma": "omstreeks",
+   "zipf": 5.11,
+   "band": 2
+  },
+  {
+   "rank": 481,
+   "lemma": "kultuur",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 482,
+   "lemma": "doel",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 483,
+   "lemma": "oorsprong",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 484,
+   "lemma": "woon",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 485,
+   "lemma": "hoogte",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 486,
+   "lemma": "wou",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 487,
+   "lemma": "kant",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 488,
+   "lemma": "stede",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 489,
+   "lemma": "ma",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 490,
+   "lemma": "weergawe",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 491,
+   "lemma": "noorde",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 492,
+   "lemma": "oppervlakte",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 493,
+   "lemma": "punt",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 494,
+   "lemma": "bewind",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 495,
+   "lemma": "help",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 496,
+   "lemma": "sentrale",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 497,
+   "lemma": "soort",
+   "zipf": 5.1,
+   "band": 2
+  },
+  {
+   "rank": 498,
+   "lemma": "ster",
+   "zipf": 5.09,
+   "band": 2
+  },
+  {
+   "rank": 499,
+   "lemma": "navorsing",
+   "zipf": 5.09,
+   "band": 2
+  },
+  {
+   "rank": 500,
+   "lemma": "beweeg",
+   "zipf": 5.09,
+   "band": 2
+  },
+  {
+   "rank": 501,
+   "lemma": "manier",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 502,
+   "lemma": "toon",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 503,
+   "lemma": "verhouding",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 504,
+   "lemma": "agt",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 505,
+   "lemma": "suide",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 506,
+   "lemma": "verdeel",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 507,
+   "lemma": "weg",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 508,
+   "lemma": "sterre",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 509,
+   "lemma": "daarin",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 510,
+   "lemma": "broer",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 511,
+   "lemma": "eienskap",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 512,
+   "lemma": "bring",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 513,
+   "lemma": "geld",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 514,
+   "lemma": "verhaal",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 515,
+   "lemma": "volume",
+   "zipf": 5.07,
+   "band": 3
+  },
+  {
+   "rank": 516,
+   "lemma": "rondom",
+   "zipf": 5.07,
+   "band": 3
+  },
+  {
+   "rank": 517,
+   "lemma": "burger",
+   "zipf": 5.07,
+   "band": 3
+  },
+  {
+   "rank": 518,
+   "lemma": "verskaf",
+   "zipf": 5.07,
+   "band": 3
+  },
+  {
+   "rank": 519,
+   "lemma": "politikus",
+   "zipf": 5.07,
+   "band": 3
+  },
+  {
+   "rank": 520,
+   "lemma": "studie",
+   "zipf": 5.07,
+   "band": 3
+  },
+  {
+   "rank": 521,
+   "lemma": "erken",
+   "zipf": 5.07,
+   "band": 3
+  },
+  {
+   "rank": 522,
+   "lemma": "kind",
+   "zipf": 5.07,
+   "band": 3
+  },
+  {
+   "rank": 523,
+   "lemma": "slag",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 524,
+   "lemma": "visse",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 525,
+   "lemma": "massa",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 526,
+   "lemma": "posisie",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 527,
+   "lemma": "raak",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 528,
+   "lemma": "natuurlik",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 529,
+   "lemma": "verband",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 530,
+   "lemma": "persent",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 531,
+   "lemma": "vlak",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 532,
+   "lemma": "gewerk",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 533,
+   "lemma": "destyds",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 534,
+   "lemma": "ooste",
+   "zipf": 5.06,
+   "band": 3
+  },
+  {
+   "rank": 535,
+   "lemma": "plekke",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 536,
+   "lemma": "beter",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 537,
+   "lemma": "orde",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 538,
+   "lemma": "wen",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 539,
+   "lemma": "indien",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 540,
+   "lemma": "oos",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 541,
+   "lemma": "voorbeeld",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 542,
+   "lemma": "getroud",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 543,
+   "lemma": "galery",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 544,
+   "lemma": "predikant",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 545,
+   "lemma": "buitelandse",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 546,
+   "lemma": "klub",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 547,
+   "lemma": "bestuur",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 548,
+   "lemma": "proses",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 549,
+   "lemma": "distrik",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 550,
+   "lemma": "voorsitter",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 551,
+   "lemma": "eilande",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 552,
+   "lemma": "sterf",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 553,
+   "lemma": "vinnig",
+   "zipf": 5.05,
+   "band": 3
+  },
+  {
+   "rank": 554,
+   "lemma": "kleur",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 555,
+   "lemma": "digter",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 556,
+   "lemma": "das",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 557,
+   "lemma": "nodig",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 558,
+   "lemma": "mark",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 559,
+   "lemma": "nedersetting",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 560,
+   "lemma": "bevestig",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 561,
+   "lemma": "reg",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 562,
+   "lemma": "waarna",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 563,
+   "lemma": "besit",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 564,
+   "lemma": "beïnvloed",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 565,
+   "lemma": "waaronder",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 566,
+   "lemma": "lae",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 567,
+   "lemma": "studeer",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 568,
+   "lemma": "verskeidenheid",
+   "zipf": 5.04,
+   "band": 3
+  },
+  {
+   "rank": 569,
+   "lemma": "hand",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 570,
+   "lemma": "versprei",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 571,
+   "lemma": "lewer",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 572,
+   "lemma": "persoonlike",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 573,
+   "lemma": "leier",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 574,
+   "lemma": "vorige",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 575,
+   "lemma": "spesiale",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 576,
+   "lemma": "tien",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 577,
+   "lemma": "hoog",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 578,
+   "lemma": "agter",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 579,
+   "lemma": "leraar",
+   "zipf": 5.03,
+   "band": 3
+  },
+  {
+   "rank": 580,
+   "lemma": "vloei",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 581,
+   "lemma": "tree",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 582,
+   "lemma": "jy",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 583,
+   "lemma": "magte",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 584,
+   "lemma": "teenoor",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 585,
+   "lemma": "klas",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 586,
+   "lemma": "blou",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 587,
+   "lemma": "waarop",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 588,
+   "lemma": "naamlik",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 589,
+   "lemma": "gereeld",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 590,
+   "lemma": "formule",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 591,
+   "lemma": "lug",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 592,
+   "lemma": "daarom",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 593,
+   "lemma": "sake",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 594,
+   "lemma": "kalender",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 595,
+   "lemma": "maatskappy",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 596,
+   "lemma": "di",
+   "zipf": 5.02,
+   "band": 3
+  },
+  {
+   "rank": 597,
+   "lemma": "gemeenskap",
+   "zipf": 5.01,
+   "band": 3
+  },
+  {
+   "rank": 598,
+   "lemma": "homself",
+   "zipf": 5.01,
+   "band": 3
+  },
+  {
+   "rank": 599,
+   "lemma": "ekonomie",
+   "zipf": 5.01,
+   "band": 3
+  },
+  {
+   "rank": 600,
+   "lemma": "basis",
+   "zipf": 5.01,
+   "band": 3
+  },
+  {
+   "rank": 601,
+   "lemma": "lidmaat",
+   "zipf": 5.01,
+   "band": 3
+  },
+  {
+   "rank": 602,
+   "lemma": "stem",
+   "zipf": 5.01,
+   "band": 3
+  },
+  {
+   "rank": 603,
+   "lemma": "huwelik",
+   "zipf": 5.01,
+   "band": 3
+  },
+  {
+   "rank": 604,
+   "lemma": "weste",
+   "zipf": 5.01,
+   "band": 3
+  },
+  {
+   "rank": 605,
+   "lemma": "kus",
+   "zipf": 5.01,
+   "band": 3
+  },
+  {
+   "rank": 606,
+   "lemma": "leër",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 607,
+   "lemma": "pos",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 608,
+   "lemma": "verslaan",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 609,
+   "lemma": "insluit",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 610,
+   "lemma": "dorpe",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 611,
+   "lemma": "laasgenoemde",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 612,
+   "lemma": "prins",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 613,
+   "lemma": "verwerf",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 614,
+   "lemma": "heilig",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 615,
+   "lemma": "leiding",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 616,
+   "lemma": "duidelik",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 617,
+   "lemma": "vanuit",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 618,
+   "lemma": "weke",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 619,
+   "lemma": "kilometer",
+   "zipf": 5.0,
+   "band": 3
+  },
+  {
+   "rank": 620,
+   "lemma": "energie",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 621,
+   "lemma": "klassiek",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 622,
+   "lemma": "onderwys",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 623,
+   "lemma": "anders",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 624,
+   "lemma": "reis",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 625,
+   "lemma": "bevorder",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 626,
+   "lemma": "alles",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 627,
+   "lemma": "struktuur",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 628,
+   "lemma": "materiaal",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 629,
+   "lemma": "veel",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 630,
+   "lemma": "maan",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 631,
+   "lemma": "vertrek",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 632,
+   "lemma": "oorwinning",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 633,
+   "lemma": "beweer",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 634,
+   "lemma": "toernooi",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 635,
+   "lemma": "media",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 636,
+   "lemma": "vertel",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 637,
+   "lemma": "beskik",
+   "zipf": 4.99,
+   "band": 3
+  },
+  {
+   "rank": 638,
+   "lemma": "goue",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 639,
+   "lemma": "glo",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 640,
+   "lemma": "elk",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 641,
+   "lemma": "volle",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 642,
+   "lemma": "parlement",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 643,
+   "lemma": "genoeg",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 644,
+   "lemma": "pas",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 645,
+   "lemma": "mate",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 646,
+   "lemma": "uitvoer",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 647,
+   "lemma": "vervoer",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 648,
+   "lemma": "regte",
+   "zipf": 4.98,
+   "band": 3
+  },
+  {
+   "rank": 649,
+   "lemma": "leer",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 650,
+   "lemma": "vroeër",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 651,
+   "lemma": "fynbos",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 652,
+   "lemma": "leef",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 653,
+   "lemma": "sodoende",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 654,
+   "lemma": "beroep",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 655,
+   "lemma": "professor",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 656,
+   "lemma": "rigting",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 657,
+   "lemma": "chemies",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 658,
+   "lemma": "ouer",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 659,
+   "lemma": "drama",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 660,
+   "lemma": "album",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 661,
+   "lemma": "seuns",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 662,
+   "lemma": "gesin",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 663,
+   "lemma": "vliegtuig",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 664,
+   "lemma": "oppervlak",
+   "zipf": 4.97,
+   "band": 3
+  },
+  {
+   "rank": 665,
+   "lemma": "url",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 666,
+   "lemma": "atleet",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 667,
+   "lemma": "tipe",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 668,
+   "lemma": "waarde",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 669,
+   "lemma": "helfte",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 670,
+   "lemma": "ondersteun",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 671,
+   "lemma": "wild",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 672,
+   "lemma": "tog",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 673,
+   "lemma": "jou",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 674,
+   "lemma": "liefde",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 675,
+   "lemma": "stryd",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 676,
+   "lemma": "verhoog",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 677,
+   "lemma": "res",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 678,
+   "lemma": "wes",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 679,
+   "lemma": "elemente",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 680,
+   "lemma": "vertoon",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 681,
+   "lemma": "herstel",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 682,
+   "lemma": "wetenskap",
+   "zipf": 4.96,
+   "band": 3
+  },
+  {
+   "rank": 683,
+   "lemma": "vloot",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 684,
+   "lemma": "probleme",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 685,
+   "lemma": "ontmoet",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 686,
+   "lemma": "wyse",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 687,
+   "lemma": "bedryf",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 688,
+   "lemma": "temperatuur",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 689,
+   "lemma": "totdat",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 690,
+   "lemma": "dorpie",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 691,
+   "lemma": "afstand",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 692,
+   "lemma": "voorbeelde",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 693,
+   "lemma": "ouers",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 694,
+   "lemma": "sin",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 695,
+   "lemma": "koninklik",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 696,
+   "lemma": "gewoon",
+   "zipf": 4.95,
+   "band": 3
+  },
+  {
+   "rank": 697,
+   "lemma": "voer",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 698,
+   "lemma": "gegaan",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 699,
+   "lemma": "les",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 700,
+   "lemma": "moeder",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 701,
+   "lemma": "groen",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 702,
+   "lemma": "vry",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 703,
+   "lemma": "literatuur",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 704,
+   "lemma": "skakel",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 705,
+   "lemma": "vroeg",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 706,
+   "lemma": "berg",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 707,
+   "lemma": "oud",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 708,
+   "lemma": "miljard",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 709,
+   "lemma": "sukses",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 710,
+   "lemma": "geboue",
+   "zipf": 4.94,
+   "band": 3
+  },
+  {
+   "rank": 711,
+   "lemma": "spelers",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 712,
+   "lemma": "iets",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 713,
+   "lemma": "skrywers",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 714,
+   "lemma": "heeltemal",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 715,
+   "lemma": "sulke",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 716,
+   "lemma": "gelede",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 717,
+   "lemma": "betekenis",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 718,
+   "lemma": "verantwoordelik",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 719,
+   "lemma": "beskerm",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 720,
+   "lemma": "voorsien",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 721,
+   "lemma": "oop",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 722,
+   "lemma": "rugby",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 723,
+   "lemma": "kop",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 724,
+   "lemma": "laer",
+   "zipf": 4.93,
+   "band": 3
+  },
+  {
+   "rank": 725,
+   "lemma": "status",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 726,
+   "lemma": "jaarliks",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 727,
+   "lemma": "meerderheid",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 728,
+   "lemma": "krag",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 729,
+   "lemma": "sentrum",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 730,
+   "lemma": "etnies",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 731,
+   "lemma": "volk",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 732,
+   "lemma": "soortgelyk",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 733,
+   "lemma": "gemeentes",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 734,
+   "lemma": "tye",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 735,
+   "lemma": "nege",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 736,
+   "lemma": "swak",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 737,
+   "lemma": "wapen",
+   "zipf": 4.92,
+   "band": 3
+  },
+  {
+   "rank": 738,
+   "lemma": "opleiding",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 739,
+   "lemma": "geleentheid",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 740,
+   "lemma": "departement",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 741,
+   "lemma": "wys",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 742,
+   "lemma": "behalwe",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 743,
+   "lemma": "organisasie",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 744,
+   "lemma": "graad",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 745,
+   "lemma": "aandag",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 746,
+   "lemma": "wissel",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 747,
+   "lemma": "beleid",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 748,
+   "lemma": "week",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 749,
+   "lemma": "top",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 750,
+   "lemma": "omtrent",
+   "zipf": 4.91,
+   "band": 3
+  },
+  {
+   "rank": 751,
+   "lemma": "diep",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 752,
+   "lemma": "onbekend",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 753,
+   "lemma": "filosofie",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 754,
+   "lemma": "belang",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 755,
+   "lemma": "boere",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 756,
+   "lemma": "onafhanklike",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 757,
+   "lemma": "verminder",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 758,
+   "lemma": "ver",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 759,
+   "lemma": "rapport",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 760,
+   "lemma": "rede",
+   "zipf": 4.91,
+   "band": 4
+  },
+  {
+   "rank": 761,
+   "lemma": "verhuis",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 762,
+   "lemma": "getal",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 763,
+   "lemma": "voorkoms",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 764,
+   "lemma": "eindelik",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 765,
+   "lemma": "teks",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 766,
+   "lemma": "gelê",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 767,
+   "lemma": "model",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 768,
+   "lemma": "uur",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 769,
+   "lemma": "verbeter",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 770,
+   "lemma": "prys",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 771,
+   "lemma": "lengte",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 772,
+   "lemma": "verslag",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 773,
+   "lemma": "toegelaat",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 774,
+   "lemma": "stemme",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 775,
+   "lemma": "hoort",
+   "zipf": 4.9,
+   "band": 4
+  },
+  {
+   "rank": 776,
+   "lemma": "motor",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 777,
+   "lemma": "gedeelte",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 778,
+   "lemma": "hiervan",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 779,
+   "lemma": "skip",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 780,
+   "lemma": "agtergrond",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 781,
+   "lemma": "anna",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 782,
+   "lemma": "dienste",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 783,
+   "lemma": "danksy",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 784,
+   "lemma": "vernoem",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 785,
+   "lemma": "kg",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 786,
+   "lemma": "produksie",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 787,
+   "lemma": "aard",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 788,
+   "lemma": "gewild",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 789,
+   "lemma": "vermoor",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 790,
+   "lemma": "klimaat",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 791,
+   "lemma": "waarmee",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 792,
+   "lemma": "soek",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 793,
+   "lemma": "hoërskool",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 794,
+   "lemma": "maklik",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 795,
+   "lemma": "versameling",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 796,
+   "lemma": "biografie",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 797,
+   "lemma": "teorie",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 798,
+   "lemma": "koningin",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 799,
+   "lemma": "vertaling",
+   "zipf": 4.89,
+   "band": 4
+  },
+  {
+   "rank": 800,
+   "lemma": "vernietig",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 801,
+   "lemma": "orkes",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 802,
+   "lemma": "are",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 803,
+   "lemma": "studente",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 804,
+   "lemma": "ligging",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 805,
+   "lemma": "strek",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 806,
+   "lemma": "teenstelling",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 807,
+   "lemma": "praat",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 808,
+   "lemma": "saak",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 809,
+   "lemma": "verspreiding",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 810,
+   "lemma": "gepraat",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 811,
+   "lemma": "vyfde",
+   "zipf": 4.88,
+   "band": 4
+  },
+  {
+   "rank": 812,
+   "lemma": "bundel",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 813,
+   "lemma": "steun",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 814,
+   "lemma": "komponis",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 815,
+   "lemma": "onderskei",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 816,
+   "lemma": "verhale",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 817,
+   "lemma": "professioneel",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 818,
+   "lemma": "soldate",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 819,
+   "lemma": "hierna",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 820,
+   "lemma": "verwyder",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 821,
+   "lemma": "geboortes",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 822,
+   "lemma": "duur",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 823,
+   "lemma": "swaar",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 824,
+   "lemma": "voorwerp",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 825,
+   "lemma": "samelewing",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 826,
+   "lemma": "open",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 827,
+   "lemma": "behou",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 828,
+   "lemma": "daartoe",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 829,
+   "lemma": "donker",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 830,
+   "lemma": "periode",
+   "zipf": 4.87,
+   "band": 4
+  },
+  {
+   "rank": 831,
+   "lemma": "vliegtuie",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 832,
+   "lemma": "speler",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 833,
+   "lemma": "warm",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 834,
+   "lemma": "brand",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 835,
+   "lemma": "gewees",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 836,
+   "lemma": "reaksie",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 837,
+   "lemma": "vlug",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 838,
+   "lemma": "here",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 839,
+   "lemma": "bedien",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 840,
+   "lemma": "toestand",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 841,
+   "lemma": "radio",
+   "zipf": 4.86,
+   "band": 4
+  },
+  {
+   "rank": 842,
+   "lemma": "terugkeer",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 843,
+   "lemma": "fokus",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 844,
+   "lemma": "idee",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 845,
+   "lemma": "ruimte",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 846,
+   "lemma": "poging",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 847,
+   "lemma": "trou",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 848,
+   "lemma": "publikasies",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 849,
+   "lemma": "provinsiaal",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 850,
+   "lemma": "sit",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 851,
+   "lemma": "rond",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 852,
+   "lemma": "vroulik",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 853,
+   "lemma": "vrede",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 854,
+   "lemma": "geloof",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 855,
+   "lemma": "grootte",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 856,
+   "lemma": "iemand",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 857,
+   "lemma": "daarmee",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 858,
+   "lemma": "vertolk",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 859,
+   "lemma": "skole",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 860,
+   "lemma": "data",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 861,
+   "lemma": "onderwerp",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 862,
+   "lemma": "plan",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 863,
+   "lemma": "voël",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 864,
+   "lemma": "geel",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 865,
+   "lemma": "planeet",
+   "zipf": 4.85,
+   "band": 4
+  },
+  {
+   "rank": 866,
+   "lemma": "eeue",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 867,
+   "lemma": "seevlak",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 868,
+   "lemma": "bewys",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 869,
+   "lemma": "hoeveelheid",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 870,
+   "lemma": "onafhanklikheid",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 871,
+   "lemma": "hulp",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 872,
+   "lemma": "projek",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 873,
+   "lemma": "gevra",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 874,
+   "lemma": "bedreig",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 875,
+   "lemma": "benoem",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 876,
+   "lemma": "regeer",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 877,
+   "lemma": "aanleiding",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 878,
+   "lemma": "aanval",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 879,
+   "lemma": "afdeling",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 880,
+   "lemma": "hart",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 881,
+   "lemma": "karakter",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 882,
+   "lemma": "stadium",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 883,
+   "lemma": "winter",
+   "zipf": 4.84,
+   "band": 4
+  },
+  {
+   "rank": 884,
+   "lemma": "bewaar",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 885,
+   "lemma": "politiek",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 886,
+   "lemma": "ware",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 887,
+   "lemma": "kunstenaar",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 888,
+   "lemma": "langer",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 889,
+   "lemma": "riviere",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 890,
+   "lemma": "burgemeester",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 891,
+   "lemma": "poësie",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 892,
+   "lemma": "belangstelling",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 893,
+   "lemma": "natuur",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 894,
+   "lemma": "via",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 895,
+   "lemma": "weermag",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 896,
+   "lemma": "verseker",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 897,
+   "lemma": "feit",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 898,
+   "lemma": "feitlik",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 899,
+   "lemma": "program",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 900,
+   "lemma": "generaal",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 901,
+   "lemma": "uitvoerend",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 902,
+   "lemma": "federaal",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 903,
+   "lemma": "gebeur",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 904,
+   "lemma": "opdrag",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 905,
+   "lemma": "stand",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 906,
+   "lemma": "intussen",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 907,
+   "lemma": "habitat",
+   "zipf": 4.83,
+   "band": 4
+  },
+  {
+   "rank": 908,
+   "lemma": "bevind",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 909,
+   "lemma": "verandering",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 910,
+   "lemma": "eenheid",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 911,
+   "lemma": "alleen",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 912,
+   "lemma": "kos",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 913,
+   "lemma": "blare",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 914,
+   "lemma": "burgers",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 915,
+   "lemma": "terrein",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 916,
+   "lemma": "maand",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 917,
+   "lemma": "band",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 918,
+   "lemma": "voet",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 919,
+   "lemma": "geniet",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 920,
+   "lemma": "goud",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 921,
+   "lemma": "onderneem",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 922,
+   "lemma": "siekte",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 923,
+   "lemma": "betaal",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 924,
+   "lemma": "vermoë",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 925,
+   "lemma": "kaart",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 926,
+   "lemma": "minute",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 927,
+   "lemma": "eindstryd",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 928,
+   "lemma": "moeilik",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 929,
+   "lemma": "enjin",
+   "zipf": 4.82,
+   "band": 4
+  },
+  {
+   "rank": 930,
+   "lemma": "atmosfeer",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 931,
+   "lemma": "persone",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 932,
+   "lemma": "skepe",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 933,
+   "lemma": "gedra",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 934,
+   "lemma": "wyk",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 935,
+   "lemma": "kyk",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 936,
+   "lemma": "dateer",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 937,
+   "lemma": "goewerneur",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 938,
+   "lemma": "streke",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 939,
+   "lemma": "waardeur",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 940,
+   "lemma": "storie",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 941,
+   "lemma": "benewens",
+   "zipf": 4.81,
+   "band": 4
+  },
+  {
+   "rank": 942,
+   "lemma": "ontdekking",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 943,
+   "lemma": "beskrywing",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 944,
+   "lemma": "roete",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 945,
+   "lemma": "behels",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 946,
+   "lemma": "behandel",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 947,
+   "lemma": "brief",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 948,
+   "lemma": "vergelyking",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 949,
+   "lemma": "oog",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 950,
+   "lemma": "relatief",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 951,
+   "lemma": "amper",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 952,
+   "lemma": "versoek",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 953,
+   "lemma": "dalk",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 954,
+   "lemma": "hoop",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 955,
+   "lemma": "veld",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 956,
+   "lemma": "daarvoor",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 957,
+   "lemma": "vestig",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 958,
+   "lemma": "nedersettings",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 959,
+   "lemma": "bad",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 960,
+   "lemma": "karakters",
+   "zipf": 4.8,
+   "band": 4
+  },
+  {
+   "rank": 961,
+   "lemma": "simbool",
+   "zipf": 4.79,
+   "band": 4
+  },
+  {
+   "rank": 962,
+   "lemma": "kombinasie",
+   "zipf": 4.79,
+   "band": 4
+  },
+  {
+   "rank": 963,
+   "lemma": "oorleef",
+   "zipf": 4.79,
+   "band": 4
+  },
+  {
+   "rank": 964,
+   "lemma": "bibliografie",
+   "zipf": 4.79,
+   "band": 4
+  },
+  {
+   "rank": 965,
+   "lemma": "besonder",
+   "zipf": 4.79,
+   "band": 4
+  },
+  {
+   "rank": 966,
+   "lemma": "opsig",
+   "zipf": 4.79,
+   "band": 4
+  },
+  {
+   "rank": 967,
+   "lemma": "genaamd",
+   "zipf": 4.79,
+   "band": 4
+  },
+  {
+   "rank": 968,
+   "lemma": "lees",
+   "zipf": 4.79,
+   "band": 4
+  },
+  {
+   "rank": 969,
+   "lemma": "fort",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 970,
+   "lemma": "bruin",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 971,
+   "lemma": "lyn",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 972,
+   "lemma": "tegnologie",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 973,
+   "lemma": "verlede",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 974,
+   "lemma": "tegnies",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 975,
+   "lemma": "eindig",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 976,
+   "lemma": "gedrag",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 977,
+   "lemma": "setel",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 978,
+   "lemma": "blyk",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 979,
+   "lemma": "kaptein",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 980,
+   "lemma": "saamstel",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 981,
+   "lemma": "wêreldwyd",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 982,
+   "lemma": "virus",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 983,
+   "lemma": "bydrae",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 984,
+   "lemma": "stof",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 985,
+   "lemma": "gelyk",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 986,
+   "lemma": "probleem",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 987,
+   "lemma": "pers",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 988,
+   "lemma": "bestudeer",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 989,
+   "lemma": "datum",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 990,
+   "lemma": "samewerking",
+   "zipf": 4.78,
+   "band": 4
+  },
+  {
+   "rank": 991,
+   "lemma": "somer",
+   "zipf": 4.77,
+   "band": 4
+  },
+  {
+   "rank": 992,
+   "lemma": "opera",
+   "zipf": 4.77,
+   "band": 4
+  },
+  {
+   "rank": 993,
+   "lemma": "kern",
+   "zipf": 4.77,
+   "band": 4
+  },
+  {
+   "rank": 994,
+   "lemma": "ring",
+   "zipf": 4.77,
+   "band": 4
+  },
+  {
+   "rank": 995,
+   "lemma": "sedertdien",
+   "zipf": 4.77,
+   "band": 4
+  },
+  {
+   "rank": 996,
+   "lemma": "begrawe",
+   "zipf": 4.77,
+   "band": 4
+  },
+  {
+   "rank": 997,
+   "lemma": "grondwet",
+   "zipf": 4.77,
+   "band": 4
+  },
+  {
+   "rank": 998,
+   "lemma": "primêr",
+   "zipf": 4.77,
+   "band": 4
+  },
+  {
+   "rank": 999,
+   "lemma": "niks",
+   "zipf": 4.77,
+   "band": 4
+  },
+  {
+   "rank": 1000,
+   "lemma": "verskuif",
+   "zipf": 4.77,
+   "band": 4
+  }
+ ]
+}

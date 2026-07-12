@@ -26,7 +26,43 @@ import { jsonrepair } from 'jsonrepair';
  * is strictly safer than silently saving a string truncated at the stray quote.
  * The prompts ask models to use single quotes inside values to avoid this.
  */
-export function parseLooseJson<T = unknown>(text: string): T {
+export interface LooseJsonResult<T> {
+  value: T;
+  repaired: boolean;
+  rootComplete: boolean;
+}
+
+function hasCompleteJsonRoot(text: string): boolean {
+  const first = text.search(/[[{]/);
+  if (first === -1) return false;
+
+  const stack: string[] = [];
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+  for (let index = first; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === '{') stack.push('}');
+    else if (char === '[') stack.push(']');
+    else if (char === '}' || char === ']') {
+      if (stack.pop() !== char) return false;
+      if (stack.length === 0) return true;
+    }
+  }
+  return false;
+}
+
+/** Parse JSON while also reporting whether its outer container was complete. */
+export function parseLooseJsonResult<T = unknown>(text: string): LooseJsonResult<T> {
   // 1. Drop reasoning <think>…</think> blocks first — their braces would
   //    otherwise derail the span extraction in step 3.
   const thinkless = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
@@ -37,7 +73,7 @@ export function parseLooseJson<T = unknown>(text: string): T {
 
   // 3. Try parsing the cleaned text as-is.
   try {
-    return JSON.parse(unfenced) as T;
+    return { value: JSON.parse(unfenced) as T, repaired: false, rootComplete: true };
   } catch {
     // 4. Fall back to the outermost object/array span, dropping any prose the
     //    model added on either side.
@@ -46,7 +82,12 @@ export function parseLooseJson<T = unknown>(text: string): T {
     if (first !== -1 && last > first) {
       const span = unfenced.slice(first, last + 1);
       try {
-        return JSON.parse(span) as T;
+        return {
+          value: JSON.parse(span) as T,
+          repaired: false,
+          // Parsing the outer span strictly proves its root is balanced.
+          rootComplete: true,
+        };
       } catch {
         // 5. Last resort: repair structural noise (trailing commas, unquoted
         //    keys, single quotes) and re-parse. Two candidates, in order:
@@ -70,7 +111,11 @@ export function parseLooseJson<T = unknown>(text: string): T {
           try {
             const repaired = JSON.parse(jsonrepair(candidate));
             if (repaired !== null && typeof repaired === 'object') {
-              return repaired as T;
+              return {
+                value: repaired as T,
+                repaired: true,
+                rootComplete: hasCompleteJsonRoot(candidate),
+              };
             }
           } catch {
             // try the next candidate / fall through to the shared error below
@@ -81,4 +126,8 @@ export function parseLooseJson<T = unknown>(text: string): T {
     const preview = text.length > 120 ? `${text.slice(0, 120)}…` : text;
     throw new Error(`Model did not return valid JSON. Got: ${JSON.stringify(preview)}`);
   }
+}
+
+export function parseLooseJson<T = unknown>(text: string): T {
+  return parseLooseJsonResult<T>(text).value;
 }

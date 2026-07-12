@@ -17,4 +17,10 @@ export const es = {
   fallbackTts: ['es', 'es-ES', 'es-MX'],
   avoidWords: AVOID_WORDS,
   testPhrase: '¡Hola! ¿Cómo estás?',
+  script: {
+    bcp47: 'es',
+    direction: 'ltr' as const,
+    kind: 'alpha-spaced' as const,
+    hasCase: true,
+  },
 };

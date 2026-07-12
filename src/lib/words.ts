@@ -3,6 +3,8 @@
 // attached (e.g. "haar."), so anything matching, displaying, or persisting a
 // cloze word must strip it first (issues #68, #108).
 
+import { foldWord, tokenizeWords, type LanguageConfig } from './languages';
+
 /**
  * Strip surrounding punctuation from a cloze word, returning [cleanWord,
  * trailingPunctuation]. Bank words carry punctuation under the app's /\s+/ split:
@@ -18,33 +20,35 @@ export function splitTrailingPunctuation(word: string): [string, string] {
   return [noLead, ''];
 }
 
-// Letters (incl. Latin diacritics used by Afrikaans), hyphens and apostrophes —
-// anything else separates tokens. Mirrors the word shape in definition-links.ts.
-const NON_TOKEN_CHARS = /[^A-Za-zÀ-ÖØ-öø-ž'’-]+/;
-
 /**
- * True when `word` appears as a whole token in `sentence` (case-insensitive).
- * Substring hits don't count: "gesien" does not contain the word "sien".
- * Used to decide whether a sentence is genuine context for a word — e.g. a
- * nested dictionary lookup (issue #106) carries the sentence of the word the
- * user actually clicked, which may only contain an inflected form.
+ * True when `word` appears as a whole token in `sentence` (folded-key
+ * comparison: case-insensitive, NFC). Substring hits don't count: "gesien"
+ * does not contain the word "sien". Used to decide whether a sentence is
+ * genuine context for a word — e.g. a nested dictionary lookup (issue #106)
+ * carries the sentence of the word the user actually clicked, which may only
+ * contain an inflected form.
+ *
+ * Tokenization is the pack's (#289): elisions arrive pre-split (l'eau →
+ * l + eau), so the content word matches directly. A multi-token target
+ * (legacy vocab like "l'eau", or a short phrase) matches when its word tokens
+ * appear as a consecutive run.
  */
-export function sentenceContainsWord(sentence: string, word: string): boolean {
-  const target = word.toLowerCase();
-  if (!target) return false;
-  return sentence
-    .toLowerCase()
-    .split(NON_TOKEN_CHARS)
-    .some((token) => {
-      if (token === target) return true;
-      const stripped = token.replace(/^['’]+|['’]+$/g, '');
-      if (stripped === target) return true;
-      // French elision (l'eau, qu'il, d'accord): the apostrophe glues a clitic
-      // to the content word, so match either side as a whole token — the reader's
-      // WORD_PATTERN already splits these. The Afrikaans 'n has a *leading*
-      // apostrophe, handled by the strip above and unaffected here.
-      return stripped.includes("'") || stripped.includes('’')
-        ? stripped.split(/['’]/).includes(target)
-        : false;
-    });
+export function sentenceContainsWord(
+  sentence: string,
+  word: string,
+  pack: LanguageConfig,
+): boolean {
+  const targetTokens = tokenizeWords(word, pack).map((t) => foldWord(t.text, pack));
+  if (targetTokens.length === 0) return false;
+
+  const sentenceTokens = tokenizeWords(sentence, pack).map((t) => foldWord(t.text, pack));
+  if (targetTokens.length === 1) return sentenceTokens.includes(targetTokens[0]);
+
+  outer: for (let i = 0; i <= sentenceTokens.length - targetTokens.length; i++) {
+    for (let j = 0; j < targetTokens.length; j++) {
+      if (sentenceTokens[i + j] !== targetTokens[j]) continue outer;
+    }
+    return true;
+  }
+  return false;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { CheckCircle, Star } from 'lucide-react';
 import TranslationDrawer from '@/components/TranslationDrawer';
 import {
@@ -10,6 +11,7 @@ import {
   getClozeSentencesByCollection,
   getNewSentencesByCollection,
   getCollectionCounts,
+  getOnboardingCloze,
   getTodayStats,
   migrateClozeSentences,
   seedSentenceBank,
@@ -17,21 +19,27 @@ import {
 import { persistReview } from './persist-review';
 import { speak } from '@/lib/tts';
 import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
-import { translateWord } from '@/lib/claude';
+import { translateGloss, translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 import { splitTrailingPunctuation } from '@/lib/words';
+import {
+  getLanguageConfig,
+  graphemeLength,
+  graphemeSplit,
+  isValidLanguageCode,
+  tokenizeWords,
+} from '@/lib/languages';
 import {
   createBlankedSentence,
   calculateDictationPoints,
   calculateNextReview,
   calculatePoints,
+  buildMultipleChoiceOptions,
   checkAnswer,
   diffDictation,
-  generateDistractors,
   getFuzzyStatus,
   normalize,
   scoreDictation,
-  shuffle,
 } from './utils';
 import type {
   CurrentSentence,
@@ -58,8 +66,19 @@ import PageHeader from '@/components/PageHeader';
 import Feedback from './components/Feedback';
 import DictationCard from './components/Dictation/DictationCard';
 import DictationFeedback from './components/Dictation/DictationFeedback';
+import {
+  completeOnboarding,
+  encounteredOnboardingTerms,
+  getOnboardingSnapshot,
+  recordLearnerEvent,
+  savedOnboardingWords,
+  type OnboardingSnapshot,
+} from '@/lib/onboarding';
+import { startPostOnboardingTour } from '@/lib/post-onboarding-tour';
 
 export default function PracticePage() {
+  const router = useRouter();
+
   // State
   const [state, setState] = useState<PracticeState>('setup');
   const [queue, setQueue] = useState<ClozeSentence[]>([]);
@@ -104,6 +123,15 @@ export default function PracticePage() {
   const [retryQueue, setRetryQueue] = useState<ClozeSentence[]>([]);
   const [isRetryPhase, setIsRetryPhase] = useState(false);
 
+  // Guided onboarding is deliberately isolated from normal practice. A visit
+  // without ?onboarding=1 keeps the existing setup and round behaviour.
+  const [onboardingMode, setOnboardingMode] = useState(false);
+  const [onboardingSnapshot, setOnboardingSnapshot] = useState<OnboardingSnapshot | null>(null);
+  const [onboardingRecovery, setOnboardingRecovery] = useState<string | null>(null);
+  const [onboardingCompletionStatus, setOnboardingCompletionStatus] = useState<
+    'idle' | 'saving' | 'complete' | 'error'
+  >('idle');
+
   // Word definition tooltip state
   const [wordTooltip, setWordTooltip] = useState<{
     word: string;
@@ -116,6 +144,10 @@ export default function PracticePage() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
+  const onboardingStartRef = useRef(false);
+  const onboardingRoundStartedRef = useRef(false);
+  const onboardingCompletionRef = useRef(false);
+  const onboardingDistractorWordsRef = useRef<string[]>([]);
   // Pending MC feedback timer — must be cancelled on navigation/unmount so a
   // stale closure can't record a review for a screen the user already left.
   const mcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -136,16 +168,19 @@ export default function PracticePage() {
       const stats = await getTodayStats();
       setPoints(stats.points);
 
-      // Load saved practice mode
-      const savedMode = localStorage.getItem('cloze-practice-mode');
-      if (savedMode === 'mc' || savedMode === 'type') {
-        setPracticeMode(savedMode);
-      }
+      const guided = new URLSearchParams(window.location.search).get('onboarding') === '1';
+      if (!guided) {
+        // Load saved practice mode
+        const savedMode = localStorage.getItem('cloze-practice-mode');
+        if (savedMode === 'mc' || savedMode === 'type') {
+          setPracticeMode(savedMode);
+        }
 
-      // Load saved practice format (cloze vs dictation)
-      const savedFormat = localStorage.getItem(PRACTICE_FORMAT_SETTING_KEY);
-      if (savedFormat === 'cloze' || savedFormat === 'dictation') {
-        setPracticeFormat(savedFormat);
+        // Load saved practice format (cloze vs dictation)
+        const savedFormat = localStorage.getItem(PRACTICE_FORMAT_SETTING_KEY);
+        if (savedFormat === 'cloze' || savedFormat === 'dictation') {
+          setPracticeFormat(savedFormat);
+        }
       }
 
       // Respect the "hide translation by default" setting (Alt+T toggles live)
@@ -210,7 +245,7 @@ export default function PracticePage() {
       }
 
       try {
-        const result = await translateWord(cleanWord, current.sentence.sentence);
+        const result = await translateGloss(cleanWord, current.sentence.sentence);
         setWordTooltip({
           word: cleanWord,
           translation: result.translation,
@@ -261,25 +296,13 @@ export default function PracticePage() {
   // Generate MC options when current sentence or queue changes
   const generateMcOptionsForSentence = useCallback(
     (sentence: ClozeSentence, sentenceQueue: ClozeSentence[]) => {
-      const distractors = generateDistractors(sentence.clozeWord, sentenceQueue);
-      // Pad with fallback words if not enough distractors
-      const fallbacks = ['die', 'het', 'van', 'wat', 'nie', 'kan', 'sal', 'met'];
-      while (distractors.length < 3) {
-        const fb = fallbacks.find(
-          (w) =>
-            normalize(w) !== normalize(sentence.clozeWord) &&
-            !distractors.some((d) => normalize(d) === normalize(w)),
-        );
-        if (fb) distractors.push(fb);
-        else break;
-      }
-      // Strip trailing punctuation from all options so punctuation doesn't give away the answer
-      const cleanCorrect = splitTrailingPunctuation(sentence.clozeWord)[0];
-      const cleanDistractors = distractors.slice(0, 3).map((d) => splitTrailingPunctuation(d)[0]);
-      const options = shuffle([cleanCorrect, ...cleanDistractors]);
-      const correctIdx = options.findIndex((o) => normalize(o) === normalize(cleanCorrect));
+      const { options, correctIndex } = buildMultipleChoiceOptions(
+        sentence.clozeWord,
+        sentenceQueue,
+        onboardingDistractorWordsRef.current,
+      );
       setMcOptions(options);
-      setMcCorrectIdx(correctIdx);
+      setMcCorrectIdx(correctIndex);
       setMcSelected(null);
       setMcLocked(false);
     },
@@ -288,12 +311,15 @@ export default function PracticePage() {
 
   // Load next sentence from queue
   const loadNextSentence = useCallback(
-    (sentenceQueue: ClozeSentence[]) => {
+    (sentenceQueue: ClozeSentence[], override?: { format: PracticeFormat; mode: PracticeMode }) => {
       clearMcTimer();
       if (sentenceQueue.length === 0) {
         setState('complete');
         return;
       }
+
+      const activeFormat = override?.format ?? practiceFormat;
+      const activeMode = override?.mode ?? practiceMode;
 
       const nextSentence = sentenceQueue[0];
       const blankedSentence = createBlankedSentence(nextSentence.sentence, nextSentence.clozeIndex);
@@ -311,20 +337,89 @@ export default function PracticePage() {
       // Cloze-only setup. Dictation renders its own card, which manages audio
       // autoplay and input focus itself, so skip MC generation and the input
       // focus here when dictating.
-      if (practiceFormat === 'cloze') {
+      if (activeFormat === 'cloze') {
         // Generate MC options if in MC mode
-        if (practiceMode === 'mc') {
+        if (activeMode === 'mc') {
           generateMcOptionsForSentence(nextSentence, sentenceQueue);
         }
 
         // Focus input after state update (only in type mode)
-        if (practiceMode === 'type') {
+        if (activeMode === 'type') {
           setTimeout(() => inputRef.current?.focus(), 50);
         }
       }
     },
     [practiceFormat, practiceMode, generateMcOptionsForSentence, clearMcTimer],
   );
+
+  // Start the tiny onboarding review directly from the three cards created in
+  // the reader. It never falls back to a generic sentence bank: if those exact
+  // cards are unavailable, the learner gets an explicit path back to the real
+  // starter lesson to recover.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('onboarding') === '1';
+    if (!requested || onboardingStartRef.current) return;
+
+    onboardingStartRef.current = true;
+
+    const startGuidedRound = async () => {
+      // Defer the query-derived UI switch until after the mount effect. This
+      // keeps the server/client first render identical while avoiding a flash
+      // of the normal setup once the browser has established guided mode.
+      await Promise.resolve();
+      setOnboardingMode(true);
+      setPracticeFormat('cloze');
+      setPracticeMode('mc');
+      setState('loading');
+
+      try {
+        const snapshot = await getOnboardingSnapshot();
+        setOnboardingSnapshot(snapshot);
+
+        if (snapshot.progress?.status !== 'in_progress') {
+          router.replace('/');
+          return;
+        }
+
+        const savedWords = savedOnboardingWords(snapshot).slice(0, 3);
+        const sentences = await getOnboardingCloze(savedWords.map((word) => word.id));
+
+        if (savedWords.length < 3 || sentences.length < 3) {
+          setOnboardingRecovery(
+            'Your mini-review needs three words saved from the starter lesson. Return to the lesson and save any missing words, then try again.',
+          );
+          setState('empty');
+          return;
+        }
+
+        const guidedQueue = sentences.slice(0, 3);
+        if (isValidLanguageCode(snapshot.progress.language)) {
+          const pack = getLanguageConfig(snapshot.progress.language);
+          onboardingDistractorWordsRef.current = guidedQueue.flatMap((sentence) =>
+            tokenizeWords(sentence.sentence, pack).map((token) => token.text),
+          );
+        }
+        setSelectedCollection('mined');
+        setOriginalRoundSize(guidedQueue.length);
+        setRoundSize(guidedQueue.length);
+        setRoundProgress(0);
+        setRoundCorrect(0);
+        setRetryQueue([]);
+        setIsRetryPhase(false);
+        setQueue(guidedQueue);
+        onboardingRoundStartedRef.current = true;
+        loadNextSentence(guidedQueue, { format: 'cloze', mode: 'mc' });
+      } catch (error) {
+        console.error('Failed to start onboarding practice:', error);
+        setOnboardingRecovery(
+          'We could not load your saved practice words. Return to the starter lesson and try the mini-review again.',
+        );
+        setState('empty');
+      }
+    };
+
+    void startGuidedRound();
+  }, [loadNextSentence, router]);
 
   // Start a round with explicit params (used by review buttons)
   const startRoundWith = useCallback(
@@ -371,13 +466,15 @@ export default function PracticePage() {
   // Start a round using current state values
   const startRound = useCallback(() => {
     startRoundWith(selectedCollection, roundType, originalRoundSize);
-  }, [selectedCollection, roundType, roundSize, startRoundWith, originalRoundSize]);
+  }, [selectedCollection, roundType, startRoundWith, originalRoundSize]);
 
-  // Handle hint - reveal next letter
+  // Handle hint - reveal next letter. Grapheme-wise (#289): revealing "the
+  // next character" must never split a base letter from its combining marks
+  // or tear a surrogate pair.
   const handleHint = useCallback(() => {
     if (!current) return;
-    const correctWord = normalize(current.sentence.clozeWord);
-    const currentInput = normalize(userAnswer);
+    const correctWord = graphemeSplit(normalize(current.sentence.clozeWord));
+    const currentInput = graphemeSplit(normalize(userAnswer));
 
     // Find how many leading characters are already correct
     let correctPrefix = 0;
@@ -392,7 +489,7 @@ export default function PracticePage() {
     // Reveal one more letter beyond the correct prefix
     const revealCount = Math.min(Math.max(correctPrefix + 1, hintLetters + 1), correctWord.length);
     setHintLetters(hintLetters + 1);
-    setUserAnswer(correctWord.slice(0, revealCount));
+    setUserAnswer(correctWord.slice(0, revealCount).join(''));
     inputRef.current?.focus();
   }, [current, hintLetters, userAnswer]);
 
@@ -466,7 +563,7 @@ export default function PracticePage() {
           ? calculatePoints(
               newMastery,
               hintLetters,
-              normalize(current.sentence.clozeWord).length,
+              graphemeLength(normalize(current.sentence.clozeWord)),
               mode,
             )
           : 0;
@@ -479,6 +576,29 @@ export default function PracticePage() {
         setMcLocked(false);
         setMcSelected(null);
         return;
+      }
+
+      if (onboardingMode && onboardingSnapshot?.progress) {
+        try {
+          await recordLearnerEvent({
+            eventType: 'practice.answer_submitted',
+            language: onboardingSnapshot.progress.language,
+            lessonId: onboardingSnapshot.progress.recommendedLessonId ?? undefined,
+            vocabId: current.sentence.vocabEntryId,
+            properties: {
+              source: 'onboarding',
+              cardId: current.sentence.id,
+              mode,
+              correct: isCorrect,
+              firstPass: !isRetryPhase,
+              mastery: newMastery,
+              retry: isRetryPhase,
+            },
+          });
+        } catch {
+          // The review itself is already safely persisted. Telemetry must not
+          // trap the learner on a completed card when it is temporarily down.
+        }
       }
 
       setFeedbackData({
@@ -497,7 +617,7 @@ export default function PracticePage() {
         speak(current.sentence.sentence);
       }
     },
-    [current, hintLetters, isRetryPhase, commitReview],
+    [current, hintLetters, isRetryPhase, commitReview, onboardingMode, onboardingSnapshot],
   );
 
   // Record a completed dictation answer: word-level diff against the spoken
@@ -594,6 +714,34 @@ export default function PracticePage() {
     [mcLocked, current, mcCorrectIdx, mcOptions, recordAnswer],
   );
 
+  const finishOnboarding = useCallback(async () => {
+    if (!onboardingSnapshot?.progress || onboardingCompletionRef.current) return;
+    onboardingCompletionRef.current = true;
+    setOnboardingCompletionStatus('saving');
+
+    try {
+      await recordLearnerEvent({
+        eventType: 'practice.round_completed',
+        language: onboardingSnapshot.progress.language,
+        lessonId: onboardingSnapshot.progress.recommendedLessonId ?? undefined,
+        properties: {
+          source: 'onboarding',
+          cardCount: roundSize,
+          answered: roundProgress,
+          correct: roundCorrect,
+        },
+        idempotencyKey: `onboarding:practice-round:${onboardingSnapshot.progress.startedAt}`,
+      });
+      const completed = await completeOnboarding();
+      setOnboardingSnapshot(completed);
+      setOnboardingCompletionStatus('complete');
+    } catch (error) {
+      console.error('Failed to finish onboarding:', error);
+      onboardingCompletionRef.current = false;
+      setOnboardingCompletionStatus('error');
+    }
+  }, [onboardingSnapshot, roundCorrect, roundProgress, roundSize]);
+
   // Handle next sentence
   const handleNext = useCallback(async () => {
     const remainingQueue = queue.slice(1);
@@ -609,8 +757,24 @@ export default function PracticePage() {
       loadNextSentence(retryList);
     } else {
       setState('complete');
+      if (
+        onboardingMode &&
+        onboardingRoundStartedRef.current &&
+        roundSize > 0 &&
+        roundProgress === roundSize
+      ) {
+        void finishOnboarding();
+      }
     }
-  }, [queue, retryQueue, loadNextSentence]);
+  }, [
+    queue,
+    retryQueue,
+    loadNextSentence,
+    onboardingMode,
+    roundProgress,
+    roundSize,
+    finishOnboarding,
+  ]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -713,6 +877,9 @@ export default function PracticePage() {
   }, [queue, retryQueue, roundSize, loadNextSentence]);
 
   const progressPercent = roundSize > 0 ? Math.min((roundProgress / roundSize) * 100, 100) : 0;
+  const onboardingEncounteredCount = encounteredOnboardingTerms(onboardingSnapshot).length;
+  const onboardingSavedCount = savedOnboardingWords(onboardingSnapshot).length;
+  const onboardingProgress = onboardingSnapshot?.progress;
 
   return (
     <>
@@ -890,43 +1057,67 @@ export default function PracticePage() {
         )}
 
         {/* In-round header with progress */}
-        {state !== 'setup' && (
-          <div className="mb-6">
-            <div className="mb-2 flex items-center justify-between">
-              <button
-                onClick={async () => {
-                  clearMcTimer();
-                  setState('setup');
-                  const counts = await getCollectionCounts();
-                  setCollectionCounts(counts);
-                }}
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                &larr; Back
-              </button>
-              <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--gold-strong)]">
-                <Star className="h-4 w-4" fill="currentColor" />
-                {points.toLocaleString()}
-              </span>
-            </div>
+        {state !== 'setup' &&
+          (!onboardingMode || state === 'practicing' || state === 'feedback') && (
+            <div className="mb-6" data-testid={onboardingMode ? 'onboarding-practice' : undefined}>
+              {onboardingMode && (
+                <div className="mb-4">
+                  <p className="text-xs font-bold tracking-wide text-[var(--gold-strong)] uppercase">
+                    Guided first lesson
+                  </p>
+                  <h1 className="text-2xl font-bold text-foreground">Your first learning loop</h1>
+                </div>
+              )}
+              <div className="mb-2 flex items-center justify-between">
+                <button
+                  onClick={async () => {
+                    clearMcTimer();
+                    if (onboardingMode) {
+                      const lessonId = onboardingProgress?.recommendedLessonId;
+                      router.push(lessonId ? `/read/${lessonId}?onboarding=1` : '/');
+                      return;
+                    }
+                    setState('setup');
+                    const counts = await getCollectionCounts();
+                    setCollectionCounts(counts);
+                  }}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  &larr; Back
+                </button>
+                {onboardingMode ? (
+                  <span className="text-sm font-medium text-[var(--gold-strong)]">
+                    3-word review
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--gold-strong)]">
+                    <Star className="h-4 w-4" fill="currentColor" />
+                    {points.toLocaleString()}
+                  </span>
+                )}
+              </div>
 
-            {/* Round progress bar */}
-            <div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>{COLLECTION_LABELS[selectedCollection]}</span>
-                <span className="font-medium">
-                  {roundProgress}/{roundSize}
-                </span>
-              </div>
-              <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[color-mix(in_srgb,var(--primary)_55%,#fff)] to-primary transition-all duration-500"
-                  style={{ width: `${progressPercent}%` }}
-                />
+              {/* Round progress bar */}
+              <div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>
+                    {onboardingMode
+                      ? 'Words from your starter lesson'
+                      : COLLECTION_LABELS[selectedCollection]}
+                  </span>
+                  <span className="font-medium">
+                    {roundProgress}/{roundSize}
+                  </span>
+                </div>
+                <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[color-mix(in_srgb,var(--primary)_55%,#fff)] to-primary transition-all duration-500"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Main content area */}
         {state !== 'setup' && (
@@ -993,10 +1184,12 @@ export default function PracticePage() {
                             ? 'Choose the correct word'
                             : 'Fill in the blank'}
                         </span>
-                        <BlacklistSentence
-                          current={current}
-                          onSentenceBlacklisted={handleSentenceBlacklisted}
-                        />
+                        {!onboardingMode && (
+                          <BlacklistSentence
+                            current={current}
+                            onSentenceBlacklisted={handleSentenceBlacklisted}
+                          />
+                        )}
                       </div>
                       <p className="text-xl leading-loose font-medium text-foreground">
                         {words.map((word, i) => (
@@ -1022,12 +1215,16 @@ export default function PracticePage() {
                                     spellCheck={false}
                                     placeholder="..."
                                     className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium transition-all outline-none focus:ring-2 focus:ring-offset-1 ${inputColorClass} ${fuzzyStatus === 'match' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'partial' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'wrong' ? 'text-destructive focus:ring-destructive' : ''} ${fuzzyStatus === 'empty' ? 'text-foreground focus:ring-ring' : ''} `}
-                                    style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
+                                    style={{
+                                      minWidth: `${Math.max(graphemeLength(clozeBase) * 0.7, 4)}ch`,
+                                    }}
                                   />
                                 ) : (
                                   <span
                                     className="inline-block rounded-lg border-2 border-[var(--clay)] bg-[color-mix(in_srgb,var(--clay)_14%,var(--card))] px-3 py-1 text-center text-xl font-bold text-foreground"
-                                    style={{ minWidth: `${Math.max(clozeBase.length * 0.7, 4)}ch` }}
+                                    style={{
+                                      minWidth: `${Math.max(graphemeLength(clozeBase) * 0.7, 4)}ch`,
+                                    }}
                                   >
                                     _____
                                   </span>
@@ -1089,6 +1286,7 @@ export default function PracticePage() {
                             <button
                               key={idx}
                               type="button"
+                              data-testid="mc-option"
                               onClick={() => handleMcSelect(idx)}
                               disabled={mcLocked}
                               className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left text-lg font-medium transition-all active:scale-[0.98] ${btnClass}`}
@@ -1210,7 +1408,7 @@ export default function PracticePage() {
               />
             )}
 
-            {state === 'complete' && (
+            {state === 'complete' && !onboardingMode && (
               <div className="py-8 text-center">
                 <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary">
                   <CheckCircle className="h-8 w-8" />
@@ -1241,7 +1439,133 @@ export default function PracticePage() {
               </div>
             )}
 
-            {state === 'empty' && (
+            {state === 'complete' && onboardingMode && (
+              <div className="py-8 text-center" data-testid="onboarding-summary">
+                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary">
+                  <CheckCircle className="h-8 w-8" aria-hidden="true" />
+                </div>
+                <p className="text-xs font-bold tracking-wide text-[var(--gold-strong)] uppercase">
+                  {onboardingProgress?.recommendedLessonTitle || 'Starter lesson'}
+                </p>
+                <h2 className="mt-1 text-2xl font-bold text-foreground">
+                  First learning loop complete
+                </h2>
+                <p className="mx-auto mt-2 max-w-md text-muted-foreground">
+                  You turned words from a real reading into practice. That is the loop Lector will
+                  keep building on with you.
+                </p>
+
+                <dl className="mx-auto mt-6 grid max-w-md grid-cols-3 gap-3">
+                  <div className="rounded-xl bg-muted p-3">
+                    <dt className="text-xs text-muted-foreground">Encountered</dt>
+                    <dd className="mt-1 text-xl font-bold text-foreground">
+                      {onboardingEncounteredCount}
+                    </dd>
+                  </div>
+                  <div className="rounded-xl bg-muted p-3">
+                    <dt className="text-xs text-muted-foreground">Saved</dt>
+                    <dd className="mt-1 text-xl font-bold text-foreground">
+                      {onboardingSavedCount}
+                    </dd>
+                  </div>
+                  <div className="rounded-xl bg-muted p-3">
+                    <dt className="text-xs text-muted-foreground">Score</dt>
+                    <dd className="mt-1 text-xl font-bold text-foreground">
+                      {roundCorrect}/{roundProgress}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="mx-auto mt-6 max-w-md rounded-xl border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-4 text-left">
+                  <p className="text-xs font-bold tracking-wide text-[var(--gold-strong)] uppercase">
+                    {onboardingProgress?.nextLessonId ? 'Up next' : 'Tomorrow'}
+                  </p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    {onboardingProgress?.nextLessonTitle ||
+                      'Come back for another short reading and review.'}
+                  </p>
+                </div>
+
+                {onboardingCompletionStatus === 'saving' && (
+                  <p className="mt-4 text-sm text-muted-foreground" role="status">
+                    Saving your progress…
+                  </p>
+                )}
+                {onboardingCompletionStatus === 'error' && (
+                  <div className="mt-4" role="alert">
+                    <p className="text-sm text-destructive">
+                      Your round is safe, but we could not mark onboarding complete.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="mt-2"
+                      onClick={finishOnboarding}
+                    >
+                      Try saving again
+                    </Button>
+                  </div>
+                )}
+
+                <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      const completedAt = onboardingSnapshot?.progress?.completedAt;
+                      if (completedAt) startPostOnboardingTour(completedAt);
+                      router.push('/');
+                    }}
+                    disabled={onboardingCompletionStatus !== 'complete'}
+                    data-testid="onboarding-library"
+                  >
+                    Open Library
+                  </Button>
+                  {onboardingProgress?.nextLessonId && (
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        const completedAt = onboardingSnapshot?.progress?.completedAt;
+                        if (completedAt) startPostOnboardingTour(completedAt);
+                        router.push(`/read/${onboardingProgress.nextLessonId}`);
+                      }}
+                      disabled={onboardingCompletionStatus !== 'complete'}
+                      data-testid="onboarding-next-lesson"
+                    >
+                      Read next lesson
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {state === 'empty' && onboardingMode && (
+              <div
+                className="py-8 text-center"
+                role="alert"
+                aria-labelledby="onboarding-recovery-title"
+                data-testid="onboarding-practice-recovery"
+              >
+                <h2 id="onboarding-recovery-title" className="text-xl font-bold text-foreground">
+                  Your practice words aren&apos;t ready yet
+                </h2>
+                <p className="mx-auto mt-2 max-w-md text-muted-foreground">{onboardingRecovery}</p>
+                <Button
+                  type="button"
+                  className="mt-6"
+                  onClick={() => {
+                    const lessonId = onboardingProgress?.recommendedLessonId;
+                    router.push(lessonId ? `/read/${lessonId}?onboarding=1` : '/');
+                  }}
+                >
+                  {onboardingProgress?.recommendedLessonId
+                    ? 'Back to starter lesson'
+                    : 'Open Library'}
+                </Button>
+              </div>
+            )}
+
+            {state === 'empty' && !onboardingMode && (
               <EmptyState
                 roundType={roundType}
                 onBackPressed={handleBackPressed}

@@ -10,13 +10,14 @@ import path from 'path';
  * account active and the app opens, and a later cancellation locks it again.
  *
  * The UI is the shared :3456 next dev server pointed (via the __env.js rail)
- * at the billing-armed cloud API on :3468. Webhooks are signed here with the
- * same secret the server holds — Paddle's overlay itself never appears (no
- * PADDLE_CLIENT_TOKEN), which is the boundary on purpose: their checkout is
- * theirs to test, the enforcement around it is ours.
+ * at the billing-armed cloud API on :3469. Webhooks are signed here with the
+ * same secret the server holds — Paddle never appears: checkout is created
+ * server-side and opens on lector.dev's approved domain, out of this suite's
+ * reach, so the redirect is exercised against a mocked /api/billing/checkout
+ * (the 'starting checkout redirects…' test). The enforcement around it is ours.
  */
 
-const CLOUD_API = 'http://localhost:3469';
+const CLOUD_API = `http://localhost:${process.env.E2E_BILLING_API_PORT || '3469'}`;
 const WEBHOOK_SECRET = 'e2e-paddle-webhook-secret';
 const EMAILS = path.join(__dirname, '..', 'tmp', 'e2e-billing-data', 'emails.jsonl');
 
@@ -87,18 +88,29 @@ test.describe.serial('billing gate lifecycle', () => {
     page,
   }) => {
     await useBillingEnv(page);
-    await page.goto('/register');
+
+    // A paid-tier marketing deep link keeps its allowlisted destination
+    // through the unauthenticated bounce and the register/sign-in handoff.
+    await page.goto('/subscribe?plan=plus');
+    await page.waitForURL((url) => url.pathname === '/login');
+    expect(new URL(page.url()).searchParams.get('next')).toBe('/subscribe?plan=plus');
+    await page.getByRole('link', { name: 'Create one' }).click();
+    await page.waitForURL((url) => url.pathname === '/register');
+    expect(new URL(page.url()).searchParams.get('next')).toBe('/subscribe?plan=plus');
+
     await page.getByTestId('register-name').fill('Payer');
     await page.getByTestId('register-email').fill(EMAIL);
     await page.getByTestId('register-password').fill(PASSWORD);
     await page.getByTestId('register-submit').click();
     await expect(page.getByTestId('register-check-email')).toBeVisible();
 
-    // Verify → auto-sign-in → BillingGuard finds no subscription → /subscribe.
+    // Verify → auto-sign-in → the requested paid plan survives on /subscribe.
     await page.goto(lastVerifyLink(EMAIL));
-    await page.waitForURL('**/subscribe');
+    await page.waitForURL(
+      (url) => url.pathname === '/subscribe' && url.searchParams.get('plan') === 'plus',
+    );
     await expect(page.getByTestId('subscribe-panel')).toBeVisible();
-    // Keyless deployment (no PADDLE_CLIENT_TOKEN) → the graceful fallback.
+    // No prices / CHECKOUT_URL on the e2e server → the graceful fallback.
     await expect(page.getByText(/Checkout isn't available/)).toBeVisible();
     // Chrome-free: no nav for a locked account.
     await expect(page.locator('aside')).toHaveCount(0);
@@ -169,5 +181,70 @@ test.describe.serial('billing gate lifecycle', () => {
     await expect(page.getByTestId('subscribe-export')).toBeVisible();
     expect((await page.request.get(`${CLOUD_API}/api/data`)).status()).toBe(200);
     expect((await page.request.get(`${CLOUD_API}/api/collections`)).status()).toBe(402);
+  });
+
+  test('a plan deep link selects that tier and starts its checkout', async ({ page }) => {
+    const CHECKOUT = 'https://lector.test/checkout';
+    let requestedPriceId = '';
+    // Runtime env: point the browser at the billing API and give it a
+    // marketing checkout URL (the real e2e server ships neither prices nor
+    // CHECKOUT_URL, so the screen would otherwise show its fallback).
+    await page.route('**/__env.js', (route) =>
+      route.fulfill({
+        contentType: 'application/javascript',
+        body: `window.__ENV__ = ${JSON.stringify({
+          API_URL: CLOUD_API,
+          LECTOR_MODE: 'cloud',
+          CHECKOUT_URL: CHECKOUT,
+        })};`,
+      }),
+    );
+    // Inject a plan so the locked screen renders a tile, and stub the API's
+    // Paddle transaction creation — the overlay itself lives on lector.dev.
+    await page.route(`${CLOUD_API}/api/billing/status`, (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          enforced: true,
+          accessAllowed: false,
+          subscriptionActive: false,
+          freeTierEnabled: false,
+          suspended: false,
+          exempt: false,
+          status: 'none',
+          checkout: {
+            prices: [
+              { id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' },
+              { id: 'pri_e2e_annual', plan: 'cloud', cycle: 'year' },
+              { id: 'pri_e2e_plus_monthly', plan: 'plus', cycle: 'month' },
+              { id: 'pri_e2e_plus_annual', plan: 'plus', cycle: 'year' },
+            ],
+          },
+        }),
+      }),
+    );
+    await page.route(`${CLOUD_API}/api/billing/checkout`, async (route) => {
+      requestedPriceId = (route.request().postDataJSON() as { priceId: string }).priceId;
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ txnId: 'txn_e2e_redirect' }),
+      });
+    });
+    // Absorb the cross-site navigation so it resolves without a real network hit.
+    await page.route('https://lector.test/**', (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>checkout</title>' }),
+    );
+
+    await signIn(page);
+    await page.waitForURL('**/subscribe');
+    await page.goto('/subscribe?plan=plus');
+    const requestedTier = page.getByTestId('subscribe-tier-plus');
+    await expect(requestedTier).toHaveAttribute('data-requested', 'true');
+    await expect(requestedTier.getByText('Selected')).toBeVisible();
+    await expect(requestedTier.getByTestId('subscribe-price-plus-year')).toContainText('$120/year');
+    await requestedTier.getByTestId('subscribe-price-plus-year').click();
+    await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_redirect/);
+    expect(requestedPriceId).toBe('pri_e2e_plus_annual');
+    expect(page.url()).toContain('_ptxn=txn_e2e_redirect');
   });
 });

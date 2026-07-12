@@ -114,8 +114,14 @@ describe('findNestedWordRef — ordinary English "of" must not linkify', () => {
     ).toBeNull();
   });
 
-  test('non-Latin targets are skipped', () => {
-    expect(findNestedWordRef('Arabic spelling of داک')).toBeNull();
+  test('non-Latin targets linkify (#289 — dictionaries are no longer Latin-only)', () => {
+    // Pre-#289 these were skipped as "not a useful lookup target"; with
+    // Cyrillic/Greek/Arabic/Hebrew packs on the roadmap a form-of reference
+    // in any script is a legitimate nested lookup.
+    expect(findNestedWordRef('Arabic spelling of داک')?.word).toBe('داک');
+    expect(findNestedWordRef('plural of слово')?.word).toBe('слово');
+    // Digits and other non-letter junk still don't linkify.
+    expect(findNestedWordRef('abbreviation of 1999')).toBeNull();
   });
 
   test('empty and dangling-of glosses', () => {

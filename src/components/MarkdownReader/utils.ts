@@ -1,61 +1,47 @@
 import { isValidElement, type ReactNode, type ReactElement } from 'react';
+import {
+  tokenize,
+  snapToWordBoundaries as snapOffsetsToWordBoundaries,
+  foldWord,
+  type LanguageConfig,
+  type Token,
+} from '@/lib/languages';
 
-// Expand a selection to full word boundaries (pure function, no deps)
-export function snapToWordBoundaries(selection: Selection): string {
+// Expand a selection to full word boundaries. DOM wrapper around the pure
+// offset-based snapper in languages/tokenizer — per-pack so it follows the
+// active script instead of hardcoded Latin ranges (#289).
+export function snapToWordBoundaries(selection: Selection, pack: LanguageConfig): string {
   const range = selection.getRangeAt(0);
 
   const startContainer = range.startContainer;
   if (startContainer.nodeType === Node.TEXT_NODE) {
     const text = startContainer.textContent || '';
-    let start = range.startOffset;
-    while (start > 0 && /[\wÀ-ÖØ-öø-ž'‘’ʼ`\-]/.test(text[start - 1])) {
-      start--;
-    }
+    const { start } = snapOffsetsToWordBoundaries(text, range.startOffset, range.startOffset, pack);
     range.setStart(startContainer, start);
   }
 
   const endContainer = range.endContainer;
   if (endContainer.nodeType === Node.TEXT_NODE) {
     const text = endContainer.textContent || '';
-    let end = range.endOffset;
-    while (end < text.length && /[\wÀ-ÖØ-öø-ž'‘’ʼ`\-]/.test(text[end])) {
-      end++;
-    }
+    const { end } = snapOffsetsToWordBoundaries(text, range.endOffset, range.endOffset, pack);
     range.setEnd(endContainer, end);
   }
 
   return range.toString().trim();
 }
 
-// Matches a vocab "word": the Afrikaans 'n article, or a (possibly hyphenated)
-// run of letters including Latin diacritics (À-ÖØ-öø-ž covers af, de ä/ö/ü/ß,
-// and es — mirrors the word shape in src/lib/words.ts / definition-links.ts).
-// Shared by the reader's tokenizer so word indices line up between collection
-// and rendering.
-export const WORD_PATTERN = /['‘’ʼ`]n\b|[\wÀ-ÖØ-öø-ž]+(?:-[\wÀ-ÖØ-öø-ž]+)*/gi;
-
 export interface TextPart {
   text: string;
   isWord: boolean;
 }
 
-/** Split a string into alternating word / non-word parts (pure). */
-export function splitWords(text: string): TextPart[] {
-  const parts: TextPart[] = [];
-  const re = new RegExp(WORD_PATTERN); // fresh instance → own lastIndex
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({ text: text.slice(lastIndex, match.index), isWord: false });
-    }
-    parts.push({ text: match[0], isWord: true });
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < text.length) {
-    parts.push({ text: text.slice(lastIndex), isWord: false });
-  }
-  return parts;
+/**
+ * Split a string into alternating word / non-word parts (pure). Thin wrapper
+ * over the shared per-pack tokenizer (#289) — the word shape lives in
+ * languages/tokenizer, not here.
+ */
+export function splitWords(text: string, pack: LanguageConfig): TextPart[] {
+  return tokenize(text, pack).map((t: Token) => ({ text: t.text, isWord: t.isWord }));
 }
 
 /**
@@ -64,33 +50,41 @@ export function splitWords(text: string): TextPart[] {
  * inline elements (<strong>/<em>/<a>/…). The resulting order matches the spans
  * produced during rendering, so phrase-highlight indices line up.
  */
-export function collectWords(children: ReactNode): string[] {
+export function collectWords(children: ReactNode, pack: LanguageConfig): string[] {
   if (typeof children === 'string') {
-    return splitWords(children)
+    return splitWords(children, pack)
       .filter((p) => p.isWord)
       .map((p) => p.text);
   }
   if (Array.isArray(children)) {
-    return children.flatMap(collectWords);
+    return children.flatMap((child) => collectWords(child, pack));
   }
   if (isValidElement(children)) {
-    return collectWords((children as ReactElement<{ children?: ReactNode }>).props.children);
+    return collectWords(
+      (children as ReactElement<{ children?: ReactNode }>).props.children,
+      pack,
+    );
   }
   return [];
 }
 
 /**
  * Indices (into a block's word list) covered by the currently highlighted
- * phrase. Matches the first contiguous, case-insensitive run. Empty phrase or
- * no match → empty set.
+ * phrase. Matches the first contiguous run, comparing folded word keys
+ * (case-insensitive; script-aware via foldWord). Empty phrase or no match →
+ * empty set. `phrase` entries are already folded by the caller.
  */
-export function computePhraseHighlightSet(blockWords: string[], phrase: string[]): Set<number> {
+export function computePhraseHighlightSet(
+  blockWords: string[],
+  phrase: string[],
+  pack: LanguageConfig,
+): Set<number> {
   const set = new Set<number>();
   if (phrase.length === 0 || phrase.length > blockWords.length) return set;
   for (let i = 0; i <= blockWords.length - phrase.length; i++) {
     let matches = true;
     for (let j = 0; j < phrase.length; j++) {
-      if (blockWords[i + j].toLowerCase() !== phrase[j]) {
+      if (foldWord(blockWords[i + j], pack) !== phrase[j]) {
         matches = false;
         break;
       }

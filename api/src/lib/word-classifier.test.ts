@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { classifyWords, type ClassifyItem } from './word-classifier';
 import type { LLMProvider, CompletionOptions } from './llm/types';
+import { LLMTruncatedError } from './llm/errors';
 
 /** A provider that returns a canned string and records how it was called. */
 function mockProvider(response: string): LLMProvider & { calls: CompletionOptions[] } {
@@ -55,7 +56,7 @@ describe('classifyWords', () => {
     await classifyWords(ITEMS, provider);
     expect(provider.calls).toHaveLength(1);
     expect(provider.calls[0].task).toBe('word-classification');
-    expect(provider.calls[0].responseFormat).toBe('json');
+    expect(provider.calls[0].responseFormat).toBe('json-array');
     // The prompt is built from the taxonomy + the input words.
     const prompt = provider.calls[0].messages[0].content;
     expect(prompt).toContain('koffie');
@@ -110,6 +111,40 @@ describe('classifyWords', () => {
     const provider = mockProvider('I cannot classify these words, sorry!');
     const result = await classifyWords(ITEMS, provider);
     expect(result).toEqual([]);
+    expect(provider.calls).toHaveLength(2);
+    expect(provider.calls[1].messages[0].content).toContain(
+      'previous response could not be parsed',
+    );
+  });
+
+  test('propagates provider failures to the worker error boundary', async () => {
+    const provider = mockProvider('[]');
+    provider.complete = async () => {
+      throw new Error('provider unavailable');
+    };
+
+    await expect(classifyWords(ITEMS, provider)).rejects.toThrow('provider unavailable');
+  });
+
+  test('caps a truncation retry at the classifier output ceiling', async () => {
+    const calls: CompletionOptions[] = [];
+    const provider: LLMProvider = {
+      ...mockProvider('[]'),
+      async complete(options) {
+        calls.push(options);
+        if (calls.length === 1) throw new LLMTruncatedError(options.maxTokens);
+        return '[]';
+      },
+    };
+    const previousMaxTokens = process.env.CLASSIFY_MAX_TOKENS;
+    process.env.CLASSIFY_MAX_TOKENS = '8192';
+    try {
+      await classifyWords(ITEMS, provider);
+    } finally {
+      if (previousMaxTokens === undefined) delete process.env.CLASSIFY_MAX_TOKENS;
+      else process.env.CLASSIFY_MAX_TOKENS = previousMaxTokens;
+    }
+    expect(calls.map((call) => call.maxTokens)).toEqual([8192, 8192]);
   });
 
   test('ignores hallucinated words not present in the input batch', async () => {

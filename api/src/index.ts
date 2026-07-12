@@ -19,6 +19,7 @@ import vocab from './routes/vocab';
 import cloze from './routes/cloze';
 import stats from './routes/stats';
 import settings from './routes/settings';
+import starter from './routes/starter';
 import translate from './routes/translate';
 import explain from './routes/explain';
 import data from './routes/data';
@@ -28,14 +29,25 @@ import tokens from './routes/tokens';
 import chat from './routes/chat';
 import llmOpenai from './routes/llm-openai';
 import billing from './routes/billing';
+import admin from './routes/admin';
+import byok from './routes/byok';
+import onboarding from './routes/onboarding';
+import learnerEvents from './routes/learner-events';
 import { authMiddleware } from './lib/auth';
 import { sessionMiddleware } from './lib/session';
 import { assertBillingBootable, billingConfig, billingMiddleware } from './lib/billing';
+import { accountStatusMiddleware } from './lib/admin';
 import { getAuthEngine, runAuthMigrations, resolveTrustedOrigins } from './lib/accounts';
 import { HTTPException } from 'hono/http-exception';
 import { startClassifyWorker } from './lib/classify-worker';
+import { isByokAvailable } from './lib/byok';
+import { defaultRequestBodyLimit } from './lib/request-body-limit';
 // Aliased: this file's Bun.serve export below is also named `config`.
-import { config as deploymentConfig, assertBootableMode } from './lib/config';
+import {
+  config as deploymentConfig,
+  assertBootableMode,
+  isProductionEnvironment,
+} from './lib/config';
 
 // Fail-closed deployment-mode guard (#242, re-purposed by #218): cloud proper
 // runs built-in accounts & sessions and must never sign them with Better
@@ -52,6 +64,25 @@ try {
     billingConfig.mode,
     deploymentConfig.authRequired,
     Boolean(billingConfig.webhookSecret),
+    Boolean(billingConfig.apiKey),
+    {
+      enabled: billingConfig.freeTierEnabled,
+      production: isProductionEnvironment(process.env.NODE_ENV),
+      hasTurnstileSecret: Boolean(process.env.TURNSTILE_SECRET_KEY),
+      hasTurnstileSiteKey: Boolean(process.env.TURNSTILE_SITE_KEY),
+      hasCheckoutPrice: billingConfig.prices.length > 0,
+      hasGoogleTtsApiKey: Boolean(process.env.GOOGLE_CLOUD_API_KEY),
+      byokAvailable: isByokAvailable(),
+      classifyWorkerEnabled: process.env.CLASSIFY_WORKER === '1',
+      classifyLlmUrl: process.env.CLASSIFY_LLM_URL,
+      classifyLlmModel: process.env.CLASSIFY_LLM_MODEL,
+      llmProvider: process.env.LLM_PROVIDER,
+      openAiCompatUrl: process.env.OPENAI_COMPAT_URL,
+      hasOpenAiCompatApiKey: Boolean(process.env.OPENAI_COMPAT_API_KEY),
+      wordGlossModel: process.env.OPENAI_COMPAT_WORD_GLOSS_MODEL,
+      simplePhraseModel: process.env.OPENAI_COMPAT_SIMPLE_PHRASE_MODEL,
+      simpleContextModel: process.env.OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL,
+    },
   );
 } catch (err) {
   console.error(`FATAL: ${(err as Error).message}`);
@@ -111,9 +142,18 @@ if (deploymentConfig.authRequired) {
 } else {
   app.use('*', cors());
 }
+// Bound every ordinary API body before session/auth/route code can buffer or
+// parse it. Restore, EPUB import, and Paddle webhook own stricter/different
+// route-level contracts and are exact-path exemptions in the helper.
+app.use('/api/*', defaultRequestBodyLimit);
 app.use('*', logger());
 app.use('/api/*', sessionMiddleware);
 app.use('/api/*', authMiddleware);
+// Account-status gate (#221) — after session/PAT (tenant resolved), before
+// billing. A no-op unless cloud proper; there it locks a manually-suspended
+// account to the same escape hatches as a billing lapse (auth/billing/admin/
+// data-takeout).
+app.use('/api/*', accountStatusMiddleware);
 // Billing gate (#224) — after session/PAT so the tenant is resolved. A no-op
 // unless LECTOR_BILLING=paddle (cloud proper only, boot-guarded above).
 app.use('/api/*', billingMiddleware);
@@ -129,6 +169,9 @@ if (deploymentConfig.authRequired) {
 }
 if (billingConfig.enforced) {
   console.log('[lector] billing: Paddle subscription gate active (#224)');
+}
+if (billingConfig.freeTierEnabled) {
+  console.log('[lector] billing: derived Free account access active');
 }
 
 app.route('/api/collections', collections);
@@ -147,6 +190,7 @@ app.route('/api/vocab', vocab);
 app.route('/api/cloze', cloze);
 app.route('/api/stats', stats);
 app.route('/api/settings', settings);
+app.route('/api/starter', starter);
 app.route('/api/translate', translate);
 app.route('/api/explain', explain);
 app.route('/api/data', data);
@@ -156,6 +200,10 @@ app.route('/api/tokens', tokens);
 app.route('/api/chat', chat);
 app.route('/api/llm/openai', llmOpenai);
 app.route('/api/billing', billing);
+app.route('/api/admin', admin);
+app.route('/api/byok', byok);
+app.route('/api/onboarding', onboarding);
+app.route('/api/learner-events', learnerEvents);
 
 // Capture unhandled errors to Sentry/GlitchTip. Deliberate HTTP errors
 // (e.g. the identity seam's fail-closed 401, lib/user.ts) pass through with

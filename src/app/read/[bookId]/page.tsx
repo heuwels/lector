@@ -3,12 +3,15 @@
 import { useEffect, useState, useCallback, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import MarkdownReader from '@/components/MarkdownReader';
+import OnboardingCoach from '@/components/OnboardingCoach';
 import TranslationDrawer from '@/components/TranslationDrawer';
 import { Button } from '@/components/ui/button';
 import {
   type Lesson,
   type LessonSummary,
   type VocabEntry,
+  getEntitlements,
+  createOnboardingCloze,
   getLesson,
   getLessonsForCollection,
   saveVocab,
@@ -18,7 +21,10 @@ import {
   incrementDailyStat,
   markVocabPushedToAnki,
 } from '@/lib/data-layer';
+import { phraseSelectionLimitPayload, showPlanLimitToast } from '@/lib/plan-limits';
 import { addWordCard, addClozeCard } from '@/lib/anki';
+import { queueForAnki } from '@/lib/anki-queue';
+import { useAnkiTransport } from '@/lib/anki-transport';
 import { translateWord, translatePhrase, streamWordGloss, enrichWord } from '@/lib/claude';
 import {
   lookupWordRemote,
@@ -26,15 +32,26 @@ import {
   type ExpandedDictionaryEntry,
 } from '@/lib/dictionary-client';
 import { speak } from '@/lib/tts';
+import { foldWord } from '@/lib/languages';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
 import { useActiveLanguage } from '@/utils/hooks';
+import {
+  encounteredOnboardingTerms,
+  getOnboardingSnapshot,
+  hasOnboardingPhraseLookup,
+  recordLearnerEvent,
+  savedOnboardingWords,
+  updateOnboardingProgress,
+  type OnboardingSnapshot,
+} from '@/lib/onboarding';
 
 export default function ReadPage({ params }: { params: Promise<{ bookId: string }> }) {
   const { bookId: lessonId } = use(params);
   const router = useRouter();
   const activeLang = useActiveLanguage();
+  const ankiTransport = useAnkiTransport();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [siblings, setSiblings] = useState<LessonSummary[]>([]);
@@ -63,6 +80,26 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     error: null,
     existingEntry: null,
   });
+
+  const [onboarding, setOnboarding] = useState<OnboardingSnapshot | null>(null);
+  const onboardingLessonOpenRef = useRef<string | null>(null);
+  const onboardingActive =
+    onboarding?.progress?.status === 'in_progress' &&
+    onboarding.progress.recommendedLessonId === lessonId;
+
+  const refreshOnboarding = useCallback(async () => {
+    try {
+      const snapshot = await getOnboardingSnapshot();
+      setOnboarding(snapshot);
+      return snapshot;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshOnboarding();
+  }, [refreshOnboarding]);
 
   // Load lesson
   useEffect(() => {
@@ -94,144 +131,256 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     loadLesson();
   }, [lessonId]);
 
+  // Explicitly record a real reader open (not the background GET /lessons)
+  // and remember tomorrow's next lesson. Both writes are idempotent so a
+  // reload or second device resumes rather than inflating the funnel.
+  useEffect(() => {
+    if (!onboardingActive || !lesson) return;
+    if (lesson.collectionId && siblings.length === 0) return;
+    if (onboardingLessonOpenRef.current === lessonId) return;
+    onboardingLessonOpenRef.current = lessonId;
+
+    const index = siblings.findIndex((candidate) => candidate.id === lessonId);
+    const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
+
+    void Promise.all([
+      recordLearnerEvent({
+        eventType: 'lesson.opened',
+        language: activeLang.code,
+        lessonId,
+        properties: { source: 'onboarding', title: lesson.title },
+        idempotencyKey: `onboarding:lesson-opened:${lessonId}`,
+      }),
+      updateOnboardingProgress({
+        currentStep: 'reader',
+        nextLessonId: next?.id ?? null,
+        nextLessonTitle: next?.title ?? null,
+      }),
+    ]).then(refreshOnboarding, () => {});
+  }, [activeLang.code, lesson, lessonId, onboardingActive, refreshOnboarding, siblings]);
+
+  const trackOnboardingLookup = useCallback(
+    (term: string) => {
+      if (!onboardingActive) return;
+      const folded = foldWord(term, activeLang);
+      void recordLearnerEvent({
+        eventType: 'reader.term_looked_up',
+        language: activeLang.code,
+        lessonId,
+        properties: {
+          source: 'onboarding',
+          term,
+          kind: term.includes(' ') ? 'phrase' : 'word',
+        },
+        idempotencyKey: `onboarding:lookup:${lessonId}:${folded}`,
+      }).then(refreshOnboarding, () => {});
+    },
+    [activeLang, lessonId, onboardingActive, refreshOnboarding],
+  );
+
+  const trackOnboardingVocab = useCallback(
+    async (entry: VocabEntry, state: VocabEntry['state']) => {
+      if (!onboardingActive) return null;
+
+      const shared = {
+        language: activeLang.code,
+        lessonId,
+        vocabId: entry.id,
+        properties: { source: 'onboarding', text: entry.text, state },
+      };
+
+      try {
+        await recordLearnerEvent({
+          ...shared,
+          eventType: 'vocab.state_changed',
+          idempotencyKey: `onboarding:state:${entry.id}:${state}`,
+        });
+
+        // Only learning levels belong in the mini-review. Single words become
+        // real mined cloze rows; phrases remain valuable vocab but need a
+        // learner-chosen blank, so they do not count toward the three cards.
+        if (state.startsWith('level') && entry.type === 'word') {
+          const card = await createOnboardingCloze({
+            vocabId: entry.id,
+            word: entry.text,
+            sentence: entry.sentence,
+            translation: entry.translation,
+          });
+          if (card) {
+            await recordLearnerEvent({
+              ...shared,
+              eventType: 'vocab.saved',
+              properties: { ...shared.properties, practiceCardId: card.id },
+              idempotencyKey: `onboarding:saved:${entry.id}`,
+            });
+          }
+        }
+        return await refreshOnboarding();
+      } catch {
+        // Learning-state persistence already succeeded. Onboarding telemetry
+        // and coaching are deliberately non-blocking around the core reader.
+        return null;
+      }
+    },
+    [activeLang.code, lessonId, onboardingActive, refreshOnboarding],
+  );
+
   // Handle word click from reader
-  const handleWordClick = useCallback(async (word: string, sentence: string) => {
-    const isPhrase = word.includes(' ');
-    const requestId = ++translationRequestId.current;
+  const handleWordClick = useCallback(
+    async (word: string, sentence: string) => {
+      const isPhrase = word.includes(' ');
 
-    const wordsToSpeak = word.split(/\s+/).slice(0, 15).join(' ');
-    speak(wordsToSpeak);
-
-    // Open popup immediately in loading state so keyboard shortcuts (K/X) are responsive
-    setWordPanel({
-      isOpen: true,
-      word,
-      sentence,
-      translation: null,
-      partOfSpeech: isPhrase ? 'phrase' : null,
-      dictEntry: null,
-      aiContextTranslation: null,
-      aiContextPartOfSpeech: null,
-      aiStructured: null,
-      phraseDetails: null,
-      isLoading: true,
-      isContextLoading: false,
-      isStreamingGloss: false,
-      isEnriching: false,
-      isDictionaryResult: false,
-      error: null,
-      existingEntry: null,
-    });
-
-    incrementDailyStat('dictionaryLookups');
-
-    const lookupPromise = getVocabByText(word.toLowerCase());
-    existingEntryLookup.current = lookupPromise;
-    const existingEntry = await lookupPromise;
-    if (requestId !== translationRequestId.current) return;
-    const hasTranslation = existingEntry?.translation && existingEntry.translation.length > 0;
-
-    setWordPanel((prev) => ({
-      ...prev,
-      translation: hasTranslation ? existingEntry.translation : null,
-      isLoading: !hasTranslation,
-      existingEntry: existingEntry || null,
-    }));
-
-    if (isPhrase) {
-      if (!hasTranslation) {
-        try {
-          const result = await translatePhrase(word, sentence);
-          if (requestId !== translationRequestId.current) return;
-          setWordPanel((prev) => ({
-            ...prev,
-            translation: result.translation,
-            partOfSpeech: 'phrase',
-            phraseDetails: {
-              literalBreakdown: result.literalBreakdown,
-              idiomaticMeaning: result.idiomaticMeaning,
-              usageNotes: result.usageNotes,
-              register: result.register,
-            },
-            isLoading: false,
-          }));
-        } catch (err) {
-          if (requestId !== translationRequestId.current) return;
-          console.error('Phrase translation error:', err);
-          setWordPanel((prev) => ({
-            ...prev,
-            isLoading: false,
-            error: 'Failed to translate phrase. Check AI provider in settings.',
-          }));
+      // Reflect the plan's phrase-selection cap before calling the API (#222).
+      // The server enforces it regardless; this just turns the over-cap case
+      // into an immediate upsell prompt instead of a doomed request.
+      if (isPhrase) {
+        const phraseWords = word.trim().split(/\s+/).filter(Boolean).length;
+        const ent = await getEntitlements();
+        const limitPayload = ent ? phraseSelectionLimitPayload(ent, phraseWords) : null;
+        if (limitPayload) {
+          showPlanLimitToast(limitPayload);
+          return;
         }
       }
-    } else {
-      // For single words we ALWAYS run the dict lookup, even if vocab already
-      // has a personal translation cached. Reasons:
-      //   - the user expects to see senses/IPA/etymology, not just their
-      //     saved gloss string
-      //   - the cache (issue #100) only takes effect if we re-fetch — a
-      //     previously-accepted AI translation must surface as `learned` now
-      let dictEntry: ExpandedDictionaryEntry | null = null;
-      try {
-        dictEntry = await lookupWordRemote(word);
-      } catch {
-        dictEntry = null;
-      }
-      if (requestId !== translationRequestId.current) return;
 
-      if (dictEntry && dictEntry.senses.length > 0) {
-        const translation = dictEntry.senses.map((s) => s.gloss).join('; ');
-        setWordPanel((prev) => ({
-          ...prev,
-          translation,
-          partOfSpeech: dictEntry!.senses[0]?.partOfSpeech || null,
-          dictEntry,
-          isLoading: false,
-          isDictionaryResult: true,
-        }));
-      } else if (!hasTranslation) {
-        // No dict hit AND no saved vocab translation — stream a fast AI gloss.
-        // The rich entry (senses/IPA/etymology) is opt-in via the Enrich button,
-        // so this first paint is just a concise meaning, arriving token-by-token.
-        try {
-          const gloss = await streamWordGloss(word, sentence, (cumulative) => {
+      const requestId = ++translationRequestId.current;
+
+      const wordsToSpeak = word.split(/\s+/).slice(0, 15).join(' ');
+      speak(wordsToSpeak);
+
+      // Open popup immediately in loading state so keyboard shortcuts (K/X) are responsive
+      setWordPanel({
+        isOpen: true,
+        word,
+        sentence,
+        translation: null,
+        partOfSpeech: isPhrase ? 'phrase' : null,
+        dictEntry: null,
+        aiContextTranslation: null,
+        aiContextPartOfSpeech: null,
+        aiStructured: null,
+        phraseDetails: null,
+        isLoading: true,
+        isContextLoading: false,
+        isStreamingGloss: false,
+        isEnriching: false,
+        isDictionaryResult: false,
+        error: null,
+        existingEntry: null,
+      });
+
+      incrementDailyStat('dictionaryLookups');
+      trackOnboardingLookup(word);
+
+      const lookupPromise = getVocabByText(foldWord(word, activeLang));
+      existingEntryLookup.current = lookupPromise;
+      const existingEntry = await lookupPromise;
+      if (requestId !== translationRequestId.current) return;
+      const hasTranslation = existingEntry?.translation && existingEntry.translation.length > 0;
+
+      setWordPanel((prev) => ({
+        ...prev,
+        translation: hasTranslation ? existingEntry.translation : null,
+        isLoading: !hasTranslation,
+        existingEntry: existingEntry || null,
+      }));
+
+      if (isPhrase) {
+        if (!hasTranslation) {
+          try {
+            const result = await translatePhrase(word, sentence);
             if (requestId !== translationRequestId.current) return;
             setWordPanel((prev) => ({
               ...prev,
-              translation: cumulative,
-              partOfSpeech: null,
-              dictEntry: null,
-              aiStructured: null,
+              translation: result.translation,
+              partOfSpeech: 'phrase',
+              phraseDetails: {
+                literalBreakdown: result.literalBreakdown,
+                idiomaticMeaning: result.idiomaticMeaning,
+                usageNotes: result.usageNotes,
+                register: result.register,
+              },
               isLoading: false,
-              isStreamingGloss: true,
-              isDictionaryResult: false,
             }));
-          });
-          if (requestId !== translationRequestId.current) return;
-          setWordPanel((prev) => ({
-            ...prev,
-            translation: gloss,
-            isLoading: false,
-            isStreamingGloss: false,
-          }));
-        } catch (err) {
-          if (requestId !== translationRequestId.current) return;
-          console.error('Gloss stream error:', err);
-          setWordPanel((prev) => ({
-            ...prev,
-            isLoading: false,
-            isStreamingGloss: false,
-            error: 'Failed to translate word. Check AI provider in settings.',
-          }));
+          } catch (err) {
+            if (requestId !== translationRequestId.current) return;
+            console.error('Phrase translation error:', err);
+            setWordPanel((prev) => ({
+              ...prev,
+              isLoading: false,
+              error: 'Failed to translate phrase. Check AI provider in settings.',
+            }));
+          }
         }
       } else {
-        // No dict hit but vocab has a saved translation — show that, mark
-        // not-loading. No source pill (it's the user's own translation).
-        setWordPanel((prev) => ({ ...prev, isLoading: false }));
+        // For single words we ALWAYS run the dict lookup, even if vocab already
+        // has a personal translation cached. Reasons:
+        //   - the user expects to see senses/IPA/etymology, not just their
+        //     saved gloss string
+        //   - the cache (issue #100) only takes effect if we re-fetch — a
+        //     previously-accepted AI translation must surface as `learned` now
+        let dictEntry: ExpandedDictionaryEntry | null = null;
+        try {
+          dictEntry = await lookupWordRemote(word);
+        } catch {
+          dictEntry = null;
+        }
+        if (requestId !== translationRequestId.current) return;
+
+        if (dictEntry && dictEntry.senses.length > 0) {
+          const translation = dictEntry.senses.map((s) => s.gloss).join('; ');
+          setWordPanel((prev) => ({
+            ...prev,
+            translation,
+            partOfSpeech: dictEntry!.senses[0]?.partOfSpeech || null,
+            dictEntry,
+            isLoading: false,
+            isDictionaryResult: true,
+          }));
+        } else if (!hasTranslation) {
+          // No dict hit AND no saved vocab translation — stream a fast AI gloss.
+          // The rich entry (senses/IPA/etymology) is opt-in via the Enrich button,
+          // so this first paint is just a concise meaning, arriving token-by-token.
+          try {
+            const gloss = await streamWordGloss(word, sentence, (cumulative) => {
+              if (requestId !== translationRequestId.current) return;
+              setWordPanel((prev) => ({
+                ...prev,
+                translation: cumulative,
+                partOfSpeech: null,
+                dictEntry: null,
+                aiStructured: null,
+                isLoading: false,
+                isStreamingGloss: true,
+                isDictionaryResult: false,
+              }));
+            });
+            if (requestId !== translationRequestId.current) return;
+            setWordPanel((prev) => ({
+              ...prev,
+              translation: gloss,
+              isLoading: false,
+              isStreamingGloss: false,
+            }));
+          } catch (err) {
+            if (requestId !== translationRequestId.current) return;
+            console.error('Gloss stream error:', err);
+            setWordPanel((prev) => ({
+              ...prev,
+              isLoading: false,
+              isStreamingGloss: false,
+              error: 'Failed to translate word. Check AI provider in settings.',
+            }));
+          }
+        } else {
+          // No dict hit but vocab has a saved translation — show that, mark
+          // not-loading. No source pill (it's the user's own translation).
+          setWordPanel((prev) => ({ ...prev, isLoading: false }));
+        }
       }
-    }
-  }, []);
+    },
+    [activeLang, trackOnboardingLookup],
+  );
 
   const closeWordPanel = useCallback(() => {
     setWordPanel((prev) => ({ ...prev, isOpen: false }));
@@ -379,7 +528,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     const isPhrase = wordPanel.word.includes(' ');
     const entry: VocabEntry = {
       id: existing?.id || uuidv4(),
-      text: wordPanel.word.toLowerCase(),
+      text: foldWord(wordPanel.word, activeLang),
       type: isPhrase ? 'phrase' : 'word',
       sentence: wordPanel.sentence,
       translation: wordPanel.translation,
@@ -399,21 +548,30 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     }
     await incrementDailyStat('newWordsSaved');
     persistAcceptedTranslation();
+    void trackOnboardingVocab(entry, entry.state);
 
     setWordPanel((prev) => ({
       ...prev,
       existingEntry: entry,
     }));
     setReaderRefreshTrigger((prev) => prev + 1);
-  }, [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation]);
+  }, [
+    wordPanel,
+    lessonId,
+    activeLang,
+    resolveExistingEntry,
+    persistAcceptedTranslation,
+    trackOnboardingVocab,
+  ]);
 
   const markAsKnown = useCallback(async () => {
     const existing = await resolveExistingEntry();
+    let trackedEntry: VocabEntry;
 
     if (!existing) {
       const entry: VocabEntry = {
         id: uuidv4(),
-        text: wordPanel.word.toLowerCase(),
+        text: foldWord(wordPanel.word, activeLang),
         type: 'word',
         sentence: wordPanel.sentence,
         translation: wordPanel.translation || '',
@@ -428,26 +586,38 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         toast.error('Could not mark the word as known — check your connection.');
         return;
       }
+      trackedEntry = entry;
     } else {
       if (!(await updateVocabState(existing.id, 'known'))) {
         toast.error('Could not mark the word as known — check your connection.');
         return;
       }
+      trackedEntry = { ...existing, state: 'known' };
     }
 
     await incrementDailyStat('wordsMarkedKnown');
     persistAcceptedTranslation();
+    void trackOnboardingVocab(trackedEntry, 'known');
     setReaderRefreshTrigger((prev) => prev + 1);
     closeWordPanel();
-  }, [wordPanel, lessonId, closeWordPanel, resolveExistingEntry, persistAcceptedTranslation]);
+  }, [
+    wordPanel,
+    lessonId,
+    activeLang,
+    closeWordPanel,
+    resolveExistingEntry,
+    persistAcceptedTranslation,
+    trackOnboardingVocab,
+  ]);
 
   const ignoreWord = useCallback(async () => {
     const existing = await resolveExistingEntry();
+    let trackedEntry: VocabEntry;
 
     if (!existing) {
       const entry: VocabEntry = {
         id: uuidv4(),
-        text: wordPanel.word.toLowerCase(),
+        text: foldWord(wordPanel.word, activeLang),
         type: 'word',
         sentence: wordPanel.sentence,
         translation: wordPanel.translation || '',
@@ -462,16 +632,19 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         toast.error('Could not ignore the word — check your connection.');
         return;
       }
+      trackedEntry = entry;
     } else {
       if (!(await updateVocabState(existing.id, 'ignored'))) {
         toast.error('Could not ignore the word — check your connection.');
         return;
       }
+      trackedEntry = { ...existing, state: 'ignored' };
     }
 
+    void trackOnboardingVocab(trackedEntry, 'ignored');
     setReaderRefreshTrigger((prev) => prev + 1);
     closeWordPanel();
-  }, [wordPanel, lessonId, closeWordPanel, resolveExistingEntry]);
+  }, [wordPanel, lessonId, activeLang, closeWordPanel, resolveExistingEntry, trackOnboardingVocab]);
 
   const setWordLevel = useCallback(
     async (level: 1 | 2 | 3 | 4) => {
@@ -479,11 +652,12 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
 
       const state = `level${level}` as 'level1' | 'level2' | 'level3' | 'level4';
       const existing = await resolveExistingEntry();
+      let trackedEntry: VocabEntry;
 
       if (!existing) {
         const entry: VocabEntry = {
           id: uuidv4(),
-          text: wordPanel.word.toLowerCase(),
+          text: foldWord(wordPanel.word, activeLang),
           type: wordPanel.word.includes(' ') ? 'phrase' : 'word',
           sentence: wordPanel.sentence,
           translation: wordPanel.translation,
@@ -500,6 +674,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         }
         await incrementDailyStat('newWordsSaved');
         setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
+        trackedEntry = entry;
       } else {
         if (!(await updateVocabState(existing.id, state))) {
           toast.error('Could not set the word level — check your connection.');
@@ -511,13 +686,46 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
             ? { ...prev.existingEntry, state }
             : { ...existing, state },
         }));
+        trackedEntry = { ...existing, state };
       }
 
       persistAcceptedTranslation();
+      const savedBefore = savedOnboardingWords(onboarding).length;
+      const nextOnboarding = await trackOnboardingVocab(trackedEntry, state);
       setReaderRefreshTrigger((prev) => prev + 1);
+
+      if (onboardingActive && trackedEntry.type === 'word' && nextOnboarding) {
+        const savedAfter = savedOnboardingWords(nextOnboarding).length;
+        if (savedAfter > savedBefore) {
+          toast.success(
+            `“${wordPanel.word}” added — ${Math.min(savedAfter, 3)} of 3 review words ready`,
+            { id: `onboarding-saved-${trackedEntry.id}`, duration: 3500 },
+          );
+          closeWordPanel();
+        }
+      }
     },
-    [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation],
+    [
+      wordPanel,
+      lessonId,
+      activeLang,
+      onboarding,
+      onboardingActive,
+      closeWordPanel,
+      resolveExistingEntry,
+      persistAcceptedTranslation,
+      trackOnboardingVocab,
+    ],
   );
+
+  const startOnboardingPractice = useCallback(async () => {
+    try {
+      await updateOnboardingProgress({ currentStep: 'practice' });
+      router.push('/practice?onboarding=1');
+    } catch {
+      toast.error('Could not start the mini-review. Please try again.');
+    }
+  }, [router]);
 
   const handleClose = useCallback(() => {
     if (lesson?.collectionId) {
@@ -543,7 +751,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     const isPhrase = wordPanel.word.includes(' ');
     const entry: VocabEntry = {
       id: uuidv4(),
-      text: wordPanel.word.toLowerCase(),
+      text: foldWord(wordPanel.word, activeLang),
       type: isPhrase ? 'phrase' : 'word',
       sentence: wordPanel.sentence,
       translation: wordPanel.translation || '',
@@ -557,10 +765,18 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     await saveVocab(entry);
     await incrementDailyStat('newWordsSaved');
     persistAcceptedTranslation();
+    void trackOnboardingVocab(entry, entry.state);
     setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
     setReaderRefreshTrigger((prev) => prev + 1);
     return entry;
-  }, [wordPanel, lessonId, resolveExistingEntry, persistAcceptedTranslation]);
+  }, [
+    wordPanel,
+    lessonId,
+    activeLang,
+    resolveExistingEntry,
+    persistAcceptedTranslation,
+    trackOnboardingVocab,
+  ]);
 
   const addWordToAnki = useCallback(async () => {
     const { basic: deckName } = getAnkiDecks();
@@ -572,6 +788,28 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
 
     const entry = await ensureVocabEntry();
+
+    // Addon transport (#241): queue server-side instead of browser→
+    // AnkiConnect; the Lector addon creates the note and its ack flips
+    // pushedToAnki in the DB. The panel state flips optimistically so the
+    // button reads "added" like the direct path.
+    if (ankiTransport === 'addon') {
+      // word override: the entry stores the folded key ("häuser"), but the
+      // card must show the displayed casing ("Häuser") like the AnkiConnect
+      // path always has.
+      const result = await queueForAnki([
+        { id: entry.id, cardType: 'word', word: wordPanel.word, translation, meaning: wordMeaning },
+      ]);
+      if (result.failed.length > 0) throw new Error(result.failed[0].error);
+      setWordPanel((prev) => ({
+        ...prev,
+        existingEntry: prev.existingEntry
+          ? { ...prev.existingEntry, pushedToAnki: true }
+          : { ...entry, pushedToAnki: true },
+      }));
+      return;
+    }
+
     const noteId = await addWordCard(deckName, wordPanel.word, translation, wordMeaning);
     await markVocabPushedToAnki(entry.id, noteId);
     setWordPanel((prev) => ({
@@ -580,7 +818,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         ? { ...prev.existingEntry, pushedToAnki: true, ankiNoteId: noteId }
         : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
     }));
-  }, [wordPanel, getAnkiDecks, ensureVocabEntry]);
+  }, [wordPanel, getAnkiDecks, ensureVocabEntry, ankiTransport]);
 
   const addClozeToAnki = useCallback(
     async (blankWord: string) => {
@@ -588,6 +826,31 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
 
       const entry = await ensureVocabEntry();
+
+      // Addon transport (#241): same queue as addWordToAnki. The selected
+      // phrase is the card's sentence and blankWord the cloze target — sent
+      // as per-item overrides since they differ from the stored entry.
+      if (ankiTransport === 'addon') {
+        const result = await queueForAnki([
+          {
+            id: entry.id,
+            cardType: 'cloze',
+            word: blankWord,
+            sentence: wordPanel.word,
+            translation,
+            meaning: translation,
+          },
+        ]);
+        if (result.failed.length > 0) throw new Error(result.failed[0].error);
+        setWordPanel((prev) => ({
+          ...prev,
+          existingEntry: prev.existingEntry
+            ? { ...prev.existingEntry, pushedToAnki: true }
+            : { ...entry, pushedToAnki: true },
+        }));
+        return;
+      }
+
       const noteId = await addClozeCard(
         clozeDeck,
         wordPanel.word,
@@ -603,7 +866,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
       }));
     },
-    [wordPanel, getAnkiDecks, ensureVocabEntry],
+    [wordPanel, getAnkiDecks, ensureVocabEntry, ankiTransport],
   );
 
   const retranslateWithAi = useCallback(async () => {
@@ -678,6 +941,22 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     if (!wordPanel.isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+C copies the word or phrase the drawer is showing. Word spans
+      // keep the whitespace between them in the DOM, so this — like a native
+      // copy — preserves spaces (readers that drop inter-word gaps copy e.g.
+      // "diegroothond"). If the user has made a real text selection, defer to
+      // the browser so an ordinary copy still works.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'c') {
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed && selection.toString().trim()) return;
+        if (!wordPanel.word) return;
+        e.preventDefault();
+        void navigator.clipboard?.writeText(wordPanel.word).then(
+          () => toast.success('Copied', { duration: 1200 }),
+          () => {},
+        );
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const key = e.key.toLowerCase();
       if (key === 'escape') {
@@ -707,6 +986,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [
     wordPanel.isOpen,
+    wordPanel.word,
     wordPanel.existingEntry,
     wordPanel.translation,
     closeWordPanel,
@@ -730,9 +1010,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   if (error || !lesson) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-card p-8">
-        <div className="mb-4 text-xl text-destructive">
-          {error || 'Lesson not found'}
-        </div>
+        <div className="mb-4 text-xl text-destructive">{error || 'Lesson not found'}</div>
         <Button variant="secondary" onClick={() => router.push('/')}>
           Go to Library
         </Button>
@@ -765,12 +1043,29 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     !wordPanel.isLoading &&
     !wordPanel.isStreamingGloss;
 
+  const onboardingSavedWords = savedOnboardingWords(onboarding);
+  const onboardingSavedCount = onboardingSavedWords.length;
+  const onboardingEncounteredCount = encounteredOnboardingTerms(onboarding).length;
+  const onboardingPhraseLookedUp = hasOnboardingPhraseLookup(onboarding);
+  const onboardingCoachStage =
+    onboardingSavedCount >= 3
+      ? 'practice'
+      : onboardingSavedCount > 0 && !onboardingPhraseLookedUp
+        ? 'phrase'
+        : onboardingEncounteredCount > 0
+          ? 'save'
+          : 'lookup';
+  const onboardingCurrentWordSaved = onboardingSavedWords.some(
+    (savedWord) => savedWord.id === wordPanel.existingEntry?.id,
+  );
+
   return (
     <div className="flex h-dvh flex-col overflow-x-hidden bg-card print:block print:h-auto print:overflow-visible">
       <div className="relative flex-1 overflow-hidden print:block print:h-auto print:overflow-visible">
         <MarkdownReader
           lesson={lesson}
           onWordClick={handleWordClick}
+          wordPanelOpen={wordPanel.isOpen}
           onClose={handleClose}
           onSaveText={handleSaveText}
           onEditingChange={handleEditingChange}
@@ -799,6 +1094,15 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         isEnriching={wordPanel.isEnriching}
         error={wordPanel.error}
         existingEntry={wordPanel.existingEntry}
+        onboardingSaveProgress={
+          onboardingActive && !wordPanel.word.includes(' ')
+            ? {
+                savedCount: onboardingSavedCount,
+                target: 3,
+                currentWordSaved: onboardingCurrentWordSaved,
+              }
+            : undefined
+        }
         onClose={closeWordPanel}
         onSpeak={(text) => speak(text.split(/\s+/).slice(0, 15).join(' '))}
         onSetLevel={setWordLevel}
@@ -811,6 +1115,16 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         onAddToAnki={!wordPanel.word.includes(' ') ? addWordToAnki : undefined}
         onAddCloze={wordPanel.word.includes(' ') ? addClozeToAnki : undefined}
       />
+      {onboardingActive && (
+        <OnboardingCoach
+          stage={onboardingCoachStage}
+          savedCount={onboardingSavedCount}
+          savedWords={onboardingSavedWords.map((word) => word.text)}
+          onStartPractice={
+            onboardingCoachStage === 'practice' ? startOnboardingPractice : undefined
+          }
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,8 @@
-# Lector cloud canary — `app.lector.dev`
+# Lector cloud production — `app.lector.dev`
+
+For the trunk-based staging → human approval → production promotion pipeline, see
+[`STAGING.md`](./STAGING.md). Production is still named `canary` in AWS stack/tag
+identifiers for compatibility with the live infrastructure.
 
 The first **cloud-mode** deployment (#242): the published image running with
 `LECTOR_MODE=cloud` + `LECTOR_CLOUD_GATE=external`, fronted by **Cloudflare
@@ -53,35 +57,48 @@ Design notes:
    for every secret and LLM setting; the box re-reads all of them on every
    `update.sh` (see _Rotate a secret_ below). Only `tunnel-token` is required:
 
-   | Parameter (`/lector/canary/…`) | Type         | Becomes                                                      |
-   | ------------------------------ | ------------ | ------------------------------------------------------------ |
-   | `tunnel-token` **(required)**  | SecureString | cloudflared `TUNNEL_TOKEN`                                    |
-   | `claude-oauth-token`           | SecureString | `CLAUDE_OAUTH_TOKEN` (plan credits — preferred over API key)  |
-   | `anthropic-api-key`            | SecureString | `ANTHROPIC_API_KEY`                                           |
-   | `openrouter-api-key`           | SecureString | `OPENAI_COMPAT_API_KEY`                                       |
-   | `google-api-key`               | SecureString | `GOOGLE_CLOUD_API_KEY` (TTS)                                  |
-   | `llm-provider`                 | String       | `LLM_PROVIDER` (`anthropic` default, or `openai`)             |
-   | `openai-compat-url`            | String       | `OPENAI_COMPAT_URL`                                           |
-   | `openai-compat-model`          | String       | `OPENAI_COMPAT_MODEL`                                         |
-   | `resend-api-key`               | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — the sending domain must be verified at resend.com/domains or sends 403) |
-   | `better-auth-secret`           | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — **required**: cloud proper refuses to boot without it. Generate: `openssl rand -base64 32`) |
-   | `turnstile-site-key`           | String       | `TURNSTILE_SITE_KEY` (Cloudflare Turnstile widget on the auth forms, #218 — public key, rides `window.__ENV__`) |
-   | `turnstile-secret`             | SecureString | `TURNSTILE_SECRET_KEY` (server-side captcha verification; set both or neither) |
-   | `oidc-issuer`                  | String       | `OIDC_ISSUER` (BYO OIDC, #218 — issuer origin or pasted discovery URL; needs all three `oidc-*` credentials) |
-   | `oidc-client-id`               | String       | `OIDC_CLIENT_ID` |
-   | `oidc-client-secret`           | SecureString | `OIDC_CLIENT_SECRET` (redirect URI to allowlist on the IdP: `https://app.lector.dev/api/auth/oauth2/callback/oidc`) |
-   | `oidc-provider-name`           | String       | `OIDC_PROVIDER_NAME` (optional login-button label, default "SSO" — rides `window.__ENV__`) |
-   | `lector-billing`               | String       | `LECTOR_BILLING` (#224 — `paddle` arms the subscription gate; unset = billing off. Requires `paddle-webhook-secret`, or the container refuses to boot) |
-   | `paddle-webhook-secret`        | SecureString | `PADDLE_WEBHOOK_SECRET` (the notification destination's secret key, Paddle → Developer tools → Notifications) |
-   | `paddle-client-token`          | String       | `PADDLE_CLIENT_TOKEN` (public client-side token for the in-app checkout overlay — Paddle → Developer tools → Authentication → Client-side tokens) |
-   | `paddle-price-monthly`         | String       | `PADDLE_PRICE_MONTHLY` (`pri_…` — Cloud monthly; a plan card renders for each configured price) |
-   | `paddle-price-annual`          | String       | `PADDLE_PRICE_ANNUAL` (`pri_…` — Cloud annual) |
-   | `paddle-price-plus-monthly`    | String       | `PADDLE_PRICE_PLUS_MONTHLY` (`pri_…` — Plus monthly) |
-   | `paddle-price-plus-annual`     | String       | `PADDLE_PRICE_PLUS_ANNUAL` (`pri_…` — Plus annual) |
-   | `billing-exempt-emails`        | String       | `BILLING_EXEMPT_EMAILS` (comma-separated accounts the gate never locks — operator + test accounts) |
-   | `sentry-dsn`                   | String       | `SENTRY_DSN` — full-stack error tracking + tracing (API + browser, injected into `window.__ENV__`); public DSN; unset = off. Points at Sentry.io, self-hosted Sentry, or GlitchTip |
-   | `sentry-traces-sample-rate`    | String       | `SENTRY_TRACES_SAMPLE_RATE` (0–1, server/API only; `0` = errors only, no traces; default full sampling) |
-   | `ghcr-token`                   | SecureString | image-pull login (only if the package goes private again)     |
+   | Parameter (`/lector/canary/…`)       | Type         | Becomes                                                                                                                                                                                                                                                   |
+   | ------------------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `tunnel-token` **(required)**        | SecureString | cloudflared `TUNNEL_TOKEN`                                                                                                                                                                                                                                |
+   | `claude-oauth-token`                 | SecureString | `CLAUDE_OAUTH_TOKEN` (plan credits — preferred over API key)                                                                                                                                                                                              |
+   | `anthropic-api-key`                  | SecureString | `ANTHROPIC_API_KEY`                                                                                                                                                                                                                                       |
+   | `openrouter-api-key`                 | SecureString | `OPENAI_COMPAT_API_KEY`                                                                                                                                                                                                                                   |
+   | `byok-encryption-key`                | SecureString | `BYOK_ENCRYPTION_KEY` — base64-encoded 32-byte AES key used only for per-user provider credentials. Generate independently per deployment; losing or rotating it without re-encrypting stored rows makes existing BYOK keys unreadable.                   |
+   | `google-api-key`                     | SecureString | `GOOGLE_CLOUD_API_KEY` (TTS)                                                                                                                                                                                                                              |
+   | `llm-provider`                       | String       | `LLM_PROVIDER` (`anthropic` default, or `openai`)                                                                                                                                                                                                         |
+   | `openai-compat-url`                  | String       | `OPENAI_COMPAT_URL`                                                                                                                                                                                                                                       |
+   | `openai-compat-model`                | String       | `OPENAI_COMPAT_MODEL`                                                                                                                                                                                                                                     |
+   | `openai-compat-word-gloss-model`     | String       | `OPENAI_COMPAT_WORD_GLOSS_MODEL` — production Free requires `google/gemini-2.5-flash-lite`                                                                                                                                                                |
+   | `openai-compat-simple-phrase-model`  | String       | `OPENAI_COMPAT_SIMPLE_PHRASE_MODEL` — production Free requires `google/gemini-2.5-flash-lite`                                                                                                                                                             |
+   | `openai-compat-simple-context-model` | String       | `OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL` — production Free requires `google/gemini-2.5-flash-lite`                                                                                                                                                            |
+   | `classify-llm-url`                   | String       | `CLASSIFY_LLM_URL` — dedicated classifier endpoint required when production Free runs `CLASSIFY_WORKER=1`                                                                                                                                                 |
+   | `classify-llm-model`                 | String       | `CLASSIFY_LLM_MODEL` — dedicated classifier model required when production Free runs `CLASSIFY_WORKER=1`; the deployment-scoped `openrouter-api-key` is reused as `CLASSIFY_LLM_API_KEY`                                                                  |
+   | `resend-api-key`                     | SecureString | `RESEND_API_KEY` (account verification/reset emails, #218 — the sending domain must be verified at resend.com/domains or sends 403)                                                                                                                       |
+   | `better-auth-secret`                 | SecureString | `BETTER_AUTH_SECRET` (session signing, #218 — **required**: cloud proper refuses to boot without it. Generate: `openssl rand -base64 32`)                                                                                                                 |
+   | `turnstile-site-key`                 | String       | `TURNSTILE_SITE_KEY` (Cloudflare Turnstile widget on the auth forms, #218 — public key, rides `window.__ENV__`)                                                                                                                                           |
+   | `turnstile-secret`                   | SecureString | `TURNSTILE_SECRET_KEY` (server-side captcha verification; set both or neither)                                                                                                                                                                            |
+   | `oidc-issuer`                        | String       | `OIDC_ISSUER` (BYO OIDC, #218 — issuer origin or pasted discovery URL; needs all three `oidc-*` credentials)                                                                                                                                              |
+   | `oidc-client-id`                     | String       | `OIDC_CLIENT_ID`                                                                                                                                                                                                                                          |
+   | `oidc-client-secret`                 | SecureString | `OIDC_CLIENT_SECRET` (redirect URI to allowlist on the IdP: `https://app.lector.dev/api/auth/oauth2/callback/oidc`)                                                                                                                                       |
+   | `oidc-provider-name`                 | String       | `OIDC_PROVIDER_NAME` (optional login-button label, default "SSO" — rides `window.__ENV__`)                                                                                                                                                                |
+   | `lector-billing`                     | String       | `LECTOR_BILLING` (#224 — `paddle` arms the subscription gate; unset = billing off. Requires `paddle-webhook-secret` and `paddle-api-key`, or the container refuses to boot)                                                                               |
+   | `free-tier-enabled`                  | String       | `LECTOR_FREE_TIER` — strict `true` enables derived Free access; unset/`false` preserves paid-only access. Requires Paddle billing, cloud proper, and both Turnstile keys in production. Free uses managed Gemini translation quotas and browser TTS only. |
+   | `paddle-webhook-secret`              | SecureString | `PADDLE_WEBHOOK_SECRET` (the notification destination's secret key, Paddle → Developer tools → Notifications)                                                                                                                                             |
+   | `paddle-api-key`                     | SecureString | `PADDLE_API_KEY` (server billing key; required API scopes are listed below)                                                                                                                                                                               |
+   | `checkout-url`                       | String       | `CHECKOUT_URL` (the approved-domain checkout page the app redirects to, e.g. `https://lector.dev/checkout`; unset → the subscribe screen shows its "checkout unavailable" fallback)                                                                       |
+   | `paddle-price-monthly`               | String       | `PADDLE_PRICE_MONTHLY` (`pri_…` — Cloud monthly; a plan card renders for each configured price)                                                                                                                                                           |
+   | `paddle-price-annual`                | String       | `PADDLE_PRICE_ANNUAL` (`pri_…` — Cloud annual)                                                                                                                                                                                                            |
+   | `paddle-price-plus-monthly`          | String       | `PADDLE_PRICE_PLUS_MONTHLY` (`pri_…` — Plus monthly)                                                                                                                                                                                                      |
+   | `paddle-price-plus-annual`           | String       | `PADDLE_PRICE_PLUS_ANNUAL` (`pri_…` — Plus annual)                                                                                                                                                                                                        |
+   | `billing-exempt-emails`              | String       | `BILLING_EXEMPT_EMAILS` (comma-separated accounts the gate never locks — operator + test accounts)                                                                                                                                                        |
+   | `admin-emails`                       | String       | `LECTOR_ADMIN_EMAILS` (#221 — comma-separated accounts with admin-dashboard access; no spaces; unset = no admins)                                                                                                                                         |
+   | `sentry-dsn`                         | String       | `SENTRY_DSN` — full-stack error tracking + tracing (API + browser, injected into `window.__ENV__`); public DSN; unset = off. Points at Sentry.io, self-hosted Sentry, or GlitchTip                                                                        |
+   | `sentry-traces-sample-rate`          | String       | `SENTRY_TRACES_SAMPLE_RATE` (0–1, server/API only; `0` = errors only, no traces; default full sampling)                                                                                                                                                   |
+   | `ghcr-token`                         | SecureString | image-pull login (only if the package goes private again)                                                                                                                                                                                                 |
+
+   The Paddle server key must grant `transaction.write`,
+   `customer_portal_session.write`, `subscription.read`, and
+   `subscription.write`. The public checkout token remains in lector-site.
 
    ```bash
    aws ssm put-parameter --name /lector/canary/tunnel-token \
@@ -100,7 +117,22 @@ Design notes:
      --type String --value 'https://openrouter.ai/api'
    aws ssm put-parameter --name /lector/canary/openai-compat-model \
      --type String --value 'google/gemini-2.5-flash-lite'
-   # TTS:
+   aws ssm put-parameter --name /lector/canary/openai-compat-word-gloss-model \
+     --type String --value 'google/gemini-2.5-flash-lite'
+   aws ssm put-parameter --name /lector/canary/openai-compat-simple-phrase-model \
+     --type String --value 'google/gemini-2.5-flash-lite'
+   aws ssm put-parameter --name /lector/canary/openai-compat-simple-context-model \
+     --type String --value 'google/gemini-2.5-flash-lite'
+   aws ssm put-parameter --name /lector/canary/classify-llm-url \
+     --type String --value 'https://openrouter.ai/api'
+   aws ssm put-parameter --name /lector/canary/classify-llm-model \
+     --type String --value 'google/gemini-2.5-flash-lite'
+   # Per-user BYOK credential encryption (generate once per deployment and
+   # keep it in SSM; never reuse the same key between staging and production):
+   openssl rand -base64 32 | tr -d '\n' | aws ssm put-parameter \
+     --name /lector/canary/byok-encryption-key --type SecureString \
+     --value file:///dev/stdin
+   # Managed TTS for paid plans only; Free always falls back to browser speech:
    aws ssm put-parameter --name /lector/canary/google-api-key \
      --type SecureString --value '…'
    # Error tracking + tracing — Sentry.io, self-hosted Sentry, or GlitchTip:
@@ -108,9 +140,10 @@ Design notes:
      --type String --value 'https://<key>@o<org>.ingest.<region>.sentry.io/<project>'
    ```
 
-   Note: the OpenAI-compatible provider uses **one model for everything**
-   (per-task word/phrase/chat models are Anthropic-only for now), so pick an
-   all-rounder. Use `--overwrite` when changing an existing value.
+   `openai-compat-model` remains the base for rich translation/chat work. The
+   three task-specific parameters pin the bounded managed Free paths to Gemini
+   2.5 Flash-Lite; BYOK always uses the user's selected model instead. Use
+   `--overwrite` when changing an existing value.
 
 3. **Deploy the stack:**
 
@@ -125,10 +158,10 @@ Design notes:
 4. **Route the hostname** (Cloudflare → the tunnel → _Public Hostname_) — two
    rules, API rule first (first match wins):
 
-   | #   | Hostname         | Path             | Service              |
-   | --- | ---------------- | ---------------- | -------------------- |
+   | #   | Hostname         | Path              | Service              |
+   | --- | ---------------- | ----------------- | -------------------- |
    | 1   | `app.lector.dev` | `^/(api\|health)` | `http://lector:3457` |
-   | 2   | `app.lector.dev` | _(empty)_        | `http://lector:3000` |
+   | 2   | `app.lector.dev` | _(empty)_         | `http://lector:3000` |
 
    The path field is a regex. Use the **service names** (`lector`), never
    `localhost` — cloudflared runs in its own container, so its `localhost` is
@@ -144,11 +177,12 @@ Design notes:
 
 ## Operate
 
-- **Update to the latest image:** automatic. Every merge to `master` publishes
-  `:latest` (docker.yml), whose `deploy-canary` job then assumes the
-  `LectorCanaryCi` stack's GitHub-OIDC role (no AWS keys in repo secrets) and
-  runs `/srv/lector/update.sh` on the box over SSM, health-gated by
-  [`deploy-canary.sh`](./deploy-canary.sh). Manual fallback — same effect:
+- **Promote an immutable image:** automatic to staging after a successful master CI
+  run, then manual approval through the GitHub `production` Environment. Production
+  receives the exact `sha-<commit>` image tested in staging—never a rebuilt or moving
+  tag. `LectorCanaryCi` supplies environment-scoped OIDC roles; the SSM wrapper is
+  [`deploy-cloud.sh`](./deploy-cloud.sh) and rolls back on failed health. See
+  [`STAGING.md`](./STAGING.md). Manual fallback:
   `aws ssm start-session --target <instance-id>` → `sudo /srv/lector/update.sh`
   (refreshes all secrets from SSM + pull + recreate; the data volume is untouched).
 - **Redeploying `LectorCloudCanary`:** a boot-script (UserData) change
@@ -163,7 +197,7 @@ Design notes:
 - **Adding a NEW parameter** (a mapping that isn't in the table yet) needs a
   matching `put <ENV_KEY> <param-suffix>` line in `/srv/lector/refresh-env.sh`.
   That script is baked into UserData at first boot, so a stack edit only covers
-  *future* instances — patch the live box over SSM (append the line, run
+  _future_ instances — patch the live box over SSM (append the line, run
   `update.sh`); do **not** redeploy the stack for this, a UserData change
   replaces the instance.
 - **Logs:** `sudo docker logs lector` / `sudo docker logs cloudflared`;
@@ -205,17 +239,20 @@ Design notes:
 
   **Restore drill** (run it now, and again before real users — an unrestored
   backup is a hope, not a backup):
+
   ```bash
   docker run --rm -v /tmp:/out -v /srv/lector/litestream.yml:/etc/litestream.yml:ro \
     litestream/litestream restore -o /out/restored.db /data/lector.db
   sqlite3 /tmp/restored.db 'PRAGMA integrity_check; SELECT COUNT(*) FROM lessons;'
   ```
+
   Full recovery = restore onto a fresh box's data volume, then
   `docker compose up -d`.
+
 - **Teardown:** `bunx cdk destroy`. The data volume is retained — delete it
   manually (and the SSM parameters + tunnel + Access app) for a full cleanup.
 
-## Billing go-live (Paddle, #224)
+## Billing and Free-tier rollout (Paddle, #224)
 
 The subscription gate ships dark: with `lector-billing` unset the app behaves
 exactly as before. Arming it (order matters — the gate locks every account
@@ -240,7 +277,7 @@ that isn't subscribed or exempt the moment it's on):
    public launch removes the need.
 3. **Parameters** (the boot script maps them via `refresh-env.sh`; a box
    provisioned before #224 needs the new `put` lines appended first — see
-   *Adding a NEW parameter* above):
+   _Adding a NEW parameter_ above):
    ```bash
    aws ssm put-parameter --name /lector/canary/paddle-webhook-secret \
      --type SecureString --value 'pdl_ntfset_…'
@@ -258,13 +295,62 @@ that isn't subscribed or exempt the moment it's on):
    `billing: Paddle subscription gate active`, an exempt account still gets
    the app, a fresh account lands on `/subscribe`, and a test webhook from
    Paddle's dashboard (Notifications → the destination → Send test) returns
-   200 in its delivery log.
+   200 in its delivery log. For a sandbox subscriber, Settings → Plan must
+   create a temporary Paddle portal session and preview a plan change before
+   confirmation; entitlement changes only after the signed webhook arrives.
 
 A subscriber's account activates on the `subscription.created`/`.updated`
 webhook: matched by the checkout's `custom_data.lectorUserId` (checkout
 opened in-app) or by customer email (checkout on lector.dev). Dunning
-(`past_due`) keeps access; cancellation locks the account to data takeout +
-resubscribe at period end, with all data retained (#216 lapse contract).
+(`past_due`) keeps paid access. With `free-tier-enabled` unset or `false`,
+cancellation keeps the paid-only lock described above. With the flag set to
+exact lowercase `true`, never-subscribed and lapsed accounts derive the Free
+plan instead: their data stays intact, managed TTS is disabled (browser speech
+remains available), and server-side limits govern new work. Set the flag only
+after both Turnstile parameters, at least one paid `PADDLE_PRICE_*`, the
+managed translation budget, and `google-api-key` for the paid managed-voice
+upsell are configured; no Paddle "Free" price or subscription row is created.
+The `byok-encryption-key` parameter is also mandatory for a production Free
+rollout: the container validates it as a base64-encoded 32-byte key so the
+advertised BYOK escape hatch cannot silently disappear.
+`CLASSIFY_WORKER` remains off by default. If it is enabled, production Free
+also requires a dedicated `CLASSIFY_LLM_URL` and `CLASSIFY_LLM_MODEL`; the
+worker may not fall back to the managed interactive translation provider.
+
+Annual checkout is the primary action when both billing cycles are configured
+(ten months' price for twelve months); monthly remains an explicit alternative.
+Active subscribers can preview an allowlisted Cloud/Plus or monthly/annual swap
+in Settings. Paddle calculates tax and proration, the API re-reads the
+subscription before applying, and `on_payment_failure=prevent_change` leaves the
+old plan intact if collection fails. Paddle's hosted customer portal owns
+payment methods, invoices, and cancellation. Portal URLs are temporary and are
+never cached; customer/subscription IDs come only from the signed webhook
+mirror, never from browser input.
+
+Free also carries pragmatic fair-use storage ceilings so one account cannot
+fill the host disk and every cap-compliant takeout stays restoreable through the
+90 MiB (94,371,840-byte) import envelope: 50 groups, 10,000 vocabulary rows,
+25,000 word states, 25,000 practice sentences, and 1,000 accepted dictionary
+entries. The practice ceiling holds roughly two to three complete bundled
+language banks; a learner can delete an old bank before seeding another while
+their vocabulary remains portable. Exported text is bounded to 17.5 MiB in
+aggregate (5 MiB lessons, 1.5 MiB vocabulary, 0.5 MiB word keys, 8 MiB practice,
+2 MiB accepted glosses, 0.5 MiB journals).
+
+That envelope is proven from serialized JSON, not raw text alone: the current
+worst-case model is 93,009,446 bytes and counts 2x JSON escaping, field names,
+row separators, control-free 128-byte primary/foreign IDs, every dictionary
+sense/related-form child, settings, timestamps, domains, and numeric metadata.
+It leaves 1,362,394 bytes of headroom below 90 MiB and stays below Cloudflare's
+100 MB proxied-request ceiling. Restore uploads are authenticated and admitted
+one process-wide at a time before buffering. Empty-row escape hatches are also
+bounded: 5,000 journal entries, 5,000 daily-activity rows, 20 personal API
+tokens, and 2,000 durable Anki queue rows (4 MiB of queue overrides). Cloud,
+Plus, and self-host keep their existing behavior. Free BYOK lifts AI funding
+limits only; it never lifts these product/storage safeguards.
+`LECTOR_PLAN_LIMITS.free` may lower `max*` fair-use values but cannot raise them
+above the proven defaults; all other Free tuning must remain finite, while rich
+managed AI and managed TTS remain fixed at zero.
 
 ## Caveats
 

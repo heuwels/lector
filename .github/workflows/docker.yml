@@ -1,9 +1,14 @@
 name: Build and Push Docker Image
 
 on:
+  # Master only accepts up-to-date PRs whose required CI checks passed, with
+  # protection enforced for admins. Publish that already-validated merge once
+  # instead of rerunning the full suite after merge.
   push:
-    branches:
-      - master
+    branches: [master]
+
+env:
+  IMAGE_SHA: ${{ github.sha }}
 
 jobs:
   build-amd64:
@@ -16,28 +21,29 @@ jobs:
         with:
           # Full history + tags so `git describe` can derive the version.
           fetch-depth: 0
+          ref: ${{ env.IMAGE_SHA }}
       - name: Compute build metadata
         id: build_meta
         run: |
           echo "version=$(git describe --tags --always --dirty)" >> "$GITHUB_OUTPUT"
           echo "branch=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          tags: ghcr.io/heuwels/lector:sha-${{ github.sha }}-amd64
+          tags: ghcr.io/heuwels/lector:sha-${{ env.IMAGE_SHA }}-amd64
           platforms: linux/amd64
           # Build context has no .git (see .dockerignore); pass version metadata
           # in as build args. BUILD_TIME is stamped by next.config at build time.
           build-args: |
             APP_VERSION=${{ steps.build_meta.outputs.version }}
-            GIT_COMMIT=${{ github.sha }}
+            GIT_COMMIT=${{ env.IMAGE_SHA }}
             GIT_BRANCH=${{ steps.build_meta.outputs.branch }}
           cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64
           cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64,mode=max,ignore-error=true
@@ -52,28 +58,29 @@ jobs:
         with:
           # Full history + tags so `git describe` can derive the version.
           fetch-depth: 0
+          ref: ${{ env.IMAGE_SHA }}
       - name: Compute build metadata
         id: build_meta
         run: |
           echo "version=$(git describe --tags --always --dirty)" >> "$GITHUB_OUTPUT"
           echo "branch=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          tags: ghcr.io/heuwels/lector:sha-${{ github.sha }}-arm64
+          tags: ghcr.io/heuwels/lector:sha-${{ env.IMAGE_SHA }}-arm64
           platforms: linux/arm64
           # Build context has no .git (see .dockerignore); pass version metadata
           # in as build args. BUILD_TIME is stamped by next.config at build time.
           build-args: |
             APP_VERSION=${{ steps.build_meta.outputs.version }}
-            GIT_COMMIT=${{ github.sha }}
+            GIT_COMMIT=${{ env.IMAGE_SHA }}
             GIT_BRANCH=${{ steps.build_meta.outputs.branch }}
           cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-arm64
           cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-arm64,mode=max,ignore-error=true
@@ -85,19 +92,19 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
+      - uses: docker/metadata-action@v6
         id: meta
         with:
           images: ghcr.io/heuwels/lector
           tags: |
-            type=sha,prefix=
-            type=ref,event=branch
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=sha-${{ env.IMAGE_SHA }}
+            type=raw,value=master
+            type=raw,value=latest
       - name: Create multi-arch manifest
         run: |
           TAG_ARGS=""
@@ -105,24 +112,20 @@ jobs:
             TAG_ARGS="$TAG_ARGS -t $TAG"
           done <<< "${{ steps.meta.outputs.tags }}"
           docker buildx imagetools create $TAG_ARGS \
-            ghcr.io/heuwels/lector:sha-${{ github.sha }}-amd64 \
-            ghcr.io/heuwels/lector:sha-${{ github.sha }}-arm64
+            ghcr.io/heuwels/lector:sha-${{ env.IMAGE_SHA }}-amd64 \
+            ghcr.io/heuwels/lector:sha-${{ env.IMAGE_SHA }}-arm64
 
-  # Roll the cloud canary (app.lector.dev, #242) to the image this run just
-  # published. The canary tracks master for now; whether cloud should pin to
-  # release tags instead — or releases stay the self-host channel — is an
-  # open call. Note ci.yml runs the suite on this same push but does not
-  # block this job (DX-02): true gating needs a branch-protection rule.
-  #
-  # Auth: GitHub OIDC → the lector-canary-github-deploy role (its own stack:
-  # deploy/cloud/cdk/lib/ci-stack.ts) — SSM-only, scoped by instance tags.
-  # What runs on the box: deploy/cloud/deploy-canary.sh.
-  deploy-canary:
+  # Trunk promotion: a protected master merge produces one immutable image.
+  # Staging receives it automatically. Production receives the SAME tag only
+  # after the `production` GitHub Environment's required reviewer approves.
+  deploy-staging:
     runs-on: ubuntu-latest
     needs: [merge]
-    # Never two updates on the box at once; a queued newer push supersedes.
+    environment:
+      name: staging
+      url: https://staging.lector.dev
     concurrency:
-      group: canary-deploy
+      group: staging-deploy
     permissions:
       id-token: write
       contents: read
@@ -130,31 +133,103 @@ jobs:
       AWS_REGION: us-east-1
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.IMAGE_SHA }}
       - uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::383411034829:role/lector-canary-github-deploy
+          role-to-assume: arn:aws:iam::383411034829:role/lector-staging-github-deploy
           aws-region: us-east-1
-      - name: Update canary over SSM
+      - name: Deploy immutable image to staging over SSM
+        env:
+          TARGET_STACK: cloud-staging
+          DEPLOYMENT: staging
         run: |
           set -euo pipefail
           INSTANCE_ID=$(aws ec2 describe-instances \
             --filters "Name=tag:project,Values=lector" \
-                      "Name=tag:stack,Values=cloud-canary" \
+                      "Name=tag:stack,Values=$TARGET_STACK" \
                       "Name=instance-state-name,Values=running" \
             --query 'Reservations[].Instances[].InstanceId' --output text)
           if [ "$(echo "$INSTANCE_ID" | wc -w)" -ne 1 ]; then
-            echo "expected exactly one running canary instance, got: '$INSTANCE_ID'" >&2
+            echo "expected exactly one running $DEPLOYMENT instance, got: '$INSTANCE_ID'" >&2
             exit 1
           fi
-          echo "deploying to $INSTANCE_ID"
+          echo "deploying sha-$IMAGE_SHA to $DEPLOYMENT ($INSTANCE_ID)"
           CMD_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --comment "canary deploy ${GITHUB_SHA:0:12}" \
-            --parameters "$(jq -Rn --rawfile s deploy/cloud/deploy-canary.sh \
-              '{commands: [$s], executionTimeout: ["600"]}')" \
+            --comment "$DEPLOYMENT deploy ${IMAGE_SHA:0:12}" \
+            --parameters "$(jq -Rn --arg tag "sha-$IMAGE_SHA" --arg deployment "$DEPLOYMENT" \
+              --rawfile s deploy/cloud/deploy-cloud.sh \
+              '{commands: ["export LECTOR_IMAGE_TAG=" + ($tag|@sh), "export LECTOR_DEPLOYMENT=" + ($deployment|@sh), $s], executionTimeout: ["600"]}')" \
             --query Command.CommandId --output text)
           echo "ssm command: $CMD_ID"
+          STATUS=Pending
+          for _ in $(seq 1 120); do
+            STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" \
+              --instance-id "$INSTANCE_ID" --query Status --output text \
+              2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Pending|InProgress|Delayed) sleep 5 ;;
+              *) break ;;
+            esac
+          done
+          aws ssm get-command-invocation --command-id "$CMD_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          aws ssm get-command-invocation --command-id "$CMD_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text >&2
+          echo "status: $STATUS"
+          [ "$STATUS" = "Success" ]
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    # Configure this environment in GitHub with Luke as a required reviewer.
+    # The job pauses here; approval promotes the exact staging-tested SHA.
+    environment:
+      name: production
+      url: https://app.lector.dev
+    concurrency:
+      group: production-deploy
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.IMAGE_SHA }}
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::383411034829:role/lector-canary-github-deploy
+          aws-region: us-east-1
+      - name: Promote staging-tested image to production
+        env:
+          TARGET_STACK: cloud-canary
+          DEPLOYMENT: production
+        run: |
+          set -euo pipefail
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:project,Values=lector" \
+                      "Name=tag:stack,Values=$TARGET_STACK" \
+                      "Name=instance-state-name,Values=running" \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          if [ "$(echo "$INSTANCE_ID" | wc -w)" -ne 1 ]; then
+            echo "expected exactly one running $DEPLOYMENT instance, got: '$INSTANCE_ID'" >&2
+            exit 1
+          fi
+          echo "promoting sha-$IMAGE_SHA to $DEPLOYMENT ($INSTANCE_ID)"
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "$DEPLOYMENT deploy ${IMAGE_SHA:0:12}" \
+            --parameters "$(jq -Rn --arg tag "sha-$IMAGE_SHA" --arg deployment "$DEPLOYMENT" \
+              --rawfile s deploy/cloud/deploy-cloud.sh \
+              '{commands: ["export LECTOR_IMAGE_TAG=" + ($tag|@sh), "export LECTOR_DEPLOYMENT=" + ($deployment|@sh), $s], executionTimeout: ["600"]}')" \
+            --query Command.CommandId --output text)
           STATUS=Pending
           for _ in $(seq 1 120); do
             STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" \

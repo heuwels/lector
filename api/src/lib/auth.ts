@@ -5,32 +5,38 @@ import { hashToken } from './crypto';
 import { LOCAL_USER_ID } from './user';
 
 const SCOPE_MAP: Record<string, { read: string; write: string }> = {
-  collections:     { read: 'collections:read', write: 'collections:write' },
-  groups:          { read: 'collections:read', write: 'collections:write' },
-  lessons:         { read: 'collections:read', write: 'collections:write' },
-  vocab:           { read: 'vocab:read',       write: 'vocab:write' },
-  'known-words':   { read: 'vocab:read',       write: 'vocab:write' },
-  cloze:           { read: 'vocab:read',       write: 'vocab:write' },
-  stats:           { read: 'stats:read',       write: 'stats:write' },
-  settings:        { read: 'settings:read',    write: 'settings:write' },
-  translate:       { read: 'vocab:read',       write: 'vocab:read' },
-  explain:         { read: 'vocab:read',       write: 'vocab:read' },
-  tts:             { read: 'vocab:read',       write: 'vocab:read' },
-  tatoeba:         { read: 'vocab:read',       write: 'vocab:read' },
-  dictionary:      { read: 'vocab:read',       write: 'vocab:read' },
-  anki:            { read: 'settings:read',    write: 'settings:write' },
-  'study-ping':    { read: 'stats:read',       write: 'stats:write' },
-  data:            { read: 'data:export',      write: 'data:import' },
-  'extract-url':   { read: 'collections:write', write: 'collections:write' },
-  import:          { read: 'collections:write', write: 'collections:write' },
-  'journal-correct': { read: 'vocab:read',     write: 'vocab:read' },
-  journal:         { read: 'collections:read', write: 'collections:write' },
-  'llm-status':    { read: 'settings:read',    write: 'settings:write' },
-  'translate-compare': { read: 'vocab:read',  write: 'vocab:write' },
+  collections: { read: 'collections:read', write: 'collections:write' },
+  groups: { read: 'collections:read', write: 'collections:write' },
+  lessons: { read: 'collections:read', write: 'collections:write' },
+  vocab: { read: 'vocab:read', write: 'vocab:write' },
+  'known-words': { read: 'vocab:read', write: 'vocab:write' },
+  cloze: { read: 'vocab:read', write: 'vocab:write' },
+  stats: { read: 'stats:read', write: 'stats:write' },
+  settings: { read: 'settings:read', write: 'settings:write' },
+  translate: { read: 'vocab:read', write: 'vocab:read' },
+  explain: { read: 'vocab:read', write: 'vocab:read' },
+  tts: { read: 'vocab:read', write: 'vocab:read' },
+  tatoeba: { read: 'vocab:read', write: 'vocab:read' },
+  dictionary: { read: 'vocab:read', write: 'vocab:write' },
+  // Own category (#241): the addon's PAT should reach Anki sync and nothing
+  // else. (Pre-#241 this mapped onto settings:* — tokens minted for that use
+  // predate the addon endpoints, which are the only thing worth calling here.)
+  anki: { read: 'anki:read', write: 'anki:write' },
+  'study-ping': { read: 'stats:read', write: 'stats:write' },
+  onboarding: { read: 'stats:read', write: 'stats:write' },
+  'learner-events': { read: 'stats:read', write: 'stats:write' },
+  data: { read: 'data:export', write: 'data:import' },
+  'extract-url': { read: 'collections:write', write: 'collections:write' },
+  import: { read: 'collections:write', write: 'collections:write' },
+  'journal-correct': { read: 'vocab:read', write: 'vocab:read' },
+  journal: { read: 'collections:read', write: 'collections:write' },
+  'llm-status': { read: 'settings:read', write: 'settings:write' },
+  byok: { read: 'settings:read', write: 'settings:write' },
+  'translate-compare': { read: 'vocab:read', write: 'vocab:write' },
   // Paid-LLM surfaces get their own category: a narrowly-scoped token must
   // not be able to spend LLM credits (SECURITY-07).
-  chat:            { read: 'chat:read',        write: 'chat:write' },
-  llm:             { read: 'chat:read',        write: 'chat:write' },
+  chat: { read: 'chat:read', write: 'chat:write' },
+  llm: { read: 'chat:read', write: 'chat:write' },
 };
 
 function getResourceFromPath(path: string): string | null {
@@ -105,9 +111,9 @@ export function makePatMiddleware(authRequired: boolean) {
 
     // Hash the presented token and look it up via indexed column
     const hex = hashToken(token);
-    const matchedToken = db.prepare(
-      'SELECT * FROM api_tokens WHERE tokenHash = ?'
-    ).get(hex) as ApiTokenRow | undefined;
+    const matchedToken = db.prepare('SELECT * FROM api_tokens WHERE tokenHash = ?').get(hex) as
+      | ApiTokenRow
+      | undefined;
 
     if (!matchedToken) {
       return c.json({ error: 'Invalid token' }, 401);
@@ -153,8 +159,10 @@ export function makePatMiddleware(authRequired: boolean) {
     c.set('tokenScopes', parseScopes(matchedToken.scopes));
 
     // Update lastUsedAt
-    db.prepare('UPDATE api_tokens SET lastUsedAt = ? WHERE id = ?')
-      .run(new Date().toISOString(), matchedToken.id);
+    db.prepare('UPDATE api_tokens SET lastUsedAt = ? WHERE id = ?').run(
+      new Date().toISOString(),
+      matchedToken.id,
+    );
 
     return next();
   });

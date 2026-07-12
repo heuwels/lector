@@ -30,6 +30,11 @@ declare module 'hono' {
   interface ContextVariableMap {
     /** Tenant resolved from the Better Auth session (cloud mode only). */
     userId: string;
+    /** API-token identity + scopes, set by the bearer-token middleware
+     *  (auth.ts). Present only on token-authenticated requests. */
+    tokenId?: string;
+    tokenName?: string;
+    tokenScopes?: string[];
   }
 }
 

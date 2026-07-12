@@ -6,6 +6,7 @@ import {
   getFuzzyStatus,
   calculateNextReview,
   calculatePoints,
+  buildMultipleChoiceOptions,
   generateDistractors,
   shuffle,
 } from '../utils';
@@ -49,6 +50,11 @@ describe('normalize', () => {
   it('keeps Dutch trema diacritics and strips quotes', () => {
     expect(normalize('Coördinatie')).toBe('coördinatie');
     expect(normalize('reëel!')).toBe('reëel');
+  });
+
+  it('keeps Italian accents and strips surrounding punctuation', () => {
+    expect(normalize('Caffè!')).toBe('caffè');
+    expect(normalize('«Perché?»')).toBe('perché');
   });
 });
 
@@ -98,6 +104,13 @@ describe('checkAnswer', () => {
   it('distinguishes Dutch diacritics (een vs één, e vs ë)', () => {
     expect(checkAnswer('een', 'één')).toBe(false);
     expect(checkAnswer('reeel', 'reëel')).toBe(false);
+  });
+
+  it('matches Italian words while distinguishing grave and acute accents', () => {
+    expect(checkAnswer('caffè', 'Caffè.')).toBe(true);
+    expect(checkAnswer('perché', 'Perché?')).toBe(true);
+    expect(checkAnswer('caffe', 'caffè')).toBe(false);
+    expect(checkAnswer('perchè', 'perché')).toBe(false);
   });
 });
 
@@ -250,6 +263,43 @@ describe('generateDistractors', () => {
   it('returns fewer distractors when the pool is small', () => {
     expect(generateDistractors('huis', [makeSentence('muis')])).toEqual(['muis']);
     expect(generateDistractors('huis', [])).toEqual([]);
+  });
+});
+
+describe('buildMultipleChoiceOptions', () => {
+  it('uses only the current pool when a guided round has fewer than four choices', () => {
+    const pool = ['casa', 'perro', 'gato'].map(makeSentence);
+    const result = buildMultipleChoiceOptions('casa', pool);
+
+    expect(result.options).toHaveLength(3);
+    expect([...result.options].sort()).toEqual(['casa', 'gato', 'perro']);
+    expect(result.options[result.correctIndex]).toBe('casa');
+  });
+
+  it('still caps a larger round at four choices', () => {
+    const pool = ['casa', 'perro', 'gato', 'libro', 'mesa'].map(makeSentence);
+    const result = buildMultipleChoiceOptions('casa', pool);
+
+    expect(result.options).toHaveLength(4);
+    expect(result.options[result.correctIndex]).toBe('casa');
+    expect(result.options.every((option) => pool.some((item) => item.clozeWord === option))).toBe(
+      true,
+    );
+  });
+
+  it('fills a one-card guided round with words from its starter text', () => {
+    const pool = [makeSentence('casa')];
+    const contextWords = ['La', 'casa', 'tiene', 'una', 'puerta', 'roja'];
+    const result = buildMultipleChoiceOptions('casa', pool, contextWords);
+
+    expect(result.options).toHaveLength(4);
+    expect(result.options[result.correctIndex]).toBe('casa');
+    expect(result.options.filter((option) => option !== 'casa')).toHaveLength(3);
+    expect(
+      result.options.every((option) =>
+        contextWords.some((word) => normalize(word) === normalize(option)),
+      ),
+    ).toBe(true);
   });
 });
 

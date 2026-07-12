@@ -8,7 +8,7 @@ const { default: app } = await import('../routes/settings');
 // allowlist, and URL-shaped keys must parse as http(s) — their values become
 // fetch targets that receive stored credentials.
 
-const TEST_KEYS = ['timezone', 'openaiUrl', 'openaiApiKey'];
+const TEST_KEYS = ['timezone', 'openaiUrl', 'openaiApiKey', 'ankiTransport'];
 
 function clear() {
   db.prepare(`DELETE FROM settings WHERE key IN (${TEST_KEYS.map(() => '?').join(', ')})`).run(...TEST_KEYS);
@@ -61,6 +61,16 @@ describe('settings write validation (#233)', () => {
     // Validate-before-write: the valid key in the same batch must not land.
     expect(storedValue('timezone')).toBeUndefined();
     expect(storedValue('totallyMadeUp')).toBeUndefined();
+  });
+
+  test('ankiTransport accepts only the two transports (#241)', async () => {
+    expect((await putKey('ankiTransport', 'addon')).status).toBe(200);
+    expect(storedValue('ankiTransport')).toBe(JSON.stringify('addon'));
+    expect((await putKey('ankiTransport', 'ankiconnect')).status).toBe(200);
+
+    expect((await putKey('ankiTransport', 'carrier-pigeon')).status).toBe(400);
+    expect((await putKey('ankiTransport', 42)).status).toBe(400);
+    expect(storedValue('ankiTransport')).toBe(JSON.stringify('ankiconnect'));
   });
 
   test('URL keys reject non-http(s) values', async () => {

@@ -1,13 +1,15 @@
 /**
- * Paddle billing gate (#224) — the bare-minimum "paying members only" layer
- * for cloud proper. Lector Cloud has no free tier: an account with no active
- * Paddle subscription is locked to data takeout + subscribing (#216's lapse
- * behaviour, minimally).
+ * Paddle billing gate (#224) and derived Free access. Paid entitlement still
+ * comes only from Paddle's mirror; when the strict LECTOR_FREE_TIER rollout
+ * flag is enabled, an authenticated non-suspended account without an entitled
+ * row may continue on server-enforced Free limits.
  *
  * Moving parts:
  *   - Paddle (merchant of record) owns checkout, tax, dunning, and the
- *     subscription state machine. We never talk to the Paddle API — its
- *     webhooks (signature-verified, routes/billing.ts) are mirrored into
+ *     subscription state machine. Authenticated account-management routes may
+ *     create checkout/portal sessions and preview or request allowlisted plan
+ *     changes. Entitlement still flows only the other way:
+ *     signature-verified webhooks (routes/billing.ts) are mirrored into
  *     billing_customers / billing_subscriptions and that mirror is the whole
  *     source of truth here.
  *   - `makeBillingMiddleware` enforces the mirror on /api/* after the session
@@ -22,17 +24,13 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { createMiddleware } from 'hono/factory';
 import { db } from '../db';
+import { isBillingExempt } from './account-flags';
 
 export type BillingMode = 'off' | 'paddle';
 export type PaddleEnvironment = 'production' | 'sandbox';
 
 /** Paddle Billing subscription statuses (developer.paddle.com). */
-export type PaddleSubscriptionStatus =
-  | 'active'
-  | 'trialing'
-  | 'past_due'
-  | 'paused'
-  | 'canceled';
+export type PaddleSubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'paused' | 'canceled';
 
 /**
  * Statuses that keep the account usable. `past_due` stays entitled on
@@ -41,11 +39,7 @@ export type PaddleSubscriptionStatus =
  * needs no case of its own — Paddle keeps status `active` until the period
  * actually ends.
  */
-const ENTITLED_STATUSES: readonly PaddleSubscriptionStatus[] = [
-  'active',
-  'trialing',
-  'past_due',
-];
+const ENTITLED_STATUSES: readonly PaddleSubscriptionStatus[] = ['active', 'trialing', 'past_due'];
 
 export function isEntitledStatus(status: string | null): boolean {
   return status !== null && (ENTITLED_STATUSES as readonly string[]).includes(status);
@@ -66,6 +60,17 @@ export function parseBillingMode(raw: string | undefined): BillingMode {
   );
 }
 
+/**
+ * Strict rollout flag: only exact lowercase `true` enables Free. Empty,
+ * unset, and exact `false` preserve the paid-only product; every other value
+ * is a deployment typo and refuses to boot.
+ */
+export function parseFreeTierEnabled(raw: string | undefined): boolean {
+  if (raw === undefined || raw === '' || raw === 'false') return false;
+  if (raw === 'true') return true;
+  throw new Error(`Invalid LECTOR_FREE_TIER "${raw}" — expected "true", "false", or unset.`);
+}
+
 /** Parse PADDLE_ENV. Unset/empty → 'production'; only 'sandbox' opts out. */
 export function parsePaddleEnvironment(raw: string | undefined): PaddleEnvironment {
   const value = (raw ?? '').trim();
@@ -74,17 +79,109 @@ export function parsePaddleEnvironment(raw: string | undefined): PaddleEnvironme
   throw new Error(`Invalid PADDLE_ENV "${value}" — expected "production" or "sandbox".`);
 }
 
+/** Paddle REST API base for the configured environment. */
+export function paddleApiBase(environment: PaddleEnvironment): string {
+  return environment === 'sandbox' ? 'https://sandbox-api.paddle.com' : 'https://api.paddle.com';
+}
+
 /**
- * Boot-path guard, `assertBootableMode`'s billing twin. Enforcement without
- * the webhook secret would lock every account out with no way to ever mark
- * one paid; billing outside cloud proper means there are no accounts to
- * attach subscriptions to. Both are deploy mistakes — refuse to boot.
+ * Boot-path guard, `assertBootableMode`'s billing twin. Enforcement without a
+ * way to ever mark an account paid — no webhook secret (nothing can flip an
+ * account active) or no API key (no account can even start checkout) — would
+ * lock every account out; billing outside cloud proper means there are no
+ * accounts to attach subscriptions to. All deploy mistakes — refuse to boot.
  */
 export function assertBillingBootable(
   billing: BillingMode,
   authRequired: boolean,
   hasWebhookSecret: boolean,
+  hasApiKey: boolean,
+  free: {
+    enabled: boolean;
+    production: boolean;
+    hasTurnstileSecret: boolean;
+    hasTurnstileSiteKey: boolean;
+    hasCheckoutPrice?: boolean;
+    hasGoogleTtsApiKey?: boolean;
+    byokAvailable?: boolean;
+    classifyWorkerEnabled?: boolean;
+    classifyLlmUrl?: string;
+    classifyLlmModel?: string;
+    llmProvider?: string;
+    openAiCompatUrl?: string;
+    hasOpenAiCompatApiKey?: boolean;
+    wordGlossModel?: string;
+    simplePhraseModel?: string;
+    simpleContextModel?: string;
+  } = {
+    enabled: false,
+    production: false,
+    hasTurnstileSecret: false,
+    hasTurnstileSiteKey: false,
+  },
 ): void {
+  if (free.enabled && billing !== 'paddle') {
+    throw new Error('LECTOR_FREE_TIER=true requires LECTOR_BILLING=paddle.');
+  }
+  if (free.enabled && !authRequired) {
+    throw new Error(
+      'LECTOR_FREE_TIER=true requires cloud proper (LECTOR_MODE=cloud with built-in accounts).',
+    );
+  }
+  if (free.enabled && free.production && (!free.hasTurnstileSecret || !free.hasTurnstileSiteKey)) {
+    throw new Error(
+      'LECTOR_FREE_TIER=true in production requires TURNSTILE_SECRET_KEY and ' +
+        'TURNSTILE_SITE_KEY so public no-card signup cannot run without bot protection.',
+    );
+  }
+  if (free.enabled && free.production) {
+    const expectedUrl = 'https://openrouter.ai/api';
+    const expectedModel = 'google/gemini-2.5-flash-lite';
+    if (!free.hasCheckoutPrice) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true in production requires at least one configured PADDLE_PRICE_* so the advertised Cloud upsell can start checkout.',
+      );
+    }
+    if (!free.hasGoogleTtsApiKey) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true in production requires GOOGLE_CLOUD_API_KEY so the advertised paid managed-voice upsell is available.',
+      );
+    }
+    if (!free.byokAvailable) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true in production requires a valid BYOK_ENCRYPTION_KEY so Free accounts retain the advertised AI escape hatch.',
+      );
+    }
+    if (free.classifyWorkerEnabled && (!free.classifyLlmUrl || !free.classifyLlmModel)) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true with CLASSIFY_WORKER=1 requires dedicated CLASSIFY_LLM_URL and CLASSIFY_LLM_MODEL values so Free vocabulary cannot fall back to the unmetered managed translation provider.',
+      );
+    }
+    if (free.llmProvider !== 'openai') {
+      throw new Error('LECTOR_FREE_TIER=true in production requires LLM_PROVIDER=openai.');
+    }
+    if (free.openAiCompatUrl?.replace(/\/$/, '') !== expectedUrl) {
+      throw new Error(
+        `LECTOR_FREE_TIER=true in production requires OPENAI_COMPAT_URL=${expectedUrl}.`,
+      );
+    }
+    if (!free.hasOpenAiCompatApiKey) {
+      throw new Error(
+        'LECTOR_FREE_TIER=true in production requires OPENAI_COMPAT_API_KEY for managed translations.',
+      );
+    }
+    const taskModels = [
+      ['OPENAI_COMPAT_WORD_GLOSS_MODEL', free.wordGlossModel],
+      ['OPENAI_COMPAT_SIMPLE_PHRASE_MODEL', free.simplePhraseModel],
+      ['OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL', free.simpleContextModel],
+    ] as const;
+    for (const [name, model] of taskModels) {
+      if (model !== expectedModel) {
+        throw new Error(`LECTOR_FREE_TIER=true in production requires ${name}=${expectedModel}.`);
+      }
+    }
+  }
+
   if (billing !== 'paddle') return;
   if (!authRequired) {
     throw new Error(
@@ -98,6 +195,14 @@ export function assertBillingBootable(
       'LECTOR_BILLING=paddle requires PADDLE_WEBHOOK_SECRET: without Paddle webhooks no ' +
         'account can ever become paid, so enforcement would lock everyone out. Copy the ' +
         "endpoint's secret key from Paddle → Developer tools → Notifications.",
+    );
+  }
+  if (!hasApiKey) {
+    throw new Error(
+      'LECTOR_BILLING=paddle requires PADDLE_API_KEY: checkout is created server-side (a ' +
+        'Paddle transaction) and opened on the approved lector.dev domain, so without the ' +
+        'key no account could start a subscription and enforcement would lock everyone out. ' +
+        'Create a server-side key in Paddle → Developer tools → Authentication.',
     );
   }
 }
@@ -154,8 +259,9 @@ export function parseExemptEmails(raw: string | undefined): Set<string> {
 export const billingConfig: {
   readonly mode: BillingMode;
   readonly enforced: boolean;
+  readonly freeTierEnabled: boolean;
   readonly webhookSecret: string | undefined;
-  readonly clientToken: string | undefined;
+  readonly apiKey: string | undefined;
   readonly environment: PaddleEnvironment;
   readonly prices: BillingPrice[];
   readonly exemptEmails: Set<string>;
@@ -164,13 +270,123 @@ export const billingConfig: {
   return {
     mode,
     enforced: mode === 'paddle',
+    freeTierEnabled: parseFreeTierEnabled(process.env.LECTOR_FREE_TIER),
     webhookSecret: process.env.PADDLE_WEBHOOK_SECRET || undefined,
-    clientToken: process.env.PADDLE_CLIENT_TOKEN || undefined,
+    apiKey: process.env.PADDLE_API_KEY || undefined,
     environment: parsePaddleEnvironment(process.env.PADDLE_ENV),
     prices: pricesFromEnv(process.env),
     exemptEmails: parseExemptEmails(process.env.BILLING_EXEMPT_EMAILS),
   } as const;
 })();
+
+/**
+ * Checkout creation — the one outbound Paddle call. A locked account picks a
+ * plan in-app; we create a Paddle transaction server-side stamped with
+ * custom_data.lectorUserId (the webhook's primary match key), then hand the
+ * browser its id (`txn_…`). The overlay is opened for that transaction on the
+ * approved lector.dev domain — app.lector.dev is not an approved checkout
+ * domain, which is the whole reason checkout is deferred to the marketing
+ * site. This call grants nothing on its own: entitlement still arrives only
+ * through the webhook mirror above.
+ */
+export interface CheckoutTransaction {
+  /** Paddle transaction id (txn_…) — the browser opens the overlay for this. */
+  id: string;
+  /** Paddle's own checkout URL, when a default payment link is configured. */
+  checkoutUrl: string | null;
+}
+
+export type CreateTransaction = (args: {
+  priceId: string;
+  userId: string;
+  customerId: string | null;
+}) => Promise<CheckoutTransaction>;
+
+/**
+ * The prod transaction creator (test seam: routes bind their own). POSTs the
+ * chosen price with the tenant in custom_data; passes a known customer id when
+ * we have one so a returning subscriber's details prefill. `collection_mode:
+ * automatic` is what makes the transaction checkout-able (vs an invoice).
+ */
+export function makePaddleTransactionCreator(cfg: {
+  apiKey: string | undefined;
+  environment: PaddleEnvironment;
+}): CreateTransaction {
+  return async ({ priceId, userId, customerId }) => {
+    const res = await fetch(`${paddleApiBase(cfg.environment)}/transactions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cfg.apiKey ?? ''}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        items: [{ price_id: priceId, quantity: 1 }],
+        custom_data: { lectorUserId: userId },
+        collection_mode: 'automatic',
+        ...(customerId ? { customer_id: customerId } : {}),
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Paddle POST /transactions ${res.status}: ${await res.text()}`);
+    }
+    const json = (await res.json()) as {
+      data?: { id?: string; checkout?: { url?: string } | null };
+    };
+    const id = json.data?.id;
+    if (!id) throw new Error('Paddle transaction response missing data.id');
+    return { id, checkoutUrl: json.data?.checkout?.url ?? null };
+  };
+}
+
+/**
+ * The Paddle customer id last mirrored for this email, if any — lets a
+ * returning/lapsed subscriber's checkout prefill their details. Read-only
+ * against the same mirror the webhook writes; null when we've never seen them.
+ */
+export function findPaddleCustomerId(email: string | null): string | null {
+  if (!email) return null;
+  const row = db
+    .prepare(
+      'SELECT paddleCustomerId FROM billing_customers WHERE email = lower(?) ORDER BY occurredAt DESC LIMIT 1',
+    )
+    .get(email) as { paddleCustomerId: string } | undefined;
+  return row?.paddleCustomerId ?? null;
+}
+
+export interface BillingSubscriptionRecord {
+  paddleSubscriptionId: string;
+  paddleCustomerId: string;
+  status: string;
+  priceId: string | null;
+  currentPeriodEnd: string | null;
+  occurredAt: string;
+}
+
+/**
+ * Every mirrored subscription belonging to an account, newest first. Tenant
+ * metadata is authoritative when checkout started in-app; the customer-email
+ * fallback preserves purchases made on lector.dev before signup.
+ */
+export function findBillingSubscriptions(
+  userId: string,
+  email: string | null,
+): BillingSubscriptionRecord[] {
+  return db
+    .prepare(
+      `SELECT DISTINCT
+         s.paddleSubscriptionId,
+         s.paddleCustomerId,
+         s.status,
+         s.priceId,
+         s.currentPeriodEnd,
+         s.occurredAt
+       FROM billing_subscriptions s
+       LEFT JOIN billing_customers c ON c.paddleCustomerId = s.paddleCustomerId
+       WHERE s.userId = ? OR (? IS NOT NULL AND c.email = lower(?))
+       ORDER BY s.occurredAt DESC`,
+    )
+    .all(userId, email, email) as BillingSubscriptionRecord[];
+}
 
 /**
  * Verify a Paddle webhook signature: `Paddle-Signature: ts=<unix>;h1=<hex>`,
@@ -308,13 +524,7 @@ export function applyPaddleEvent(evt: PaddleEvent): AppliedEvent {
  * entitled one wins.
  */
 export function resolveBillingStatus(userId: string, email: string | null): string | null {
-  const rows = db
-    .prepare(
-      `SELECT DISTINCT s.status FROM billing_subscriptions s
-       LEFT JOIN billing_customers c ON c.paddleCustomerId = s.paddleCustomerId
-       WHERE s.userId = ? OR (? IS NOT NULL AND c.email = lower(?))`,
-    )
-    .all(userId, email, email) as Array<{ status: string }>;
+  const rows = findBillingSubscriptions(userId, email);
   if (rows.length === 0) return null;
 
   const rank: readonly string[] = ['active', 'trialing', 'past_due', 'paused', 'canceled'];
@@ -346,16 +556,24 @@ export function getUserEmail(userId: string): string | null {
 
 export interface BillingGateOptions {
   enforced: boolean;
+  freeTierEnabled: boolean;
   exemptEmails: Set<string>;
   /** Test seam; prod uses the `user`-table lookup. */
   resolveEmail?: (userId: string) => string | null;
+  /**
+   * Dynamic per-account billing exemption set from the admin dashboard
+   * (#221 "comp a tester") — the DB-backed twin of exemptEmails. Test seam;
+   * prod reads admin_account_flags via lib/account-flags.
+   */
+  isBillingExempt?: (userId: string) => boolean;
 }
 
 /**
  * The gate (#224). Mounted on /api/* AFTER the session and PAT middlewares,
- * so the tenant is already resolved whichever credential carried it. An
- * account without an entitled subscription gets 402 `subscription_required`
- * everywhere except:
+ * so the tenant is already resolved whichever credential carried it. With
+ * Free off, an account without an entitled subscription gets 402
+ * `subscription_required` everywhere except; with Free on, an authenticated
+ * non-suspended tenant proceeds to the entitlement engine:
  *
  *   - /api/auth/* — sign-in/up/out must work for locked accounts (and these
  *     requests carry no tenant to check).
@@ -365,16 +583,22 @@ export interface BillingGateOptions {
  *     can always export everything and walk away. (POST /api/data — import —
  *     stays locked.)
  *
- * BILLING_EXEMPT_EMAILS bypasses the check (operator + test accounts).
+ * BILLING_EXEMPT_EMAILS (env) and a per-account comp flag (#221, admin
+ * dashboard) both bypass the check — operator + test/comped accounts.
  */
 export function makeBillingMiddleware(opts: BillingGateOptions) {
   const resolveEmail = opts.resolveEmail ?? getUserEmail;
+  const checkBillingExempt = opts.isBillingExempt ?? isBillingExempt;
   return createMiddleware(async (c, next) => {
     if (!opts.enforced) return next();
 
     const path = c.req.path;
     if (path.startsWith('/api/auth/')) return next();
     if (path === '/api/billing' || path.startsWith('/api/billing/')) return next();
+    // Admin surface (#221): the operator runs the service regardless of their
+    // own subscription. requireAdmin still guards it — a non-admin gets 403
+    // there, never a free pass around billing for ordinary accounts.
+    if (path === '/api/admin' || path.startsWith('/api/admin/')) return next();
     const method = c.req.method;
     if (path === '/api/data' && (method === 'GET' || method === 'HEAD')) return next();
 
@@ -384,6 +608,16 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
     if (typeof userId !== 'string' || userId.length === 0) {
       return c.json({ error: 'Authentication required' }, 401);
     }
+
+    // Suspension is enforced by the preceding accountStatusMiddleware. Once
+    // authentication has resolved a tenant, the Free rollout lets every
+    // non-suspended account reach ordinary routes; plan limits remain the
+    // server-owned cost/product boundary.
+    if (opts.freeTierEnabled) return next();
+
+    // Comped tester (#221): dynamic per-account exemption, checked before the
+    // subscription so it works even with no Paddle row at all.
+    if (checkBillingExempt(userId)) return next();
 
     const email = resolveEmail(userId);
     if (email && opts.exemptEmails.has(email.toLowerCase())) return next();
@@ -398,5 +632,6 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
 /** The prod middleware, bound to the resolved billing config. */
 export const billingMiddleware = makeBillingMiddleware({
   enforced: billingConfig.enforced,
+  freeTierEnabled: billingConfig.freeTierEnabled,
   exemptEmails: billingConfig.exemptEmails,
 });

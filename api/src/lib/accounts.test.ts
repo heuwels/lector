@@ -329,7 +329,9 @@ describe('turnstile captcha (when configured)', () => {
   });
 
   test('the engine without a turnstile key loads no captcha plugin (selfhost/dev default)', () => {
-    expect(engine.options.plugins ?? []).toHaveLength(0);
+    // two-factor is the always-on baseline (per-user opt-in, so its presence
+    // gates nothing); captcha stays strictly key-conditional.
+    expect((engine.options.plugins ?? []).map((p) => p.id)).toEqual(['two-factor']);
   });
 });
 

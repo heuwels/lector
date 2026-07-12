@@ -42,3 +42,17 @@ CI runs all of these, plus the e2e suite a second time against the production Do
 - Day rollover (daily stats, streaks, review days) uses the `timezone` setting (Settings → Time Zone), falling back to the server's zone — never raw UTC. Server helper: `api/src/lib/dates.ts` (`getTodayDate()`); pure client-side math in `src/lib/dates.ts`.
 - One streak definition app-wide: a day is active if it has any dictionary lookups, cloze practice, or reading minutes. Computed by `computeStreaks` (`src/lib/streak.ts`, mirrored in `api/src/lib/streak.ts`), served by `/api/stats/streak` (current + longest). Pages must not compute their own streaks.
 - Pure helpers used on both sides (e.g. `dates`, `streak`, `stats-derive`) are mirrored between the client `src/lib/` copy and the Hono `api/src/lib/` copy — keep them in sync when editing. The Hono API owns the DB; the client copies are for rendering only.
+# Repository instructions for coding agents
+
+## Formatting
+
+- `.editorconfig` and `.prettierrc` are the canonical shared formatting settings.
+- Install dependencies from `package-lock.json`; the repository pins Prettier and its Tailwind plugin so every agent uses the same formatter implementation.
+- Format only files changed for the current task: `npx prettier --write <touched-files...>`.
+- Do not run repository-wide formatting during a feature or fix. The legacy tree is not yet fully normalized, so doing so creates unrelated review churn.
+- Before handing off, run `npx prettier --check <touched-files...>` and `git diff --check`.
+- A future formatting-only baseline change should normalize the whole tree before `npm run format:check` becomes a required CI gate.
+
+## GitHub text
+
+- Always use an input file for multiline PR bodies and comments: `gh pr create/edit --body-file …` and `gh pr comment --body-file …`. Never embed escaped `\n` sequences in `--body`.

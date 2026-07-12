@@ -4,6 +4,7 @@ import { getProvider } from '../lib/llm';
 import { getCurrentUserId } from '../lib/user';
 import { resolveLanguage } from '../lib/active-language';
 import { getLanguageConfig } from '../lib/languages';
+import { entitlements, planLimitResponse, type UsageReservation } from '../lib/entitlements';
 import { randomUUID } from 'crypto';
 
 const app = new Hono();
@@ -15,10 +16,15 @@ function getSystemPrompt(langName: string): string {
 
 const MAX_CONTEXT_MESSAGES = 20;
 const TTL_DAYS = 7;
+export const MAX_CHAT_MESSAGE_BYTES = 32 * 1024;
+
+function utf8Bytes(value: string): number {
+  return Buffer.byteLength(value, 'utf8');
+}
 
 function cleanExpired() {
   db.prepare(
-    `DELETE FROM chat_messages WHERE createdAt < datetime('now', '-${TTL_DAYS} days')`
+    `DELETE FROM chat_messages WHERE createdAt < datetime('now', '-${TTL_DAYS} days')`,
   ).run();
 }
 
@@ -35,11 +41,15 @@ app.get('/', (c) => {
 
   if (before) {
     messages = db
-      .prepare('SELECT * FROM chat_messages WHERE userId = ? AND createdAt < ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .prepare(
+        'SELECT * FROM chat_messages WHERE userId = ? AND createdAt < ? AND language = ? ORDER BY createdAt DESC LIMIT ?',
+      )
       .all(userId, before, lang, limit) as ChatMessageRow[];
   } else {
     messages = db
-      .prepare('SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .prepare(
+        'SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?',
+      )
       .all(userId, lang, limit) as ChatMessageRow[];
   }
 
@@ -48,15 +58,27 @@ app.get('/', (c) => {
 
 // POST /api/chat — send a message, get assistant response
 app.post('/', async (c) => {
+  const userId = getCurrentUserId(c);
+  let reservation: UsageReservation | null = null;
   try {
     cleanExpired();
 
-    const userId = getCurrentUserId(c);
     const { message, language } = await c.req.json();
+    const normalizedMessage = typeof message === 'string' ? message.trim() : '';
 
-    if (!message?.trim()) {
+    if (!normalizedMessage) {
       return c.json({ error: 'message is required' }, 400);
     }
+    if (utf8Bytes(normalizedMessage) > MAX_CHAT_MESSAGE_BYTES) {
+      return c.json({ error: 'message must be at most 32 KiB' }, 413);
+    }
+
+    const persistHistory = entitlements.resolveEntitlements(userId).plan !== 'free';
+
+    // Reserve before the provider call, refund on failure (#222 review).
+    const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
+    if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
+    reservation = llmVerdict.reservation;
 
     const lang = resolveLanguage(language, userId);
     const langName = getLanguageConfig(lang).name;
@@ -66,21 +88,23 @@ app.post('/', async (c) => {
     const userMsg: ChatMessageRow = {
       id: randomUUID(),
       role: 'user',
-      content: message.trim(),
+      content: normalizedMessage,
       provider: null,
       responseId: null,
       createdAt: now,
-      language: lang
+      language: lang,
     };
 
-    const provider = getProvider();
+    const provider = getProvider(userId, { byok: reservation.byok });
 
     // Send the full recent (same-language) history every turn. We previously had
     // a stateful path for LM Studio that threaded a server-side response_id; that
     // was dropped when the local providers were unified behind one
     // OpenAI-compatible backend, so every provider now uses this single path.
     const recentMessages = db
-      .prepare('SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?')
+      .prepare(
+        'SELECT * FROM chat_messages WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ?',
+      )
       .all(userId, lang, MAX_CONTEXT_MESSAGES - 1) as ChatMessageRow[];
 
     const history = [...recentMessages.reverse(), userMsg];
@@ -102,6 +126,7 @@ app.post('/', async (c) => {
       maxTokens: 1024,
       task: 'chat',
     });
+    reservation = null; // the provider call happened — the usage is earned
 
     const assistantMsg: ChatMessageRow = {
       id: randomUUID(),
@@ -110,24 +135,41 @@ app.post('/', async (c) => {
       provider: provider.name,
       responseId: null,
       createdAt: new Date().toISOString(),
-      language: lang
+      language: lang,
     };
 
-    // Save both messages only after LLM succeeds
-    const insertMsg = db.prepare(
-      'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt, language, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-    insertMsg.run(
-      userMsg.id, userMsg.role, userMsg.content, userMsg.provider,
-      userMsg.responseId, userMsg.createdAt, lang, userId
-    );
-    insertMsg.run(
-      assistantMsg.id, assistantMsg.role, assistantMsg.content, assistantMsg.provider,
-      assistantMsg.responseId, assistantMsg.createdAt, lang, userId
-    );
+    // Free chat is deliberately response-only, including with BYOK: it must not
+    // become an unbounded storage path outside learner-data takeout. Paid chat
+    // remains ephemeral (7-day TTL) and is intentionally excluded from takeout.
+    if (persistHistory) {
+      const insertMsg = db.prepare(
+        'INSERT INTO chat_messages (id, role, content, provider, responseId, createdAt, language, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      );
+      insertMsg.run(
+        userMsg.id,
+        userMsg.role,
+        userMsg.content,
+        userMsg.provider,
+        userMsg.responseId,
+        userMsg.createdAt,
+        lang,
+        userId,
+      );
+      insertMsg.run(
+        assistantMsg.id,
+        assistantMsg.role,
+        assistantMsg.content,
+        assistantMsg.provider,
+        assistantMsg.responseId,
+        assistantMsg.createdAt,
+        lang,
+        userId,
+      );
+    }
 
     return c.json({ userMessage: userMsg, assistantMessage: assistantMsg });
   } catch (error) {
+    if (reservation) entitlements.refund(reservation);
     console.error('Chat error:', error);
     return c.json({ error: 'Failed to get response' }, 500);
   }

@@ -6,11 +6,19 @@ import {
   startClassifyWorker,
   stopClassifyWorker,
   classifyWorkerEnabled,
+  batchClassificationEnabled,
+  getInflightBatch,
+  submitClassifyBatch,
+  pollClassifyBatch,
+  purgeOrphanedBatches,
+  type BatchClassifyProvider,
 } from './classify-worker';
 import type { ClassifyItem, ClassifyResult } from './word-classifier';
+import type { BatchRequest, BatchStatus } from './llm';
 
 // Minimal mirror of the real schema — just the columns the worker's query and
-// writes touch (knownWords compound PK + domain; vocab text/language/context).
+// writes touch (knownWords compound PK + domain; vocab text/language/context),
+// plus the classify_batches bookkeeping table batch mode persists into.
 function freshDb(): Database {
   const db = new Database(':memory:');
   db.exec(`
@@ -31,6 +39,13 @@ function freshDb(): Database {
       translation TEXT NOT NULL DEFAULT '',
       stateUpdatedAt TEXT NOT NULL DEFAULT '2024-01-01'
     );
+    CREATE TABLE classify_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      providerBatchId TEXT NOT NULL UNIQUE,
+      provider TEXT NOT NULL,
+      submittedAt TEXT NOT NULL,
+      requests TEXT NOT NULL
+    );
   `);
   return db;
 }
@@ -41,13 +56,9 @@ function addKnown(
   state: string,
   opts: { language?: string; domain?: string | null; userId?: string } = {},
 ): void {
-  db.prepare('INSERT INTO knownWords (userId, word, language, state, domain) VALUES (?, ?, ?, ?, ?)').run(
-    opts.userId ?? 'local',
-    word,
-    opts.language ?? 'af',
-    state,
-    opts.domain ?? null,
-  );
+  db.prepare(
+    'INSERT INTO knownWords (userId, word, language, state, domain) VALUES (?, ?, ?, ?, ?)',
+  ).run(opts.userId ?? 'local', word, opts.language ?? 'af', state, opts.domain ?? null);
 }
 
 let vocabId = 0;
@@ -198,7 +209,7 @@ describe('classifyPendingBatch', () => {
     ]);
   });
 
-  test("writes each row to its own tenant — same word for two users updates both, in place (#220)", async () => {
+  test('writes each row to its own tenant — same word for two users updates both, in place (#220)', async () => {
     const db = freshDb();
     addKnown(db, 'kos', 'known', { userId: 'user-a' });
     addKnown(db, 'kos', 'known', { userId: 'user-b' });
@@ -233,6 +244,272 @@ describe('classifyPendingBatch', () => {
     expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('raaisel')).toEqual({
       domain: null,
     });
+  });
+
+  test('propagates classifier failures and leaves every row pending for the next sweep', async () => {
+    const db = freshDb();
+    addKnown(db, 'koffie', 'known');
+
+    await expect(
+      classifyPendingBatch(db, 30, async () => {
+        throw new Error('provider unavailable');
+      }),
+    ).rejects.toThrow('provider unavailable');
+    expect(selectPending(db, 30).map((row) => row.word)).toEqual(['koffie']);
+  });
+});
+
+/** Batch provider stub: records createBatch payloads, serves scripted polls. */
+function stubBatchProvider(
+  poll: (batchId: string) => BatchStatus,
+  options: { supports?: boolean; batchId?: string } = {},
+): BatchClassifyProvider & { created: BatchRequest[][] } {
+  const created: BatchRequest[][] = [];
+  return {
+    name: 'anthropic',
+    created,
+    supportsBatch: () => options.supports ?? true,
+    createBatch: async (requests) => {
+      created.push(requests);
+      return options.batchId ?? 'msgbatch_test';
+    },
+    getBatch: async (batchId) => poll(batchId),
+  };
+}
+
+const neverPolled = () => {
+  throw new Error('getBatch should not be called');
+};
+
+describe('batchClassificationEnabled', () => {
+  let saved: string | undefined;
+  beforeEach(() => {
+    saved = process.env.CLASSIFY_BATCH;
+    delete process.env.CLASSIFY_BATCH;
+  });
+  afterEach(() => {
+    if (saved === undefined) delete process.env.CLASSIFY_BATCH;
+    else process.env.CLASSIFY_BATCH = saved;
+  });
+
+  test('on when the provider supports batching', () => {
+    expect(batchClassificationEnabled(stubBatchProvider(neverPolled))).toBe(true);
+  });
+
+  test('off for providers without a batch surface', () => {
+    expect(batchClassificationEnabled(stubBatchProvider(neverPolled, { supports: false }))).toBe(
+      false,
+    );
+    // OpenAI-compatible providers don't define the methods at all.
+    expect(batchClassificationEnabled({ name: 'openai' })).toBe(false);
+  });
+
+  test('CLASSIFY_BATCH=0 forces the synchronous path', () => {
+    process.env.CLASSIFY_BATCH = '0';
+    expect(batchClassificationEnabled(stubBatchProvider(neverPolled))).toBe(false);
+  });
+});
+
+describe('submitClassifyBatch', () => {
+  test('chunks pending words into batchSize prompts and records the in-flight batch', async () => {
+    const db = freshDb();
+    for (const word of ['appel', 'brood', 'melk', 'kaas', 'wyn']) addKnown(db, word, 'known');
+    const provider = stubBatchProvider(neverPolled);
+
+    const submitted = await submitClassifyBatch(db, provider, 2, 10);
+
+    expect(submitted).toBe(5);
+    expect(provider.created).toHaveLength(1);
+    const requests = provider.created[0];
+    expect(requests.map((r) => r.customId)).toEqual(['req-0', 'req-1', 'req-2']);
+    expect(requests.map((r) => r.options.messages[0].content.includes('"appel"'))).toEqual([
+      true,
+      false,
+      false,
+    ]);
+    for (const request of requests) {
+      expect(request.options.task).toBe('word-classification');
+      expect(request.options.responseFormat).toBe('json-array');
+      expect(request.options.maxTokens).toBeGreaterThan(0);
+    }
+
+    const inflight = getInflightBatch(db);
+    expect(inflight?.providerBatchId).toBe('msgbatch_test');
+    expect(inflight?.requests.map((r) => r.rows.length)).toEqual([2, 2, 1]);
+  });
+
+  test('caps one submission at batchSize × maxRequests words', async () => {
+    const db = freshDb();
+    for (let i = 0; i < 7; i++) addKnown(db, `woord${i}`, 'known');
+    const provider = stubBatchProvider(neverPolled);
+    expect(await submitClassifyBatch(db, provider, 2, 2)).toBe(4);
+    expect(provider.created[0]).toHaveLength(2);
+  });
+
+  test('never stacks batches: a submit while one is in flight is a no-op', async () => {
+    const db = freshDb();
+    addKnown(db, 'appel', 'known');
+    const provider = stubBatchProvider(neverPolled);
+    expect(await submitClassifyBatch(db, provider, 30, 40)).toBe(1);
+    expect(await submitClassifyBatch(db, provider, 30, 40)).toBe(0);
+    expect(provider.created).toHaveLength(1);
+  });
+
+  test('submits nothing when no words are pending', async () => {
+    const db = freshDb();
+    const provider = stubBatchProvider(neverPolled);
+    expect(await submitClassifyBatch(db, provider, 30, 40)).toBe(0);
+    expect(provider.created).toHaveLength(0);
+    expect(getInflightBatch(db)).toBeNull();
+  });
+
+  test('records nothing when the provider rejects the batch — words stay pending', async () => {
+    const db = freshDb();
+    addKnown(db, 'appel', 'known');
+    const provider: BatchClassifyProvider = {
+      name: 'anthropic',
+      supportsBatch: () => true,
+      createBatch: async () => {
+        throw new Error('overloaded');
+      },
+      getBatch: async () => ({ state: 'in_progress' }),
+    };
+    await expect(submitClassifyBatch(db, provider, 30, 40)).rejects.toThrow('overloaded');
+    expect(getInflightBatch(db)).toBeNull();
+    expect(selectPending(db, 10)).toHaveLength(1);
+  });
+});
+
+describe('pollClassifyBatch', () => {
+  const foodText = (words: string[]) =>
+    JSON.stringify(words.map((word) => ({ word, domain: 'food' })));
+
+  test('reports none when nothing is in flight', async () => {
+    const db = freshDb();
+    expect(await pollClassifyBatch(db, stubBatchProvider(neverPolled))).toEqual({ state: 'none' });
+  });
+
+  test('keeps the batch while the provider is still processing', async () => {
+    const db = freshDb();
+    addKnown(db, 'appel', 'known');
+    const provider = stubBatchProvider(() => ({ state: 'in_progress' }));
+    await submitClassifyBatch(db, provider, 30, 40);
+
+    expect(await pollClassifyBatch(db, provider)).toEqual({ state: 'in_progress' });
+    expect(getInflightBatch(db)).not.toBeNull();
+  });
+
+  test('on completion writes domains to exactly the submitted rows and re-arms submission', async () => {
+    const db = freshDb();
+    addKnown(db, 'kos', 'known', { userId: 'user-a' });
+    addKnown(db, 'kos', 'known', { userId: 'user-b' }); // same word, second tenant
+    addKnown(db, 'raaisel', 'known'); // model will omit this one
+    const provider = stubBatchProvider(() => ({
+      state: 'ended',
+      results: new Map([['req-0', foodText(['kos'])]]),
+    }));
+    await submitClassifyBatch(db, provider, 30, 40);
+
+    const outcome = await pollClassifyBatch(db, provider);
+
+    expect(outcome).toEqual({ state: 'ended', updated: 2 });
+    const rows = db
+      .prepare('SELECT userId, domain FROM knownWords WHERE word = ? ORDER BY userId')
+      .all('kos');
+    expect(rows).toEqual([
+      { userId: 'user-a', domain: 'food' },
+      { userId: 'user-b', domain: 'food' },
+    ]);
+    // Omitted word: still pending for the next submission.
+    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('raaisel')).toEqual({
+      domain: null,
+    });
+    expect(getInflightBatch(db)).toBeNull();
+  });
+
+  test('spans multiple requests and survives one garbled response', async () => {
+    const db = freshDb();
+    for (const word of ['appel', 'brood', 'melk', 'kaas']) addKnown(db, word, 'known');
+    const provider = stubBatchProvider(() => ({
+      state: 'ended',
+      results: new Map([
+        ['req-0', 'NOT JSON AT ALL'], // first prompt garbled → classifies nothing
+        ['req-1', foodText(['kaas', 'melk'])],
+      ]),
+    }));
+    await submitClassifyBatch(db, provider, 2, 10);
+
+    const outcome = await pollClassifyBatch(db, provider);
+    expect(outcome).toEqual({ state: 'ended', updated: 2 });
+    const domains = db
+      .prepare('SELECT word, domain FROM knownWords ORDER BY word')
+      .all() as { word: string; domain: string | null }[];
+    expect(domains).toEqual([
+      { word: 'appel', domain: null },
+      { word: 'brood', domain: null },
+      { word: 'kaas', domain: 'food' },
+      { word: 'melk', domain: 'food' },
+    ]);
+  });
+
+  test('never rewrites a domain set while the batch was in flight', async () => {
+    const db = freshDb();
+    addKnown(db, 'kos', 'known');
+    const provider = stubBatchProvider(() => ({
+      state: 'ended',
+      results: new Map([['req-0', foodText(['kos'])]]),
+    }));
+    await submitClassifyBatch(db, provider, 30, 40);
+    // Classified through some other path mid-flight.
+    db.prepare('UPDATE knownWords SET domain = ? WHERE word = ?').run('work', 'kos');
+
+    const outcome = await pollClassifyBatch(db, provider);
+    expect(outcome).toEqual({ state: 'ended', updated: 0 });
+    expect(db.prepare('SELECT domain FROM knownWords WHERE word = ?').get('kos')).toEqual({
+      domain: 'work',
+    });
+  });
+
+  test('a terminally failed batch is dropped so the next tick resubmits', async () => {
+    const db = freshDb();
+    addKnown(db, 'appel', 'known');
+    const provider = stubBatchProvider(() => ({ state: 'failed', error: 'batch not found' }));
+    await submitClassifyBatch(db, provider, 30, 40);
+
+    expect(await pollClassifyBatch(db, provider)).toEqual({
+      state: 'failed',
+      error: 'batch not found',
+    });
+    expect(getInflightBatch(db)).toBeNull();
+    expect(selectPending(db, 10)).toHaveLength(1); // still pending — resubmitted next tick
+  });
+
+  test('transient poll errors keep the batch for the next tick', async () => {
+    const db = freshDb();
+    addKnown(db, 'appel', 'known');
+    let polls = 0;
+    const provider = stubBatchProvider(() => {
+      polls++;
+      throw new Error('ECONNRESET');
+    });
+    await submitClassifyBatch(db, provider, 30, 40);
+
+    await expect(pollClassifyBatch(db, provider)).rejects.toThrow('ECONNRESET');
+    expect(polls).toBe(1);
+    expect(getInflightBatch(db)).not.toBeNull(); // still there — polled again next tick
+  });
+});
+
+describe('purgeOrphanedBatches', () => {
+  test('clears bookkeeping when batch mode goes away', async () => {
+    const db = freshDb();
+    addKnown(db, 'appel', 'known');
+    const provider = stubBatchProvider(neverPolled);
+    await submitClassifyBatch(db, provider, 30, 40);
+
+    expect(purgeOrphanedBatches(db)).toBe(1);
+    expect(getInflightBatch(db)).toBeNull();
+    expect(purgeOrphanedBatches(db)).toBe(0); // idempotent, quiet when empty
   });
 });
 

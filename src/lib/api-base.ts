@@ -18,6 +18,9 @@
  * user's own localhost and fail.
  */
 
+import { interceptPlanLimit } from './plan-limits';
+import { authHref, sanitizeAuthReturnPath } from './auth-return';
+
 declare global {
   interface Window {
     __ENV__?: {
@@ -27,7 +30,14 @@ declare global {
        *  image can be pointed at a project without a rebuild; read by
        *  src/instrumentation-client.ts. */
       SENTRY_DSN?: string;
+      /** Deployment label shared by browser/API/server Sentry events. */
+      SENTRY_ENVIRONMENT?: string;
       LECTOR_MODE?: string;
+      /** Where a locked cloud account is sent to check out (#224): the
+       *  marketing site's approved-domain checkout page, e.g.
+       *  https://lector.dev/checkout. app.lector.dev is not a Paddle-approved
+       *  checkout domain, so the overlay can't open in-app. */
+      CHECKOUT_URL?: string;
       /** Cloudflare Turnstile site key — presence turns the widget on (#218). */
       TURNSTILE_SITE_KEY?: string;
       /** '1' when the API has GitHub OAuth configured — shows the button (#218). */
@@ -53,19 +63,31 @@ export type LectorMode = 'selfhost' | 'cloud';
  * (strict validation lives server-side in api/src/lib/config.ts).
  */
 export function lectorMode(): LectorMode {
-  const raw =
-    typeof window === 'undefined' ? process.env.LECTOR_MODE : window.__ENV__?.LECTOR_MODE;
+  const raw = typeof window === 'undefined' ? process.env.LECTOR_MODE : window.__ENV__?.LECTOR_MODE;
   return raw === 'cloud' ? 'cloud' : 'selfhost';
 }
 
 export function apiBase(): string {
-  const configured =
-    typeof window === 'undefined' ? process.env.API_URL : window.__ENV__?.API_URL;
+  const configured = typeof window === 'undefined' ? process.env.API_URL : window.__ENV__?.API_URL;
   return (configured || DEFAULT_API_URL).replace(/\/+$/, '');
 }
 
-/** Routes that must render without a session (and without app chrome). #218 */
-export const AUTH_ROUTES = ['/login', '/register', '/reset-password'] as const;
+/**
+ * The marketing-site checkout URL (#224), read at runtime like API_URL. Empty
+ * when unset — the /subscribe screen treats that as "checkout unavailable"
+ * (dev and the e2e billing server run without it). Trailing slash trimmed so
+ * `${checkoutUrl()}?_ptxn=…` is well-formed.
+ */
+export function checkoutUrl(): string {
+  const configured =
+    typeof window === 'undefined' ? process.env.CHECKOUT_URL : window.__ENV__?.CHECKOUT_URL;
+  return (configured || '').replace(/\/+$/, '');
+}
+
+/** Routes that must render without a session (and without app chrome). #218
+ * /two-factor is mid-sign-in: the password step set a challenge cookie but
+ * the session only exists once the code verifies. */
+export const AUTH_ROUTES = ['/login', '/register', '/reset-password', '/two-factor'] as const;
 
 export function isAuthRoute(pathname: string): boolean {
   return AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
@@ -98,7 +120,8 @@ export function bounceToLogin(): void {
   if (bouncedToLogin || typeof window === 'undefined') return;
   if (isAuthRoute(window.location.pathname)) return;
   bouncedToLogin = true;
-  window.location.replace('/login');
+  const returnPath = sanitizeAuthReturnPath(`${window.location.pathname}${window.location.search}`);
+  window.location.replace(authHref('/login', returnPath));
 }
 
 let bouncedToSubscribe = false;
@@ -155,6 +178,13 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     // signal. Same hard-navigation reasoning as the 401 bounce.
     if (cloud && res.status === 402) {
       bounceToSubscribe();
+    }
+    // 429 plan_limit (#222) = subscribed but over a plan allowance — a soft
+    // upsell prompt, never a redirect. Centralized here so every surface
+    // (reader, journal, practice, imports) gets the graceful UX for free;
+    // the response still flows to the caller.
+    if (res.status === 429) {
+      interceptPlanLimit(res);
     }
     return res;
   } catch {

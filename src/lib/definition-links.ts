@@ -43,10 +43,11 @@ const FORM_OF_KEYWORDS = new Set([
   'masculine',
 ]);
 
-// Letters (incl. Latin diacritics used by Afrikaans: ê ë é ô ü ŉ …), hyphens
-// and apostrophes — the shapes a headword can take. Anything else (digits,
-// non-Latin scripts) isn't a useful lookup target.
-const WORD_TOKEN = /^[A-Za-zÀ-ÖØ-öø-ž'’-]+$/;
+// Letters in any script (plus combining marks), hyphens and apostrophes —
+// the shapes a headword can take (#289: Unicode property escapes replace the
+// old Latin-only ranges so Cyrillic/Greek/… form-of targets linkify too).
+// Anything else (digits, punctuation) isn't a useful lookup target.
+const WORD_TOKEN = /^[\p{L}\p{M}'’-]+$/u;
 
 /**
  * Find the form-of word reference in a gloss, if any.

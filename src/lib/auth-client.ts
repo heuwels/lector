@@ -9,7 +9,7 @@
  * CORS pins origins + allows credentials (api/src/index.ts).
  */
 import { createAuthClient } from 'better-auth/react';
-import { genericOAuthClient } from 'better-auth/client/plugins';
+import { genericOAuthClient, twoFactorClient } from 'better-auth/client/plugins';
 import { apiBase } from './api-base';
 
 export const authClient = createAuthClient({
@@ -19,7 +19,10 @@ export const authClient = createAuthClient({
   },
   // signIn.oauth2 for the BYO OIDC provider (#218) — server-side twin in
   // api/src/lib/accounts.ts (genericOAuth, providerId 'oidc').
-  plugins: [genericOAuthClient()],
+  // twoFactorClient types the twoFactor.* methods and the twoFactorRedirect
+  // sign-in response; the login page owns the actual /two-factor routing (no
+  // onTwoFactorRedirect here — it would force a full page reload).
+  plugins: [genericOAuthClient(), twoFactorClient()],
 });
 
 // Route helpers live in api-base (this module imports it; the reverse would

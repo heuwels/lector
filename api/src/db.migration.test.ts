@@ -3,7 +3,7 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
-import { migrateCompositeTenantKeys } from './db';
+import { migrateAcceptedCacheUserKey, migrateCompositeTenantKeys } from './db';
 
 // #279 — the composite (userId, id) rebuild, exercised against a synthetic
 // PRE-migration database (not the singleton `db`, which is already migrated).
@@ -179,7 +179,10 @@ function seed(db: Database) {
 
 function pkOf(db: Database, table: string): string[] {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string; pk: number }[];
-  return cols.filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name);
+  return cols
+    .filter((c) => c.pk > 0)
+    .sort((a, b) => a.pk - b.pk)
+    .map((c) => c.name);
 }
 
 function dumpAll(db: Database): Record<string, unknown[]> {
@@ -222,22 +225,43 @@ describe('migrateCompositeTenantKeys (#279)', () => {
     // Spot-check the fullest row end-to-end anyway (belt and braces).
     const v1 = db.prepare("SELECT * FROM vocab WHERE id = 'v1'").get() as Record<string, unknown>;
     expect(v1).toMatchObject({
-      userId: 'local', id: 'v1', text: 'kat', type: 'word', sentence: 'Die kat sit.',
-      translation: 'cat', state: 'level2', stateUpdatedAt: TS, reviewCount: 4,
-      bookId: 'col1', chapter: 2, language: 'af', createdAt: TS, pushedToAnki: 1, ankiNoteId: 987,
+      userId: 'local',
+      id: 'v1',
+      text: 'kat',
+      type: 'word',
+      sentence: 'Die kat sit.',
+      translation: 'cat',
+      state: 'level2',
+      stateUpdatedAt: TS,
+      reviewCount: 4,
+      bookId: 'col1',
+      chapter: 2,
+      language: 'af',
+      createdAt: TS,
+      pushedToAnki: 1,
+      ankiNoteId: 987,
     });
   });
 
   test('recreates the legacy per-table indexes the rebuild drops', () => {
     migrateCompositeTenantKeys(db);
     const indexes = (
-      db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'").all() as { name: string }[]
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
+        .all() as { name: string }[]
     ).map((r) => r.name);
     for (const expected of [
-      'idx_lessons_collectionId', 'idx_lessons_sortOrder',
-      'idx_vocab_text', 'idx_vocab_state', 'idx_vocab_bookId',
-      'idx_cloze_collection', 'idx_cloze_nextReview', 'idx_cloze_clozeWord', 'idx_cloze_masteryLevel',
-      'idx_chat_messages_createdAt', 'idx_journal_status',
+      'idx_lessons_collectionId',
+      'idx_lessons_sortOrder',
+      'idx_vocab_text',
+      'idx_vocab_state',
+      'idx_vocab_bookId',
+      'idx_cloze_collection',
+      'idx_cloze_nextReview',
+      'idx_cloze_clozeWord',
+      'idx_cloze_masteryLevel',
+      'idx_chat_messages_createdAt',
+      'idx_journal_status',
     ]) {
       expect(indexes, `${expected} must be recreated`).toContain(expected);
     }
@@ -247,14 +271,24 @@ describe('migrateCompositeTenantKeys (#279)', () => {
     migrateCompositeTenantKeys(db);
     const first = dumpAll(db);
     const firstSchemas = TABLES.map(
-      (t) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?").get(t) as { sql: string }).sql,
+      (t) =>
+        (
+          db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?").get(t) as {
+            sql: string;
+          }
+        ).sql,
     );
 
     migrateCompositeTenantKeys(db);
 
     expect(dumpAll(db)).toEqual(first);
     const secondSchemas = TABLES.map(
-      (t) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?").get(t) as { sql: string }).sql,
+      (t) =>
+        (
+          db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?").get(t) as {
+            sql: string;
+          }
+        ).sql,
     );
     expect(secondSchemas).toEqual(firstSchemas);
   });
@@ -270,9 +304,13 @@ describe('migrateCompositeTenantKeys (#279)', () => {
        VALUES ('v2', 'hijack', 'word', 'x', 'x', 'new', ?, ?, 'de', 'local')`,
     ).run(TS, TS);
 
-    const victim = db.prepare("SELECT text, translation FROM vocab WHERE id = 'v2' AND userId = 'other-user'").get() as { text: string };
+    const victim = db
+      .prepare("SELECT text, translation FROM vocab WHERE id = 'v2' AND userId = 'other-user'")
+      .get() as { text: string };
     expect(victim.text).toBe('Katze');
-    const attacker = db.prepare("SELECT text FROM vocab WHERE id = 'v2' AND userId = 'local'").get() as { text: string };
+    const attacker = db
+      .prepare("SELECT text FROM vocab WHERE id = 'v2' AND userId = 'local'")
+      .get() as { text: string };
     expect(attacker.text).toBe('hijack');
 
     // Same-tenant REPLACE still works as an upsert (the legitimate use).
@@ -280,7 +318,9 @@ describe('migrateCompositeTenantKeys (#279)', () => {
       `INSERT OR REPLACE INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, userId)
        VALUES ('v2', 'hijack2', 'word', 'x', 'x', 'new', ?, ?, 'de', 'local')`,
     ).run(TS, TS);
-    const rows = db.prepare("SELECT COUNT(*) AS n FROM vocab WHERE id = 'v2'").get() as { n: number };
+    const rows = db.prepare("SELECT COUNT(*) AS n FROM vocab WHERE id = 'v2'").get() as {
+      n: number;
+    };
     expect(rows.n).toBe(2); // still one per tenant
   });
 
@@ -293,7 +333,155 @@ describe('migrateCompositeTenantKeys (#279)', () => {
       `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, createdAt, updatedAt, language, userId)
        VALUES ('j3', 'tweede inskrywing', 'draft', 2, '2026-01-01', ?, ?, 'af', 'local')`,
     ).run(TS, TS);
-    const n = (db.prepare("SELECT COUNT(*) AS n FROM journal_entries WHERE entryDate = '2026-01-01'").get() as { n: number }).n;
+    const n = (
+      db
+        .prepare("SELECT COUNT(*) AS n FROM journal_entries WHERE entryDate = '2026-01-01'")
+        .get() as { n: number }
+    ).n;
     expect(n).toBe(2);
+  });
+});
+
+describe('migrateAcceptedCacheUserKey', () => {
+  test('boots and migrates a pre-tenant cache database before creating userId indexes', () => {
+    const legacyDataDir = path.join(process.env.DATA_DIR!, 'legacy-cache-boot');
+    const legacyDbFile = path.join(legacyDataDir, 'lector.db');
+    fs.rmSync(legacyDataDir, { recursive: true, force: true });
+    fs.mkdirSync(legacyDataDir, { recursive: true });
+
+    const legacyDb = new Database(legacyDbFile);
+    legacyDb.exec(`
+      CREATE TABLE cached_entries (
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        ipa TEXT,
+        etymology TEXT,
+        sourceSentence TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        PRIMARY KEY (word, language)
+      );
+      CREATE TABLE cached_senses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        pos TEXT,
+        gloss TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE cached_related_forms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        related_word TEXT NOT NULL,
+        relation TEXT NOT NULL
+      );
+      INSERT INTO cached_entries
+        (word, language, createdAt, updatedAt)
+        VALUES ('skaars', 'af', '${TS}', '${TS}');
+    `);
+    legacyDb.close();
+
+    const result = Bun.spawnSync({
+      cmd: [
+        process.execPath,
+        '-e',
+        "import { getDatabaseInstance } from './src/db.ts'; getDatabaseInstance().close();",
+      ],
+      cwd: path.resolve(import.meta.dir, '..'),
+      env: { ...process.env, DATA_DIR: legacyDataDir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stderr = new TextDecoder().decode(result.stderr);
+    expect(result.exitCode, stderr).toBe(0);
+
+    const migratedDb = new Database(legacyDbFile);
+    expect(pkOf(migratedDb, 'cached_entries')).toEqual(['userId', 'word', 'language']);
+    expect(
+      migratedDb.prepare("SELECT userId FROM cached_entries WHERE word = 'skaars'").get(),
+    ).toEqual({ userId: 'local' });
+    const indexes = (
+      migratedDb
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_cached_%'")
+        .all() as { name: string }[]
+    ).map((row) => row.name);
+    expect(indexes).toContain('idx_cached_entries_user_language');
+    expect(indexes).toContain('idx_cached_senses_user_word');
+    expect(indexes).toContain('idx_cached_related_user_word');
+    migratedDb.close();
+  });
+
+  test('moves legacy compound cache rows to local and permits one row per tenant', () => {
+    const cacheDb = new Database(':memory:');
+    cacheDb.exec(`
+      CREATE TABLE cached_entries (
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        ipa TEXT,
+        etymology TEXT,
+        sourceSentence TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        PRIMARY KEY (word, language)
+      );
+      CREATE TABLE cached_senses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        pos TEXT,
+        gloss TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE cached_related_forms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        related_word TEXT NOT NULL,
+        relation TEXT NOT NULL
+      );
+      INSERT INTO cached_entries
+        (word, language, ipa, etymology, sourceSentence, createdAt, updatedAt)
+        VALUES ('skaars', 'af', '/skɑːrs/', 'origin', 'private source', '${TS}', '${TS}');
+      INSERT INTO cached_senses (id, word, language, pos, gloss, sort_order)
+        VALUES (7, 'skaars', 'af', 'adjective', 'scarce', 0);
+      INSERT INTO cached_related_forms (id, word, language, related_word, relation)
+        VALUES (9, 'skaars', 'af', 'skaarste', 'superlative');
+    `);
+
+    migrateAcceptedCacheUserKey(cacheDb);
+
+    expect(pkOf(cacheDb, 'cached_entries')).toEqual(['userId', 'word', 'language']);
+    expect(
+      cacheDb
+        .prepare('SELECT userId, sourceSentence FROM cached_entries WHERE word = ?')
+        .get('skaars'),
+    ).toEqual({ userId: 'local', sourceSentence: 'private source' });
+    expect(
+      cacheDb.prepare('SELECT id, userId, gloss FROM cached_senses WHERE word = ?').get('skaars'),
+    ).toEqual({ id: 7, userId: 'local', gloss: 'scarce' });
+    expect(
+      cacheDb
+        .prepare('SELECT id, userId, related_word FROM cached_related_forms WHERE word = ?')
+        .get('skaars'),
+    ).toEqual({ id: 9, userId: 'local', related_word: 'skaarste' });
+
+    cacheDb
+      .prepare(
+        `INSERT INTO cached_entries
+          (userId, word, language, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run('alice', 'skaars', 'af', TS, TS);
+    expect(
+      (
+        cacheDb
+          .prepare('SELECT COUNT(*) AS n FROM cached_entries WHERE word = ? AND language = ?')
+          .get('skaars', 'af') as { n: number }
+      ).n,
+    ).toBe(2);
+
+    const before = cacheDb.prepare('SELECT * FROM cached_entries ORDER BY userId').all();
+    migrateAcceptedCacheUserKey(cacheDb);
+    expect(cacheDb.prepare('SELECT * FROM cached_entries ORDER BY userId').all()).toEqual(before);
   });
 });

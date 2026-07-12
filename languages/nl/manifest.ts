@@ -38,4 +38,15 @@ export const nl = {
   fallbackTts: ['nl', 'nl-NL', 'nl-BE'],
   avoidWords: AVOID_WORDS,
   testPhrase: 'Hallo, hoe gaat het met je?',
+  script: {
+    bcp47: 'nl',
+    direction: 'ltr' as const,
+    kind: 'alpha-spaced' as const,
+    hasCase: true,
+    // 'n (een) is a token of its own, like the Afrikaans article — zo'n →
+    // zo + 'n, m'n → m + 'n. Other clitics keep splitting bare ('t → t,
+    // foto's → foto + s), which the avoidWords fragments above rely on.
+    // Unicode-aware boundary, not \b — see the af manifest ("‘Ná" bug).
+    extraTokenPatterns: ["['‘’ʼ`]n(?![\\p{L}\\p{M}0-9_])"],
+  },
 };

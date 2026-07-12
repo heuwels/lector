@@ -14,7 +14,7 @@ import path from 'node:path';
  * links from.
  */
 
-const CLOUD_API = 'http://localhost:3467';
+const CLOUD_API = `http://localhost:${process.env.E2E_ISOLATION_API_PORT || '3467'}`;
 const UI_ORIGIN = 'http://localhost:3456';
 const OUTBOX = path.join(__dirname, '..', 'tmp', 'e2e-cloud-data', 'outbox.jsonl');
 const PASSWORD = 'wagwoord-vir-toetse-123';
@@ -115,10 +115,16 @@ async function newUserContext(browser: Browser, email: string): Promise<BrowserC
 }
 
 /** Import the fixture EPUB in this context's session; returns the new ids. */
-async function importFixtureEpub(ctx: BrowserContext): Promise<{ collectionId: string; lessonId: string }> {
+async function importFixtureEpub(
+  ctx: BrowserContext,
+): Promise<{ collectionId: string; lessonId: string }> {
   const res = await ctx.request.post(`${CLOUD_API}/api/import/epub`, {
     multipart: {
-      file: { name: 'test-book.epub', mimeType: 'application/epub+zip', buffer: readFileSync(EPUB) },
+      file: {
+        name: 'test-book.epub',
+        mimeType: 'application/epub+zip',
+        buffer: readFileSync(EPUB),
+      },
       language: 'af',
     },
   });
@@ -132,7 +138,9 @@ async function importFixtureEpub(ctx: BrowserContext): Promise<{ collectionId: s
 }
 
 test.describe('two users, isolated libraries (#220)', () => {
-  test('signup → onboarding → import: each user sees only their own library', async ({ browser }) => {
+  test('signup → onboarding → import: each user sees only their own library', async ({
+    browser,
+  }) => {
     test.setTimeout(120_000);
 
     // Unique addresses per attempt: retries run against the same live server
@@ -147,6 +155,7 @@ test.describe('two users, isolated libraries (#220)', () => {
     await annaPage.goto('/');
     await expect(annaPage).toHaveURL(/\/setup/, { timeout: 15_000 });
     await annaPage.getByTestId('setup-language-af').click();
+    await annaPage.getByTestId('skip-guided-onboarding').click();
     await expect(annaPage).toHaveURL('/', { timeout: 15_000 });
     await expect(annaPage.getByText('No books in your library')).toBeVisible({ timeout: 15_000 });
 
@@ -162,6 +171,7 @@ test.describe('two users, isolated libraries (#220)', () => {
     await berndPage.goto('/');
     await expect(berndPage).toHaveURL(/\/setup/, { timeout: 15_000 });
     await berndPage.getByTestId('setup-language-af').click();
+    await berndPage.getByTestId('skip-guided-onboarding').click();
     await expect(berndPage).toHaveURL('/', { timeout: 15_000 });
     await expect(berndPage.getByText('No books in your library')).toBeVisible({ timeout: 15_000 });
     await expect(berndPage.getByText('Toets Boek')).toHaveCount(0);
@@ -171,8 +181,18 @@ test.describe('two users, isolated libraries (#220)', () => {
     expect(((await berndCollections.json()) as { id: string }[]).map((c) => c.id)).not.toContain(
       annasBook.collectionId,
     );
-    expect((await bernd.request.get(`${CLOUD_API}/api/collections/${annasBook.collectionId}?language=af`)).status()).toBe(404);
-    expect((await bernd.request.get(`${CLOUD_API}/api/lessons/${annasBook.lessonId}?language=af`)).status()).toBe(404);
+    expect(
+      (
+        await bernd.request.get(
+          `${CLOUD_API}/api/collections/${annasBook.collectionId}?language=af`,
+        )
+      ).status(),
+    ).toBe(404);
+    expect(
+      (
+        await bernd.request.get(`${CLOUD_API}/api/lessons/${annasBook.lessonId}?language=af`)
+      ).status(),
+    ).toBe(404);
 
     // Symmetry: Bernd imports too; Anna's library must not grow.
     const berndsBook = await importFixtureEpub(bernd);
@@ -210,6 +230,7 @@ test.describe('two users, isolated libraries (#220)', () => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/setup/, { timeout: 15_000 });
     await page.getByTestId('setup-language-af').click();
+    await page.getByTestId('skip-guided-onboarding').click();
     await expect(page).toHaveURL('/', { timeout: 15_000 });
 
     // Her choice landed server-side — the source of truth the old

@@ -1,5 +1,5 @@
 import '../test-guard';
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { Hono } from 'hono';
 import { createHmac } from 'crypto';
 import { db } from '../db';
@@ -11,13 +11,16 @@ import {
   makeBillingMiddleware,
   parseBillingMode,
   parseExemptEmails,
+  parseFreeTierEnabled,
   parsePaddleEnvironment,
   resolveBillingStatus,
   verifyPaddleSignature,
+  type CreateTransaction,
 } from './billing';
 import { makeBillingRoutes } from '../routes/billing';
 import { makeSessionMiddleware } from './session';
 import type { AuthEngine } from './accounts';
+import type { PaddleBillingOperations } from './paddle-billing';
 
 const SECRET = 'pdl_ntfset_test_secret';
 const NOW = 1_700_000_000;
@@ -26,6 +29,10 @@ function resetBillingTables() {
   db.prepare('DELETE FROM billing_subscriptions').run();
   db.prepare('DELETE FROM billing_customers').run();
 }
+
+// These tables are process-global in the Bun suite. Leave no paid mirror row
+// behind for later Free-tier route tests that share the same test database.
+afterEach(resetBillingTables);
 
 function sign(body: string, ts: number = NOW, secret: string = SECRET): string {
   const h1 = createHmac('sha256', secret).update(`${ts}:${body}`).digest('hex');
@@ -84,6 +91,16 @@ describe('billing env parsing', () => {
     expect(() => parsePaddleEnvironment('staging')).toThrow(/Invalid PADDLE_ENV/);
   });
 
+  test('LECTOR_FREE_TIER is strict and defaults off', () => {
+    expect(parseFreeTierEnabled(undefined)).toBe(false);
+    expect(parseFreeTierEnabled('')).toBe(false);
+    expect(parseFreeTierEnabled('false')).toBe(false);
+    expect(parseFreeTierEnabled('true')).toBe(true);
+    expect(() => parseFreeTierEnabled('TRUE')).toThrow(/Invalid LECTOR_FREE_TIER/);
+    expect(() => parseFreeTierEnabled(' true ')).toThrow(/Invalid LECTOR_FREE_TIER/);
+    expect(() => parseFreeTierEnabled('1')).toThrow(/Invalid LECTOR_FREE_TIER/);
+  });
+
   test('BILLING_EXEMPT_EMAILS: comma-separated, trimmed, lowercased', () => {
     const set = parseExemptEmails(' Boss@Lector.dev , tester@example.com ,, ');
     expect(set.has('boss@lector.dev')).toBe(true);
@@ -92,11 +109,105 @@ describe('billing env parsing', () => {
     expect(parseExemptEmails(undefined).size).toBe(0);
   });
 
-  test('boot guard: paddle needs cloud proper AND a webhook secret', () => {
-    expect(() => assertBillingBootable('off', false, false)).not.toThrow();
-    expect(() => assertBillingBootable('paddle', true, true)).not.toThrow();
-    expect(() => assertBillingBootable('paddle', false, true)).toThrow(/cloud proper/);
-    expect(() => assertBillingBootable('paddle', true, false)).toThrow(/PADDLE_WEBHOOK_SECRET/);
+  test('boot guard: paddle needs cloud proper, a webhook secret, and an API key', () => {
+    expect(() => assertBillingBootable('off', false, false, false)).not.toThrow();
+    expect(() => assertBillingBootable('paddle', true, true, true)).not.toThrow();
+    expect(() => assertBillingBootable('paddle', false, true, true)).toThrow(/cloud proper/);
+    expect(() => assertBillingBootable('paddle', true, false, true)).toThrow(
+      /PADDLE_WEBHOOK_SECRET/,
+    );
+    expect(() => assertBillingBootable('paddle', true, true, false)).toThrow(/PADDLE_API_KEY/);
+  });
+
+  test('Free needs Paddle/cloud proper and production Turnstile; test mode stays network-free', () => {
+    const managedTranslations = {
+      llmProvider: 'openai',
+      openAiCompatUrl: 'https://openrouter.ai/api/',
+      hasOpenAiCompatApiKey: true,
+      hasCheckoutPrice: true,
+      hasGoogleTtsApiKey: true,
+      byokAvailable: true,
+      classifyWorkerEnabled: false,
+      wordGlossModel: 'google/gemini-2.5-flash-lite',
+      simplePhraseModel: 'google/gemini-2.5-flash-lite',
+      simpleContextModel: 'google/gemini-2.5-flash-lite',
+    };
+    const freeTest = {
+      enabled: true,
+      production: false,
+      hasTurnstileSecret: false,
+      hasTurnstileSiteKey: false,
+    };
+    expect(() => assertBillingBootable('paddle', true, true, true, freeTest)).not.toThrow();
+    expect(() => assertBillingBootable('off', true, true, true, freeTest)).toThrow(
+      /LECTOR_BILLING=paddle/,
+    );
+    expect(() => assertBillingBootable('paddle', false, true, true, freeTest)).toThrow(
+      /cloud proper/,
+    );
+    expect(() =>
+      assertBillingBootable('paddle', true, true, true, {
+        ...freeTest,
+        production: true,
+      }),
+    ).toThrow(/TURNSTILE_SECRET_KEY.*TURNSTILE_SITE_KEY/);
+    expect(() =>
+      assertBillingBootable('paddle', true, true, true, {
+        ...freeTest,
+        production: true,
+        hasTurnstileSecret: true,
+        hasTurnstileSiteKey: true,
+        ...managedTranslations,
+      }),
+    ).not.toThrow();
+  });
+
+  test('production Free pins every managed translation path to Gemini 2.5 on OpenRouter', () => {
+    const base = {
+      enabled: true,
+      production: true,
+      hasTurnstileSecret: true,
+      hasTurnstileSiteKey: true,
+      hasCheckoutPrice: true,
+      hasGoogleTtsApiKey: true,
+      byokAvailable: true,
+      classifyWorkerEnabled: false,
+      classifyLlmUrl: undefined as string | undefined,
+      classifyLlmModel: undefined as string | undefined,
+      llmProvider: 'openai',
+      openAiCompatUrl: 'https://openrouter.ai/api',
+      hasOpenAiCompatApiKey: true,
+      wordGlossModel: 'google/gemini-2.5-flash-lite',
+      simplePhraseModel: 'google/gemini-2.5-flash-lite',
+      simpleContextModel: 'google/gemini-2.5-flash-lite',
+    };
+    const assert = (overrides: Partial<typeof base>) =>
+      assertBillingBootable('paddle', true, true, true, { ...base, ...overrides });
+
+    expect(() => assert({ hasCheckoutPrice: false })).toThrow(/PADDLE_PRICE_/);
+    expect(() => assert({ hasGoogleTtsApiKey: false })).toThrow(/GOOGLE_CLOUD_API_KEY/);
+    expect(() => assert({ byokAvailable: false })).toThrow(/BYOK_ENCRYPTION_KEY/);
+    expect(() => assert({ classifyWorkerEnabled: true })).toThrow(
+      /CLASSIFY_LLM_URL.*CLASSIFY_LLM_MODEL/,
+    );
+    expect(() =>
+      assert({
+        classifyWorkerEnabled: true,
+        classifyLlmUrl: 'http://classifier.internal:1234',
+        classifyLlmModel: 'gemma-classifier',
+      }),
+    ).not.toThrow();
+    expect(() => assert({ llmProvider: 'anthropic' })).toThrow(/LLM_PROVIDER=openai/);
+    expect(() => assert({ openAiCompatUrl: 'https://example.com' })).toThrow(/OPENAI_COMPAT_URL/);
+    expect(() => assert({ hasOpenAiCompatApiKey: false })).toThrow(/OPENAI_COMPAT_API_KEY/);
+    expect(() => assert({ wordGlossModel: undefined })).toThrow(/OPENAI_COMPAT_WORD_GLOSS_MODEL/);
+    expect(() => assert({ simplePhraseModel: 'openai\/gpt-4o' })).toThrow(
+      /OPENAI_COMPAT_SIMPLE_PHRASE_MODEL/,
+    );
+    expect(() => assert({ simpleContextModel: 'google\/gemini-3.1-flash-lite' })).toThrow(
+      /OPENAI_COMPAT_SIMPLE_CONTEXT_MODEL/,
+    );
+    expect(() => assert({})).not.toThrow();
   });
 
   test('billing defaults off in this test env', () => {
@@ -154,7 +265,11 @@ describe('applyPaddleEvent', () => {
   test('mirrors subscription events with price, period end, and custom_data tenant', () => {
     expect(
       applyPaddleEvent(
-        subscriptionEvent({ lectorUserId: 'u1', priceId: 'pri_x', periodEnd: '2026-08-08T00:00:00Z' }),
+        subscriptionEvent({
+          lectorUserId: 'u1',
+          priceId: 'pri_x',
+          periodEnd: '2026-08-08T00:00:00Z',
+        }),
       ),
     ).toBe('subscription');
     const row = db
@@ -170,7 +285,9 @@ describe('applyPaddleEvent', () => {
     applyPaddleEvent(subscriptionEvent({ status: 'active', occurredAt: '2026-07-08T00:00:02Z' }));
     // An older cancellation arriving late must not clobber the newer state.
     expect(
-      applyPaddleEvent(subscriptionEvent({ status: 'canceled', occurredAt: '2026-07-08T00:00:01Z' })),
+      applyPaddleEvent(
+        subscriptionEvent({ status: 'canceled', occurredAt: '2026-07-08T00:00:01Z' }),
+      ),
     ).toBe('stale');
     // Exact replay of the same event: also stale.
     expect(
@@ -180,7 +297,9 @@ describe('applyPaddleEvent', () => {
     expect(row.status).toBe('active');
 
     expect(
-      applyPaddleEvent(subscriptionEvent({ status: 'canceled', occurredAt: '2026-07-08T00:00:03Z' })),
+      applyPaddleEvent(
+        subscriptionEvent({ status: 'canceled', occurredAt: '2026-07-08T00:00:03Z' }),
+      ),
     ).toBe('subscription');
     row = db.prepare('SELECT status FROM billing_subscriptions').get() as { status: string };
     expect(row.status).toBe('canceled');
@@ -189,22 +308,23 @@ describe('applyPaddleEvent', () => {
   test('an update without custom_data keeps the stored tenant link', () => {
     applyPaddleEvent(subscriptionEvent({ lectorUserId: 'u1', occurredAt: '2026-07-08T00:00:01Z' }));
     applyPaddleEvent(subscriptionEvent({ status: 'past_due', occurredAt: '2026-07-08T00:00:02Z' }));
-    const row = db
-      .prepare('SELECT userId, status FROM billing_subscriptions')
-      .get() as { userId: string; status: string };
+    const row = db.prepare('SELECT userId, status FROM billing_subscriptions').get() as {
+      userId: string;
+      status: string;
+    };
     expect(row.userId).toBe('u1');
     expect(row.status).toBe('past_due');
   });
 
   test('irrelevant and malformed events are ignored, never thrown on', () => {
-    expect(applyPaddleEvent({ event_type: 'transaction.completed', occurred_at: 'x', data: {} })).toBe(
-      'ignored',
-    );
+    expect(
+      applyPaddleEvent({ event_type: 'transaction.completed', occurred_at: 'x', data: {} }),
+    ).toBe('ignored');
     expect(applyPaddleEvent({})).toBe('ignored');
     expect(applyPaddleEvent({ event_type: 'subscription.updated' })).toBe('ignored');
-    expect(
-      applyPaddleEvent({ event_type: 'subscription.updated', data: { id: 'sub_x' } }),
-    ).toBe('ignored');
+    expect(applyPaddleEvent({ event_type: 'subscription.updated', data: { id: 'sub_x' } })).toBe(
+      'ignored',
+    );
     expect(db.prepare('SELECT COUNT(*) AS n FROM billing_subscriptions').get()).toEqual({ n: 0 });
   });
 });
@@ -248,7 +368,7 @@ describe('billing middleware', () => {
 
   const emails: Record<string, string> = { u1: 'U1@Example.com', boss: 'boss@lector.dev' };
 
-  function buildApp(enforced = true) {
+  function buildApp(enforced = true, freeTierEnabled = false) {
     const app = new Hono();
     // Stand-in for the session middleware's tenant resolution.
     app.use('/api/*', async (c, next) => {
@@ -260,6 +380,7 @@ describe('billing middleware', () => {
       '/api/*',
       makeBillingMiddleware({
         enforced,
+        freeTierEnabled,
         exemptEmails: new Set(['boss@lector.dev']),
         resolveEmail: (id) => emails[id] ?? null,
       }),
@@ -268,6 +389,11 @@ describe('billing middleware', () => {
     app.post('/api/chat', (c) => c.json({ ok: true }));
     app.get('/api/data', (c) => c.json({ ok: true }));
     app.post('/api/data', (c) => c.json({ ok: true }));
+    app.post('/api/import', (c) => c.json({ ok: true }));
+    app.post('/api/starter', (c) => c.json({ ok: true }));
+    app.post('/api/vocab', (c) => c.json({ ok: true }));
+    app.get('/api/anki/queue', (c) => c.json({ ok: true }));
+    app.put('/api/byok', (c) => c.json({ ok: true }));
     app.get('/api/auth/session', (c) => c.json({ ok: true }));
     app.get('/api/billing/status', (c) => c.json({ ok: true }));
     app.post('/api/billing/webhook', (c) => c.json({ ok: true }));
@@ -287,6 +413,22 @@ describe('billing middleware', () => {
     const res = await app.request('/api/collections', asUser('u1'));
     expect(res.status).toBe(402);
     expect(await res.json()).toEqual({ error: 'subscription_required', status: 'none' });
+  });
+
+  test('Free passes authenticated reading, import, vocab, and Anki paths without Paddle', async () => {
+    const app = buildApp(true, true);
+    for (const [path, method] of [
+      ['/api/collections', 'GET'],
+      ['/api/import', 'POST'],
+      ['/api/starter', 'POST'],
+      ['/api/vocab', 'POST'],
+      ['/api/anki/queue', 'GET'],
+      ['/api/byok', 'PUT'],
+      ['/api/data', 'GET'],
+    ] as const) {
+      const res = await app.request(path, { method, ...asUser('u1') });
+      expect(res.status).toBe(200);
+    }
   });
 
   test('locks paused and canceled subscriptions, reporting the status', async () => {
@@ -325,6 +467,31 @@ describe('billing middleware', () => {
     expect(res.status).toBe(200);
   });
 
+  test('a comped account (DB billing-exempt flag) bypasses the gate (#221)', async () => {
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const user = c.req.header('X-Test-User');
+      if (user) c.set('userId', user);
+      return next();
+    });
+    app.use(
+      '/api/*',
+      makeBillingMiddleware({
+        enforced: true,
+        freeTierEnabled: false,
+        exemptEmails: new Set(),
+        resolveEmail: (id) => emails[id] ?? null,
+        // u1 has no subscription and is not an exempt email, but is comped.
+        isBillingExempt: (id) => id === 'u1',
+      }),
+    );
+    app.get('/api/collections', (c) => c.json({ ok: true }));
+
+    expect((await app.request('/api/collections', asUser('u1'))).status).toBe(200);
+    // A different, non-comped account with no subscription still 402s.
+    expect((await app.request('/api/collections', asUser('boss'))).status).toBe(402);
+  });
+
   test('locked accounts keep data takeout (GET /api/data) but not import', async () => {
     const app = buildApp();
     const exportRes = await app.request('/api/data', asUser('u1'));
@@ -353,16 +520,57 @@ describe('billing routes', () => {
   const enforcedCfg: typeof billingConfig = {
     mode: 'paddle',
     enforced: true,
+    freeTierEnabled: false,
     webhookSecret: SECRET,
-    clientToken: 'live_test_token',
+    apiKey: 'pdl_test_key',
     environment: 'production',
     prices: [{ id: 'pri_monthly', plan: 'cloud', cycle: 'month' }],
     exemptEmails: new Set<string>(),
   };
 
-  function buildApp(cfg: typeof billingConfig, email: string | null = 'local@example.com') {
+  const managedCfg: typeof billingConfig = {
+    ...enforcedCfg,
+    prices: [
+      { id: 'pri_cloud_month', plan: 'cloud', cycle: 'month' },
+      { id: 'pri_cloud_year', plan: 'cloud', cycle: 'year' },
+      { id: 'pri_plus_month', plan: 'plus', cycle: 'month' },
+      { id: 'pri_plus_year', plan: 'plus', cycle: 'year' },
+    ],
+  };
+
+  function operations(overrides: Partial<PaddleBillingOperations> = {}): PaddleBillingOperations {
+    return {
+      createPortalSession: async () => {
+        throw new Error('unexpected portal call');
+      },
+      previewSubscriptionChange: async () => {
+        throw new Error('unexpected preview call');
+      },
+      applySubscriptionChange: async () => {
+        throw new Error('unexpected change call');
+      },
+      ...overrides,
+    };
+  }
+
+  function buildApp(
+    cfg: typeof billingConfig,
+    email: string | null = 'local@example.com',
+    createTransaction?: CreateTransaction,
+    billingOperations?: PaddleBillingOperations,
+  ) {
     const app = new Hono();
-    app.route('/api/billing', makeBillingRoutes(cfg, () => email));
+    app.route(
+      '/api/billing',
+      makeBillingRoutes(
+        cfg,
+        () => email,
+        createTransaction,
+        undefined,
+        undefined,
+        billingOperations,
+      ),
+    );
     return app;
   }
 
@@ -378,28 +586,52 @@ describe('billing routes', () => {
     const app = buildApp(billingConfig);
     const res = await app.request('/api/billing/status');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ enforced: false, active: true });
+    expect(await res.json()).toEqual({
+      enforced: false,
+      accessAllowed: true,
+      subscriptionActive: false,
+      freeTierEnabled: false,
+      suspended: false,
+      status: 'none',
+      exempt: false,
+      checkout: { prices: [] },
+      management: { customerPortal: false, subscription: null },
+    });
   });
 
-  test('status reports a locked account with its checkout config', async () => {
+  test('entitlements reports split translation usage and explicit UTC periods', async () => {
+    const app = buildApp(billingConfig);
+    const body = (await (await app.request('/api/billing/entitlements')).json()) as {
+      usage: Record<string, number>;
+      periods: { day: string; month: string };
+    };
+    expect(body.usage).toMatchObject({
+      wordGlossesPerMonth: 0,
+      phraseTranslationsPerDay: 0,
+      contextTranslationsPerDay: 0,
+    });
+    expect(body.periods.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(body.periods.month).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  test('status reports a locked account with its plan prices', async () => {
     const app = buildApp(enforcedCfg);
     const res = await app.request('/api/billing/status');
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.enforced).toBe(true);
-    expect(body.active).toBe(false);
+    expect(body.accessAllowed).toBe(false);
+    expect(body.subscriptionActive).toBe(false);
+    expect(body.freeTierEnabled).toBe(false);
+    expect(body.suspended).toBe(false);
     expect(body.status).toBe('none');
     expect(body.checkout).toEqual({
-      clientToken: 'live_test_token',
-      environment: 'production',
       prices: [{ id: 'pri_monthly', plan: 'cloud', cycle: 'month' }],
-      email: 'local@example.com',
-      // selfhost test config resolves the implicit local tenant
-      userId: 'local',
     });
+    expect(body.management).toEqual({ customerPortal: false, subscription: null });
   });
 
-  test('status flips active once a webhook lands for the account email', async () => {
+  test('status flips subscriptionActive once a webhook lands for the account email', async () => {
     const app = buildApp(enforcedCfg);
     const evtC = JSON.stringify(customerEvent({ email: 'local@example.com' }));
     const evtS = JSON.stringify(subscriptionEvent({}));
@@ -410,16 +642,56 @@ describe('billing routes', () => {
 
     const res = await app.request('/api/billing/status');
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body.active).toBe(true);
+    expect(body.accessAllowed).toBe(true);
+    expect(body.subscriptionActive).toBe(true);
     expect(body.status).toBe('active');
+    expect(body.management).toEqual({
+      customerPortal: true,
+      subscription: { plan: 'cloud', cycle: 'month', canChange: true },
+    });
   });
 
   test('status honours exempt emails', async () => {
     const app = buildApp({ ...enforcedCfg, exemptEmails: new Set(['local@example.com']) });
     const res = await app.request('/api/billing/status');
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body.active).toBe(true);
+    expect(body.accessAllowed).toBe(true);
+    expect(body.subscriptionActive).toBe(false);
     expect(body.exempt).toBe(true);
+  });
+
+  test('Free separates account access from Paddle subscription activation', async () => {
+    const app = buildApp({ ...enforcedCfg, freeTierEnabled: true });
+    const res = await app.request('/api/billing/status');
+    expect(await res.json()).toMatchObject({
+      enforced: true,
+      accessAllowed: true,
+      subscriptionActive: false,
+      freeTierEnabled: true,
+      suspended: false,
+      status: 'none',
+    });
+  });
+
+  test('suspension wins over Free account access', async () => {
+    const app = new Hono();
+    app.route(
+      '/api/billing',
+      makeBillingRoutes(
+        { ...enforcedCfg, freeTierEnabled: true },
+        () => 'local@example.com',
+        undefined,
+        undefined,
+        () => true,
+      ),
+    );
+    const res = await app.request('/api/billing/status');
+    expect(await res.json()).toMatchObject({
+      accessAllowed: false,
+      subscriptionActive: false,
+      freeTierEnabled: true,
+      suspended: true,
+    });
   });
 
   test('webhook rejects bad signatures and malformed bodies', async () => {
@@ -435,10 +707,328 @@ describe('billing routes', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM billing_subscriptions').get()).toEqual({ n: 0 });
   });
 
+  test('webhook returns 413 before signature processing or database writes', async () => {
+    const app = buildApp(enforcedCfg);
+    const body = JSON.stringify({
+      ...subscriptionEvent({ lectorUserId: 'local' }),
+      padding: 'x'.repeat(1024 * 1024),
+    });
+    const realNow = Math.floor(Date.now() / 1000);
+
+    // The signature is valid, so without the pre-parse limit this would reach
+    // applyPaddleEvent and create a subscription row.
+    const response = await postWebhook(app, body, sign(body, realNow));
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: 'Webhook payload is too large' });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM billing_subscriptions').get()).toEqual({ n: 0 });
+  });
+
   test('webhook 404s when billing is off', async () => {
     const app = buildApp(billingConfig);
     const evt = JSON.stringify(subscriptionEvent({}));
     expect((await postWebhook(app, evt, sign(evt))).status).toBe(404);
+  });
+
+  test('checkout creates a transaction for a known price and returns its id', async () => {
+    const calls: Array<{ priceId: string; userId: string; customerId: string | null }> = [];
+    const app = buildApp(enforcedCfg, 'local@example.com', async (args) => {
+      calls.push(args);
+      return { id: 'txn_stub_1', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ txnId: 'txn_stub_1' });
+    // Tenant stamped server-side; no prior customer for this email yet.
+    expect(calls).toEqual([{ priceId: 'pri_monthly', userId: 'local', customerId: null }]);
+  });
+
+  test('checkout prefills a known Paddle customer id for a returning buyer', async () => {
+    applyPaddleEvent(customerEvent({ id: 'ctm_ret', email: 'local@example.com' }));
+    let seen: string | null = 'unset';
+    const app = buildApp(enforcedCfg, 'local@example.com', async (args) => {
+      seen = args.customerId;
+      return { id: 'txn_stub_2', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(200);
+    expect(seen).toBe('ctm_ret');
+  });
+
+  test('checkout rejects an already-entitled subscription before calling Paddle', async () => {
+    applyPaddleEvent(subscriptionEvent({ lectorUserId: 'local' }));
+    let called = false;
+    const app = buildApp(enforcedCfg, 'local@example.com', async () => {
+      called = true;
+      return { id: 'txn_duplicate', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'subscription_already_active' });
+    expect(called).toBe(false);
+  });
+
+  test('checkout rejects an unknown price without calling Paddle', async () => {
+    let called = false;
+    const app = buildApp(enforcedCfg, 'local@example.com', async () => {
+      called = true;
+      return { id: 'txn_x', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_not_ours' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(400);
+    expect(called).toBe(false);
+  });
+
+  test('checkout 502s when Paddle creation fails; nothing is charged', async () => {
+    const app = buildApp(enforcedCfg, 'local@example.com', async () => {
+      throw new Error('paddle down');
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe('checkout_unavailable');
+  });
+
+  test('checkout 404s when billing is off', async () => {
+    const app = buildApp(billingConfig);
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  test('portal session uses only mirrored customer and subscription ids', async () => {
+    applyPaddleEvent(customerEvent({ id: 'ctm_portal', email: 'local@example.com' }));
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_portal',
+        customerId: 'ctm_portal',
+        lectorUserId: 'local',
+        priceId: 'pri_cloud_month',
+      }),
+    );
+    const calls: Array<{ customerId: string; subscriptionIds: readonly string[] }> = [];
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        createPortalSession: async (args) => {
+          calls.push(args);
+          return 'https://customer-portal.paddle.com/session?token=secret';
+        },
+      }),
+    );
+
+    const response = await app.request('/api/billing/portal', { method: 'POST' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(await response.json()).toEqual({
+      url: 'https://customer-portal.paddle.com/session?token=secret',
+    });
+    expect(calls).toEqual([{ customerId: 'ctm_portal', subscriptionIds: ['sub_portal'] }]);
+  });
+
+  test('portal and plan changes reject accounts without one manageable subscription', async () => {
+    let called = false;
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        createPortalSession: async () => {
+          called = true;
+          return 'https://customer-portal.paddle.com/session';
+        },
+        previewSubscriptionChange: async () => {
+          called = true;
+          return { immediateCharge: null, nextCharge: null, recurringCharge: null };
+        },
+      }),
+    );
+    expect((await app.request('/api/billing/portal', { method: 'POST' })).status).toBe(409);
+    const preview = await app.request('/api/billing/change/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_plus_month' }),
+    });
+    expect(preview.status).toBe(409);
+    expect(await preview.json()).toEqual({ error: 'subscription_not_active' });
+    expect(called).toBe(false);
+  });
+
+  test('previews an allowlisted upgrade with Paddle-computed totals', async () => {
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_change',
+        customerId: 'ctm_change',
+        lectorUserId: 'local',
+        priceId: 'pri_cloud_month',
+      }),
+    );
+    const calls: Parameters<PaddleBillingOperations['previewSubscriptionChange']>[0][] = [];
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        previewSubscriptionChange: async (args) => {
+          calls.push(args);
+          return {
+            immediateCharge: { amount: '325', currencyCode: 'USD' },
+            nextCharge: null,
+            recurringCharge: { amount: '1200', currencyCode: 'USD' },
+          };
+        },
+      }),
+    );
+    const response = await app.request('/api/billing/change/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_plus_month' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      target: { id: 'pri_plus_month', plan: 'plus', cycle: 'month' },
+      prorationBillingMode: 'prorated_immediately',
+      immediateCharge: { amount: '325', currencyCode: 'USD' },
+      nextCharge: null,
+      recurringCharge: { amount: '1200', currencyCode: 'USD' },
+    });
+    expect(calls).toEqual([
+      {
+        subscriptionId: 'sub_change',
+        targetPriceId: 'pri_plus_month',
+        managedPriceIds: managedCfg.prices.map((price) => price.id),
+        prorationBillingMode: 'prorated_immediately',
+      },
+    ]);
+  });
+
+  test('same-cycle downgrade defers proration and past-due changes stay in the portal', async () => {
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_change',
+        status: 'active',
+        lectorUserId: 'local',
+        priceId: 'pri_plus_month',
+      }),
+    );
+    let mode = '';
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        previewSubscriptionChange: async (args) => {
+          mode = args.prorationBillingMode;
+          return { immediateCharge: null, nextCharge: null, recurringCharge: null };
+        },
+      }),
+    );
+    const downgrade = await app.request('/api/billing/change/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_cloud_month' }),
+    });
+    expect(downgrade.status).toBe(200);
+    expect(mode).toBe('prorated_next_billing_period');
+
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_change',
+        status: 'past_due',
+        lectorUserId: 'local',
+        priceId: 'pri_plus_month',
+        occurredAt: '2026-07-08T00:00:01Z',
+      }),
+    );
+    const pastDue = await app.request('/api/billing/change/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_cloud_month' }),
+    });
+    expect(pastDue.status).toBe(409);
+    expect(await pastDue.json()).toEqual({ error: 'subscription_past_due' });
+  });
+
+  test('applies a confirmed target but waits for the webhook to change local entitlement', async () => {
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_apply',
+        customerId: 'ctm_apply',
+        lectorUserId: 'local',
+        priceId: 'pri_cloud_month',
+      }),
+    );
+    const calls: Parameters<PaddleBillingOperations['applySubscriptionChange']>[0][] = [];
+    const app = buildApp(
+      managedCfg,
+      'local@example.com',
+      undefined,
+      operations({
+        applySubscriptionChange: async (args) => {
+          calls.push(args);
+        },
+      }),
+    );
+
+    const response = await app.request('/api/billing/change', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_plus_year' }),
+    });
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      accepted: true,
+      target: { id: 'pri_plus_year', plan: 'plus', cycle: 'year' },
+    });
+    expect(calls[0]).toMatchObject({
+      subscriptionId: 'sub_apply',
+      targetPriceId: 'pri_plus_year',
+      prorationBillingMode: 'prorated_immediately',
+    });
+
+    // The Paddle API response is not entitlement: the mirror still says Cloud
+    // until a newer, signature-authenticated webhook updates the row.
+    let status = (await (await app.request('/api/billing/status')).json()) as {
+      management: { subscription: { plan: string; cycle: string } };
+    };
+    expect(status.management.subscription).toMatchObject({ plan: 'cloud', cycle: 'month' });
+
+    applyPaddleEvent(
+      subscriptionEvent({
+        id: 'sub_apply',
+        customerId: 'ctm_apply',
+        lectorUserId: 'local',
+        priceId: 'pri_plus_year',
+        occurredAt: '2026-07-08T00:00:01Z',
+      }),
+    );
+    status = (await (await app.request('/api/billing/status')).json()) as typeof status;
+    expect(status.management.subscription).toMatchObject({ plan: 'plus', cycle: 'year' });
   });
 });
 
@@ -448,7 +1038,10 @@ describe('session middleware carve-out', () => {
       api: { getSession: async () => null },
     } as unknown as AuthEngine;
     const app = new Hono();
-    app.use('/api/*', makeSessionMiddleware(true, () => engine));
+    app.use(
+      '/api/*',
+      makeSessionMiddleware(true, () => engine),
+    );
     app.post('/api/billing/webhook', (c) => c.json({ ok: true }));
     app.get('/api/billing/status', (c) => c.json({ ok: true }));
     app.get('/api/collections', (c) => c.json({ ok: true }));

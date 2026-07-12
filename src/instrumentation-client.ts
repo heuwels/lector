@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from '@sentry/nextjs';
 
 // Front-end (browser) Sentry. Next.js runs this module on the client during early
 // bootstrap — notably BEFORE the runtime config script executes.
@@ -17,36 +17,39 @@ let initialized = false;
 
 function initSentry(): boolean {
   if (initialized) return true;
-  const env = typeof window !== "undefined" ? window.__ENV__ : undefined;
+  const env = typeof window !== 'undefined' ? window.__ENV__ : undefined;
   const dsn = env?.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN;
   if (!dsn) return false;
   initialized = true;
 
-  const apiUrl = env?.API_URL || "http://localhost:3457";
+  const apiUrl = env?.API_URL || 'http://localhost:3457';
   Sentry.init({
     dsn,
+    environment: env?.SENTRY_ENVIRONMENT || undefined,
     integrations: [Sentry.browserTracingIntegration()],
     // Full tracing on a low-traffic app. browserTracing samples page loads +
     // navigations and — the load-bearing part for end-to-end traces —
     // propagates sentry-trace/baggage onto the cross-origin apiFetch() calls.
     // Finite rate from env (a deliberate 0 turns tracing OFF); empty/unset → full.
     // parseFloat, not Number: Number("") is 0, which would silently disable tracing.
-    tracesSampleRate: Number.isFinite(parseFloat(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? ""))
-      ? parseFloat(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? "")
+    tracesSampleRate: Number.isFinite(
+      parseFloat(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? ''),
+    )
+      ? parseFloat(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? '')
       : 1.0,
     // Attach trace headers to the Hono API (a different origin — see
     // api-base.ts) and to any same-origin /api call, and nowhere else. Without
     // this the browser strips the headers and the trace dead-ends here instead
     // of joining the API + worker spans. "localhost" covers cross-origin dev
     // (UI :3466 → API :3468) regardless of the resolved apiUrl.
-    tracePropagationTargets: ["localhost", apiUrl, /^\/api\//],
-    debug: process.env.NEXT_PUBLIC_SENTRY_DEBUG === "1",
+    tracePropagationTargets: ['localhost', apiUrl, /^\/api\//],
+    debug: process.env.NEXT_PUBLIC_SENTRY_DEBUG === '1',
     sendDefaultPii: false,
   });
   return true;
 }
 
-if (typeof window !== "undefined" && !initSentry()) {
+if (typeof window !== 'undefined' && !initSentry()) {
   // window.__ENV__ isn't populated yet. Poll until the runtime script defines it
   // (whether or not it carries a DSN), then init once. Stops the instant the
   // script runs — a few frames at most; the app's traced API calls fire after
@@ -56,7 +59,7 @@ if (typeof window !== "undefined" && !initSentry()) {
   // a DSN — no idle polling.
   let tries = 0;
   const timer = setInterval(() => {
-    const ready = typeof window.__ENV__ !== "undefined";
+    const ready = typeof window.__ENV__ !== 'undefined';
     if (ready || ++tries > 150 /* ~3s */) {
       clearInterval(timer);
       if (ready) initSentry();

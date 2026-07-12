@@ -99,6 +99,8 @@ describe('route helpers', () => {
     expect(isAuthRoute('/login')).toBe(true);
     expect(isAuthRoute('/register')).toBe(true);
     expect(isAuthRoute('/reset-password/token-x')).toBe(true);
+    // Mid-sign-in 2FA challenge: a session exists only after the code verifies.
+    expect(isAuthRoute('/two-factor')).toBe(true);
     expect(isAuthRoute('/subscribe')).toBe(false);
     expect(isAuthRoute('/')).toBe(false);
   });

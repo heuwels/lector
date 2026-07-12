@@ -4,7 +4,14 @@ import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { parseEpub } from './lib/epub-parser';
 import { countWords } from './lib/html-to-markdown';
-import { LanguageCode } from './lib/languages';
+import {
+  DEFAULT_LANGUAGE,
+  foldWord,
+  getLanguageConfig,
+  isValidLanguageCode,
+  normalizeText,
+  LanguageCode,
+} from './lib/languages';
 
 const DATA_DIR = process.env.DATA_DIR || '../data';
 const OLD_DB_PATH = path.join(DATA_DIR, 'afrikaans.db');
@@ -125,6 +132,20 @@ function getDb(): Database {
       value TEXT NOT NULL
     );
 
+    -- Per-account bring-your-own-key credentials. Secrets are application-
+    -- encrypted before they reach SQLite and are deliberately separate from
+    -- settings/data exports. The compound key leaves room for additional
+    -- providers without ever sharing credentials between tenants.
+    CREATE TABLE IF NOT EXISTS user_provider_credentials (
+      userId TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      ciphertext TEXT NOT NULL,
+      model TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, provider)
+    );
+
     CREATE TABLE IF NOT EXISTS api_tokens (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -167,40 +188,45 @@ function getDb(): Database {
       createdAt TEXT NOT NULL
     );
 
-    -- AI-translation cache. Persists structured AI translations after the user
+    -- Per-user AI-translation cache. Persists structured AI translations after the user
     -- accepts them (Save to vocab / Mark Known / set level). The dictionary
     -- read-side falls through here when the read-only kaikki dict misses, so
     -- coverage of the user's reading corpus approaches 100% over time. Lives in
     -- lector.db (the mutable DB), not the read-only dictionary-af.db.
     CREATE TABLE IF NOT EXISTS cached_entries (
-      word TEXT PRIMARY KEY,
+      userId TEXT NOT NULL DEFAULT 'local',
+      word TEXT NOT NULL,
       language TEXT NOT NULL DEFAULT 'af',
       ipa TEXT,
       etymology TEXT,
       sourceSentence TEXT,
       createdAt TEXT NOT NULL,
-      updatedAt TEXT NOT NULL
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, word, language)
     );
-    CREATE INDEX IF NOT EXISTS idx_cached_entries_language ON cached_entries(language);
 
     CREATE TABLE IF NOT EXISTS cached_senses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId TEXT NOT NULL DEFAULT 'local',
       word TEXT NOT NULL,
+      language TEXT NOT NULL DEFAULT 'af',
       pos TEXT,
       gloss TEXT NOT NULL,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (word) REFERENCES cached_entries(word) ON DELETE CASCADE
+      FOREIGN KEY (userId, word, language)
+        REFERENCES cached_entries(userId, word, language) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_cached_senses_word ON cached_senses(word);
 
     CREATE TABLE IF NOT EXISTS cached_related_forms (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId TEXT NOT NULL DEFAULT 'local',
       word TEXT NOT NULL,
+      language TEXT NOT NULL DEFAULT 'af',
       related_word TEXT NOT NULL,
       relation TEXT NOT NULL,
-      FOREIGN KEY (word) REFERENCES cached_entries(word) ON DELETE CASCADE
+      FOREIGN KEY (userId, word, language)
+        REFERENCES cached_entries(userId, word, language) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_cached_related_word ON cached_related_forms(word);
 
     -- Paddle billing mirror (#224). Written ONLY by the signature-verified
     -- webhook (routes/billing.ts); read by the billing gate (lib/billing.ts).
@@ -228,6 +254,143 @@ function getDb(): Database {
     );
     CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_userId ON billing_subscriptions(userId);
     CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_customer ON billing_subscriptions(paddleCustomerId);
+
+    -- Admin support flags (#221): manual per-account state the operator sets
+    -- from the admin dashboard. Distinct from the Paddle billing mirror (that
+    -- reflects Paddle; these are our own operator actions):
+    --   - suspended: a lapse-style lock ("suspend an abuser"), enforced by
+    --     accountStatusMiddleware (lib/admin.ts).
+    --   - compedPlan: complimentary access at a specific tier ("comp a tester
+    --     a Cloud/Plus membership") — NULL means not comped; 'cloud' | 'plus'
+    --     grants that plan on the house. It bypasses the Paddle subscription
+    --     gate (lib/billing.ts) and resolves the account to the comped tier's
+    --     limits/models in the entitlements engine (lib/entitlements.ts).
+    CREATE TABLE IF NOT EXISTS admin_account_flags (
+      userId TEXT PRIMARY KEY,
+      suspended INTEGER NOT NULL DEFAULT 0,
+      compedPlan TEXT,
+      reason TEXT,
+      updatedAt TEXT NOT NULL
+    );
+
+    -- Admin audit log (#221 follow-up): append-only record of every operator
+    -- action on an account (suspend/comp/reset-mfa/password-reset/…). The one
+    -- accountability trail — actorUserId is the admin who acted, targetUserId
+    -- the account acted on; detail carries a short human note (reason, tier).
+    -- Named actor/target columns (not a plain userId) keep it off the tenant axis.
+    CREATE TABLE IF NOT EXISTS admin_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actorUserId TEXT NOT NULL,
+      actorEmail TEXT,
+      action TEXT NOT NULL,
+      targetUserId TEXT,
+      targetEmail TEXT,
+      detail TEXT,
+      createdAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_createdAt ON admin_audit_log(createdAt);
+
+    -- Per-user usage counters for the plan-limits engine (#222). The period is
+    -- an explicit metric-owned UTC window: month ('2026-07') or day
+    -- ('2026-07-15'). Resets are the period key rolling over — no cron — and
+    -- history stays queryable for the admin dashboard. Written via
+    -- lib/entitlements.ts only.
+    CREATE TABLE IF NOT EXISTS usage_counters (
+      userId TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      period TEXT NOT NULL,
+      value INTEGER NOT NULL DEFAULT 0,
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, metric, period)
+    );
+
+    -- Guided onboarding + learner activity (#331). The profile is deliberately
+    -- small but durable: it is the first slice of the shared learner model
+    -- planned in #125. Progress is one non-restartable v1 journey per account;
+    -- events are append-only inputs shared by onboarding and future composers.
+    CREATE TABLE IF NOT EXISTS learner_profiles (
+      userId TEXT NOT NULL DEFAULT 'local',
+      language TEXT NOT NULL,
+      approximateLevel TEXT NOT NULL CHECK (approximateLevel IN ('new', 'beginner', 'intermediate', 'advanced', 'not_sure')),
+      interests TEXT NOT NULL DEFAULT '[]',
+      dailyMinutes INTEGER NOT NULL CHECK (dailyMinutes BETWEEN 5 AND 120),
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, language)
+    );
+
+    CREATE TABLE IF NOT EXISTS onboarding_progress (
+      userId TEXT PRIMARY KEY,
+      version INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed', 'skipped')),
+      currentStep TEXT NOT NULL CHECK (currentStep IN ('reader', 'practice', 'summary')),
+      language TEXT NOT NULL,
+      starterCollectionId TEXT,
+      recommendedLessonId TEXT,
+      recommendedLessonTitle TEXT,
+      nextLessonId TEXT,
+      nextLessonTitle TEXT,
+      startedAt TEXT NOT NULL,
+      completedAt TEXT,
+      updatedAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS learner_events (
+      userId TEXT NOT NULL DEFAULT 'local',
+      id TEXT NOT NULL,
+      eventType TEXT NOT NULL,
+      language TEXT NOT NULL,
+      lessonId TEXT,
+      vocabId TEXT,
+      properties TEXT NOT NULL DEFAULT '{}',
+      idempotencyKey TEXT,
+      occurredAt TEXT NOT NULL,
+      PRIMARY KEY (userId, id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_learner_events_user_occurred
+      ON learner_events(userId, occurredAt);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_learner_events_user_idempotency
+      ON learner_events(userId, idempotencyKey)
+      WHERE idempotencyKey IS NOT NULL;
+
+    -- Anki export queue (#241): cards the app wants created in Anki, pulled by
+    -- the Lector addon (GET /api/anki/pending) and confirmed back (POST
+    -- /api/anki/ack), which flips vocab.pushedToAnki. Rows reference vocab by
+    -- (userId, id) without an FK: the pending read JOINs vocab, so a row whose
+    -- entry was deleted simply never surfaces (and ack/queue clean up).
+    -- word/sentence/translation/meaning override the vocab row's values when
+    -- set — the reader's phrase-cloze and practice queue card content that
+    -- differs from the stored entry (chosen blank, practice sentence).
+    -- version increments on every re-queue; acks echo it so a stale ack (the
+    -- addon confirming content it pulled before a re-queue) can never delete
+    -- the newer row. Monotonic on purpose — same-millisecond timestamps tie.
+    CREATE TABLE IF NOT EXISTS anki_pending (
+      userId TEXT NOT NULL DEFAULT 'local',
+      vocabId TEXT NOT NULL,
+      cardType TEXT NOT NULL CHECK (cardType IN ('basic', 'word', 'cloze')),
+      word TEXT,
+      sentence TEXT,
+      translation TEXT,
+      meaning TEXT,
+      queuedAt TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (userId, vocabId, cardType)
+    );
+
+    -- In-flight classify-worker batch job (#226): when classification runs
+    -- through a provider Batch API (50% off), the submitted batch is recorded
+    -- here so a restart resumes POLLING instead of resubmitting (and paying
+    -- for) the same words. At most one row exists at a time — the worker never
+    -- submits while one is in flight. requests is JSON: the selected pending
+    -- rows grouped per batch custom_id, so results map back to the exact
+    -- (userId, word, language) rows that were submitted.
+    CREATE TABLE IF NOT EXISTS classify_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      providerBatchId TEXT NOT NULL UNIQUE,
+      provider TEXT NOT NULL,
+      submittedAt TEXT NOT NULL,
+      requests TEXT NOT NULL
+    );
   `);
 
   // Migrations for existing databases
@@ -244,6 +407,15 @@ function getDb(): Database {
   const chatCols = _db.prepare('PRAGMA table_info(chat_messages)').all() as { name: string }[];
   if (!chatCols.some((c) => c.name === 'responseId')) {
     _db.exec('ALTER TABLE chat_messages ADD COLUMN responseId TEXT');
+  }
+
+  // anki_pending predating the stale-ack guard (#241 review): add the version
+  // counter the ack round-trip now keys on.
+  const ankiPendingCols = _db.prepare('PRAGMA table_info(anki_pending)').all() as {
+    name: string;
+  }[];
+  if (ankiPendingCols.length > 0 && !ankiPendingCols.some((c) => c.name === 'version')) {
+    _db.exec('ALTER TABLE anki_pending ADD COLUMN version INTEGER NOT NULL DEFAULT 1');
   }
 
   if (!chatCols.some((c) => c.name === 'language')) {
@@ -271,7 +443,9 @@ function getDb(): Database {
   // Mirrors src/lib/server/database.ts (both servers share the SQLite file).
   const collectionCols = _db.prepare('PRAGMA table_info(collections)').all() as { name: string }[];
   if (!collectionCols.some((col) => col.name === 'groupId')) {
-    _db.exec('ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL');
+    _db.exec(
+      'ALTER TABLE collections ADD COLUMN groupId TEXT REFERENCES collection_groups(id) ON DELETE SET NULL',
+    );
   }
   if (!collectionCols.some((col) => col.name === 'sortOrder')) {
     _db.exec('ALTER TABLE collections ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0');
@@ -281,6 +455,7 @@ function getDb(): Database {
   migrateBooks(_db);
   migrateAddLanguageColumn(_db);
   migrateCachedEntriesCompoundKey(_db);
+  migrateAcceptedCacheUserKey(_db);
 
   // dailyStats.ankiReviews — Anki reviews/day synced from AnkiConnect, counted
   // toward the activity heatmap + streak. Added after the language migration
@@ -314,7 +489,104 @@ function getDb(): Database {
 
   ensurePartitionIndexes(_db);
 
+  // Runs every boot (idempotent, write-free when clean); after the schema
+  // migrations so userId/language/domain all exist.
+  migrateFoldWordKeys(_db);
+
   return _db;
+}
+
+// Merge-priority when two knownWords rows fold onto the same key: the most
+// deliberate signal wins ('ignored' and 'known' are explicit user choices;
+// levels rank by progress).
+const FOLD_MERGE_PRIORITY: Record<string, number> = {
+  ignored: 6,
+  known: 5,
+  level4: 4,
+  level3: 3,
+  level2: 2,
+  level1: 1,
+  new: 0,
+};
+
+/**
+ * Re-key stored words through foldWord (#289 Phase 0, item 0.9): vocab keys
+ * predating NFC normalization (decomposed macOS input, soft hyphens, odd
+ * case) would no longer be hit by folded lookups. Runs every boot — cheap
+ * scan, and only writes when it finds an unnormalized key. Rows whose keys
+ * collide after folding are merged (highest FOLD_MERGE_PRIORITY state wins;
+ * a classified domain survives a null one). vocab.text is display data, so
+ * it is NFC-normalized in place without deduping (its PK is the id).
+ * Exported for tests.
+ */
+export function migrateFoldWordKeys(database: Database) {
+  const packFor = (language: string) =>
+    getLanguageConfig(isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE);
+
+  const knownRows = database
+    .prepare('SELECT userId, word, language, state, domain FROM knownWords')
+    .all() as Array<{
+    userId: string;
+    word: string;
+    language: string;
+    state: string;
+    domain: string | null;
+  }>;
+  const knownChanges = knownRows
+    .map((row) => ({ row, folded: foldWord(row.word, packFor(row.language)) }))
+    .filter(({ row, folded }) => folded !== row.word);
+
+  const vocabRows = database.prepare('SELECT userId, id, text FROM vocab').all() as Array<{
+    userId: string;
+    id: string;
+    text: string;
+  }>;
+  const vocabChanges = vocabRows
+    .map((row) => ({ row, normalized: normalizeText(row.text) }))
+    .filter(({ row, normalized }) => normalized !== row.text);
+
+  if (knownChanges.length === 0 && vocabChanges.length === 0) return;
+
+  const selectTarget = database.prepare(
+    'SELECT state, domain FROM knownWords WHERE userId = ? AND word = ? AND language = ?',
+  );
+  const rekey = database.prepare(
+    'UPDATE knownWords SET word = ? WHERE userId = ? AND word = ? AND language = ?',
+  );
+  const mergeTarget = database.prepare(
+    'UPDATE knownWords SET state = ?, domain = ? WHERE userId = ? AND word = ? AND language = ?',
+  );
+  const dropLoser = database.prepare(
+    'DELETE FROM knownWords WHERE userId = ? AND word = ? AND language = ?',
+  );
+  const retext = database.prepare('UPDATE vocab SET text = ? WHERE userId = ? AND id = ?');
+
+  database.transaction(() => {
+    for (const { row, folded } of knownChanges) {
+      // Look up the live table each time: an earlier iteration may have
+      // re-keyed another variant onto this row's folded key already.
+      const target = selectTarget.get(row.userId, folded, row.language) as
+        | { state: string; domain: string | null }
+        | undefined;
+      if (!target) {
+        rekey.run(folded, row.userId, row.word, row.language);
+        continue;
+      }
+      const winnerState =
+        (FOLD_MERGE_PRIORITY[row.state] ?? 0) > (FOLD_MERGE_PRIORITY[target.state] ?? 0)
+          ? row.state
+          : target.state;
+      mergeTarget.run(winnerState, target.domain ?? row.domain, row.userId, folded, row.language);
+      dropLoser.run(row.userId, row.word, row.language);
+    }
+    for (const { row, normalized } of vocabChanges) {
+      retext.run(normalized, row.userId, row.id);
+    }
+  })();
+
+  console.log(
+    `[db] fold-key migration: re-keyed ${knownChanges.length} known word(s), normalized ${vocabChanges.length} vocab text(s)`,
+  );
 }
 
 /**
@@ -348,8 +620,9 @@ function ensurePartitionIndexes(database: Database) {
  * deployments (one user, 'local'); the isolation boundary for cloud (#218).
  * Same shape as migrateAddLanguageColumn: plain ALTER where the PK is
  * unaffected, guarded transactional rebuilds where userId joins the PK.
- * Shared read-only data (cached_entries/senses/related_forms, dictionaries,
- * sentence banks) deliberately stays global — see plan 010.
+ * Accepted AI dictionary entries are migrated separately as tenant data by
+ * migrateAcceptedCacheUserKey. Only curated dictionaries and sentence banks
+ * deliberately stay global.
  */
 function migrateAddUserIdColumn(database: Database) {
   const alterTables = [
@@ -508,7 +781,18 @@ export function migrateCompositeTenantKeys(database: Database) {
           lastReadAt TEXT NOT NULL,
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'title', 'author', 'coverUrl', 'groupId', 'sortOrder', 'language', 'createdAt', 'lastReadAt'],
+      columns: [
+        'userId',
+        'id',
+        'title',
+        'author',
+        'coverUrl',
+        'groupId',
+        'sortOrder',
+        'language',
+        'createdAt',
+        'lastReadAt',
+      ],
       indexSql: [],
     },
     {
@@ -530,7 +814,20 @@ export function migrateCompositeTenantKeys(database: Database) {
           PRIMARY KEY (userId, id),
           FOREIGN KEY (userId, collectionId) REFERENCES collections(userId, id) ON DELETE CASCADE
         )`,
-      columns: ['userId', 'id', 'collectionId', 'title', 'sortOrder', 'textContent', 'progress_scrollPosition', 'progress_percentComplete', 'wordCount', 'language', 'createdAt', 'lastReadAt'],
+      columns: [
+        'userId',
+        'id',
+        'collectionId',
+        'title',
+        'sortOrder',
+        'textContent',
+        'progress_scrollPosition',
+        'progress_percentComplete',
+        'wordCount',
+        'language',
+        'createdAt',
+        'lastReadAt',
+      ],
       indexSql: [
         'CREATE INDEX IF NOT EXISTS idx_lessons_collectionId ON lessons(collectionId)',
         'CREATE INDEX IF NOT EXISTS idx_lessons_sortOrder ON lessons(collectionId, sortOrder)',
@@ -557,7 +854,23 @@ export function migrateCompositeTenantKeys(database: Database) {
           ankiNoteId INTEGER,
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'text', 'type', 'sentence', 'translation', 'state', 'stateUpdatedAt', 'reviewCount', 'bookId', 'chapter', 'language', 'createdAt', 'pushedToAnki', 'ankiNoteId'],
+      columns: [
+        'userId',
+        'id',
+        'text',
+        'type',
+        'sentence',
+        'translation',
+        'state',
+        'stateUpdatedAt',
+        'reviewCount',
+        'bookId',
+        'chapter',
+        'language',
+        'createdAt',
+        'pushedToAnki',
+        'ankiNoteId',
+      ],
       indexSql: [
         'CREATE INDEX IF NOT EXISTS idx_vocab_text ON vocab(text)',
         'CREATE INDEX IF NOT EXISTS idx_vocab_state ON vocab(state)',
@@ -590,7 +903,27 @@ export function migrateCompositeTenantKeys(database: Database) {
           language TEXT NOT NULL DEFAULT 'af',
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'sentence', 'clozeWord', 'clozeIndex', 'translation', 'source', 'collection', 'wordRank', 'tatoebaSentenceId', 'vocabEntryId', 'masteryLevel', 'nextReview', 'reviewCount', 'lastReviewed', 'timesCorrect', 'timesIncorrect', 'blacklisted', 'language'],
+      columns: [
+        'userId',
+        'id',
+        'sentence',
+        'clozeWord',
+        'clozeIndex',
+        'translation',
+        'source',
+        'collection',
+        'wordRank',
+        'tatoebaSentenceId',
+        'vocabEntryId',
+        'masteryLevel',
+        'nextReview',
+        'reviewCount',
+        'lastReviewed',
+        'timesCorrect',
+        'timesIncorrect',
+        'blacklisted',
+        'language',
+      ],
       indexSql: [
         'CREATE INDEX IF NOT EXISTS idx_cloze_collection ON clozeSentences(collection)',
         'CREATE INDEX IF NOT EXISTS idx_cloze_nextReview ON clozeSentences(nextReview)',
@@ -612,8 +945,19 @@ export function migrateCompositeTenantKeys(database: Database) {
           language TEXT NOT NULL DEFAULT 'af',
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'role', 'content', 'provider', 'responseId', 'createdAt', 'language'],
-      indexSql: ['CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt)'],
+      columns: [
+        'userId',
+        'id',
+        'role',
+        'content',
+        'provider',
+        'responseId',
+        'createdAt',
+        'language',
+      ],
+      indexSql: [
+        'CREATE INDEX IF NOT EXISTS idx_chat_messages_createdAt ON chat_messages(createdAt)',
+      ],
     },
     {
       table: 'journal_entries',
@@ -632,7 +976,19 @@ export function migrateCompositeTenantKeys(database: Database) {
           updatedAt TEXT NOT NULL,
           PRIMARY KEY (userId, id)
         )`,
-      columns: ['userId', 'id', 'body', 'correctedBody', 'corrections', 'status', 'wordCount', 'language', 'entryDate', 'createdAt', 'updatedAt'],
+      columns: [
+        'userId',
+        'id',
+        'body',
+        'correctedBody',
+        'corrections',
+        'status',
+        'wordCount',
+        'language',
+        'entryDate',
+        'createdAt',
+        'updatedAt',
+      ],
       indexSql: [
         'CREATE INDEX IF NOT EXISTS idx_journal_entryDate ON journal_entries(entryDate)',
         'CREATE INDEX IF NOT EXISTS idx_journal_status ON journal_entries(status)',
@@ -669,7 +1025,9 @@ export function migrateCompositeTenantKeys(database: Database) {
  */
 export function migrateLlmProviderSettings(database: Database) {
   const getSetting = (key: string): unknown => {
-    const row = database.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+    const row = database.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+      | { value: string }
+      | undefined;
     if (!row) return null;
     try {
       return JSON.parse(row.value);
@@ -678,7 +1036,9 @@ export function migrateLlmProviderSettings(database: Database) {
     }
   };
   const setSetting = (key: string, value: unknown) => {
-    database.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, JSON.stringify(value));
+    database
+      .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+      .run(key, JSON.stringify(value));
   };
 
   const provider = getSetting('llmProvider');
@@ -786,7 +1146,13 @@ function migrateCachedEntriesCompoundKey(database: Database) {
   const cachedSql = database
     .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='cached_entries'")
     .get() as { sql: string } | undefined;
-  if (!cachedSql || /PRIMARY KEY\s*\(\s*word\s*,\s*language\s*\)/i.test(cachedSql.sql)) return;
+  if (
+    !cachedSql ||
+    /PRIMARY KEY\s*\(\s*word\s*,\s*language\s*\)/i.test(cachedSql.sql) ||
+    /PRIMARY KEY\s*\(\s*userId\s*,\s*word\s*,\s*language\s*\)/i.test(cachedSql.sql)
+  ) {
+    return;
+  }
 
   database.transaction(() => {
     database.exec(`
@@ -838,6 +1204,98 @@ function migrateCachedEntriesCompoundKey(database: Database) {
       CREATE INDEX IF NOT EXISTS idx_cached_related_word ON cached_related_forms(word, language);
     `);
   })();
+}
+
+/**
+ * Public cloud accounts must never share user-accepted AI dictionary rows.
+ * Historical rows have no attributable owner, so they belong only to the
+ * implicit self-hosted `local` tenant. This runs after the old word/language
+ * compound-key migration and is intentionally idempotent.
+ */
+function ensureAcceptedCacheUserIndexes(database: Database) {
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_cached_entries_user_language
+      ON cached_entries(userId, language);
+    CREATE INDEX IF NOT EXISTS idx_cached_senses_user_word
+      ON cached_senses(userId, word, language);
+    CREATE INDEX IF NOT EXISTS idx_cached_related_user_word
+      ON cached_related_forms(userId, word, language);
+  `);
+}
+
+export function migrateAcceptedCacheUserKey(database: Database) {
+  const columns = database.prepare('PRAGMA table_info(cached_entries)').all() as Array<{
+    name: string;
+    pk: number;
+  }>;
+  if (columns.length === 0) return;
+
+  const primaryKey = columns
+    .filter((column) => column.pk > 0)
+    .sort((a, b) => a.pk - b.pk)
+    .map((column) => column.name);
+  if (primaryKey.join(',') === 'userId,word,language') {
+    ensureAcceptedCacheUserIndexes(database);
+    return;
+  }
+
+  database.transaction(() => {
+    database.exec(`
+      CREATE TABLE cached_entries_tenant_new (
+        userId TEXT NOT NULL DEFAULT 'local',
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        ipa TEXT,
+        etymology TEXT,
+        sourceSentence TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        PRIMARY KEY (userId, word, language)
+      );
+      INSERT INTO cached_entries_tenant_new
+        (userId, word, language, ipa, etymology, sourceSentence, createdAt, updatedAt)
+        SELECT 'local', word, language, ipa, etymology, sourceSentence, createdAt, updatedAt
+        FROM cached_entries;
+
+      CREATE TABLE cached_senses_tenant_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId TEXT NOT NULL DEFAULT 'local',
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        pos TEXT,
+        gloss TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (userId, word, language)
+          REFERENCES cached_entries_tenant_new(userId, word, language) ON DELETE CASCADE
+      );
+      INSERT INTO cached_senses_tenant_new
+        (id, userId, word, language, pos, gloss, sort_order)
+        SELECT id, 'local', word, language, pos, gloss, sort_order FROM cached_senses;
+
+      CREATE TABLE cached_related_forms_tenant_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId TEXT NOT NULL DEFAULT 'local',
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        related_word TEXT NOT NULL,
+        relation TEXT NOT NULL,
+        FOREIGN KEY (userId, word, language)
+          REFERENCES cached_entries_tenant_new(userId, word, language) ON DELETE CASCADE
+      );
+      INSERT INTO cached_related_forms_tenant_new
+        (id, userId, word, language, related_word, relation)
+        SELECT id, 'local', word, language, related_word, relation FROM cached_related_forms;
+
+      DROP TABLE cached_senses;
+      DROP TABLE cached_related_forms;
+      DROP TABLE cached_entries;
+      ALTER TABLE cached_entries_tenant_new RENAME TO cached_entries;
+      ALTER TABLE cached_senses_tenant_new RENAME TO cached_senses;
+      ALTER TABLE cached_related_forms_tenant_new RENAME TO cached_related_forms;
+    `);
+  })();
+
+  ensureAcceptedCacheUserIndexes(database);
 }
 
 function migrateVocabForeignKey(database: Database) {
@@ -1010,7 +1468,7 @@ function migrateBooks(database: Database) {
 export const db = new Proxy({} as Database, {
   get(_target, prop) {
     const realDb = getDb();
-    const value = (realDb as Record<string | symbol, unknown>)[prop];
+    const value = (realDb as unknown as Record<string | symbol, unknown>)[prop];
     if (typeof value === 'function') {
       return (value as (...args: unknown[]) => unknown).bind(realDb);
     }
@@ -1110,6 +1568,20 @@ export interface KnownWordRow {
   state: WordState;
 }
 
+export type AnkiCardType = 'basic' | 'word' | 'cloze';
+
+export interface AnkiPendingRow {
+  userId: string;
+  vocabId: string;
+  cardType: AnkiCardType;
+  word: string | null;
+  sentence: string | null;
+  translation: string | null;
+  meaning: string | null;
+  queuedAt: string;
+  version: number;
+}
+
 export interface ClozeSentenceRow {
   userId: string;
   id: string;
@@ -1170,4 +1642,46 @@ export interface ChatMessageRow {
   responseId: string | null;
   createdAt: string;
   language: LanguageCode;
+}
+
+export type ApproximateLevel = 'new' | 'beginner' | 'intermediate' | 'advanced' | 'not_sure';
+export type OnboardingStatus = 'in_progress' | 'completed' | 'skipped';
+export type OnboardingStep = 'reader' | 'practice' | 'summary';
+
+export interface LearnerProfileRow {
+  userId: string;
+  language: LanguageCode;
+  approximateLevel: ApproximateLevel;
+  interests: string;
+  dailyMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OnboardingProgressRow {
+  userId: string;
+  version: number;
+  status: OnboardingStatus;
+  currentStep: OnboardingStep;
+  language: LanguageCode;
+  starterCollectionId: string | null;
+  recommendedLessonId: string | null;
+  recommendedLessonTitle: string | null;
+  nextLessonId: string | null;
+  nextLessonTitle: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  updatedAt: string;
+}
+
+export interface LearnerEventRow {
+  userId: string;
+  id: string;
+  eventType: string;
+  language: LanguageCode;
+  lessonId: string | null;
+  vocabId: string | null;
+  properties: string;
+  idempotencyKey: string | null;
+  occurredAt: string;
 }

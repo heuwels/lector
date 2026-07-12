@@ -59,9 +59,27 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # Optional: Google Cloud API key (for TTS)
 GOOGLE_CLOUD_API_KEY=...
+
+# Background word→domain classifier feeding the Stats fluency radar. The code
+# default is OFF (keeps tests LLM-free), so opt in wherever the radar should
+# populate; the shipped compose files set it for you.
+CLASSIFY_WORKER=1
 ```
 
 The app works without API keys — the local dictionary covers the top 2000 words. Claude API is only needed for uncommon words and phrase translation.
+
+#### Cost controls ([#226](https://github.com/heuwels/lector/issues/226))
+
+Synthesized audio is **cached** and repeat requests for the same (language, voice, rate, text) are served from the cache instead of re-billed — this also covers your own Google bill when self-hosting. On by default, storing under `DATA_DIR/tts-cache`:
+
+- `TTS_CACHE=0` — disable caching entirely
+- `TTS_CACHE_MAX_BYTES` — disk-cache size cap, least-recently-used entries evicted (default 1 GiB)
+- `TTS_CACHE_S3_BUCKET` — store audio in S3-compatible object storage instead of disk (for cloud/multi-instance). Optional companions: `TTS_CACHE_S3_REGION`, `TTS_CACHE_S3_PREFIX` (default `tts-cache/`), `TTS_CACHE_S3_ENDPOINT` (R2/MinIO), with credentials from the standard `AWS_*`/`S3_*` env vars. No eviction is done in S3 — attach a bucket lifecycle rule instead.
+
+The word→domain classifier runs through the provider's **Batch API at 50% of synchronous pricing** whenever the classification provider supports it (currently: Anthropic with API-key auth — the default setup). Providers without a batch endpoint (LM Studio, Ollama, OpenRouter) keep the synchronous path automatically. Batches turn around in minutes, so a fresh install's radar fills slightly slower in exchange for half-price classification:
+
+- `CLASSIFY_BATCH=0` — force the synchronous path even when batching is available
+- `CLASSIFY_BATCH_MAX_REQUESTS` — prompts per submitted batch, each carrying `CLASSIFY_BATCH_SIZE` words (default 40 × 30 = up to 1,200 words per batch)
 
 #### Deployment mode
 
@@ -82,16 +100,18 @@ Signed-in cloud users can mint **personal API tokens** in Settings — the same 
 
 The **cloud canary** exception is unchanged: `LECTOR_CLOUD_GATE=external` declares that an authenticating gateway (e.g. Cloudflare Access) fronts every request, letting cloud mode boot with app-level auth delegated to the gate (built-in accounts are not mounted). The full canary deployment (AWS CDK + Cloudflare Tunnel) lives in [`deploy/cloud/`](deploy/cloud/).
 
-### AnkiConnect
+### Anki
 
-The app connects directly to AnkiConnect on `localhost:8765` from your browser. Install the [AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159) in Anki Desktop.
+Two integrations, by deployment shape ([#241](https://github.com/heuwels/lector/issues/241)):
 
-In AnkiConnect's config, ensure your app origin is allowed:
+**Self-host — AnkiConnect (browser-direct).** The app connects directly to AnkiConnect on `localhost:8765` from your browser. Install the [AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159) in Anki Desktop, and in its config ensure your app origin is allowed:
 ```json
 {
   "webCorsOriginList": ["http://localhost:3000"]
 }
 ```
+
+**The Lector Sync add-on (cloud, and any HTTPS/remote self-host).** A hosted HTTPS page can't call your machine's `localhost:8765` (Chrome's Local Network Access blocks it), so the alternative transport is [`anki-addon/`](anki-addon/): it runs inside Anki Desktop, pulls the cards you queue in Lector onto structured `Lector` note types (upserted by `LectorId` — no duplicates), and pushes your review states back so word states upgrade automatically. Point its `api_url` at whichever Lector you use — the hosted app or your own origin. Cloud always uses this transport; self-hosters switch to it under **Settings → Anki Integration → Connection** (setup instructions appear there).
 
 ## Docker Deployment
 
@@ -116,6 +136,7 @@ services:
       - NODE_ENV=production
       - API_URL=http://localhost:3457   # browser-facing API origin — set to http://<host>:3457 for remote access
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLASSIFY_WORKER=1   # word→domain classifier behind the fluency radar (off by default in code)
     volumes:
       - ./data:/app/data
 ```

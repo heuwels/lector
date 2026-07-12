@@ -9,7 +9,9 @@ import VocabRow from './components/VocabRow';
 import PaginationControls from './components/PaginationControls';
 import { stateFilters, stateOrder, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from './constants';
 import { AnkiCardType, SortDirection, SortField, VocabListProps } from './types';
+import { useActiveLanguage } from '@/utils/hooks';
 import { Button } from '../ui/button';
+import OnboardingTip from '@/components/OnboardingTip';
 
 export default function VocabList({
   entries,
@@ -18,6 +20,8 @@ export default function VocabList({
   onExportToAnki,
   onMarkAsKnown,
   onSyncWithAnki,
+  showAnkiOnboardingTip = false,
+  onAnkiOnboardingTipDone,
   isLoading = false,
 }: VocabListProps) {
   // Filter state
@@ -69,6 +73,11 @@ export default function VocabList({
     return map;
   }, [collections]);
 
+  // Locale-aware sort for the active language (#289): bare localeCompare uses
+  // the browser UI locale, which mis-collates ä/é/å and non-Latin scripts.
+  const pack = useActiveLanguage();
+  const collator = useMemo(() => new Intl.Collator(pack.script.bcp47), [pack]);
+
   // Filter and sort entries
   const filteredEntries = useMemo(() => {
     let result = [...entries];
@@ -105,7 +114,7 @@ export default function VocabList({
 
       switch (sortField) {
         case 'text':
-          comparison = a.text.localeCompare(b.text);
+          comparison = collator.compare(a.text, b.text);
           break;
         case 'createdAt':
           comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -116,7 +125,7 @@ export default function VocabList({
         case 'bookId':
           const titleA = a.bookId ? bookTitleMap.get(a.bookId) || '' : '';
           const titleB = b.bookId ? bookTitleMap.get(b.bookId) || '' : '';
-          comparison = titleA.localeCompare(titleB);
+          comparison = collator.compare(titleA, titleB);
           break;
       }
 
@@ -124,7 +133,16 @@ export default function VocabList({
     });
 
     return result;
-  }, [entries, stateFilter, bookFilter, searchQuery, sortField, sortDirection, bookTitleMap]);
+  }, [
+    entries,
+    stateFilter,
+    bookFilter,
+    searchQuery,
+    sortField,
+    sortDirection,
+    bookTitleMap,
+    collator,
+  ]);
 
   // Pagination derivation: the visible slice of the filtered/sorted set.
   const pageCount = getPageCount(filteredEntries.length, pageSize);
@@ -234,6 +252,8 @@ export default function VocabList({
   };
 
   const handleSyncWithAnki = async () => {
+    if (!onSyncWithAnki) return;
+    onAnkiOnboardingTipDone?.();
     setIsSyncing(true);
     try {
       await onSyncWithAnki();
@@ -321,19 +341,41 @@ export default function VocabList({
 
         <div className="flex-1" />
 
-        <Button onClick={handleSyncWithAnki} disabled={isSyncing}>
-          {isSyncing ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Syncing...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-4 w-4" />
-              Sync with Anki
-            </>
-          )}
-        </Button>
+        {onSyncWithAnki && (
+          <div className="relative">
+            <Button
+              onClick={handleSyncWithAnki}
+              disabled={isSyncing}
+              className={
+                showAnkiOnboardingTip
+                  ? 'relative z-[60] ring-2 ring-[var(--gold-strong)] ring-offset-2 ring-offset-background'
+                  : undefined
+              }
+              data-testid="sync-with-anki"
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Sync with Anki
+                </>
+              )}
+            </Button>
+            {showAnkiOnboardingTip && onAnkiOnboardingTipDone && (
+              <OnboardingTip
+                title="Anki setup"
+                body="Click here if you need help setting up your Anki."
+                onDismiss={onAnkiOnboardingTipDone}
+                testId="post-onboarding-anki-tip"
+                className="absolute top-[calc(100%+0.75rem)] right-0"
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Results count — the filtered total (the page footer shows the visible
@@ -363,9 +405,7 @@ export default function VocabList({
                 Word/Phrase
                 <SortIndicator field="text" />
               </th>
-              <th className="px-4 py-3 text-sm font-semibold text-foreground">
-                Translation
-              </th>
+              <th className="px-4 py-3 text-sm font-semibold text-foreground">Translation</th>
               <th
                 className="cursor-pointer px-4 py-3 text-center text-sm font-semibold text-foreground hover:text-foreground"
                 onClick={() => handleSort('state')}
@@ -387,9 +427,7 @@ export default function VocabList({
                 Date Added
                 <SortIndicator field="createdAt" />
               </th>
-              <th className="px-4 py-3 text-sm font-semibold text-foreground">
-                Anki
-              </th>
+              <th className="px-4 py-3 text-sm font-semibold text-foreground">Anki</th>
             </tr>
           </thead>
           <tbody>
@@ -451,9 +489,7 @@ export default function VocabList({
             className="w-full max-w-md rounded-xl bg-card p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-1 text-lg font-semibold text-foreground">
-              Export to Anki
-            </h2>
+            <h2 className="mb-1 text-lg font-semibold text-foreground">Export to Anki</h2>
             <p className="mb-5 text-sm text-muted-foreground">
               {selectedIds.size} {selectedIds.size === 1 ? 'word' : 'words'} selected. Choose a card
               type.
@@ -506,18 +542,10 @@ export default function VocabList({
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setExportModalOpen(false)}
-              >
+              <Button type="button" variant="ghost" onClick={() => setExportModalOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                type="button"
-                data-testid="anki-export-confirm"
-                onClick={confirmExportToAnki}
-              >
+              <Button type="button" data-testid="anki-export-confirm" onClick={confirmExportToAnki}>
                 Export {selectedIds.size} {selectedIds.size === 1 ? 'card' : 'cards'}
               </Button>
             </div>

@@ -108,6 +108,9 @@ export default function APITokens() {
                 { value: 'data:import', label: 'Data Import' },
                 { value: 'chat:read', label: 'Chat / LLM (read)' },
                 { value: 'chat:write', label: 'Chat / LLM (write)' },
+                // The Anki addon's token (#241) — its setup copy points here.
+                { value: 'anki:read', label: 'Anki sync (read)' },
+                { value: 'anki:write', label: 'Anki sync (write)' },
               ].map(({ value, label }) => (
                 <label
                   key={value}

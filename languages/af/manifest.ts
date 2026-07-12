@@ -16,4 +16,17 @@ export const af = {
   fallbackTts: ['af', 'nl-NL', 'nl'],
   avoidWords: AVOID_WORDS,
   testPhrase: 'Hallo, hoe gaan dit met jou?',
+  script: {
+    bcp47: 'af',
+    direction: 'ltr' as const,
+    kind: 'alpha-spaced' as const,
+    hasCase: true,
+    // The 'n indefinite article is a word of its own, apostrophe included —
+    // matched ahead of the engine's letter-run pattern (any apostrophe variant,
+    // since curly-quote autocorrect regularly produces ‘n/’n). The boundary
+    // must be Unicode-aware, NOT \b: ASCII \b saw a word edge between N and á
+    // in "‘Ná my kom…" (á isn't ASCII \w), so the opening quote + N matched as
+    // the article and orphaned the "á".
+    extraTokenPatterns: ["['‘’ʼ`]n(?![\\p{L}\\p{M}0-9_])"],
+  },
 };

@@ -8,9 +8,39 @@ import { navLinks } from './constants';
 import NavLink from './components/NavLink';
 import AppName from './components/AppName';
 import AccountMenu from './components/AccountMenu';
+import AdminNavLink from './components/AdminNavLink';
+import {
+  advancePostOnboardingTour,
+  finishPostOnboardingTour,
+  usePostOnboardingTour,
+} from '@/lib/post-onboarding-tour';
+import type { NavTourTip } from './components/NavLink';
 
 export default function NavHeader() {
   const pathname = usePathname();
+  const postOnboardingTour = usePostOnboardingTour();
+
+  const tourTipFor = (href: string): NavTourTip | undefined => {
+    if (postOnboardingTour?.stage === 'practice' && href === '/practice') {
+      return {
+        title: 'Practice later',
+        body: 'Go to the Practice tab to review words later.',
+        testId: 'post-onboarding-practice-tip',
+        onNavigate: () => advancePostOnboardingTour('vocab'),
+        onDismiss: finishPostOnboardingTour,
+      };
+    }
+    if (postOnboardingTour?.stage === 'vocab' && href === '/vocab') {
+      return {
+        title: 'Your vocabulary',
+        body: "Review the vocabulary you've interacted with in the Vocabulary tab.",
+        testId: 'post-onboarding-vocab-tip',
+        onNavigate: () => advancePostOnboardingTour('anki'),
+        onDismiss: finishPostOnboardingTour,
+      };
+    }
+    return undefined;
+  };
 
   // Auth pages are pre-session chrome (#218): no nav — its links would all
   // 401 for a signed-out cloud visitor. Same on /subscribe (#224), where
@@ -40,8 +70,16 @@ export default function NavHeader() {
 
         <nav className="flex-1 space-y-1 px-3 py-2">
           {navLinks.map((link) => {
-            return <NavLink key={link.href} link={link} isMobile={false} />;
+            return (
+              <NavLink
+                key={link.href}
+                link={link}
+                isMobile={false}
+                tourTip={tourTipFor(link.href)}
+              />
+            );
           })}
+          <AdminNavLink isMobile={false} />
         </nav>
 
         <AccountMenu />
@@ -55,8 +93,9 @@ export default function NavHeader() {
       <nav className="fixed right-0 bottom-0 left-0 z-50 border-t border-border bg-card sm:hidden print:hidden">
         <div className="flex items-stretch">
           {navLinks.map((link) => {
-            return <NavLink key={link.href} link={link} isMobile />;
+            return <NavLink key={link.href} link={link} isMobile tourTip={tourTipFor(link.href)} />;
           })}
+          <AdminNavLink isMobile />
         </div>
       </nav>
     </>

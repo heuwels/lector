@@ -3,14 +3,25 @@ name: CI
 on:
   pull_request:
     branches: [master]
-  # Direct pushes to master publish a Docker image (docker.yml) — run the same
-  # gates there so an image sha never ships without a green suite next to it
-  # (DX-02). True *blocking* requires a branch-protection rule; this gives the
-  # signal.
-  push:
-    branches: [master]
+  workflow_dispatch:
 
 jobs:
+  deployment-script-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate gated deployment and rollback
+        run: bash deploy/cloud/deploy-cloud.test.sh
+
+  # Anki addon (#241): aqt-free contract tests over anki-addon/lector — chunk
+  # ceilings vs the API's batch caps, review-payload shape, ownership scoping.
+  addon-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Anki addon contract tests
+        run: python3 -m unittest discover -s anki-addon/tests -v
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -58,6 +69,17 @@ jobs:
             echo "${!sha}  data/dictionary-${L}.db" | sha256sum -c -
           done
       - run: npm test
+      - name: Verify starter content
+        # Packs that ship a starter series (#317) must stay verifier-clean:
+        # band discipline, every token dictionary-resolvable, and ≥90% of the
+        # top-1,000 introduced. Skips languages without a starter manifest.
+        run: |
+          set -a; . ./dict.env; set +a
+          for L in $DICT_LANGS; do
+            if [ -f "languages/$L/content/starter/manifest.json" ]; then
+              npx tsx scripts/verify-starter-content.ts --lang "$L" --require-coverage 90
+            fi
+          done
 
   api-tests:
     runs-on: ubuntu-latest
@@ -65,6 +87,9 @@ jobs:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+        working-directory: api
+      - name: Typecheck API
+        run: bun run typecheck
         working-directory: api
       # bun run test, not bare bun test — the script isolates DATA_DIR
       - run: bun run test
@@ -134,23 +159,24 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       # Registry build cache is shared across branches (unlike type=gha, which is
-      # branch-isolated), so this PR build populates the cache that docker.yml's
-      # publish build on master then reuses — no second from-scratch image build.
+      # branch-isolated), so this PR/manual build populates the cache that
+      # docker.yml's publish build on master then reuses — no second from-scratch
+      # image build.
       # Fork PRs can't push to ghcr: skip the login; cache-to then fails soft
       # (ignore-error) and cache-from simply misses.
       - name: Log in to ghcr (build cache)
-        # Same-repo PRs and pushes to master can write the cache; fork PRs
-        # can't push to ghcr — skip login, cache-to fails soft (ignore-error).
-        if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: docker/login-action@v3
+        # Same-repo PRs and manual runs can write the cache; fork PRs can't push
+        # to ghcr — skip login, cache-to fails soft (ignore-error).
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build production image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
