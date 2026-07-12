@@ -19,7 +19,12 @@ function seed(id: string, text: string, language: string, createdAt = TS) {
 }
 
 describe('GET /api/vocab?text= (#240)', () => {
-  const clear = () => db.prepare('DELETE FROM vocab').run();
+  const clear = () => {
+    db.prepare('DELETE FROM knownWords').run();
+    db.prepare('DELETE FROM vocab').run();
+    db.prepare('DELETE FROM lessons').run();
+    db.prepare('DELETE FROM collections').run();
+  };
   beforeEach(clear);
   afterEach(clear);
 
@@ -51,5 +56,47 @@ describe('GET /api/vocab?text= (#240)', () => {
 
     const all = (await (await app.request('/?language=af')).json()) as unknown[];
     expect(all.length).toBe(1);
+  });
+
+  test('POST accepts the reader lesson reference and rejects a collection id', async () => {
+    db.prepare(
+      `INSERT INTO collections (id, title, author, language, createdAt, lastReadAt, userId)
+       VALUES ('collection-1', 'Reader test', 'Unknown', 'af', ?, ?, 'local')`,
+    ).run(TS, TS);
+    db.prepare(
+      `INSERT INTO lessons
+        (id, collectionId, title, textContent, language, createdAt, lastReadAt, userId)
+       VALUES ('lesson-1', 'collection-1', 'Chapter', '', 'af', ?, ?, 'local')`,
+    ).run(TS, TS);
+
+    const readerSave = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'reader-word',
+        text: 'huis',
+        type: 'word',
+        sentence: 'Die huis is groot.',
+        translation: 'house',
+        state: 'known',
+        stateUpdatedAt: TS,
+        reviewCount: 0,
+        bookId: 'lesson-1',
+        createdAt: TS,
+        pushedToAnki: false,
+        language: 'af',
+      }),
+    });
+    expect(readerSave.status).toBe(200);
+    expect(db.prepare("SELECT bookId FROM vocab WHERE id = 'reader-word'").get()).toEqual({
+      bookId: 'lesson-1',
+    });
+
+    const wrongTarget = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'wrong-source', text: 'boom', bookId: 'collection-1' }),
+    });
+    expect(wrongTarget.status).toBe(400);
   });
 });

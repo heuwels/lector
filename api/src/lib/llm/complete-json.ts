@@ -85,7 +85,12 @@ export async function completeJson<T>(
 ): Promise<T> {
   const { maxRetryTokens, ...completionOptions } = options;
   const format = options.responseFormat ?? 'json-object';
-  const firstOptions: CompletionOptions = { ...completionOptions, responseFormat: format };
+  const firstAttempt = options.attempt ?? 1;
+  const firstOptions: CompletionOptions = {
+    ...completionOptions,
+    responseFormat: format,
+    attempt: firstAttempt,
+  };
 
   let retryTokens = options.maxTokens;
   let retryMessages = options.messages;
@@ -106,6 +111,7 @@ export async function completeJson<T>(
     ...firstOptions,
     messages: retryMessages,
     maxTokens: retryTokens,
+    attempt: firstAttempt + 1,
   };
   try {
     const retry = await attempt<T>(provider, retryOptions, format);

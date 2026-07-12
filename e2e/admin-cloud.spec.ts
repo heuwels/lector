@@ -14,7 +14,7 @@ import path from 'path';
  * multi-user pattern; accounts persist server-side across the serial block.
  */
 
-const ADMIN_API = 'http://localhost:3471';
+const ADMIN_API = `http://localhost:${process.env.E2E_ADMIN_API_PORT || '3471'}`;
 const EMAILS_FILE = path.join(__dirname, '..', 'tmp', 'e2e-admin-data', 'emails.jsonl');
 
 test.skip(!!process.env.E2E_EXTERNAL_SERVER, 'no admin-mode API in the external-server run');

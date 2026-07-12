@@ -18,9 +18,17 @@ import path from 'path';
 // without a language filter, so they are out of scope here.
 
 const PARTITIONED = [
-  'collections', 'lessons', 'vocab', 'clozeSentences', 'journal_entries',
-  'chat_messages', 'knownWords', 'dailyStats',
-  'cached_entries', 'cached_senses', 'cached_related_forms',
+  'collections',
+  'lessons',
+  'vocab',
+  'clozeSentences',
+  'journal_entries',
+  'chat_messages',
+  'knownWords',
+  'dailyStats',
+  'cached_entries',
+  'cached_senses',
+  'cached_related_forms',
 ];
 
 // Deliberate cross-language statements, matched by a distinctive substring within
@@ -37,24 +45,67 @@ const ALLOWLIST: { file: string; match: string; why: string; transient?: boolean
   { file: 'lib/user-export.ts', match: 'SELECT * FROM lessons', why: 'full-DB backup export' },
   { file: 'lib/user-export.ts', match: 'SELECT * FROM vocab', why: 'full-DB backup export' },
   { file: 'lib/user-export.ts', match: 'SELECT * FROM knownWords', why: 'full-DB backup export' },
-  { file: 'lib/user-export.ts', match: 'SELECT * FROM clozeSentences', why: 'full-DB backup export' },
+  {
+    file: 'lib/user-export.ts',
+    match: 'SELECT * FROM clozeSentences',
+    why: 'full-DB backup export',
+  },
+  {
+    file: 'lib/user-export.ts',
+    match: 'SELECT * FROM journal_entries',
+    why: 'full-DB backup export',
+  },
   { file: 'lib/user-export.ts', match: 'SELECT * FROM dailyStats', why: 'full-DB backup export' },
   // Admin dashboard (#221): service-wide aggregates that intentionally span
   // every language — per-user storage (lesson-text bytes) and last-active day.
-  { file: 'routes/admin.ts', match: 'SUM(LENGTH(textContent))', why: 'admin: per-user storage across languages' },
-  { file: 'routes/admin.ts', match: 'MAX(date) AS d FROM dailyStats', why: 'admin: last-active across languages' },
+  {
+    file: 'routes/admin.ts',
+    match: 'SUM(LENGTH(textContent))',
+    why: 'admin: per-user storage across languages',
+  },
+  {
+    file: 'routes/admin.ts',
+    match: 'MAX(date) AS d FROM dailyStats',
+    why: 'admin: last-active across languages',
+  },
   // One streak across all languages (CLAUDE.md / issue #108): aggregates every day row.
-  { file: 'routes/stats.ts', match: 'dictionaryLookups, clozePracticed, minutesRead, ankiReviews', why: 'app-wide streak' },
+  {
+    file: 'routes/stats.ts',
+    match: 'dictionaryLookups, clozePracticed, minutesRead, ankiReviews',
+    why: 'app-wide streak',
+  },
   // The heatmap must agree with that app-wide streak (#238): same unscoped stance,
   // summed per date across languages.
-  { file: 'routes/stats.ts', match: 'SUM(dictionaryLookups) as dictionaryLookups', why: 'app-wide activity heatmap' },
+  {
+    file: 'routes/stats.ts',
+    match: 'SUM(dictionaryLookups) as dictionaryLookups',
+    why: 'app-wide activity heatmap',
+  },
   // "Did you study today" is app-wide (Sphere Guardian MCP): sums every language for the date.
-  { file: 'routes/study-ping.ts', match: 'COALESCE(SUM(dictionaryLookups)', why: 'app-wide study-today aggregate' },
+  {
+    file: 'routes/study-ping.ts',
+    match: 'COALESCE(SUM(dictionaryLookups)',
+    why: 'app-wide study-today aggregate',
+  },
   // Chat history TTL cleanup is age-based, not language-based — expires old rows of any language.
-  { file: 'routes/chat.ts', match: 'DELETE FROM chat_messages WHERE createdAt', why: 'age-based TTL cleanup' },
+  {
+    file: 'routes/chat.ts',
+    match: 'DELETE FROM chat_messages WHERE createdAt',
+    why: 'age-based TTL cleanup',
+  },
   // The bundled sentence bank is single-language; the seed dedup reconciles within
   // it. Per-language scoping rides with the in-flight cloze-bank rework.
-  { file: 'routes/cloze.ts', match: 'WHERE tatoebaSentenceId IS NOT NULL', why: 'single-language seed dedup', transient: true },
+  {
+    file: 'routes/cloze.ts',
+    match: 'WHERE tatoebaSentenceId IS NOT NULL',
+    why: 'single-language seed dedup',
+    transient: true,
+  },
+  {
+    file: 'routes/cloze.ts',
+    match: 'id IN (${placeholders})',
+    why: 'storage preflight for per-tenant ids before the matching composite-key upsert',
+  },
 ];
 
 const SRC = import.meta.dir; // api/src
@@ -118,8 +169,7 @@ describe('language-partitioning ratchet', () => {
   });
 
   test('every non-transient ALLOWLIST entry still matches a live statement', () => {
-    const stale = ALLOWLIST
-      .map((a, i) => ({ a, i }))
+    const stale = ALLOWLIST.map((a, i) => ({ a, i }))
       .filter(({ a, i }) => !a.transient && !usedAllowlist.has(i))
       .map(({ a }) => `${a.file} :: ${a.match}`);
     expect(stale).toEqual([]);

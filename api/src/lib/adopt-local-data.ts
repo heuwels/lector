@@ -25,9 +25,9 @@ import { BYOK_PROVIDERS, decryptCredential, encryptCredential } from './byok';
  * Every table whose rows belong to a tenant (carry `userId`). Exactly the set
  * migrateAddUserIdColumn (db.ts) stamps: the plain-ALTER tables plus the three
  * whose PRIMARY KEY gained userId (knownWords / dailyStats / settings).
- * Global / read-only data (cached_entries|senses|related_forms, billing_*, the
- * bundled dictionaries) and Better Auth's own tables (user / session / account
- * / verification) are not tenant-owned and stay put.
+ * User-accepted dictionary rows are tenant data and move with the learner.
+ * Global/read-only data (billing_*, bundled dictionaries, sentence banks) and
+ * Better Auth's own tables (user / session / account / verification) stay put.
  *
  * A ratchet test (adopt-local-data.test.ts) asserts this equals every table
  * carrying a userId column in a freshly migrated DB, so a future tenant table
@@ -56,6 +56,11 @@ export const TENANT_TABLES = [
   // Plan-limit usage counters (#222): adopted so a migrating self-hoster's
   // current-month metering carries over instead of resetting to zero.
   'usage_counters',
+  // Accepted AI translations are private learner data. Parent and children
+  // move together inside the adoption transaction.
+  'cached_entries',
+  'cached_senses',
+  'cached_related_forms',
   // Anki export queue (#241): adopted so cards queued before the switch still
   // reach the addon afterwards (rows join vocab on the same userId).
   'anki_pending',

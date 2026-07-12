@@ -13,12 +13,12 @@ import {
 } from '@/lib/billing';
 
 /**
- * The locked-account screen (#224): pick a plan → the API creates a Paddle
+ * The Free upgrade / paid-only recovery screen (#224): pick a plan → the API creates a Paddle
  * transaction → redirect to lector.dev/checkout, where the overlay opens on
  * Paddle's approved domain (app.lector.dev is not approved) → Paddle bounces
  * back here with ?checkout=success → poll /api/billing/status until the webhook
- * flips the account active → into the app. Also the #216 lapse contract's
- * other half: a locked account can always export its data or sign out here.
+ * marks the subscription active → into the app. Also the #216 lapse contract's
+ * other half: a Free or locked account can always export its data or sign out here.
  *
  * Lives in the (auth) route group for the chrome-free shell and the selfhost
  * bounce, but unlike its siblings it REQUIRES a session (AuthGuard treats it
@@ -51,9 +51,10 @@ const TIERS: Array<{
     tagline: "We host it for you — no Docker, no setup. For when you'd rather just read.",
     features: [
       'Fully managed — nothing to install or maintain',
-      'Managed translation with a monthly allowance',
+      'Larger managed translation allowance and rich AI entries',
+      'Managed high-quality voices, with browser voice fallback',
+      'More room for texts, vocabulary, and journal writing',
       'Automatic backups and updates',
-      'Bring-your-own-key toggle lifts caps at the same price',
       'Email support',
     ],
     annualNote: 'or $50/year — two months free',
@@ -66,7 +67,7 @@ const TIERS: Array<{
     tagline: 'For heavy readers who want the whole thing handled.',
     features: [
       'Everything in Cloud',
-      'A much larger monthly translation allowance',
+      'A much larger managed AI and voice allowance',
       'Priority support',
       'Early access to new language packs',
     ],
@@ -75,10 +76,23 @@ const TIERS: Array<{
   },
 ];
 
-type Phase = 'loading' | 'pick' | 'activating' | 'slow' | 'unavailable';
+const FREE_FEATURES = [
+  'Read starter lessons and texts you import yourself',
+  'Save vocabulary, practise it, and sync with Anki',
+  'Up to 10 collections, 200 lessons, and 1,000 journal words each month',
+  'Unlimited on-device dictionary lookups',
+  '1,000 managed dictionary-miss glosses each month',
+  '10 simple phrase translations (up to 6 words) each day',
+  '10 concise in-context translations each day',
+  'Free browser voices for reading and dictation',
+  'Bring your own AI key when you want more',
+  'Export your learner data at any time',
+];
+
+type Phase = 'loading' | 'pick' | 'activating' | 'slow' | 'unavailable' | 'suspended';
 
 export default function SubscribePage() {
-  const [status, setStatus] = useState<Extract<BillingStatus, { enforced: true }> | null>(null);
+  const [status, setStatus] = useState<BillingStatus | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [opening, setOpening] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,7 +103,7 @@ export default function SubscribePage() {
     function tick(attempt: number) {
       pollTimer.current = setTimeout(async () => {
         const s = await fetchBillingStatus();
-        if (s?.active) {
+        if (s?.subscriptionActive) {
           // Hard navigation on purpose — every guard and cache re-evaluates.
           window.location.replace('/');
           return;
@@ -112,14 +126,29 @@ export default function SubscribePage() {
     fetchBillingStatus().then((s) => {
       if (cancelled) return;
 
-      // Billing off, already active, or status unreachable → this page has
-      // no business rendering; the rest of the app knows better than us.
-      if (s === null || !s.enforced || s.active) {
+      // Billing off, already paid/exempt, or status unreachable → this page
+      // has no business rendering; the rest of the app knows better than us.
+      // Free access alone is not a reason to redirect: /subscribe doubles as
+      // its opt-in upgrade surface.
+      if (s === null || !s.enforced) {
         window.location.replace('/');
         return;
       }
 
       setStatus(s);
+
+      // Suspension is an abuse/security lock, not a billing state. It wins
+      // over Free and paid activation so the page cannot offer a misleading
+      // "Continue" loop while the API is correctly denying app access.
+      if (s.suspended) {
+        setPhase('suspended');
+        return;
+      }
+
+      if (s.subscriptionActive || s.exempt) {
+        window.location.replace('/');
+        return;
+      }
 
       // Returning from the lector.dev overlay (Paddle's successUrl bounces
       // here): the webhook may not have landed yet, so show activation and
@@ -168,17 +197,32 @@ export default function SubscribePage() {
   }
 
   const lapsed = status !== null && status.status !== 'none';
+  const showFree = status?.freeTierEnabled === true && !status.suspended;
 
   return (
     <div className="space-y-4" data-testid="subscribe-panel">
       <div>
         <h2 className="text-lg font-semibold text-foreground">
-          {lapsed ? 'Your subscription has ended' : 'Subscribe to Lector Cloud'}
+          {status?.suspended
+            ? 'Your account is suspended'
+            : lapsed
+              ? showFree
+                ? 'You’re on Lector Free now'
+                : 'Your subscription has ended'
+              : showFree
+                ? 'Choose how you want to learn'
+                : 'Subscribe to Lector Cloud'}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {lapsed
-            ? 'Everything you built is safe and exactly as you left it — renew to pick up where you were.'
-            : 'Lector Cloud is a paid service with no free tier. Prefer free? Lector is open source and self-hostable.'}
+          {status?.suspended
+            ? 'App access is paused. You can still export your learner data or sign out below.'
+            : lapsed
+              ? showFree
+                ? 'Your texts, vocabulary, Anki links, and learning history are intact. Keep using the bounded Free plan, or renew for larger managed allowances and voices.'
+                : 'Everything you built is safe and exactly as you left it — renew to pick up where you were.'
+              : showFree
+                ? 'Free is a complete, bounded reading loop. Upgrade when you want more managed AI, richer translations, and managed voices.'
+                : 'Lector Cloud is a paid service. Prefer free? Lector is open source and self-hostable.'}
         </p>
       </div>
 
@@ -190,8 +234,14 @@ export default function SubscribePage() {
 
       {phase === 'unavailable' && (
         <p className="rounded-lg border border-border bg-[var(--primary-soft)] p-3 text-sm text-foreground">
-          Checkout isn&apos;t available right now — please try again in a little while. Your
-          account and data are unaffected.
+          Checkout isn&apos;t available right now — please try again in a little while. Your account
+          and data are unaffected.
+        </p>
+      )}
+
+      {phase === 'suspended' && (
+        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-foreground">
+          If you believe this is a mistake, contact support. No learner data has been deleted.
         </p>
       )}
 
@@ -208,6 +258,46 @@ export default function SubscribePage() {
               or come back in a few minutes.
             </p>
           )}
+        </div>
+      )}
+
+      {showFree && phase !== 'loading' && phase !== 'activating' && phase !== 'slow' && (
+        <div
+          className="rounded-xl border border-border bg-card p-4"
+          data-testid="subscribe-tier-free"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold text-foreground">Free</span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              Current plan
+            </span>
+          </div>
+          <p className="mt-1">
+            <span className="text-2xl font-bold text-foreground">$0</span>
+            <span className="text-sm text-muted-foreground"> forever</span>
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Read, look words up, save what you learn, and take your data with you.
+          </p>
+          <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+            {FREE_FEATURES.map((feature) => (
+              <li key={feature} className="flex gap-2">
+                <span aria-hidden="true" className="text-primary">
+                  ✓
+                </span>
+                {feature}
+              </li>
+            ))}
+          </ul>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4 w-full cursor-pointer"
+            onClick={() => window.location.replace('/')}
+            data-testid="subscribe-continue-free"
+          >
+            Continue with Free
+          </Button>
         </div>
       )}
 
@@ -297,7 +387,13 @@ export default function SubscribePage() {
         >
           Export my data
         </a>
-        <Button type="button" variant="ghost" size="sm" onClick={signOut} data-testid="subscribe-signout">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={signOut}
+          data-testid="subscribe-signout"
+        >
           Sign out
         </Button>
       </div>

@@ -5,11 +5,33 @@ export interface ChatMessage {
 
 /**
  * What a completion is for, so a provider can pick a task-appropriate model.
- * Only AnthropicProvider acts on this today (per-task model config); other
- * providers ignore it and use their single configured model.
- * TODO(backlog): generalise per-task model selection to all providers.
+ * Providers may use this to select a task-appropriate model. The route owns
+ * the task: clients never get to choose a cheaper model or richer response by
+ * sending a task name.
  */
-export type LLMTask = 'word-translation' | 'phrase-translation' | 'chat' | 'word-classification';
+export type LLMTask =
+  | 'word-gloss'
+  | 'word-enrichment'
+  | 'context-simple'
+  | 'context-rich'
+  | 'phrase-simple'
+  | 'phrase-rich'
+  | 'chat'
+  | 'word-classification';
+
+/** Cost-safe, text-free telemetry for one upstream provider attempt. */
+export interface LLMUsageEvent {
+  task?: LLMTask;
+  model: string;
+  attempt: number;
+  latencyMs: number;
+  success: boolean;
+  usageAvailable: boolean;
+  promptTokens?: number;
+  completionTokens?: number;
+  reasoningTokens?: number;
+  totalTokens?: number;
+}
 
 export type CompletionResponseFormat = 'json-object' | 'json-array' | 'text';
 
@@ -26,6 +48,10 @@ export interface CompletionOptions {
    * and validate the returned root shape locally.
    */
   responseFormat?: CompletionResponseFormat;
+  /** Internal retry ordinal; completeJson increments it for its second call. */
+  attempt?: number;
+  /** Optional observer for provider usage. Never receives prompts or output. */
+  onUsage?: (event: LLMUsageEvent) => void;
 }
 
 export interface LLMProvider {

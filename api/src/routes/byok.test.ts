@@ -54,7 +54,8 @@ describe('BYOK settings route', () => {
   });
 
   test('does not persist a key rejected by OpenRouter', async () => {
-    globalThis.fetch = (async () => new Response('unauthorized', { status: 401 })) as unknown as typeof fetch;
+    globalThis.fetch = (async () =>
+      new Response('unauthorized', { status: 401 })) as unknown as typeof fetch;
     const response = await app.request('/', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -134,5 +135,26 @@ describe('BYOK settings route', () => {
       body: JSON.stringify({ apiKey: 'x'.repeat(513) }),
     });
     expect(response.status).toBe(400);
+  });
+
+  test('rejects an oversized request before contacting a provider or writing a credential', async () => {
+    let fetchCalls = 0;
+    globalThis.fetch = (async () => {
+      fetchCalls++;
+      throw new Error('oversized BYOK requests must not contact a provider');
+    }) as unknown as typeof fetch;
+
+    const response = await app.request('/', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: 'x'.repeat(17 * 1024) }),
+    });
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: 'BYOK request is too large' });
+    expect(fetchCalls).toBe(0);
+    expect(
+      db.prepare("SELECT 1 FROM user_provider_credentials WHERE userId = 'local'").get(),
+    ).toBeNull();
   });
 });

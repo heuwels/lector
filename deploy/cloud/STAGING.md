@@ -71,6 +71,17 @@ Optional staging-only values follow the production suffixes in `README.md`, incl
 Plus prices, Resend, Turnstile, LLM/TTS keys, exempt accounts, and Sentry. The stack
 sets `SENTRY_ENVIRONMENT=staging`; production sets `production`.
 
+To exercise Free in staging, add `/lector/staging/free-tier-enabled` as exact
+lowercase `true` only after both Turnstile parameters, the Google TTS key for
+the paid managed-voice upsell, the OpenRouter key,
+`llm-provider=openai`, `openai-compat-url=https://openrouter.ai/api`, and all
+three `openai-compat-{word-gloss,simple-phrase,simple-context}-model` parameters
+are present and pinned to `google/gemini-2.5-flash-lite`. A deployed staging
+image uses the same production boot checks as production; only isolated
+automated tests run with `NODE_ENV=test`.
+Staging also requires its own valid `byok-encryption-key`; never reuse the
+production key.
+
 ## Cloudflare and Paddle
 
 1. Route `staging.lector.dev` through its staging tunnel to the compose services:

@@ -17,7 +17,7 @@ import path from 'path';
  * single-use codes) is pinned in api/src/lib/two-factor.test.ts.
  */
 
-const CLOUD_API = 'http://localhost:3462';
+const CLOUD_API = `http://localhost:${process.env.E2E_AUTH_API_PORT || '3462'}`;
 const EMAILS = path.join(__dirname, '..', 'tmp', 'e2e-data-cloud', 'emails.jsonl');
 
 // The external-server (docker) run boots one selfhost container and no cloud

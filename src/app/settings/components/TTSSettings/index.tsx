@@ -1,5 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { getTTSMode, isGoogleTTSConfigured, setTTSMode, speak, TTSMode } from '@/lib/tts';
+import { lectorMode } from '@/lib/api-base';
+import { getEntitlements } from '@/lib/data-layer';
 import { useActiveLanguage } from '@/utils/hooks';
 import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import { SETTINGS_KEYS } from '../../constants';
@@ -9,16 +11,35 @@ export default function TTSSettings() {
   const activeLang = useActiveLanguage();
   const [currentTTSMode, setCurrentTTSMode] = useState<TTSMode>('browser');
   const [googleTTSAvailable, setGoogleTTSAvailable] = useState<boolean | null>(null);
+  const [managedTTSIncluded, setManagedTTSIncluded] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const init = () => {
+    const init = async () => {
       setCurrentTTSMode(getTTSMode());
-      // Check if Google TTS is configured
-      isGoogleTTSConfigured().then(setGoogleTTSAvailable);
       setTTSSpeed(parseFloat(localStorage.getItem(SETTINGS_KEYS.TTS_SPEED) || '1.0'));
+
+      if (lectorMode() === 'cloud') {
+        const entitlements = await getEntitlements();
+        const allowance = entitlements?.limits.ttsCharsPerMonth;
+        if (allowance === 0) {
+          // Free and Free+BYOK always use the browser voice. Clear a stale
+          // managed preference left by a lapsed paid subscription so every
+          // future Speak action stays local without a doomed API request.
+          setManagedTTSIncluded(false);
+          setGoogleTTSAvailable(false);
+          setCurrentTTSMode('browser');
+          setTTSMode('browser');
+          return;
+        }
+        setManagedTTSIncluded(allowance === null || typeof allowance === 'number');
+      }
+
+      // Paid cloud and self-hosted deployments still verify that managed TTS
+      // is configured before enabling it.
+      setGoogleTTSAvailable(await isGoogleTTSConfigured());
     };
 
-    init();
+    void init();
   }, []);
 
   const handleTTSModeChanged = (ttsMode: TTSMode) => {
@@ -52,7 +73,7 @@ export default function TTSSettings() {
   }, [activeLang, ttsSpeed]);
 
   return (
-    <section className="panel space-y-4 p-6">
+    <section className="panel space-y-4 p-6" data-testid="tts-settings">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">Text-to-Speech</h2>
         {googleTTSAvailable !== null && (
@@ -63,18 +84,22 @@ export default function TTSSettings() {
               }`}
             />
             <span className="text-sm text-muted-foreground">
-              {googleTTSAvailable ? 'Google TTS Active' : 'Using Browser TTS'}
+              {managedTTSIncluded === false
+                ? 'Browser voice · Free'
+                : googleTTSAvailable
+                  ? 'Managed voice available'
+                  : 'Using browser voice'}
             </span>
           </div>
         )}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-foreground">
-          Voice Engine
-        </label>
+        <label className="block text-sm font-medium text-foreground">Voice Engine</label>
         <p className="mb-2 text-xs text-muted-foreground">
-          Google Cloud has better pronunciation, browser is free
+          {managedTTSIncluded === false
+            ? 'Browser speech stays free and works across reading, practice, and dictation. Cloud adds a consistent managed voice.'
+            : 'Managed voices offer more consistent pronunciation; your browser voice is always available.'}
         </p>
         <div className="flex gap-2">
           <Button
@@ -82,7 +107,7 @@ export default function TTSSettings() {
             onClick={() => handleTTSModeChanged('google')}
             variant={currentTTSMode === 'google' ? 'default' : 'secondary'}
           >
-            Google Cloud
+            Managed voice
           </Button>
           <Button
             onClick={() => handleTTSModeChanged('browser')}
@@ -91,6 +116,15 @@ export default function TTSSettings() {
             Browser Built-in
           </Button>
         </div>
+        {managedTTSIncluded === false && (
+          <p className="mt-3 rounded-lg border border-border bg-[var(--primary-soft)] p-3 text-xs text-foreground">
+            Want Lector&apos;s managed voice?{' '}
+            <a href="/subscribe" className="font-semibold text-primary hover:underline">
+              Upgrade to Cloud
+            </a>
+            . Adding your own AI key does not change audio because voice usage is hosted by Lector.
+          </p>
+        )}
       </div>
 
       <div>

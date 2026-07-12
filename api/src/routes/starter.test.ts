@@ -1,8 +1,14 @@
 import '../test-guard';
-import { describe, test, expect, beforeEach, afterAll } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:test';
 import path from 'path';
 import { db } from '../db';
 import app from '../routes/starter';
+import {
+  makeEntitlements,
+  parsePlanLimitOverrides,
+  setEntitlementsEngineForTests,
+  type PlanLimits,
+} from '../lib/entitlements';
 
 // Point the loader at fixture packs (read per call, so setting it here is
 // enough). Only 'es' ships fixture content; 'af' deliberately has none.
@@ -14,10 +20,39 @@ afterAll(() => {
   delete process.env.STARTER_CONTENT_ROOT;
 });
 
+let restoreEngine: (() => void) | null = null;
+
+afterEach(() => {
+  restoreEngine?.();
+  restoreEngine = null;
+});
+
+function useStrictLimits(overrides: Partial<PlanLimits>) {
+  restoreEngine?.();
+  const defaults = parsePlanLimitOverrides(undefined);
+  restoreEngine = setEntitlementsEngineForTests(
+    makeEntitlements({
+      enforced: true,
+      freeTierEnabled: true,
+      exemptEmails: new Set(),
+      prices: [],
+      planLimits: {
+        ...defaults,
+        free: { ...defaults.free, ...overrides },
+      },
+      resolveEmail: () => null,
+      isByok: () => false,
+      compedPlan: () => null,
+      now: () => new Date('2026-07-15T12:00:00Z'),
+    }),
+  );
+}
+
 function reset() {
   db.prepare('DELETE FROM lessons').run();
   db.prepare('DELETE FROM collections').run();
   db.prepare("DELETE FROM settings WHERE key LIKE 'starterSeeded:%'").run();
+  db.prepare("DELETE FROM billing_subscriptions WHERE userId = 'local'").run();
 }
 
 function seed(language: unknown) {
@@ -135,6 +170,118 @@ describe('starter route', () => {
     const afterDelete = await seed('es');
     expect(await afterDelete.json()).toEqual({ seeded: false, reason: 'already-seeded' });
     expect(collectionCount('es')).toBe(0);
+  });
+
+  test('POST /seed atomically refuses a starter batch that exceeds row or byte caps', async () => {
+    useStrictLimits({ maxCollections: 0, maxLessons: 100 });
+    let res = await seed('es');
+    expect(res.status).toBe(429);
+    expect(await res.json()).toMatchObject({
+      error: 'plan_limit',
+      metric: 'maxCollections',
+      requested: 1,
+    });
+    expect(collectionCount('es')).toBe(0);
+    expect(db.prepare("SELECT 1 FROM settings WHERE key = 'starterSeeded:es'").get()).toBeNull();
+
+    useStrictLimits({ maxCollections: 10, maxLessons: 1 });
+    res = await seed('es');
+    expect(res.status).toBe(429);
+    expect(await res.json()).toMatchObject({
+      error: 'plan_limit',
+      metric: 'maxLessons',
+      requested: 2,
+    });
+    expect(collectionCount('es')).toBe(0);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM lessons WHERE userId = 'local'").get()).toEqual({
+      n: 0,
+    });
+    expect(db.prepare("SELECT 1 FROM settings WHERE key = 'starterSeeded:es'").get()).toBeNull();
+
+    useStrictLimits({
+      maxCollections: 10,
+      maxLessons: 10,
+      maxLessonTextBytes: 1,
+    });
+    res = await seed('es');
+    expect(res.status).toBe(429);
+    expect(await res.json()).toMatchObject({
+      error: 'plan_limit',
+      metric: 'maxLessonTextBytes',
+    });
+    expect(collectionCount('es')).toBe(0);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM lessons WHERE userId = 'local'").get()).toEqual({
+      n: 0,
+    });
+  });
+
+  test('POST /seed repairs only missing stable lesson ids after flag loss', async () => {
+    expect((await seed('es')).status).toBe(200);
+    const original = db
+      .prepare(
+        "SELECT id, title FROM lessons WHERE userId = 'local' AND collectionId = 'starter-es' ORDER BY sortOrder",
+      )
+      .all() as Array<{ id: string; title: string }>;
+    expect(original).toHaveLength(2);
+
+    // Simulate an interrupted/legacy seed: rows survived but the once-only
+    // flag and one lesson did not. Learner edits to surviving rows must remain.
+    db.prepare("DELETE FROM settings WHERE userId = 'local' AND key = 'starterSeeded:es'").run();
+    db.prepare(
+      "UPDATE collections SET title = 'My renamed starter' WHERE userId = 'local' AND id = 'starter-es'",
+    ).run();
+    db.prepare(
+      "UPDATE lessons SET title = 'My renamed lesson', progress_percentComplete = 0.5 WHERE userId = 'local' AND id = ?",
+    ).run(original[0].id);
+    db.prepare("DELETE FROM lessons WHERE userId = 'local' AND id = ?").run(original[1].id);
+
+    useStrictLimits({ maxCollections: 1, maxLessons: 2 });
+    const response = await seed('es');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ seeded: true, collectionId: 'starter-es' });
+
+    const repaired = db
+      .prepare(
+        "SELECT id, title, progress_percentComplete AS progress FROM lessons WHERE userId = 'local' AND collectionId = 'starter-es' ORDER BY sortOrder",
+      )
+      .all() as Array<{ id: string; title: string; progress: number }>;
+    expect(repaired.map((lesson) => lesson.id)).toEqual(original.map((lesson) => lesson.id));
+    expect(repaired[0]).toMatchObject({ title: 'My renamed lesson', progress: 0.5 });
+    expect(
+      db
+        .prepare("SELECT title FROM collections WHERE userId = 'local' AND id = 'starter-es'")
+        .get(),
+    ).toEqual({ title: 'My renamed starter' });
+  });
+
+  test('POST /seed does not replace or delete complete starter rows after a downgrade', async () => {
+    expect((await seed('es')).status).toBe(200);
+    db.prepare("DELETE FROM settings WHERE userId = 'local' AND key = 'starterSeeded:es'").run();
+    db.prepare(
+      "UPDATE collections SET title = 'Keep me' WHERE userId = 'local' AND id = 'starter-es'",
+    ).run();
+
+    // Existing rows are over these deliberately lower caps, but this retry has
+    // zero net-new writes and should only restore its flag.
+    useStrictLimits({
+      maxCollections: 0,
+      maxLessons: 0,
+      maxLessonTextBytes: 0,
+      maxLessonTextBytesTotal: 0,
+      maxCollectionMetadataBytes: 0,
+    });
+    const response = await seed('es');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ seeded: false, reason: 'already-present' });
+    expect(collectionCount('es')).toBe(1);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM lessons WHERE userId = 'local'").get()).toEqual({
+      n: 2,
+    });
+    expect(
+      db
+        .prepare("SELECT title FROM collections WHERE userId = 'local' AND id = 'starter-es'")
+        .get(),
+    ).toEqual({ title: 'Keep me' });
   });
 
   test('POST /seed no-ops cleanly for a pack without starter content', async () => {

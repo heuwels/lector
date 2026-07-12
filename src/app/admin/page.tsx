@@ -40,7 +40,12 @@ function formatDate(iso: string | null): string {
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function planBadge(row: AdminUserRow): { label: string; className: string } {
@@ -56,13 +61,26 @@ function planBadge(row: AdminUserRow): { label: string; className: string } {
       label: `comped · ${row.compedPlan === 'plus' ? 'Plus' : 'Cloud'}`,
       className: 'bg-primary/15 text-primary',
     };
+  if (row.plan === 'free') {
+    return { label: 'Free', className: 'bg-muted text-muted-foreground' };
+  }
   return { label: row.status, className: 'bg-muted text-muted-foreground' };
 }
 
-function StatCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+function StatCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</div>
+      <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        {label}
+      </div>
       <div className="mt-1 text-2xl font-extrabold text-foreground">{value}</div>
       {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
     </div>
@@ -263,12 +281,18 @@ export default function AdminPage() {
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
       <PageHeader title="Admin">
-        <span className="text-sm text-muted-foreground">{summary?.period}</span>
+        <span className="text-sm text-muted-foreground">
+          {summary ? `${summary.period} · today ${summary.dayPeriod}` : ''}
+        </span>
       </PageHeader>
 
       {summary && (
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <StatCard label="Accounts" value={summary.users} hint={`${summary.verified} verified`} />
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+          <StatCard
+            label="Accounts"
+            value={summary.users}
+            hint={`${summary.verified} verified · ${summary.suspended} suspended`}
+          />
           <StatCard
             label="Subscribers"
             value={summary.subscribers}
@@ -276,11 +300,34 @@ export default function AdminPage() {
               .map(([p, n]) => `${n} ${p}`)
               .join(' · ')}
           />
-          <StatCard label="Suspended" value={summary.suspended} />
+          <StatCard label="Free accounts" value={summary.freeAccounts} />
           <StatCard
-            label="AI lookups (mo)"
+            label="Managed glosses (mo)"
+            value={
+              summary.usageTracked ? summary.usageTotals.wordGlossesPerMonth.toLocaleString() : '—'
+            }
+            hint={
+              summary.usageTracked
+                ? `${summary.freeUsageTotals.wordGlossesPerMonth.toLocaleString()} from Free`
+                : 'metering not deployed'
+            }
+          />
+          <StatCard
+            label="Phrase / context (day)"
+            value={
+              summary.usageTracked
+                ? `${summary.usageTotals.phraseTranslationsPerDay.toLocaleString()} / ${summary.usageTotals.contextTranslationsPerDay.toLocaleString()}`
+                : '—'
+            }
+            hint={
+              summary.usageTracked
+                ? `${summary.freeUsageTotals.phraseTranslationsPerDay.toLocaleString()} / ${summary.freeUsageTotals.contextTranslationsPerDay.toLocaleString()} from Free · ${summary.dayPeriod}`
+                : summary.dayPeriod
+            }
+          />
+          <StatCard
+            label="Rich AI (mo)"
             value={summary.usageTracked ? summary.usageTotals.llmRequests.toLocaleString() : '—'}
-            hint={summary.usageTracked ? undefined : 'metering not deployed'}
           />
           <StatCard
             label="TTS chars (mo)"
@@ -311,7 +358,7 @@ export default function AdminPage() {
               <th className="px-4 py-3 font-medium">Signed up</th>
               <th className="px-4 py-3 font-medium">Last active</th>
               <th className="px-4 py-3 font-medium">Library</th>
-              <th className="px-4 py-3 font-medium">Usage (mo)</th>
+              <th className="px-4 py-3 font-medium">Managed usage</th>
               <th className="px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
@@ -331,7 +378,9 @@ export default function AdminPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
+                    >
                       {badge.label}
                     </span>
                   </td>
@@ -346,9 +395,21 @@ export default function AdminPage() {
                     <div className="text-xs">{formatBytes(u.library.storageBytes)}</div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {u.usage.tracked
-                      ? `${u.usage.llmRequests.toLocaleString()} AI · ${u.usage.ttsChars.toLocaleString()} tts`
-                      : '—'}
+                    {u.usage.tracked ? (
+                      <>
+                        <div>
+                          {u.usage.wordGlossesPerMonth.toLocaleString()} gloss/mo ·{' '}
+                          {u.usage.phraseTranslationsPerDay.toLocaleString()} phrase/day ·{' '}
+                          {u.usage.contextTranslationsPerDay.toLocaleString()} context/day
+                        </div>
+                        <div className="text-xs">
+                          {u.usage.llmRequests.toLocaleString()} rich AI/mo ·{' '}
+                          {u.usage.ttsChars.toLocaleString()} TTS chars/mo
+                        </div>
+                      </>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex gap-2">
@@ -399,25 +460,49 @@ export default function AdminPage() {
                         </button>
                         {menuId === u.id && (
                           <div className="absolute right-0 z-10 mt-1 w-52 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-                            <MenuItem onClick={() => runAction(u, resetMfa, 'MFA reset', `Reset 2FA for ${u.email}? They'll sign in without it and can re-enrol.`)}>
+                            <MenuItem
+                              onClick={() =>
+                                runAction(
+                                  u,
+                                  resetMfa,
+                                  'MFA reset',
+                                  `Reset 2FA for ${u.email}? They'll sign in without it and can re-enrol.`,
+                                )
+                              }
+                            >
                               Reset MFA
                             </MenuItem>
-                            <MenuItem onClick={() => runAction(u, sendPasswordReset, 'Password reset sent')}>
+                            <MenuItem
+                              onClick={() => runAction(u, sendPasswordReset, 'Password reset sent')}
+                            >
                               Send password reset
                             </MenuItem>
                             {!u.emailVerified && (
                               <>
-                                <MenuItem onClick={() => runAction(u, resendVerification, 'Verification sent')}>
+                                <MenuItem
+                                  onClick={() =>
+                                    runAction(u, resendVerification, 'Verification sent')
+                                  }
+                                >
                                   Resend verification
                                 </MenuItem>
-                                <MenuItem onClick={() => runAction(u, forceVerify, 'Marked verified')}>
+                                <MenuItem
+                                  onClick={() => runAction(u, forceVerify, 'Marked verified')}
+                                >
                                   Mark verified
                                 </MenuItem>
                               </>
                             )}
                             <MenuItem
                               destructive
-                              onClick={() => runAction(u, revokeSessions, 'Sessions revoked', `Sign ${u.email} out of all sessions?`)}
+                              onClick={() =>
+                                runAction(
+                                  u,
+                                  revokeSessions,
+                                  'Sessions revoked',
+                                  `Sign ${u.email} out of all sessions?`,
+                                )
+                              }
                             >
                               Revoke sessions
                             </MenuItem>

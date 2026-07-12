@@ -19,7 +19,7 @@ import {
 import { persistReview } from './persist-review';
 import { speak } from '@/lib/tts';
 import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
-import { translateWord } from '@/lib/claude';
+import { translateGloss, translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 import { splitTrailingPunctuation } from '@/lib/words';
 import {
@@ -245,7 +245,7 @@ export default function PracticePage() {
       }
 
       try {
-        const result = await translateWord(cleanWord, current.sentence.sentence);
+        const result = await translateGloss(cleanWord, current.sentence.sentence);
         setWordTooltip({
           word: cleanWord,
           translation: result.translation,

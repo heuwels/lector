@@ -46,6 +46,8 @@ function buildApp(): Hono {
   app.get('/api/tokens', (c) => c.json({ ok: true }));
   app.post('/api/tokens', (c) => c.json({ ok: true }));
   app.post('/api/chat', (c) => c.json({ ok: true }));
+  app.get('/api/dictionary/lookup', (c) => c.json({ ok: true }));
+  app.post('/api/dictionary/cache', (c) => c.json({ ok: true }));
   app.post('/api/llm/openai/v1/chat/completions', (c) => c.json({ ok: true }));
   app.get('/api/some-future-route', (c) => c.json({ ok: true }));
   return app;
@@ -189,6 +191,35 @@ describe('Auth middleware', () => {
       body: JSON.stringify({ title: 'test' }),
     });
     expect(res.status).toBe(403);
+  });
+
+  test('dictionary cache writes require vocab:write while lookups allow vocab:read', async () => {
+    const readToken = createTestToken(['vocab:read']);
+    expect(
+      (
+        await app.request('/api/dictionary/lookup?word=test', {
+          headers: { Authorization: `Bearer ${readToken}` },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request('/api/dictionary/cache', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${readToken}` },
+        })
+      ).status,
+    ).toBe(403);
+
+    const writeToken = createTestToken(['vocab:write']);
+    expect(
+      (
+        await app.request('/api/dictionary/cache', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${writeToken}` },
+        })
+      ).status,
+    ).toBe(200);
   });
 
   test('returns 401 for expired token', async () => {

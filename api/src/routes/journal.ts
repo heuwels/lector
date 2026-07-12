@@ -4,8 +4,20 @@ import { db, JournalEntryRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { correctJournalText } from '../lib/journal-correct';
-import { entitlements, planLimitResponse } from '../lib/entitlements';
+import {
+  entitlements,
+  planLimitResponse,
+  type AtomicLimitCheck,
+  type UsageReservation,
+} from '../lib/entitlements';
 import { randomUUID } from 'crypto';
+import {
+  aggregateGrowthCheck,
+  batchGrowthCheck,
+  growingRowCheck,
+  journalContentBytes,
+} from '../lib/storage-limits';
+import { validateDateKey, validateOptionalLanguage } from '../lib/persisted-input';
 
 const app = new Hono();
 
@@ -24,13 +36,17 @@ app.get('/', (c) => {
 
   if (date) {
     const entries = db
-      .prepare('SELECT * FROM journal_entries WHERE userId = ? AND entryDate = ? AND language = ? ORDER BY createdAt DESC')
+      .prepare(
+        'SELECT * FROM journal_entries WHERE userId = ? AND entryDate = ? AND language = ? ORDER BY createdAt DESC',
+      )
       .all(userId, date, lang) as JournalEntryRow[];
     return c.json(entries.map(withParsedCorrections));
   }
 
   const entries = db
-    .prepare('SELECT * FROM journal_entries WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?')
+    .prepare(
+      'SELECT * FROM journal_entries WHERE userId = ? AND language = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?',
+    )
     .all(userId, lang, limit, offset) as JournalEntryRow[];
 
   return c.json(entries.map(withParsedCorrections));
@@ -40,29 +56,40 @@ app.get('/', (c) => {
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
   const { body, entryDate, language } = await c.req.json();
+  if (body !== undefined && typeof body !== 'string') {
+    return c.json({ error: 'body must be a string' }, 400);
+  }
+  const entryDateError = validateDateKey(entryDate, 'entryDate');
+  if (entryDateError) return c.json({ error: entryDateError }, 400);
+  const languageError = validateOptionalLanguage(language);
+  if (languageError) return c.json({ error: languageError }, 400);
   const lang = resolveLanguage(language, userId);
   const date = entryDate || new Date().toISOString().split('T')[0];
   const now = new Date().toISOString();
-  const wordCount = (body || '').trim().split(/\s+/).filter(Boolean).length;
+  const bodyText = body || '';
+  const wordCount = bodyText.trim().split(/\s+/).filter(Boolean).length;
   const id = randomUUID();
+  const contentBytes = journalContentBytes({ body: bodyText });
+  const checks: AtomicLimitCheck[] = [
+    { metric: 'maxJournalEntries' },
+    ...(wordCount > 0 ? [{ metric: 'journalWordsPerMonth' as const, requested: wordCount }] : []),
+    ...growingRowCheck('maxJournalEntryBytes', contentBytes),
+    ...aggregateGrowthCheck('maxJournalTextBytesTotal', contentBytes),
+    ...batchGrowthCheck(contentBytes),
+  ];
 
   // Journal words / month (#222): check, insert, and meter in ONE transaction
   // so a failed insert never charges allowance and usage is never recorded
   // without the save landing (#222 review).
-  const denied = db.transaction(() => {
-    if (wordCount > 0) {
-      const verdict = entitlements.checkLimit(userId, 'journalWordsPerMonth', wordCount);
-      if (!verdict.allowed) return verdict;
-    }
+  const verdict = entitlements.reserveCount(userId, checks, () => {
     db.prepare(
       `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
        VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
-    ).run(id, body || '', wordCount, date, lang, now, now, userId);
+    ).run(id, bodyText, wordCount, date, lang, now, now, userId);
     if (wordCount > 0) entitlements.recordUsage(userId, 'journalWordsPerMonth', wordCount);
-    return null;
-  })();
+  });
 
-  if (denied) return planLimitResponse(c, denied);
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
   return c.json({ id, entryDate: date });
 });
 
@@ -73,9 +100,9 @@ app.get('/:id', (c) => {
   const id = c.req.param('id');
   const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'), userId);
-  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang) as
-    | JournalEntryRow
-    | undefined;
+  const entry = db
+    .prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?')
+    .get(id, userId, lang) as JournalEntryRow | undefined;
 
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
 
@@ -89,9 +116,13 @@ app.put('/:id', async (c) => {
   const lang = resolveLanguage(c.req.query('language'), userId);
   const body = await c.req.json();
 
-  const existing = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang) as
-    | JournalEntryRow
-    | undefined;
+  if (body.body !== undefined && typeof body.body !== 'string') {
+    return c.json({ error: 'body must be a string' }, 400);
+  }
+
+  const existing = db
+    .prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?')
+    .get(id, userId, lang) as JournalEntryRow | undefined;
   if (!existing) return c.json({ error: 'Entry not found' }, 404);
 
   if (existing.status === 'submitted' && body.body !== undefined) {
@@ -102,6 +133,7 @@ app.put('/:id', async (c) => {
   const updates: string[] = ['updatedAt = ?'];
   const values: SQLQueryBindings[] = [now];
   let grown = 0;
+  let nextContentBytes = journalContentBytes(existing);
 
   if (body.body !== undefined) {
     updates.push('body = ?', 'wordCount = ?');
@@ -110,10 +142,7 @@ app.put('/:id', async (c) => {
     // double-charge the month's allowance. `existing.wordCount` was read above
     // in the same synchronous tick (no await since), so it can't be stale.
     grown = wordCount - existing.wordCount;
-    if (grown > 0) {
-      const verdict = entitlements.checkLimit(userId, 'journalWordsPerMonth', grown);
-      if (!verdict.allowed) return planLimitResponse(c, verdict);
-    }
+    nextContentBytes = journalContentBytes({ ...existing, body: body.body });
     values.push(body.body, wordCount);
   }
 
@@ -124,10 +153,20 @@ app.put('/:id', async (c) => {
   // Persist and meter in ONE transaction so growth is charged only once the
   // UPDATE has actually landed — a failed update never burns allowance, and
   // the old code's record-before-write ordering is gone (#222 review).
-  db.transaction(() => {
-    db.prepare(`UPDATE journal_entries SET ${updates.join(', ')} WHERE id = ? AND userId = ? AND language = ?`).run(...values);
+  const previousContentBytes = journalContentBytes(existing);
+  const checks: AtomicLimitCheck[] = [
+    ...(grown > 0 ? [{ metric: 'journalWordsPerMonth' as const, requested: grown }] : []),
+    ...growingRowCheck('maxJournalEntryBytes', nextContentBytes, previousContentBytes),
+    ...aggregateGrowthCheck('maxJournalTextBytesTotal', nextContentBytes, previousContentBytes),
+    ...batchGrowthCheck(Math.max(0, nextContentBytes - previousContentBytes)),
+  ];
+  const verdict = entitlements.reserveCount(userId, checks, () => {
+    db.prepare(
+      `UPDATE journal_entries SET ${updates.join(', ')} WHERE id = ? AND userId = ? AND language = ?`,
+    ).run(...values);
     if (grown > 0) entitlements.recordUsage(userId, 'journalWordsPerMonth', grown);
-  })();
+  });
+  if (!verdict.allowed) return planLimitResponse(c, verdict);
 
   return c.json({ success: true });
 });
@@ -137,11 +176,17 @@ app.delete('/:id', (c) => {
   const id = c.req.param('id');
   const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'), userId);
-  const entry = db.prepare('SELECT id FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang);
+  const entry = db
+    .prepare('SELECT id FROM journal_entries WHERE id = ? AND userId = ? AND language = ?')
+    .get(id, userId, lang);
 
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
 
-  db.prepare('DELETE FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').run(id, userId, lang);
+  db.prepare('DELETE FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').run(
+    id,
+    userId,
+    lang,
+  );
   return c.json({ success: true });
 });
 
@@ -151,9 +196,9 @@ app.post('/:id/correct', async (c) => {
   const id = c.req.param('id');
   const userId = getCurrentUserId(c);
   const lang = resolveLanguage(c.req.query('language'), userId);
-  const entry = db.prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?').get(id, userId, lang) as
-    | JournalEntryRow
-    | undefined;
+  const entry = db
+    .prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?')
+    .get(id, userId, lang) as JournalEntryRow | undefined;
 
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
   if (!entry.body.trim()) return c.json({ error: 'Entry body is empty' }, 400);
@@ -162,25 +207,50 @@ app.post('/:id/correct', async (c) => {
   // (#222 review) — a check-then-record leaves a concurrent-request window.
   const llmVerdict = entitlements.reserve(userId, 'llmRequestsPerMonth');
   if (!llmVerdict.allowed) return planLimitResponse(c, llmVerdict);
-  let reservedLlm = true;
+  let reservation: UsageReservation | null = llmVerdict.reservation;
 
   try {
-    const data = (await correctJournalText(userId, entry.body, entry.language)) as {
+    const data = (await correctJournalText(userId, entry.body, entry.language, {
+      byok: reservation.byok,
+    })) as {
       correctedBody?: string;
       corrections?: unknown;
     };
-    reservedLlm = false; // the managed call happened — the usage is earned
 
+    const correctedBody = typeof data.correctedBody === 'string' ? data.correctedBody : null;
+    const corrections = JSON.stringify(data.corrections ?? null);
+    const previousContentBytes = journalContentBytes(entry);
+    const nextContentBytes = journalContentBytes({
+      body: entry.body,
+      correctedBody,
+      corrections,
+    });
+    const checks: AtomicLimitCheck[] = [
+      ...growingRowCheck('maxJournalEntryBytes', nextContentBytes, previousContentBytes),
+      ...aggregateGrowthCheck('maxJournalTextBytesTotal', nextContentBytes, previousContentBytes),
+      ...batchGrowthCheck(Math.max(0, nextContentBytes - previousContentBytes)),
+    ];
     const now = new Date().toISOString();
-    db.prepare(
-      `UPDATE journal_entries
-       SET correctedBody = ?, corrections = ?, status = 'submitted', updatedAt = ?
-       WHERE id = ? AND userId = ? AND language = ?`,
-    ).run(data.correctedBody ?? null, JSON.stringify(data.corrections ?? null), now, id, userId, lang);
+    const storageVerdict = entitlements.reserveCount(userId, checks, () => {
+      db.prepare(
+        `UPDATE journal_entries
+         SET correctedBody = ?, corrections = ?, status = 'submitted', updatedAt = ?
+         WHERE id = ? AND userId = ? AND language = ?`,
+      ).run(correctedBody, corrections, now, id, userId, lang);
+    });
+    if (!storageVerdict.allowed) {
+      // A correction the learner cannot save is not useful consumption. Return
+      // the reserved allowance just as we do when the provider call fails.
+      entitlements.refund(reservation);
+      reservation = null;
+      return planLimitResponse(c, storageVerdict);
+    }
 
-    return c.json({ correctedBody: data.correctedBody, corrections: data.corrections });
+    reservation = null; // provider output was persisted, so the usage is earned
+
+    return c.json({ correctedBody, corrections: data.corrections });
   } catch (error) {
-    if (reservedLlm) entitlements.refund(userId, 'llmRequestsPerMonth', 1);
+    if (reservation) entitlements.refund(reservation);
     console.error('Journal correction error:', error);
     return c.json({ error: error instanceof Error ? error.message : 'Correction failed' }, 500);
   }

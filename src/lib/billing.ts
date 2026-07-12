@@ -19,15 +19,21 @@ export interface BillingCheckout {
   prices: BillingPrice[];
 }
 
-export type BillingStatus =
-  | { enforced: false; active: true }
-  | {
-      enforced: true;
-      active: boolean;
-      exempt: boolean;
-      status: string;
-      checkout: BillingCheckout;
-    };
+/**
+ * Billing access and Paddle activation are deliberately separate. A Free
+ * account is allowed into the app without having a subscription, while a
+ * successful checkout is not considered active until Paddle's webhook lands.
+ */
+export interface BillingStatus {
+  enforced: boolean;
+  accessAllowed: boolean;
+  subscriptionActive: boolean;
+  freeTierEnabled: boolean;
+  suspended: boolean;
+  exempt: boolean;
+  status: string;
+  checkout: BillingCheckout;
+}
 
 /**
  * Null on any failure. Callers treat that as "don't lock": enforcement lives

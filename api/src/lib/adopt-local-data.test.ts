@@ -37,6 +37,9 @@ function createSchema(db: Database): void {
     CREATE TABLE onboarding_progress (userId TEXT PRIMARY KEY);
     CREATE TABLE learner_events   (userId TEXT NOT NULL DEFAULT 'local', id TEXT NOT NULL, PRIMARY KEY (userId, id));
     CREATE TABLE usage_counters   (userId TEXT NOT NULL, metric TEXT NOT NULL, period TEXT NOT NULL, value INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (userId, metric, period));
+    CREATE TABLE cached_entries   (userId TEXT NOT NULL DEFAULT 'local', word TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af', PRIMARY KEY (userId, word, language));
+    CREATE TABLE cached_senses    (id INTEGER PRIMARY KEY, userId TEXT NOT NULL DEFAULT 'local', word TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af');
+    CREATE TABLE cached_related_forms (id INTEGER PRIMARY KEY, userId TEXT NOT NULL DEFAULT 'local', word TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af');
     CREATE TABLE anki_pending     (userId TEXT NOT NULL DEFAULT 'local', vocabId TEXT NOT NULL, cardType TEXT NOT NULL DEFAULT 'basic', queuedAt TEXT NOT NULL DEFAULT '', PRIMARY KEY (userId, vocabId, cardType));
     CREATE TABLE user_provider_credentials (userId TEXT NOT NULL, provider TEXT NOT NULL, ciphertext TEXT NOT NULL, model TEXT NOT NULL, PRIMARY KEY (userId, provider));
     CREATE TABLE "user"           (id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT);
@@ -44,7 +47,7 @@ function createSchema(db: Database): void {
 }
 
 /** Rows per table for the given user. chat_messages left empty on purpose, to
- * cover a tenant table with nothing to move. Total for 'local' = 36. */
+ * cover a tenant table with nothing to move. Total for 'local' = 39. */
 function seedLocal(db: Database): void {
   const idRows: [string, number][] = [
     ['collections', 2],
@@ -79,6 +82,20 @@ function seedLocal(db: Database): void {
       'af',
     );
   }
+  db.prepare('INSERT INTO cached_entries (userId, word, language) VALUES (?, ?, ?)').run(
+    LOCAL_USER_ID,
+    'accepted',
+    'af',
+  );
+  db.prepare('INSERT INTO cached_senses (id, userId, word, language) VALUES (?, ?, ?, ?)').run(
+    1,
+    LOCAL_USER_ID,
+    'accepted',
+    'af',
+  );
+  db.prepare(
+    'INSERT INTO cached_related_forms (id, userId, word, language) VALUES (?, ?, ?, ?)',
+  ).run(1, LOCAL_USER_ID, 'accepted', 'af');
   for (let i = 0; i < 3; i++) {
     db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
       LOCAL_USER_ID,
@@ -103,7 +120,7 @@ function seedLocal(db: Database): void {
   }
 }
 
-const LOCAL_TOTAL = 36;
+const LOCAL_TOTAL = 39;
 
 describe('adoptLocalData', () => {
   let db: Database;
@@ -151,6 +168,9 @@ describe('adoptLocalData', () => {
     expect(target.vocab).toBe(5);
     expect(target.knownWords).toBe(6);
     expect(target.settings).toBe(3);
+    expect(target.cached_entries).toBe(1);
+    expect(target.cached_senses).toBe(1);
+    expect(target.cached_related_forms).toBe(1);
     expect(Object.values(target).reduce((a, b) => a + b, 0)).toBe(LOCAL_TOTAL);
   });
 

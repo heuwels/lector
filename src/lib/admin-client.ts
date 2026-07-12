@@ -12,7 +12,7 @@ export interface AdminUserRow {
   name: string | null;
   emailVerified: boolean;
   createdAt: string | null;
-  plan: 'cloud' | 'plus' | null;
+  plan: 'free' | 'cloud' | 'plus' | null;
   status: string;
   entitled: boolean;
   compedPlan: 'cloud' | 'plus' | null;
@@ -29,9 +29,13 @@ export interface AdminUserRow {
   };
   usage: {
     period: string;
+    dayPeriod: string;
     llmRequests: number;
     ttsChars: number;
     journalWords: number;
+    wordGlossesPerMonth: number;
+    phraseTranslationsPerDay: number;
+    contextTranslationsPerDay: number;
     tracked: boolean;
   };
 }
@@ -40,11 +44,25 @@ export interface AdminSummary {
   users: number;
   verified: number;
   subscribers: number;
+  freeAccounts: number;
   suspended: number;
   byPlan: Record<string, number>;
   byStatus: Record<string, number>;
   period: string;
-  usageTotals: { llmRequests: number; ttsChars: number; journalWords: number };
+  dayPeriod: string;
+  usageTotals: {
+    llmRequests: number;
+    ttsChars: number;
+    journalWords: number;
+    wordGlossesPerMonth: number;
+    phraseTranslationsPerDay: number;
+    contextTranslationsPerDay: number;
+  };
+  freeUsageTotals: {
+    wordGlossesPerMonth: number;
+    phraseTranslationsPerDay: number;
+    contextTranslationsPerDay: number;
+  };
   usageTracked: boolean;
 }
 
@@ -85,11 +103,7 @@ export async function restoreUser(id: string): Promise<void> {
 
 /** Grant a complimentary membership at a tier — the account bypasses the
  *  subscription gate and (once #222 lands) gets that plan's limits/models. */
-export async function compUser(
-  id: string,
-  plan: 'cloud' | 'plus',
-  reason: string,
-): Promise<void> {
+export async function compUser(id: string, plan: 'cloud' | 'plus', reason: string): Promise<void> {
   const res = await apiFetch(`/api/admin/users/${id}/comp`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -117,7 +131,8 @@ export const resetMfa = (id: string) => action(id, 'reset-mfa', 'MFA reset');
 /** Send the account a password-reset email. */
 export const sendPasswordReset = (id: string) => action(id, 'password-reset', 'Password reset');
 /** Re-send the verification email to an unverified account. */
-export const resendVerification = (id: string) => action(id, 'resend-verification', 'Resend verification');
+export const resendVerification = (id: string) =>
+  action(id, 'resend-verification', 'Resend verification');
 /** Force-mark the account's email verified. */
 export const forceVerify = (id: string) => action(id, 'verify', 'Verify');
 /** Sign the account out of every session. */
