@@ -43,7 +43,7 @@ export default function CorrectionView({ entry }: { entry: JournalEntry }) {
       ) : (
         <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] p-4 text-center">
           <p className="font-medium text-primary">
-            Perfek! No corrections needed.
+            Perfect! No corrections needed.
           </p>
         </div>
       )}
