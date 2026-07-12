@@ -12,6 +12,7 @@ const MINED_ID = 'afm-test-001';
 const STORED_MINED_ID = `mined:local:${MINED_ID}`;
 const DE_TATOEBA_IDS = [7001, 7002];
 const FR_TATOEBA_IDS = [6001, 6002];
+const IT_TATOEBA_IDS = [4001, 4002];
 const NL_TATOEBA_IDS = [5001, 5002];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
@@ -102,6 +103,31 @@ mock.module('../lib/sentence-bank-fr.json', () => ({
   ],
 }));
 
+// Italian bank fixture (2 rows) — proves the sixth language seeds under it and
+// stays isolated, once its bank is registered in SENTENCE_BANKS.
+mock.module('../lib/sentence-bank-it.json', () => ({
+  default: [
+    {
+      id: 4001,
+      text: "L'acqua è fresca.",
+      translation: 'The water is fresh.',
+      clozeWord: "L'acqua",
+      clozeIndex: 0,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 4002,
+      text: 'Bevo il caffè caldo.',
+      translation: 'I drink hot coffee.',
+      clozeWord: 'caffè',
+      clozeIndex: 2,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
 // Dutch bank fixture (2 rows) — proves the fifth language seeds under nl and
 // stays isolated, once its bank is registered in SENTENCE_BANKS (the one-line
 // cloze.ts change); everything else about nl is registry-derived.
@@ -139,7 +165,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...NL_TATOEBA_IDS].join(',')}) OR id IN (?, ?)`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS].join(',')}) OR id IN (?, ?)`,
   ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -269,6 +295,31 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
     expect(afUnderNl.c).toBe(0);
   });
 
+  test('seeds the Italian bank under it, isolated from Afrikaans (sixth language)', async () => {
+    setActiveLanguage('af');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('it');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const it = db
+      .prepare(
+        `SELECT language FROM clozeSentences WHERE tatoebaSentenceId IN (${IT_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string }[];
+    expect(it.length).toBe(2);
+    expect(it.every((row) => row.language === 'it')).toBe(true);
+
+    // Zero cross-bleed: Afrikaans content never lands under it.
+    const afUnderIt = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'it' AND tatoebaSentenceId IN (${TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(afUnderIt.c).toBe(0);
+  });
+
   test('re-seeding is idempotent for mined entries', async () => {
     setActiveLanguage('af');
     await app.request('/seed', { method: 'POST' });
@@ -288,7 +339,9 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
        VALUES (?, 'Ou saad-ry.', 'saad', 0, 'x', 'mined', 'top1000', ?, 'af', 'local')`,
     ).run(MINED_ID, new Date().toISOString());
 
-    const body = (await (await app.request('/seed', { method: 'POST' })).json()) as { mined: number };
+    const body = (await (await app.request('/seed', { method: 'POST' })).json()) as {
+      mined: number;
+    };
     // The legacy raw-id row is recognized as already-seeded — no namespaced duplicate.
     expect(body.mined).toBe(0);
 
@@ -300,7 +353,8 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
 });
 
 describe('GET /api/cloze/stats — server-side totals (#240)', () => {
-  const clear = () => db.prepare(`DELETE FROM clozeSentences WHERE id IN ('stat1','stat2','stat3')`).run();
+  const clear = () =>
+    db.prepare(`DELETE FROM clozeSentences WHERE id IN ('stat1','stat2','stat3')`).run();
   beforeEach(clear);
   afterEach(clear);
 

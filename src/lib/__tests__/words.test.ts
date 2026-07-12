@@ -5,6 +5,7 @@ import { LANGUAGES } from '../languages';
 
 const af = LANGUAGES.af;
 const fr = LANGUAGES.fr;
+const italian = LANGUAGES.it;
 const nl = LANGUAGES.nl;
 
 describe('splitTrailingPunctuation', () => {
@@ -50,6 +51,12 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation("foto's.")).toEqual(["foto's", '.']);
     // leading apostrophe survives, like the Afrikaans 'n
     expect(splitTrailingPunctuation("'t")).toEqual(["'t", '']);
+  });
+
+  it('keeps Italian elisions intact while stripping outer punctuation', () => {
+    expect(splitTrailingPunctuation("L'acqua")).toEqual(["L'acqua", '']);
+    expect(splitTrailingPunctuation("un'amica.")).toEqual(["un'amica", '.']);
+    expect(splitTrailingPunctuation('«Caffè!»')).toEqual(['Caffè', '!»']);
   });
 });
 
@@ -99,7 +106,7 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Wat s\u00EA jy?', decomposed, af)).toBe(true);
   });
 
-  it('finds the content word after a French elision (l\'eau → eau)', () => {
+  it("finds the content word after a French elision (l'eau → eau)", () => {
     expect(sentenceContainsWord("L'eau est claire.", 'eau', fr)).toBe(true);
     expect(sentenceContainsWord("Je pense qu'il dort.", 'il', fr)).toBe(true);
     expect(sentenceContainsWord("J'aime le café.", 'aime', fr)).toBe(true);
@@ -117,6 +124,13 @@ describe('sentenceContainsWord', () => {
     // a genuine substring is still rejected
     expect(sentenceContainsWord("Ik heb twee auto's.", 'aut', nl)).toBe(false);
   });
+
+  it('matches Italian content words across elisions and preserves accents', () => {
+    expect(sentenceContainsWord("L'acqua è fresca.", 'acqua', italian)).toBe(true);
+    expect(sentenceContainsWord("Arriva un'amica.", 'amica', italian)).toBe(true);
+    expect(sentenceContainsWord('Bevo il caffè.', 'caffè', italian)).toBe(true);
+    expect(sentenceContainsWord("L'acqua è fresca.", 'acqu', italian)).toBe(false);
+  });
 });
 
 describe('buildClozeText', () => {
@@ -124,13 +138,13 @@ describe('buildClozeText', () => {
     // "gelees." as stored in the bank previously produced \bgelees\.\b, which
     // never matches — the note had no {{c1::}} and AnkiConnect rejected it.
     expect(buildClozeText('Hy het die boek gelees.', 'gelees.')).toBe(
-      'Hy het die boek {{c1::gelees}}.'
+      'Hy het die boek {{c1::gelees}}.',
     );
   });
 
   it('keeps punctuation outside the blank for mid-sentence words', () => {
     expect(buildClozeText('Sy het haar boek gelees.', 'haar.')).toBe(
-      'Sy het {{c1::haar}} boek gelees.'
+      'Sy het {{c1::haar}} boek gelees.',
     );
   });
 
@@ -140,7 +154,7 @@ describe('buildClozeText', () => {
 
   it('returns the sentence unchanged when the word is absent', () => {
     expect(buildClozeText('Geen ooreenkoms hier nie.', 'afwesig')).toBe(
-      'Geen ooreenkoms hier nie.'
+      'Geen ooreenkoms hier nie.',
     );
   });
 });

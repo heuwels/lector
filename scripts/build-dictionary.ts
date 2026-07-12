@@ -4,6 +4,7 @@
  *
  *     npx tsx scripts/build-dictionary.ts            # af (default)
  *     npx tsx scripts/build-dictionary.ts --lang de  # German
+ *     npx tsx scripts/build-dictionary.ts --lang it  # Italian
  *
  * - Streams the JSONL dump line-by-line (does NOT load into memory).
  * - Caches the download in ./tmp/kaikki-<lang>.jsonl so reruns are fast.
@@ -110,7 +111,7 @@ const PROFILES: Record<string, LangProfile> = {
     // token boundary (NOT a word char): elision splits l'eau → l + eau, so the
     // content word `eau` is what the tokenizer sees — matching the runtime
     // WORD_PATTERN. Hyphen stays a word char for compounds (peut-être, arc-en-ciel).
-    letterClass: "a-zàâæçèéêëîïôûùüÿœA-ZÀÂÆÇÈÉÊËÎÏÔÛÙÜŸŒ-",
+    letterClass: 'a-zàâæçèéêëîïôûùüÿœA-ZÀÂÆÇÈÉÊËÎÏÔÛÙÜŸŒ-',
     // No hand affix rules: French is highly inflected, but kaikki carries each
     // conjugated/plural surface form as its own "form of <lemma>" entry (which
     // keeps a gloss, so it survives glossFilter) — lookup resolves via those +
@@ -122,6 +123,22 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-fr.txt',
     glossFilter: true,
   },
+  it: {
+    // Canonical /Italian/ URL (kaikki has no /downloads/it/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Italian/kaikki.org-dictionary-Italian.jsonl'],
+    // Italian diacritics found in native text and loanwords. Apostrophe is a
+    // token boundary (NOT a word char): l'acqua -> l + acqua and un'amica ->
+    // un + amica, matching the runtime tokenizer. Hyphen remains a word char.
+    letterClass: 'a-zàèéìíîòóùA-ZÀÈÉÌÍÎÒÓÙ-',
+    // No hand affix rules: Italian form-of entries and the inflections table
+    // resolve conjugated and plural surface forms, as for de/es/fr/nl.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouàèéìíîòóù',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-it.txt',
+    glossFilter: true,
+  },
   nl: {
     // Canonical /Dutch/ URL (kaikki has no /downloads/nl/ mirror).
     kaikkiUrls: ['https://kaikki.org/dictionary/Dutch/kaikki.org-dictionary-Dutch.jsonl'],
@@ -129,7 +146,7 @@ const PROFILES: Record<string, LangProfile> = {
     // Apostrophe is a token boundary (NOT a word char): foto's → foto (+ dropped
     // 's'), 't/'n → dropped, matching the runtime WORD_PATTERN. Hyphen stays a
     // word char for compounds (zee-egel, na-apen). The ij digraph is plain i+j.
-    letterClass: "a-zàáâäçèéêëìíîïòóôöùúûüA-ZÀÁÂÄÇÈÉÊËÌÍÎÏÒÓÔÖÙÚÛÜ-",
+    letterClass: 'a-zàáâäçèéêëìíîïòóôöùúûüA-ZÀÁÂÄÇÈÉÊËÌÍÎÏÒÓÔÖÙÚÛÜ-',
     // No hand affix rules: like de/es/fr, Dutch inflections (plurals -en/-s,
     // diminutive -je/-tje, verb forms) resolve via kaikki "form of <lemma>"
     // entries + the inflections table (exact → inflections → UDPipe → AI). The

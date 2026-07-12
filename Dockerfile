@@ -37,7 +37,7 @@ RUN npm run build
 # --build-arg DICT_URL=... (+ optional DICT_SHA256=, DICT_LANG=; lang defaults to af).
 #
 # Examples:
-#   docker build .                                   # all published dicts (af + de + es + fr + nl)
+#   docker build .                                   # all published dicts (af + de + es + fr + it + nl)
 #   docker build --build-arg DICT_LANGS="de" .       # German-only image (smaller)
 #   docker build --build-arg DICT_LANGS="af de" .    # explicit subset
 #   docker build \
