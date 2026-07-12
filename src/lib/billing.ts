@@ -19,6 +19,30 @@ export interface BillingCheckout {
   prices: BillingPrice[];
 }
 
+export interface BillingManagement {
+  customerPortal: boolean;
+  subscription: {
+    plan: BillingPrice['plan'];
+    cycle: BillingPrice['cycle'];
+    canChange: boolean;
+  } | null;
+}
+
+export interface BillingMoney {
+  amount: string;
+  currencyCode: string;
+}
+
+export interface PlanChangePreview {
+  target: BillingPrice;
+  prorationBillingMode: 'prorated_immediately' | 'prorated_next_billing_period';
+  immediateCharge: BillingMoney | null;
+  nextCharge: BillingMoney | null;
+  recurringCharge: BillingMoney | null;
+}
+
+export type BillingActionResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
 /**
  * Billing access and Paddle activation are deliberately separate. A Free
  * account is allowed into the app without having a subscription, while a
@@ -33,6 +57,8 @@ export interface BillingStatus {
   exempt: boolean;
   status: string;
   checkout: BillingCheckout;
+  /** Optional during rolling deploys where the browser may briefly lead the API. */
+  management?: BillingManagement;
 }
 
 /**
@@ -72,4 +98,47 @@ export async function startCheckout(priceId: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+async function billingAction<T>(
+  path: string,
+  body?: Record<string, unknown>,
+): Promise<BillingActionResult<T>> {
+  try {
+    const res = await apiFetch(path, {
+      method: 'POST',
+      ...(body
+        ? {
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          }
+        : {}),
+    });
+    const payload = (await res.json().catch(() => ({}))) as T & { error?: string };
+    if (!res.ok) return { ok: false, error: payload.error ?? 'billing_action_failed' };
+    return { ok: true, value: payload };
+  } catch {
+    return { ok: false, error: 'billing_unavailable' };
+  }
+}
+
+/** Mint a temporary, authenticated Paddle customer-portal URL. */
+export async function createCustomerPortalSession(): Promise<BillingActionResult<{ url: string }>> {
+  return billingAction<{ url: string }>('/api/billing/portal');
+}
+
+/** Ask Paddle to calculate taxes and proration without changing the subscription. */
+export async function previewPlanChange(
+  priceId: string,
+): Promise<BillingActionResult<PlanChangePreview>> {
+  return billingAction<PlanChangePreview>('/api/billing/change/preview', { priceId });
+}
+
+/** Request an already-previewed target price; entitlement still waits for the webhook. */
+export async function applyPlanChange(
+  priceId: string,
+): Promise<BillingActionResult<{ accepted: true; target: BillingPrice }>> {
+  return billingAction<{ accepted: true; target: BillingPrice }>('/api/billing/change', {
+    priceId,
+  });
 }

@@ -61,7 +61,7 @@ Required:
 | `/lector/staging/better-auth-secret`    | SecureString | staging-only session secret                                                       |
 | `/lector/staging/lector-billing`        | String       | `paddle`                                                                          |
 | `/lector/staging/paddle-env`            | String       | `sandbox`                                                                         |
-| `/lector/staging/paddle-api-key`        | SecureString | Paddle sandbox server key                                                         |
+| `/lector/staging/paddle-api-key`        | SecureString | Paddle sandbox key; required scopes are listed in `README.md`                     |
 | `/lector/staging/paddle-webhook-secret` | SecureString | sandbox notification destination secret                                           |
 | `/lector/staging/checkout-url`          | String       | approved sandbox checkout page, recommended `https://sandbox.lector.dev/checkout` |
 | `/lector/staging/paddle-price-monthly`  | String       | sandbox Cloud monthly price ID                                                    |
@@ -105,8 +105,11 @@ After an automatic staging deploy, test at minimum:
 
 - signup, verification, login, reset, TOTP and session revocation;
 - empty/new account isolation and starter content;
-- sandbox monthly/annual checkout and webhook activation;
-- cancel, past-due, renew, upgrade/downgrade and webhook replay;
+- sandbox annual-first/monthly checkout and webhook activation;
+- hosted portal access for invoices, payment method and cancellation;
+- preview + confirm upgrade/downgrade and monthly/annual changes, verifying
+  the signed webhook—not the API response—changes entitlements;
+- cancel, past-due, renew and webhook replay;
 - entitlement limits and soft upsells;
 - data export/import and admin support actions;
 - Sentry events carry `environment=staging`;
