@@ -343,6 +343,75 @@ describe('migrateCompositeTenantKeys (#279)', () => {
 });
 
 describe('migrateAcceptedCacheUserKey', () => {
+  test('boots and migrates a pre-tenant cache database before creating userId indexes', () => {
+    const legacyDataDir = path.join(process.env.DATA_DIR!, 'legacy-cache-boot');
+    const legacyDbFile = path.join(legacyDataDir, 'lector.db');
+    fs.rmSync(legacyDataDir, { recursive: true, force: true });
+    fs.mkdirSync(legacyDataDir, { recursive: true });
+
+    const legacyDb = new Database(legacyDbFile);
+    legacyDb.exec(`
+      CREATE TABLE cached_entries (
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        ipa TEXT,
+        etymology TEXT,
+        sourceSentence TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        PRIMARY KEY (word, language)
+      );
+      CREATE TABLE cached_senses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        pos TEXT,
+        gloss TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE cached_related_forms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        related_word TEXT NOT NULL,
+        relation TEXT NOT NULL
+      );
+      INSERT INTO cached_entries
+        (word, language, createdAt, updatedAt)
+        VALUES ('skaars', 'af', '${TS}', '${TS}');
+    `);
+    legacyDb.close();
+
+    const result = Bun.spawnSync({
+      cmd: [
+        process.execPath,
+        '-e',
+        "import { getDatabaseInstance } from './src/db.ts'; getDatabaseInstance().close();",
+      ],
+      cwd: path.resolve(import.meta.dir, '..'),
+      env: { ...process.env, DATA_DIR: legacyDataDir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stderr = new TextDecoder().decode(result.stderr);
+    expect(result.exitCode, stderr).toBe(0);
+
+    const migratedDb = new Database(legacyDbFile);
+    expect(pkOf(migratedDb, 'cached_entries')).toEqual(['userId', 'word', 'language']);
+    expect(
+      migratedDb.prepare("SELECT userId FROM cached_entries WHERE word = 'skaars'").get(),
+    ).toEqual({ userId: 'local' });
+    const indexes = (
+      migratedDb
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_cached_%'")
+        .all() as { name: string }[]
+    ).map((row) => row.name);
+    expect(indexes).toContain('idx_cached_entries_user_language');
+    expect(indexes).toContain('idx_cached_senses_user_word');
+    expect(indexes).toContain('idx_cached_related_user_word');
+    migratedDb.close();
+  });
+
   test('moves legacy compound cache rows to local and permits one row per tenant', () => {
     const cacheDb = new Database(':memory:');
     cacheDb.exec(`
