@@ -19,6 +19,7 @@ import {
   completeJson,
   getClassificationProvider,
   LLMInvalidJsonError,
+  parseLooseJson,
   type LLMProvider,
 } from './llm';
 
@@ -39,8 +40,11 @@ export interface ClassifyResult {
  * Build the enum-constrained, batched prompt. The per-domain `scope` strings in
  * DOMAINS double as the classifier hints, so the taxonomy stays the single
  * source of truth — add a domain there and the prompt updates for free.
+ * Exported because the batch path (classify-worker) submits the same prompt
+ * through the provider's Batch API — sync and batch classification must never
+ * drift apart.
  */
-function buildPrompt(items: ClassifyItem[]): string {
+export function buildClassifyPrompt(items: ClassifyItem[]): string {
   const domainLines = DOMAINS.map((d) => `- ${d.key}: ${d.scope}`).join('\n');
   const wordLines = items
     .map((it, i) => {
@@ -70,45 +74,29 @@ ${wordLines}`;
 }
 
 /**
- * Classify a batch of words into topic domains. Returns one entry per word that
- * was confidently assigned a valid domain; words the model omitted, hallucinated,
- * or tagged out-of-enum are simply absent (left for the next sweep). Provider /
- * network errors propagate — the caller (worker) decides how to back off.
+ * Output budget for one classification prompt of `count` words. The JSON itself
+ * is tiny (~20 tokens/word), but local reasoning models — the LM Studio default
+ * — emit a <think> block first that can dwarf it. Too small a budget truncates
+ * before the JSON and loses the whole batch, so keep a roomy floor;
+ * CLASSIFY_MAX_TOKENS bumps it further for an especially chatty model.
  */
-export async function classifyWords(
-  items: ClassifyItem[],
-  provider: LLMProvider = getClassificationProvider(),
-): Promise<ClassifyResult[]> {
-  if (items.length === 0) return [];
-
-  // The JSON itself is tiny (~20 tokens/word), but local reasoning models — the
-  // LM Studio default — emit a <think> block first that can dwarf it. Too small a
-  // budget truncates before the JSON and loses the whole batch, so keep a roomy
-  // floor; CLASSIFY_MAX_TOKENS bumps it further for an especially chatty model.
+export function classifyMaxTokens(count: number): number {
   const envMax = parseInt(process.env.CLASSIFY_MAX_TOKENS || '', 10);
-  const maxTokens = envMax > 0 ? envMax : Math.min(8192, Math.max(2048, items.length * 64));
+  return envMax > 0 ? envMax : Math.min(8192, Math.max(2048, count * 64));
+}
+
+/**
+ * Validate a parsed model response against the input items: strict-but-lenient
+ * mapping of returned {word, domain} entries onto the exact input spellings.
+ * Shared by the sync path (classifyWords) and the batch ingester so both apply
+ * identical drop rules.
+ */
+export function selectClassifyResults(items: ClassifyItem[], parsed: unknown[]): ClassifyResult[] {
   // Normalised input word → exact stored spelling, so the returned domain UPDATEs
   // the right knownWords row no matter how the model re-cased/echoed the word.
   const byNormalised = new Map<string, string>();
   for (const it of items) byNormalised.set(it.word.trim().toLowerCase(), it.word);
 
-  let parsed: unknown[];
-  try {
-    parsed = await completeJson<unknown[]>(provider, {
-      messages: [{ role: 'user', content: buildPrompt(items) }],
-      maxTokens,
-      // Classification already retries on the next worker sweep. Keep one
-      // immediate recovery attempt, but never request more than 8192 output
-      // tokens in a single call (or lower an explicit larger first budget).
-      maxRetryTokens: Math.max(maxTokens, 8192),
-      task: 'word-classification',
-      responseFormat: 'json-array',
-    });
-  } catch (error) {
-    // Whole-response garbage: classify nothing this round (retried next sweep).
-    if (error instanceof LLMInvalidJsonError) return [];
-    throw error;
-  }
   const assigned = new Map<string, ClassifiedDomain>(); // exact word → domain, first valid wins
   for (const entry of parsed) {
     if (!entry || typeof entry !== 'object') continue;
@@ -137,4 +125,54 @@ export async function classifyWords(
     }
   }
   return results;
+}
+
+/**
+ * Parse one batch-request result (raw completion text) into classify results.
+ * Batch entries get no corrective retry (unlike completeJson's second attempt):
+ * a garbled response just classifies nothing, and the words are resubmitted on
+ * a later sweep because their domain stays NULL.
+ */
+export function parseClassifyBatchText(items: ClassifyItem[], text: string): ClassifyResult[] {
+  let parsed: unknown;
+  try {
+    parsed = parseLooseJson<unknown>(text);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return selectClassifyResults(items, parsed);
+}
+
+/**
+ * Classify a batch of words into topic domains. Returns one entry per word that
+ * was confidently assigned a valid domain; words the model omitted, hallucinated,
+ * or tagged out-of-enum are simply absent (left for the next sweep). Provider /
+ * network errors propagate — the caller (worker) decides how to back off.
+ */
+export async function classifyWords(
+  items: ClassifyItem[],
+  provider: LLMProvider = getClassificationProvider(),
+): Promise<ClassifyResult[]> {
+  if (items.length === 0) return [];
+
+  const maxTokens = classifyMaxTokens(items.length);
+  let parsed: unknown[];
+  try {
+    parsed = await completeJson<unknown[]>(provider, {
+      messages: [{ role: 'user', content: buildClassifyPrompt(items) }],
+      maxTokens,
+      // Classification already retries on the next worker sweep. Keep one
+      // immediate recovery attempt, but never request more than 8192 output
+      // tokens in a single call (or lower an explicit larger first budget).
+      maxRetryTokens: Math.max(maxTokens, 8192),
+      task: 'word-classification',
+      responseFormat: 'json-array',
+    });
+  } catch (error) {
+    // Whole-response garbage: classify nothing this round (retried next sweep).
+    if (error instanceof LLMInvalidJsonError) return [];
+    throw error;
+  }
+  return selectClassifyResults(items, parsed);
 }

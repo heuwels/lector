@@ -52,6 +52,19 @@ CLASSIFY_WORKER=1
 
 The app works without API keys — the local dictionary covers the top 2000 words. Claude API is only needed for uncommon words and phrase translation.
 
+#### Cost controls ([#226](https://github.com/heuwels/lector/issues/226))
+
+Synthesized audio is **cached** and repeat requests for the same (language, voice, rate, text) are served from the cache instead of re-billed — this also covers your own Google bill when self-hosting. On by default, storing under `DATA_DIR/tts-cache`:
+
+- `TTS_CACHE=0` — disable caching entirely
+- `TTS_CACHE_MAX_BYTES` — disk-cache size cap, least-recently-used entries evicted (default 1 GiB)
+- `TTS_CACHE_S3_BUCKET` — store audio in S3-compatible object storage instead of disk (for cloud/multi-instance). Optional companions: `TTS_CACHE_S3_REGION`, `TTS_CACHE_S3_PREFIX` (default `tts-cache/`), `TTS_CACHE_S3_ENDPOINT` (R2/MinIO), with credentials from the standard `AWS_*`/`S3_*` env vars. No eviction is done in S3 — attach a bucket lifecycle rule instead.
+
+The word→domain classifier runs through the provider's **Batch API at 50% of synchronous pricing** whenever the classification provider supports it (currently: Anthropic with API-key auth — the default setup). Providers without a batch endpoint (LM Studio, Ollama, OpenRouter) keep the synchronous path automatically. Batches turn around in minutes, so a fresh install's radar fills slightly slower in exchange for half-price classification:
+
+- `CLASSIFY_BATCH=0` — force the synchronous path even when batching is available
+- `CLASSIFY_BATCH_MAX_REQUESTS` — prompts per submitted batch, each carrying `CLASSIFY_BATCH_SIZE` words (default 40 × 30 = up to 1,200 words per batch)
+
 #### Deployment mode
 
 `LECTOR_MODE` selects the deployment shape: `selfhost` (the default — leave it unset, this is the app as it has always been: single user, no login) or `cloud` — real accounts and per-user data, powered by built-in [Better Auth](https://better-auth.com) sessions ([#218](https://github.com/heuwels/lector/issues/218)). The two modes share one codebase and one image ([#242](https://github.com/heuwels/lector/issues/242)); self-hosting stays free and BYO-everything. Cloud mode is also the **multi-user opt-in for self-hosters** — run it on your own box to give each household member their own library.
