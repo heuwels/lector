@@ -11,6 +11,7 @@ import { ChevronRight, RefreshCw, Sparkles, Volume2, X, Zap } from 'lucide-react
 import NestedWordButton from './components/NestedWordButton';
 import Gloss from './components/Gloss';
 import { lookupAnnouncement } from './lookup-announcement';
+import { Spinner } from '@/components/ui/spinner';
 
 export { type ExpandedDictionaryEntry } from './types';
 
@@ -208,7 +209,7 @@ export default function TranslationDrawer({
         <section className="border-b border-border px-4 py-4">
           {isLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <Spinner className="text-primary" />
               Looking up…
             </div>
           ) : error ? (
@@ -311,7 +312,7 @@ export default function TranslationDrawer({
             )}
           {isContextLoading && (
             <span className="mt-3 inline-flex items-center gap-1.5 text-xs text-[var(--clay)]">
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--clay)] border-t-transparent" />
+              <Spinner size="sm" />
               Asking AI…
             </span>
           )}
@@ -336,7 +337,7 @@ export default function TranslationDrawer({
             )}
           {isEnriching && (
             <span className="mt-3 ml-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <Spinner size="sm" />
               Enriching…
             </span>
           )}
