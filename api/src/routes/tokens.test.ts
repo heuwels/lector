@@ -188,3 +188,53 @@ describe('GET /api/tokens — list survives corrupt scope metadata', () => {
     expect(corrupt?.scopes).toEqual([]);
   });
 });
+
+describe('token metadata listing and tenant-scoped revocation', () => {
+  beforeEach(cleanupTokens);
+  afterEach(cleanupTokens);
+
+  test('lists metadata without returning either the plaintext token or its hash', async () => {
+    const minted = await createToken({ name: `${NAME}-metadata`, scopes: ['vocab:read'] });
+    const created = (await minted.json()) as { id: string; token: string };
+
+    const response = await tokens.request('/');
+    expect(response.status).toBe(200);
+    const rows = (await response.json()) as Array<Record<string, unknown>>;
+    const listed = rows.find((row) => row.id === created.id);
+
+    expect(listed).toMatchObject({ id: created.id, name: `${NAME}-metadata` });
+    expect(listed).not.toHaveProperty('token');
+    expect(listed).not.toHaveProperty('tokenHash');
+    expect(JSON.stringify(rows)).not.toContain(created.token);
+  });
+
+  test('revokes an owned token but returns 404 without deleting another tenant token', async () => {
+    db.prepare(
+      `INSERT INTO api_tokens (id, name, tokenHash, scopes, createdAt, userId)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(
+      'tokens-route-intruder-id',
+      `${NAME}-intruder`,
+      'tokens-route-intruder-hash',
+      '["*"]',
+      '2026-01-01T00:00:00Z',
+      'tokens-route-intruder',
+    );
+    const minted = await createToken({ name: `${NAME}-owned` });
+    const owned = (await minted.json()) as { id: string };
+
+    const foreign = await tokens.request('/tokens-route-intruder-id', { method: 'DELETE' });
+    expect(foreign.status).toBe(404);
+    expect(
+      db
+        .prepare("SELECT COUNT(*) AS n FROM api_tokens WHERE id = 'tokens-route-intruder-id'")
+        .get(),
+    ).toEqual({ n: 1 });
+
+    const revoked = await tokens.request(`/${owned.id}`, { method: 'DELETE' });
+    expect(revoked.status).toBe(200);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM api_tokens WHERE id = ?').get(owned.id)).toEqual({
+      n: 0,
+    });
+  });
+});

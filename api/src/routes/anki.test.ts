@@ -106,6 +106,175 @@ describe('POST /api/anki proxy allowlist (SECURITY-04)', () => {
   });
 });
 
+describe('AnkiConnect connection and proxy errors', () => {
+  test('GET reports the connected version and deck list', async () => {
+    const realFetch = globalThis.fetch;
+    const actions: string[] = [];
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      const action = (JSON.parse(init?.body as string) as { action: string }).action;
+      actions.push(action);
+      return Response.json({
+        result: action === 'version' ? 6 : ['Default', 'Lector'],
+        error: null,
+      });
+    }) as unknown as typeof fetch;
+    try {
+      const response = await app.request('/');
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        connected: true,
+        version: 6,
+        decks: ['Default', 'Lector'],
+      });
+      expect(actions.sort()).toEqual(['deckNames', 'version']);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  test('GET maps an unreachable AnkiConnect to a disconnected response', async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error('Anki is not running');
+    }) as unknown as typeof fetch;
+    try {
+      const response = await app.request('/');
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        connected: false,
+        error: 'Anki is not running',
+      });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  test('POST maps HTTP and timeout failures and always supplies an abort signal', async () => {
+    const realFetch = globalThis.fetch;
+    const signals: AbortSignal[] = [];
+    let call = 0;
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      signals.push(init?.signal as AbortSignal);
+      call += 1;
+      if (call === 1) return new Response('down', { status: 503 });
+      throw new DOMException('The operation timed out', 'TimeoutError');
+    }) as unknown as typeof fetch;
+    try {
+      const upstream = await post('/', { action: 'version' });
+      expect(upstream.status).toBe(500);
+      expect(await upstream.json()).toEqual({
+        result: null,
+        error: 'AnkiConnect HTTP error: 503',
+      });
+
+      const timeout = await post('/', { action: 'version' });
+      expect(timeout.status).toBe(500);
+      expect(await timeout.json()).toEqual({
+        result: null,
+        error: 'The operation timed out',
+      });
+      expect(signals).toHaveLength(2);
+      expect(signals.every((signal) => signal instanceof AbortSignal)).toBe(true);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});
+
+describe('POST /api/anki/sync-reviews', () => {
+  const intruder = 'anki-route-intruder';
+
+  beforeEach(() => {
+    db.prepare("DELETE FROM settings WHERE key = 'ankiConnectUrl' AND userId IN ('local', ?)").run(
+      intruder,
+    );
+    db.prepare("DELETE FROM dailyStats WHERE userId = 'local'").run();
+  });
+  afterEach(() => {
+    db.prepare("DELETE FROM settings WHERE key = 'ankiConnectUrl' AND userId IN ('local', ?)").run(
+      intruder,
+    );
+    db.prepare("DELETE FROM dailyStats WHERE userId = 'local'").run();
+  });
+
+  test('uses the current tenant URL and stores only valid normalized review days', async () => {
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      'local',
+      'ankiConnectUrl',
+      '"https://local-anki.example/v1"',
+    );
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      intruder,
+      'ankiConnectUrl',
+      '"https://intruder-anki.example/v1"',
+    );
+    const realFetch = globalThis.fetch;
+    const requests: Request[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(new Request(input, init));
+      return Response.json({
+        result: [
+          ['2026-07-13', 3],
+          ['invalid-date', 99],
+          ['2026-07-13', 4],
+        ],
+        error: null,
+      });
+    }) as unknown as typeof fetch;
+    try {
+      const response = await post('/sync-reviews', {});
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ connected: true, synced: 1 });
+      expect(requests).toHaveLength(1);
+      expect(requests[0].url).toBe('https://local-anki.example/v1');
+      expect(await requests[0].json()).toMatchObject({
+        action: 'getNumCardsReviewedByDay',
+        version: 6,
+      });
+      expect(
+        db
+          .prepare("SELECT date, ankiReviews FROM dailyStats WHERE userId = 'local' ORDER BY date")
+          .all(),
+      ).toEqual([{ date: '2026-07-13', ankiReviews: 4 }]);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  test('leaves previously synced rows untouched when AnkiConnect is unavailable', async () => {
+    db.prepare(
+      `INSERT INTO dailyStats (userId, date, language, ankiReviews)
+       VALUES ('local', '2026-07-12', 'af', 7)`,
+    ).run();
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error('connection refused');
+    }) as unknown as typeof fetch;
+    try {
+      const response = await post('/sync-reviews', {});
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        connected: false,
+        synced: 0,
+        error: 'connection refused',
+      });
+      expect(
+        db
+          .prepare(
+            "SELECT ankiReviews FROM dailyStats WHERE userId = 'local' AND date = '2026-07-12'",
+          )
+          .get(),
+      ).toEqual({ ankiReviews: 7 });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});
+
 describe('POST /api/anki/queue', () => {
   beforeEach(clear);
   afterEach(clear);
