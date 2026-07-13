@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { useActiveLanguage } from '@/utils/hooks';
 import type { PasteImportModalProps } from './types';
 
@@ -167,7 +168,7 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
           >
             {isSaving ? (
               <div className="flex items-center gap-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                <Spinner className="text-primary-foreground" />
                 Saving...
               </div>
             ) : (

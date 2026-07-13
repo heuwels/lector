@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import PreviewStep from './components/PreviewStep';
 import UrlInputStep from './components/UrlInputStep';
 import type { ModalState, WebImportModalProps } from './types';
@@ -180,7 +181,7 @@ export default function WebImportModal({ isOpen, onClose, onSave }: WebImportMod
             >
               {state.phase === 'saving' ? (
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                  <Spinner className="text-primary-foreground" />
                   Saving...
                 </div>
               ) : (
