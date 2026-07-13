@@ -43,6 +43,7 @@ import {
   type CollectionGroup,
 } from '@/lib/data-layer';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import PageHeader from '@/components/PageHeader';
 import { getOnboardingSnapshot, type OnboardingSnapshot } from '@/lib/onboarding';
 import { toast } from 'sonner';
@@ -401,7 +402,7 @@ export default function Home() {
       )}
       {isLoading ? (
         <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-foreground" />
+          <Spinner size="lg" label="Loading library" className="text-foreground" />
         </div>
       ) : (
         <section>

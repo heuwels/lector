@@ -38,6 +38,7 @@ import {
 } from '@/lib/data-layer';
 import SortableLessonRow from '../components/SortableLessonRow';
 import { toast } from 'sonner';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function CollectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -178,7 +179,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     return (
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-foreground" />
+          <Spinner size="lg" label="Loading collection" className="text-foreground" />
         </div>
       </main>
     );
