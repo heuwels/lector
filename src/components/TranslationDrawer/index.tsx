@@ -30,6 +30,7 @@ export default function TranslationDrawer({
   isEnriching,
   error,
   existingEntry,
+  wordState,
   onboardingSaveProgress,
   onClose,
   onSpeak,
@@ -82,7 +83,7 @@ export default function TranslationDrawer({
   const handleSpeakWord = useCallback(() => onSpeak(word), [onSpeak, word]);
   const handleSpeakSentence = useCallback(() => onSpeak(sentence), [onSpeak, sentence]);
 
-  const currentState = existingEntry?.state ?? 'new';
+  const currentState = wordState ?? existingEntry?.state ?? 'new';
   const stateColors = wordStateColors[currentState];
   const isPhrase = word.includes(' ');
   // After a nested lookup (issue #106) the drawer keeps the sentence of the

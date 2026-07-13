@@ -10,10 +10,12 @@ import {
   type Lesson,
   type LessonSummary,
   type VocabEntry,
+  type WordState,
   getEntitlements,
   createOnboardingCloze,
   getLesson,
   getLessonsForCollection,
+  getKnownWordsMap,
   saveVocab,
   getVocabByText,
   updateVocabState,
@@ -37,6 +39,7 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
 import { useActiveLanguage } from '@/utils/hooks';
+import { patchWordState } from '@/components/MarkdownReader/optimistic-word-state';
 import {
   encounteredOnboardingTerms,
   getOnboardingSnapshot,
@@ -57,7 +60,12 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   const [siblings, setSiblings] = useState<LessonSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [readerRefreshTrigger, setReaderRefreshTrigger] = useState(0);
+  const [readerWordStates, setReaderWordStates] = useState<Map<string, WordState>>(new Map());
+  const readerWordStatesRef = useRef(readerWordStates);
+  const readerWordStateLoadRef = useRef<{
+    key: string;
+    promise: Promise<Map<string, WordState>>;
+  } | null>(null);
   const translationRequestId = useRef(0);
   const existingEntryLookup = useRef<Promise<VocabEntry | undefined> | null>(null);
 
@@ -106,13 +114,25 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     async function loadLesson() {
       try {
         setIsLoading(true);
-        const loadedLesson = await getLesson(lessonId);
+        const wordStateKey = `${lessonId}:${activeLang.code}`;
+        if (readerWordStateLoadRef.current?.key !== wordStateKey) {
+          readerWordStateLoadRef.current = {
+            key: wordStateKey,
+            promise: getKnownWordsMap(),
+          };
+        }
+        const [loadedLesson, loadedWordStates] = await Promise.all([
+          getLesson(lessonId),
+          readerWordStateLoadRef.current.promise,
+        ]);
 
         if (!loadedLesson) {
           setError('Lesson not found');
           return;
         }
 
+        readerWordStatesRef.current = loadedWordStates;
+        setReaderWordStates(loadedWordStates);
         setLesson(loadedLesson);
 
         // Load sibling lessons for prev/next navigation
@@ -129,7 +149,24 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     }
 
     loadLesson();
-  }, [lessonId]);
+  }, [activeLang.code, lessonId]);
+
+  const applyReaderWordState = useCallback(
+    (word: string, state: WordState) => {
+      const key = foldWord(word, activeLang);
+      const patch = patchWordState(readerWordStatesRef.current, key, state);
+      readerWordStatesRef.current = patch.map;
+      setReaderWordStates(patch.map);
+
+      return () => {
+        const restored = patch.rollback(readerWordStatesRef.current);
+        if (restored === readerWordStatesRef.current) return;
+        readerWordStatesRef.current = restored;
+        setReaderWordStates(restored);
+      };
+    },
+    [activeLang],
+  );
 
   // Explicitly record a real reader open (not the background GET /lessons)
   // and remember tomorrow's next lesson. Both writes are idempotent so a
@@ -540,9 +577,11 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       pushedToAnki: existing?.pushedToAnki || false,
       ankiNoteId: existing?.ankiNoteId,
     };
+    const rollbackReaderState = applyReaderWordState(wordPanel.word, entry.state);
 
     // A failed save must not paint the word as saved (#232).
     if (!(await saveVocab(entry))) {
+      rollbackReaderState();
       toast.error('Could not save the word — check your connection and try again.');
       return;
     }
@@ -554,18 +593,26 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       ...prev,
       existingEntry: entry,
     }));
-    setReaderRefreshTrigger((prev) => prev + 1);
   }, [
     wordPanel,
     lessonId,
     activeLang,
     resolveExistingEntry,
+    applyReaderWordState,
     persistAcceptedTranslation,
     trackOnboardingVocab,
   ]);
 
   const markAsKnown = useCallback(async () => {
-    const existing = await resolveExistingEntry();
+    const rollbackReaderState = applyReaderWordState(wordPanel.word, 'known');
+    let existing: VocabEntry | undefined;
+    try {
+      existing = await resolveExistingEntry();
+    } catch {
+      rollbackReaderState();
+      toast.error('Could not mark the word as known — check your connection.');
+      return;
+    }
     let trackedEntry: VocabEntry;
 
     if (!existing) {
@@ -583,12 +630,14 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         pushedToAnki: false,
       };
       if (!(await saveVocab(entry))) {
+        rollbackReaderState();
         toast.error('Could not mark the word as known — check your connection.');
         return;
       }
       trackedEntry = entry;
     } else {
       if (!(await updateVocabState(existing.id, 'known'))) {
+        rollbackReaderState();
         toast.error('Could not mark the word as known — check your connection.');
         return;
       }
@@ -598,12 +647,12 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     await incrementDailyStat('wordsMarkedKnown');
     persistAcceptedTranslation();
     void trackOnboardingVocab(trackedEntry, 'known');
-    setReaderRefreshTrigger((prev) => prev + 1);
     closeWordPanel();
   }, [
     wordPanel,
     lessonId,
     activeLang,
+    applyReaderWordState,
     closeWordPanel,
     resolveExistingEntry,
     persistAcceptedTranslation,
@@ -611,7 +660,15 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   ]);
 
   const ignoreWord = useCallback(async () => {
-    const existing = await resolveExistingEntry();
+    const rollbackReaderState = applyReaderWordState(wordPanel.word, 'ignored');
+    let existing: VocabEntry | undefined;
+    try {
+      existing = await resolveExistingEntry();
+    } catch {
+      rollbackReaderState();
+      toast.error('Could not ignore the word — check your connection.');
+      return;
+    }
     let trackedEntry: VocabEntry;
 
     if (!existing) {
@@ -629,12 +686,14 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         pushedToAnki: false,
       };
       if (!(await saveVocab(entry))) {
+        rollbackReaderState();
         toast.error('Could not ignore the word — check your connection.');
         return;
       }
       trackedEntry = entry;
     } else {
       if (!(await updateVocabState(existing.id, 'ignored'))) {
+        rollbackReaderState();
         toast.error('Could not ignore the word — check your connection.');
         return;
       }
@@ -642,16 +701,31 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     }
 
     void trackOnboardingVocab(trackedEntry, 'ignored');
-    setReaderRefreshTrigger((prev) => prev + 1);
     closeWordPanel();
-  }, [wordPanel, lessonId, activeLang, closeWordPanel, resolveExistingEntry, trackOnboardingVocab]);
+  }, [
+    wordPanel,
+    lessonId,
+    activeLang,
+    applyReaderWordState,
+    closeWordPanel,
+    resolveExistingEntry,
+    trackOnboardingVocab,
+  ]);
 
   const setWordLevel = useCallback(
     async (level: 1 | 2 | 3 | 4) => {
       if (!wordPanel.translation) return;
 
       const state = `level${level}` as 'level1' | 'level2' | 'level3' | 'level4';
-      const existing = await resolveExistingEntry();
+      const rollbackReaderState = applyReaderWordState(wordPanel.word, state);
+      let existing: VocabEntry | undefined;
+      try {
+        existing = await resolveExistingEntry();
+      } catch {
+        rollbackReaderState();
+        toast.error('Could not set the word level — check your connection.');
+        return;
+      }
       let trackedEntry: VocabEntry;
 
       if (!existing) {
@@ -669,6 +743,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           pushedToAnki: false,
         };
         if (!(await saveVocab(entry))) {
+          rollbackReaderState();
           toast.error('Could not set the word level — check your connection.');
           return;
         }
@@ -677,6 +752,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         trackedEntry = entry;
       } else {
         if (!(await updateVocabState(existing.id, state))) {
+          rollbackReaderState();
           toast.error('Could not set the word level — check your connection.');
           return;
         }
@@ -692,7 +768,6 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       persistAcceptedTranslation();
       const savedBefore = savedOnboardingWords(onboarding).length;
       const nextOnboarding = await trackOnboardingVocab(trackedEntry, state);
-      setReaderRefreshTrigger((prev) => prev + 1);
 
       if (onboardingActive && trackedEntry.type === 'word' && nextOnboarding) {
         const savedAfter = savedOnboardingWords(nextOnboarding).length;
@@ -709,6 +784,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       wordPanel,
       lessonId,
       activeLang,
+      applyReaderWordState,
       onboarding,
       onboardingActive,
       closeWordPanel,
@@ -762,17 +838,21 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       createdAt: new Date(),
       pushedToAnki: false,
     };
-    await saveVocab(entry);
+    const rollbackReaderState = applyReaderWordState(wordPanel.word, entry.state);
+    if (!(await saveVocab(entry))) {
+      rollbackReaderState();
+      throw new Error('Could not save the word — check your connection.');
+    }
     await incrementDailyStat('newWordsSaved');
     persistAcceptedTranslation();
     void trackOnboardingVocab(entry, entry.state);
     setWordPanel((prev) => ({ ...prev, existingEntry: entry }));
-    setReaderRefreshTrigger((prev) => prev + 1);
     return entry;
   }, [
     wordPanel,
     lessonId,
     activeLang,
+    applyReaderWordState,
     resolveExistingEntry,
     persistAcceptedTranslation,
     trackOnboardingVocab,
@@ -920,7 +1000,6 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     async (newContent: string) => {
       await updateLesson(lessonId, { textContent: newContent });
       setLesson((prev) => (prev ? { ...prev, textContent: newContent } : prev));
-      setReaderRefreshTrigger((prev) => prev + 1);
     },
     [lessonId],
   );
@@ -1069,7 +1148,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           onClose={handleClose}
           onSaveText={handleSaveText}
           onEditingChange={handleEditingChange}
-          refreshTrigger={readerRefreshTrigger}
+          knownWordsMap={readerWordStates}
           prevLesson={prevLesson}
           nextLesson={nextLesson}
         />
@@ -1094,6 +1173,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         isEnriching={wordPanel.isEnriching}
         error={wordPanel.error}
         existingEntry={wordPanel.existingEntry}
+        wordState={readerWordStates.get(foldWord(wordPanel.word, activeLang))}
         onboardingSaveProgress={
           onboardingActive && !wordPanel.word.includes(' ')
             ? {
