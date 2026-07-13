@@ -1,4 +1,4 @@
-import { paddleApiBase, type PaddleEnvironment } from './billing';
+import { paddleApiBase, type PaddleEnvironment, type PaddleEvent } from './billing';
 
 const PADDLE_REQUEST_TIMEOUT_MS = 15_000;
 const CUSTOMER_PORTAL_HOSTS: Record<PaddleEnvironment, ReadonlySet<string>> = {
@@ -36,6 +36,19 @@ export interface PaddleBillingOperations {
   applySubscriptionChange(args: SubscriptionChangeArgs): Promise<void>;
 }
 
+export interface PaddleBillingSnapshot {
+  customers: PaddleEvent[];
+  subscriptions: PaddleEvent[];
+}
+
+/** Read-only Paddle state used by the operator reconciliation action (#322). */
+export interface PaddleBillingReader {
+  fetchBillingSnapshot(args: {
+    email: string;
+    knownCustomerIds: readonly string[];
+  }): Promise<PaddleBillingSnapshot>;
+}
+
 export type PaddleBillingErrorCode =
   | 'already_current'
   | 'managed_price_mismatch'
@@ -58,6 +71,86 @@ function asRecord(value: unknown): JsonRecord | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as JsonRecord)
     : null;
+}
+
+function requiredString(record: JsonRecord, key: string, entity: string): string {
+  const value = record[key];
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new PaddleBillingError('invalid_response', `Paddle ${entity} response omitted ${key}`);
+  }
+  return value;
+}
+
+function requiredTimestamp(record: JsonRecord, key: string, entity: string): string {
+  const value = requiredString(record, key, entity);
+  if (Number.isNaN(Date.parse(value))) {
+    throw new PaddleBillingError('invalid_response', `Paddle ${entity} returned an invalid ${key}`);
+  }
+  return value;
+}
+
+function customerEvent(value: unknown): PaddleEvent {
+  const customer = asRecord(value);
+  if (!customer) {
+    throw new PaddleBillingError('invalid_response', 'Paddle returned an invalid customer');
+  }
+  return {
+    event_type: 'customer.updated',
+    occurred_at: requiredTimestamp(customer, 'updated_at', 'customer'),
+    data: {
+      id: requiredString(customer, 'id', 'customer'),
+      email: requiredString(customer, 'email', 'customer'),
+    },
+  };
+}
+
+function subscriptionEvent(value: unknown): PaddleEvent {
+  const subscription = asRecord(value);
+  if (!subscription) {
+    throw new PaddleBillingError('invalid_response', 'Paddle returned an invalid subscription');
+  }
+  const rawCustomData = asRecord(subscription.custom_data);
+  const lectorUserId = rawCustomData?.lectorUserId;
+  const currentBillingPeriod = asRecord(subscription.current_billing_period);
+  const rawItems = subscription.items;
+  if (!Array.isArray(rawItems)) {
+    throw new PaddleBillingError('invalid_response', 'Paddle subscription response omitted items');
+  }
+  if (rawItems.length === 0) {
+    throw new PaddleBillingError(
+      'invalid_response',
+      'Paddle subscription response returned no items',
+    );
+  }
+  const items = rawItems.map((rawItem) => {
+    const priceId = asRecord(asRecord(rawItem)?.price)?.id;
+    if (typeof priceId !== 'string' || priceId.length === 0) {
+      throw new PaddleBillingError(
+        'invalid_response',
+        'Paddle subscription returned an invalid item',
+      );
+    }
+    return {
+      price: { id: priceId },
+    };
+  });
+
+  return {
+    event_type: 'subscription.updated',
+    occurred_at: requiredTimestamp(subscription, 'updated_at', 'subscription'),
+    data: {
+      id: requiredString(subscription, 'id', 'subscription'),
+      status: requiredString(subscription, 'status', 'subscription'),
+      customer_id: requiredString(subscription, 'customer_id', 'subscription'),
+      custom_data:
+        typeof lectorUserId === 'string' && lectorUserId.length > 0 ? { lectorUserId } : null,
+      current_billing_period:
+        currentBillingPeriod && typeof currentBillingPeriod.ends_at === 'string'
+          ? { ends_at: currentBillingPeriod.ends_at }
+          : null,
+      items,
+    },
+  };
 }
 
 function asBillingMoney(value: unknown, fallbackCurrency: string | null): BillingMoney | null {
@@ -171,7 +264,7 @@ function replacementItems(
 export function makePaddleBillingOperations(cfg: {
   apiKey: string | undefined;
   environment: PaddleEnvironment;
-}): PaddleBillingOperations {
+}): PaddleBillingOperations & PaddleBillingReader {
   const baseUrl = paddleApiBase(cfg.environment);
 
   async function request(path: string, init: RequestInit): Promise<unknown> {
@@ -216,6 +309,66 @@ export function makePaddleBillingOperations(cfg: {
     );
   }
 
+  async function listEvents(
+    initialPath: string,
+    expectedPath: '/customers' | '/subscriptions',
+    parse: (value: unknown) => PaddleEvent,
+  ): Promise<PaddleEvent[]> {
+    const events: PaddleEvent[] = [];
+    const seenPages = new Set<string>();
+    let path: string | null = initialPath;
+
+    while (path) {
+      if (seenPages.has(path) || seenPages.size >= 100) {
+        throw new PaddleBillingError('invalid_response', 'Paddle returned invalid pagination');
+      }
+      seenPages.add(path);
+      const response = asRecord(await request(path, { method: 'GET' }));
+      if (!response || !Array.isArray(response.data)) {
+        throw new PaddleBillingError('invalid_response', 'Paddle list response omitted data');
+      }
+      events.push(...response.data.map(parse));
+
+      const pagination = asRecord(asRecord(response.meta)?.pagination);
+      if (!pagination || typeof pagination.has_more !== 'boolean') {
+        throw new PaddleBillingError('invalid_response', 'Paddle list response omitted pagination');
+      }
+      if (pagination?.has_more !== true) break;
+      if (typeof pagination.next !== 'string') {
+        throw new PaddleBillingError(
+          'invalid_response',
+          'Paddle paginated response omitted its next page',
+        );
+      }
+      let next: URL;
+      try {
+        next = new URL(pagination.next);
+      } catch {
+        throw new PaddleBillingError('invalid_response', 'Paddle returned an invalid next page');
+      }
+      const expectedBase = new URL(baseUrl);
+      if (next.origin !== expectedBase.origin || next.pathname !== expectedPath) {
+        throw new PaddleBillingError('invalid_response', 'Paddle returned an unexpected next page');
+      }
+      path = `${next.pathname}${next.search}`;
+    }
+    return events;
+  }
+
+  function listPath(
+    resource: '/customers' | '/subscriptions',
+    filters: Record<string, string>,
+  ): string {
+    const params = new URLSearchParams({ ...filters, per_page: '200' });
+    return `${resource}?${params.toString()}`;
+  }
+
+  function chunks<T>(values: readonly T[], size: number): T[][] {
+    const result: T[][] = [];
+    for (let i = 0; i < values.length; i += size) result.push(values.slice(i, i + size));
+    return result;
+  }
+
   function changeBody(
     args: SubscriptionChangeArgs,
     items: Array<{ price_id: string; quantity: number }>,
@@ -228,6 +381,45 @@ export function makePaddleBillingOperations(cfg: {
   }
 
   return {
+    async fetchBillingSnapshot({ email, knownCustomerIds }) {
+      const customerEvents = new Map<string, PaddleEvent>();
+      const knownIds = [...new Set(knownCustomerIds.filter(Boolean))];
+
+      // Fetch mirror-owned IDs and exact email matches separately: Paddle list
+      // filters combine, while this action needs their union to repair both a
+      // stale known customer and an entirely missed customer webhook.
+      for (const ids of chunks(knownIds, 100)) {
+        const events = await listEvents(
+          listPath('/customers', { id: ids.join(','), status: 'active,archived' }),
+          '/customers',
+          customerEvent,
+        );
+        for (const event of events) customerEvents.set(event.data!.id!, event);
+      }
+      const emailEvents = await listEvents(
+        listPath('/customers', { email, status: 'active,archived' }),
+        '/customers',
+        customerEvent,
+      );
+      for (const event of emailEvents) customerEvents.set(event.data!.id!, event);
+
+      const customerIds = [...new Set([...knownIds, ...customerEvents.keys()])];
+      const subscriptionEvents = new Map<string, PaddleEvent>();
+      for (const ids of chunks(customerIds, 100)) {
+        const events = await listEvents(
+          listPath('/subscriptions', { customer_id: ids.join(',') }),
+          '/subscriptions',
+          subscriptionEvent,
+        );
+        for (const event of events) subscriptionEvents.set(event.data!.id!, event);
+      }
+
+      return {
+        customers: [...customerEvents.values()],
+        subscriptions: [...subscriptionEvents.values()],
+      };
+    },
+
     async createPortalSession({ customerId, subscriptionIds }) {
       const uniqueSubscriptionIds = [...new Set(subscriptionIds)].slice(0, 25);
       const response = await request(

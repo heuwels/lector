@@ -23,6 +23,108 @@ const change: SubscriptionChangeArgs = {
 };
 
 describe('Paddle account-management operations', () => {
+  test('fetches and normalizes current customers and subscriptions for reconciliation', async () => {
+    const calls: Array<{ url: string; authorization: string | null }> = [];
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      calls.push({
+        url: url.toString(),
+        authorization: new Headers(init?.headers).get('Authorization'),
+      });
+      const pagination = { has_more: false, next: url.toString() };
+      if (url.pathname === '/customers' && url.searchParams.has('id')) {
+        expect(url.searchParams.get('id')).toBe('ctm_known');
+        return json({
+          data: [
+            {
+              id: 'ctm_known',
+              email: 'buyer@example.com',
+              updated_at: '2026-07-12T01:00:00Z',
+            },
+          ],
+          meta: { pagination },
+        });
+      }
+      if (url.pathname === '/customers') {
+        expect(url.searchParams.get('email')).toBe('buyer@example.com');
+        return json({
+          data: [
+            {
+              id: 'ctm_discovered',
+              email: 'buyer@example.com',
+              updated_at: '2026-07-12T01:01:00Z',
+            },
+          ],
+          meta: { pagination },
+        });
+      }
+      expect(url.pathname).toBe('/subscriptions');
+      expect(url.searchParams.get('customer_id')).toBe('ctm_known,ctm_discovered');
+      return json({
+        data: [
+          {
+            id: 'sub_current',
+            status: 'past_due',
+            customer_id: 'ctm_discovered',
+            custom_data: { lectorUserId: 'user-1' },
+            current_billing_period: { ends_at: '2026-08-12T01:00:00Z' },
+            items: [{ price: { id: 'pri_cloud_month' } }],
+            updated_at: '2026-07-12T01:02:00Z',
+          },
+        ],
+        meta: { pagination },
+      });
+    }) as unknown as typeof fetch;
+
+    const snapshot = await makePaddleBillingOperations({
+      apiKey: 'pdl_key',
+      environment: 'sandbox',
+    }).fetchBillingSnapshot({
+      email: 'buyer@example.com',
+      knownCustomerIds: ['ctm_known', 'ctm_known'],
+    });
+
+    expect(calls).toHaveLength(3);
+    expect(calls.every((call) => call.authorization === 'Bearer pdl_key')).toBe(true);
+    expect(snapshot.customers).toHaveLength(2);
+    expect(snapshot.subscriptions).toEqual([
+      {
+        event_type: 'subscription.updated',
+        occurred_at: '2026-07-12T01:02:00Z',
+        data: {
+          id: 'sub_current',
+          status: 'past_due',
+          customer_id: 'ctm_discovered',
+          custom_data: { lectorUserId: 'user-1' },
+          current_billing_period: { ends_at: '2026-08-12T01:00:00Z' },
+          items: [{ price: { id: 'pri_cloud_month' } }],
+        },
+      },
+    ]);
+  });
+
+  test('refuses a paginated response that points away from the Paddle API', async () => {
+    globalThis.fetch = mock(async () =>
+      json({
+        data: [],
+        meta: {
+          pagination: {
+            has_more: true,
+            next: 'https://attacker.example/customers?after=ctm_leak',
+          },
+        },
+      }),
+    ) as unknown as typeof fetch;
+    const operations = makePaddleBillingOperations({
+      apiKey: 'pdl_key',
+      environment: 'production',
+    });
+
+    await expect(
+      operations.fetchBillingSnapshot({ email: 'buyer@example.com', knownCustomerIds: [] }),
+    ).rejects.toMatchObject({ code: 'invalid_response' });
+  });
+
   test('creates a temporary portal session with server-owned subscription ids', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
