@@ -7,25 +7,17 @@ import {
   useRef,
   useState,
   useCallback,
-  Fragment,
-  cloneElement,
-  isValidElement,
-  type ReactNode,
-  type ReactElement,
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ChevronLeft, ChevronRight, SquarePen } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
 import { updateLessonProgress } from '@/lib/data-layer';
 import { createTrailingThrottle } from './throttle';
-import type { WordState } from '@/types';
-import { snapToWordBoundaries, splitWords, collectWords, computePhraseHighlightSet } from './utils';
+import { snapToWordBoundaries } from './utils';
 import { foldWord, getLanguageConfig, isValidLanguageCode, splitSentences } from '@/lib/languages';
 import { useActiveLanguage } from '@/utils/hooks';
-import { stateClasses } from './theme';
 import { MarkdownReaderProps } from './types';
 import { Button } from '@/components/ui/button';
+import ReaderArticle, { type ActiveReaderWord } from './ReaderArticle';
 
 export default function MarkdownReader({
   lesson,
@@ -55,7 +47,7 @@ export default function MarkdownReader({
   // block's source offset + word index within the block so we highlight the
   // exact instance clicked, not every occurrence of that spelling. Cleared
   // when a phrase is selected instead.
-  const [activeWord, setActiveWord] = useState<{ blockId: number; wordIndex: number } | null>(null);
+  const [activeWord, setActiveWord] = useState<ActiveReaderWord | null>(null);
   const [scrollPercentage, setScrollPercentage] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [draftContent, setDraftContent] = useState('');
@@ -128,10 +120,6 @@ export default function MarkdownReader({
     progressWriter(scrollTop, percentage);
   }, [progressWriter]);
 
-  const getWordState = (word: string): WordState | undefined => {
-    return knownWordsMap.get(foldWord(word, pack));
-  };
-
   const findSentence = useCallback(
     (element: HTMLElement): string => {
       const block = element.closest('p, li, blockquote, h1, h2, h3, h4, h5, h6');
@@ -148,102 +136,6 @@ export default function MarkdownReader({
     },
     [pack],
   );
-
-  // Recursively wrap word leaves in clickable, state-colored spans while
-  // preserving inline formatting (<strong>/<em>/<a>/…). `ctx.i` is a running
-  // word index across the whole block so phrase highlighting stays continuous
-  // even across bold/italic boundaries.
-  const renderChildren = (
-    children: ReactNode,
-    ctx: { i: number; phraseSet: Set<number>; blockId: number },
-    keyPrefix = 'r',
-  ): ReactNode => {
-    if (typeof children === 'string') {
-      return splitWords(children, pack).map((part, k) => {
-        if (!part.isWord)
-          return (
-            <span key={`${keyPrefix}-${k}`} data-leaf="">
-              {part.text}
-            </span>
-          );
-        const currentWordIndex = ctx.i++;
-        const state = getWordState(part.text);
-        const colorClass = state ? stateClasses[state] : stateClasses.new;
-        const isPhraseHighlighted = ctx.phraseSet.has(currentWordIndex);
-        const isActiveWord =
-          activeWord?.blockId === ctx.blockId && activeWord?.wordIndex === currentWordIndex;
-        const isHighlighted = isPhraseHighlighted || isActiveWord;
-        return (
-          <span
-            key={`${keyPrefix}-${k}`}
-            data-leaf=""
-            data-testid="reader-word"
-            role="button"
-            tabIndex={0}
-            aria-label={`Look up ${part.text}`}
-            onClick={(e) => {
-              clearPhraseHighlight();
-              setActiveWord({ blockId: ctx.blockId, wordIndex: currentWordIndex });
-              const sentence = findSentence(e.currentTarget);
-              onWordClick(part.text, sentence);
-            }}
-            onKeyDown={(e) => {
-              if (e.key !== 'Enter' && e.key !== ' ') return;
-              e.preventDefault();
-              clearPhraseHighlight();
-              setActiveWord({ blockId: ctx.blockId, wordIndex: currentWordIndex });
-              const sentence = findSentence(e.currentTarget);
-              onWordClick(part.text, sentence);
-            }}
-            data-phrase-highlighted={isPhraseHighlighted || undefined}
-            data-active-word={isActiveWord || undefined}
-            className={`cursor-pointer rounded-[7px] px-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${colorClass} ${isActiveWord ? 'ring-2 ring-[var(--clay)]' : ''}`}
-            style={
-              isHighlighted
-                ? { backgroundColor: 'color-mix(in srgb, var(--clay) 22%, transparent)' }
-                : undefined
-            }
-          >
-            {part.text}
-          </span>
-        );
-      });
-    }
-    if (Array.isArray(children)) {
-      return children.map((child, k) => (
-        <Fragment key={`${keyPrefix}-${k}`}>
-          {renderChildren(child, ctx, `${keyPrefix}-${k}`)}
-        </Fragment>
-      ));
-    }
-    if (isValidElement(children)) {
-      const el = children as ReactElement<{ children?: ReactNode }>;
-      // Already a leaf span we emitted — return as-is. A loose markdown list
-      // renders each item as <li><p>…</p></li>, and both the `li` and `p`
-      // components run renderBlock(); without this guard the inner pass would
-      // re-wrap the words the outer pass already wrapped, producing nested
-      // duplicate (double-highlighted) word spans.
-      if ((el.props as Record<string, unknown>)['data-leaf'] !== undefined) {
-        return el;
-      }
-      return cloneElement(el, {}, renderChildren(el.props.children, ctx, keyPrefix));
-    }
-    return children;
-  };
-
-  // Render a markdown block's children with per-word highlighting. The phrase
-  // set is computed over the block's full word list first so indices line up
-  // with the spans renderChildren emits (incl. words inside bold/italic).
-  const renderBlock = (children: ReactNode, blockId: number): ReactNode => {
-    const phraseSet = computePhraseHighlightSet(
-      collectWords(children, pack),
-      highlightedPhrase,
-      pack,
-    );
-    return renderChildren(children, { i: 0, phraseSet, blockId });
-  };
-
-  const content = lesson.textContent;
 
   // Set highlighted phrase words (React state, survives re-renders)
   const highlightPhrase = useCallback(
@@ -375,72 +267,16 @@ export default function MarkdownReader({
             </p>
           </div>
         ) : (
-          <article
-            className="mx-auto max-w-[38em] px-4 py-8 text-foreground sm:px-8 sm:py-16 print:px-0 print:py-0"
-            style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}
-          >
-            {/* Block elements are styled explicitly with design tokens (no
-                            @tailwindcss/typography plugin is installed, so `prose-*` was
-                            a no-op). renderBlock() keeps word-highlighting working through
-                            inline markdown in the reading body; remark-breaks renders single
-                            newlines as <br>. Headings are styled but NOT word-wrapped —
-                            click-to-translate stays in the body copy (and reader specs assume
-                            word spans live only in p/li). */}
-            <ReactMarkdown
-              remarkPlugins={[remarkBreaks]}
-              components={{
-                h1: ({ children }) => (
-                  <h1 className="mt-8 mb-4 font-sans text-3xl font-extrabold first:mt-0">
-                    {children}
-                  </h1>
-                ),
-                h2: ({ children }) => (
-                  <h2 className="mt-8 mb-3 font-sans text-2xl font-bold first:mt-0">{children}</h2>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="mt-6 mb-2 font-sans text-xl font-bold first:mt-0">{children}</h3>
-                ),
-                p: ({ node, children }) => (
-                  <p className="my-5 text-lg leading-[1.9] sm:text-xl">
-                    {renderBlock(children, node?.position?.start?.offset ?? 0)}
-                  </p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="my-5 list-disc space-y-2 pl-6 text-lg sm:text-xl">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="my-5 list-decimal space-y-2 pl-6 text-lg sm:text-xl">
-                    {children}
-                  </ol>
-                ),
-                li: ({ node, children }) => (
-                  <li className="leading-relaxed">
-                    {renderBlock(children, node?.position?.start?.offset ?? 0)}
-                  </li>
-                ),
-                blockquote: ({ children }) => (
-                  <blockquote className="my-6 border-l-4 border-border pl-4 text-foreground/75 italic">
-                    {children}
-                  </blockquote>
-                ),
-                strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                em: ({ children }) => <em className="italic">{children}</em>,
-                a: ({ href, children }) => (
-                  <a
-                    href={href ?? undefined}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-primary underline underline-offset-2"
-                  >
-                    {children}
-                  </a>
-                ),
-                hr: () => <hr className="my-8 border-border" />,
-              }}
-            >
-              {content}
-            </ReactMarkdown>
-          </article>
+          <ReaderArticle
+            content={lesson.textContent}
+            pack={pack}
+            knownWordsMap={knownWordsMap}
+            highlightedPhrase={highlightedPhrase}
+            activeWord={activeWord}
+            onWordClick={onWordClick}
+            onActivateWord={setActiveWord}
+            onClearPhrase={clearPhraseHighlight}
+          />
         )}
 
         {/* Prev/Next navigation at bottom */}
