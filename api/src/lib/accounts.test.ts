@@ -6,7 +6,7 @@
  * user-scoping ratchet's job (routes/user-scoping.test.ts); this suite pins
  * the credential layer that feeds it a userId.
  */
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, test, expect, beforeAll, afterAll, afterEach } from 'bun:test';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { Database } from 'bun:sqlite';
@@ -314,6 +314,14 @@ describe('account deletion (#227): emailed-link right-to-erasure', () => {
   const BYSTANDER = 'bystander@example.com';
   const PASSWORD = 'erase-me-please-9';
 
+  // The bystander's seeded row must be cleaned up even if the test throws, so
+  // the shared test DB is left as we found it.
+  let bystanderId: string | null = null;
+  afterEach(() => {
+    if (bystanderId) db.prepare('DELETE FROM settings WHERE userId = ?').run(bystanderId);
+    bystanderId = null;
+  });
+
   async function tenantIdFor(cookie: string): Promise<string> {
     const res = await app.request(`${BASE}/api/whoami`, { headers: { Cookie: cookie } });
     return ((await res.json()) as { userId: string }).userId;
@@ -323,7 +331,7 @@ describe('account deletion (#227): emailed-link right-to-erasure', () => {
     // Two verified accounts, each with a row of tenant data in the app DB.
     await signUp(BYSTANDER, PASSWORD);
     await verifyLatestEmail();
-    const bystanderId = await tenantIdFor(cookiesFrom(await signIn(BYSTANDER, PASSWORD)));
+    bystanderId = await tenantIdFor(cookiesFrom(await signIn(BYSTANDER, PASSWORD)));
 
     await signUp(EMAIL, PASSWORD);
     await verifyLatestEmail();
@@ -358,9 +366,6 @@ describe('account deletion (#227): emailed-link right-to-erasure', () => {
 
     // The account itself no longer exists — the old credentials are dead.
     expect((await signIn(EMAIL, PASSWORD)).status).toBe(401);
-
-    // Leave the shared test DB as we found it (the bystander row lingers otherwise).
-    db.prepare('DELETE FROM settings WHERE userId = ?').run(bystanderId);
   });
 });
 

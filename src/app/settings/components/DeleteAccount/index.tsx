@@ -66,8 +66,8 @@ function DeleteAccountCard() {
           className="rounded-lg border border-border bg-[var(--primary-soft)] p-3 text-sm text-foreground"
           data-testid="delete-account-sent"
         >
-          Check your email — click the link we just sent to permanently delete your account. The
-          link expires in 24 hours.
+          Check your email and open the link we just sent <strong>in this browser</strong> to
+          permanently delete your account. The link expires in 24 hours.
         </div>
       ) : !open ? (
         <Button
