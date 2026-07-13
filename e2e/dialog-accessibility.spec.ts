@@ -56,4 +56,22 @@ test.describe('Shared dialog accessibility', () => {
     await expect(dialog).toBeHidden();
     await expect(trigger).toBeFocused();
   });
+
+  test('labels and focuses the paste and web import dialogs', async ({ page }) => {
+    await page.goto('/');
+
+    await page.getByRole('button', { name: 'Import' }).click();
+    await page.getByRole('button', { name: 'Paste Text' }).click();
+    const pasteDialog = page.getByRole('dialog', { name: 'Paste Text' });
+    await expect(pasteDialog).toBeVisible();
+    await expect(page.locator('#paste-title')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(pasteDialog).toBeHidden();
+
+    await page.getByRole('button', { name: 'Import' }).click();
+    await page.getByRole('button', { name: 'Import from URL' }).click();
+    const webDialog = page.getByRole('dialog', { name: 'Import from Web' });
+    await expect(webDialog).toBeVisible();
+    await expect(page.locator('#url-input')).toBeFocused();
+  });
 });
