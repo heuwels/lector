@@ -147,6 +147,24 @@ describe('cloud — per-account namespaces', () => {
     await Promise.resolve();
     expect(dispatched.filter((e) => e.type === 'lector-language-change')).toHaveLength(2);
   });
+
+  it('clears in-memory queries when the active account changes', async () => {
+    const stored: Stored = new Map();
+    fakeWindow('cloud', stored);
+    const cache = await freshModule();
+    const queries = await import('./query-cache');
+    const loader = vi.fn(async () => 'account-a data');
+    const key = { tenant: 'user-a', language: 'de', scope: 'collections' };
+
+    cache.setActiveTenant('user-a');
+    await queries.cachedQuery(key, loader);
+    await queries.cachedQuery(key, loader);
+    expect(loader).toHaveBeenCalledTimes(1);
+
+    cache.setActiveTenant('user-b');
+    await queries.cachedQuery(key, loader);
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('SSR', () => {
