@@ -112,6 +112,50 @@ test.describe.serial("Practice - Type Mode Full Journey", () => {
     await expect(page.getByRole("button", { name: "Check" })).toBeVisible();
   });
 
+  test("should look up sentence words with Enter and Space", async ({ page }) => {
+    let releaseLookup!: () => void;
+    const lookupGate = new Promise<void>((resolve) => {
+      releaseLookup = resolve;
+    });
+    await page.route("**/api/dictionary/lookup**", async (route) => {
+      const word = new URL(route.request().url()).searchParams.get("word") || "word";
+      await lookupGate;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          entry: { word, senses: [{ partOfSpeech: "noun", gloss: "test definition" }] },
+        }),
+      });
+    });
+
+    await waitForSetup(page);
+    await page.getByRole("button", { name: "10", exact: true }).click();
+    await page.getByRole("button", { name: "Type" }).click();
+    await page.getByRole("button", { name: "Start" }).click();
+    await expect(page.getByText("Fill in the blank")).toBeVisible({ timeout: 10000 });
+
+    const lookupWord = page.getByTestId("cloze-word").first();
+    await expect(lookupWord).toHaveRole("button");
+    await lookupWord.focus();
+    await page.keyboard.press("Enter");
+
+    const drawer = page.getByTestId("translation-drawer");
+    const announcement = page.getByTestId("lookup-announcement");
+    await expect(drawer).toHaveClass(/translate-x-0/);
+    await expect(announcement).toContainText("Looking up");
+
+    releaseLookup();
+    await expect(announcement).toContainText("Definition loaded");
+
+    await drawer.getByRole("button", { name: "Close" }).click();
+    await expect(drawer).toHaveClass(/translate-x-full/);
+    await lookupWord.focus();
+    await page.keyboard.press("Space");
+    await expect(drawer).toHaveClass(/translate-x-0/);
+    await expect(page.getByText("Fill in the blank")).toBeVisible();
+  });
+
   test("should type a correct answer and show feedback", async ({ page }) => {
     await waitForSetup(page);
 
