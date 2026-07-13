@@ -1,5 +1,6 @@
 import type { KeyboardEvent, Ref } from 'react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { useActiveLanguage } from '@/utils/hooks';
 
 export default function UrlInputStep({
@@ -50,7 +51,7 @@ export default function UrlInputStep({
           >
             {isLoading ? (
               <div className="flex items-center gap-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                <Spinner className="text-primary-foreground" />
                 Extracting...
               </div>
             ) : (

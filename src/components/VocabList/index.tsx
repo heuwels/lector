@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronDown, ChevronUp, Loader2, RefreshCw, Upload } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, RefreshCw, Upload } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { WordState } from '@/lib/data-layer';
 import { getPageCount, clampPage, paginate } from '@/lib/pagination';
@@ -11,6 +11,7 @@ import { stateFilters, stateOrder, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '
 import { AnkiCardType, SortDirection, SortField, VocabListProps } from './types';
 import { useActiveLanguage } from '@/utils/hooks';
 import { Button } from '../ui/button';
+import { Spinner } from '../ui/spinner';
 import OnboardingTip from '@/components/OnboardingTip';
 
 export default function VocabList({
@@ -314,7 +315,7 @@ export default function VocabList({
         <Button onClick={openExportModal} disabled={!someSelected || isExporting}>
           {isExporting ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner />
               Exporting...
             </>
           ) : (
@@ -328,7 +329,7 @@ export default function VocabList({
         <Button onClick={handleMarkAsKnown} disabled={!someSelected || isMarkingKnown}>
           {isMarkingKnown ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner />
               Updating...
             </>
           ) : (
@@ -355,7 +356,7 @@ export default function VocabList({
             >
               {isSyncing ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner />
                   Syncing...
                 </>
               ) : (
@@ -435,7 +436,7 @@ export default function VocabList({
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center">
                   <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <Spinner size="lg" className="text-primary" />
                     <span className="text-muted-foreground">Loading vocabulary...</span>
                   </div>
                 </td>
