@@ -34,6 +34,10 @@ async function apiError(res: Response, fallback: string): Promise<Error> {
   return new Error(typeof body.error === 'string' ? body.error : fallback);
 }
 
+async function requireOk(res: Response, fallback: string): Promise<void> {
+  if (!res.ok) throw await apiError(res, fallback);
+}
+
 // Re-export the shared domain types for convenience
 export type {
   WordState,
@@ -99,26 +103,29 @@ export async function createCollection(data: {
 }
 
 export async function reorderCollections(ids: string[]): Promise<void> {
-  await apiFetch('/api/collections/reorder', {
+  const res = await apiFetch('/api/collections/reorder', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
   });
+  await requireOk(res, 'Could not reorder collections');
 }
 
 export async function deleteCollection(id: string): Promise<void> {
-  await apiFetch(`/api/collections/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/collections/${id}`, { method: 'DELETE' });
+  await requireOk(res, 'Could not delete collection');
 }
 
 export async function updateCollection(
   id: string,
   data: { title?: string; author?: string; groupId?: string | null },
 ): Promise<void> {
-  await apiFetch(`/api/collections/${id}`, {
+  const res = await apiFetch(`/api/collections/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+  await requireOk(res, 'Could not update collection');
 }
 
 // ============================================================================
@@ -136,6 +143,7 @@ export async function createGroup(name: string): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
+  await requireOk(res, 'Could not create group');
   const { id } = await res.json();
   return id;
 }
@@ -144,15 +152,17 @@ export async function updateGroup(
   id: string,
   data: { name?: string; sortOrder?: number },
 ): Promise<void> {
-  await apiFetch(`/api/groups/${id}`, {
+  const res = await apiFetch(`/api/groups/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+  await requireOk(res, 'Could not update group');
 }
 
 export async function deleteGroup(id: string): Promise<void> {
-  await apiFetch(`/api/groups/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/groups/${id}`, { method: 'DELETE' });
+  await requireOk(res, 'Could not delete group');
 }
 
 // ============================================================================
@@ -188,34 +198,40 @@ export async function updateLesson(
   id: string,
   data: { title?: string; textContent?: string },
 ): Promise<void> {
-  await apiFetch(`/api/lessons/${id}`, {
+  const res = await apiFetch(`/api/lessons/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+  await requireOk(res, 'Could not update lesson');
 }
 
 export async function deleteLesson(id: string): Promise<void> {
-  await apiFetch(`/api/lessons/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/lessons/${id}`, { method: 'DELETE' });
+  await requireOk(res, 'Could not delete lesson');
 }
 
 export async function reorderLessons(collectionId: string, ids: string[]): Promise<void> {
-  await apiFetch(`/api/collections/${collectionId}/lessons/reorder`, {
+  const res = await apiFetch(`/api/collections/${collectionId}/lessons/reorder`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
   });
+  await requireOk(res, 'Could not reorder lessons');
 }
 
 export async function updateLessonProgress(
   id: string,
   progress: { scrollPosition?: number; percentComplete?: number },
-): Promise<void> {
-  await apiFetch(`/api/lessons/${id}/progress`, {
+): Promise<boolean> {
+  const res = await apiFetch(`/api/lessons/${id}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(progress),
   });
+  // Reader scroll persistence is intentionally best-effort. A transient
+  // failure must not interrupt reading or create an unhandled rejection.
+  return res.ok;
 }
 
 export async function importEpub(file: File): Promise<{
@@ -375,7 +391,8 @@ export async function markVocabPushedToAnki(id: string, ankiNoteId: number): Pro
 }
 
 export async function deleteVocabEntry(id: string): Promise<void> {
-  await apiFetch(`/api/vocab/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/vocab/${id}`, { method: 'DELETE' });
+  await requireOk(res, 'Could not delete vocabulary entry');
 }
 
 // ============================================================================
@@ -465,11 +482,12 @@ export async function getAllKnownWords(): Promise<KnownWord[]> {
 export async function bulkUpdateWordStates(
   updates: Array<{ word: string; state: WordState }>,
 ): Promise<void> {
-  await apiFetch('/api/known-words', {
+  const res = await apiFetch('/api/known-words', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ updates, language: getActiveLanguage() }),
   });
+  await requireOk(res, 'Could not update known words');
 }
 
 // ============================================================================
@@ -498,6 +516,7 @@ export async function saveClozeSentence(sentence: ClozeSentence): Promise<string
       language: getActiveLanguage(),
     }),
   });
+  await requireOk(res, 'Could not save practice sentence');
   const { id } = await res.json();
   return id;
 }
@@ -563,7 +582,7 @@ export async function getClozeSentencesForWord(word: string): Promise<ClozeSente
 }
 
 export async function bulkSaveClozeSentences(sentences: ClozeSentence[]): Promise<void> {
-  await apiFetch('/api/cloze', {
+  const res = await apiFetch('/api/cloze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(
@@ -575,27 +594,32 @@ export async function bulkSaveClozeSentences(sentences: ClozeSentence[]): Promis
       })),
     ),
   });
+  await requireOk(res, 'Could not save practice sentences');
 }
 
 export async function seedSentenceBank(): Promise<{ seeded: number; total: number }> {
   const res = await apiFetch('/api/cloze/seed', { method: 'POST' });
+  // Seed refresh runs during practice initialization and is best-effort.
+  if (!res.ok) return { seeded: 0, total: 0 };
   return res.json();
 }
 
 export async function blacklistClozeSentence(id: string): Promise<void> {
-  await apiFetch(`/api/cloze/${id}`, {
+  const res = await apiFetch(`/api/cloze/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ blacklisted: 1 }),
   });
+  await requireOk(res, 'Could not hide practice sentence');
 }
 
 export async function unblacklistClozeSentence(id: string): Promise<void> {
-  await apiFetch(`/api/cloze/${id}`, {
+  const res = await apiFetch(`/api/cloze/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ blacklisted: 0 }),
   });
+  await requireOk(res, 'Could not restore practice sentence');
 }
 
 export async function getClozeSentencesByCollection(
@@ -789,7 +813,8 @@ export async function submitJournalForCorrection(
 }
 
 export async function deleteJournalEntry(id: string): Promise<void> {
-  await apiFetch(`/api/journal/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/journal/${id}`, { method: 'DELETE' });
+  await requireOk(res, 'Could not delete journal entry');
 }
 
 // ============================================================================
@@ -863,6 +888,7 @@ export async function syncAnkiReviews(): Promise<{
   reviewsToday?: number;
 }> {
   const res = await apiFetch('/api/anki/sync-reviews', { method: 'POST' });
+  if (!res.ok) return { connected: false, synced: 0 };
   return res.json();
 }
 
@@ -877,16 +903,18 @@ export async function getSetting<T>(key: string): Promise<T | undefined> {
 }
 
 export async function setSetting<T>(key: string, value: T): Promise<string> {
-  await apiFetch(`/api/settings/${key}`, {
+  const res = await apiFetch(`/api/settings/${key}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value }),
   });
+  await requireOk(res, 'Could not save setting');
   return key;
 }
 
 export async function deleteSetting(key: string): Promise<void> {
-  await apiFetch(`/api/settings/${key}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/settings/${key}`, { method: 'DELETE' });
+  await requireOk(res, 'Could not delete setting');
 }
 
 export async function getAllSettings(): Promise<Record<string, unknown>> {
@@ -1021,7 +1049,8 @@ export async function createApiToken(data: {
 }
 
 export async function revokeApiToken(id: string): Promise<void> {
-  await apiFetch(`/api/tokens/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/tokens/${id}`, { method: 'DELETE' });
+  await requireOk(res, 'Could not revoke API token');
 }
 
 // ============================================================================
@@ -1053,6 +1082,7 @@ export async function importFromDexie(data: Record<string, unknown[]>): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+  await requireOk(res, 'Could not import learning data');
   return res.json();
 }
 
@@ -1092,5 +1122,6 @@ export async function sendChatMessage(message: string): Promise<{
 }
 
 export async function clearChatMessages(): Promise<void> {
-  await apiFetch(`/api/chat${langParam()}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/chat${langParam()}`, { method: 'DELETE' });
+  await requireOk(res, 'Could not clear chat history');
 }

@@ -130,13 +130,17 @@ export default function JournalPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this journal entry?')) return;
-    await deleteJournalEntry(id);
-    if (editingId === id) {
-      setShowEditor(false);
-      setBodyText('');
-      setEditingId(null);
+    try {
+      await deleteJournalEntry(id);
+      if (editingId === id) {
+        setShowEditor(false);
+        setBodyText('');
+        setEditingId(null);
+      }
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not delete journal entry');
     }
-    setEntries((prev) => prev.filter((e) => e.id !== id));
   };
 
   const handleEditDraft = (entry: JournalEntry) => {

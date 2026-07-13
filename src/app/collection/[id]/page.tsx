@@ -37,6 +37,7 @@ import {
   type LessonSummary,
 } from '@/lib/data-layer';
 import SortableLessonRow from '../components/SortableLessonRow';
+import { toast } from 'sonner';
 
 export default function CollectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -83,14 +84,22 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
 
   async function handleDelete() {
     if (!confirm('Delete this collection and all its lessons?')) return;
-    await deleteCollection(id);
-    router.push('/');
+    try {
+      await deleteCollection(id);
+      router.push('/');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete collection');
+    }
   }
 
   async function handleDeleteLesson(lessonId: string, title: string) {
     if (!confirm(`Delete "${title}"?`)) return;
-    await deleteLesson(lessonId);
-    setLessons((prev) => prev.filter((l) => l.id !== lessonId));
+    try {
+      await deleteLesson(lessonId);
+      setLessons((prev) => prev.filter((l) => l.id !== lessonId));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete lesson');
+    }
   }
 
   async function refreshLessons() {
@@ -112,40 +121,51 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
 
   async function handleEditLesson(data: { title: string; textContent: string }) {
     if (!editingLessonId) return;
-    await updateLesson(editingLessonId, data);
-    await refreshLessons();
+    try {
+      await updateLesson(editingLessonId, data);
+      await refreshLessons();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update lesson');
+      throw error;
+    }
   }
 
   function handleLessonDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setLessons((prev) => {
-      const oldIndex = prev.findIndex((l) => l.id === active.id);
-      const newIndex = prev.findIndex((l) => l.id === over.id);
-      if (oldIndex < 0 || newIndex < 0) return prev;
-      const next = arrayMove(prev, oldIndex, newIndex);
-      reorderLessons(
-        id,
-        next.map((l) => l.id),
-      );
-      return next;
+    const previous = lessons;
+    const oldIndex = previous.findIndex((l) => l.id === active.id);
+    const newIndex = previous.findIndex((l) => l.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(previous, oldIndex, newIndex);
+    setLessons(next);
+    void reorderLessons(
+      id,
+      next.map((l) => l.id),
+    ).catch((error) => {
+      setLessons(previous);
+      toast.error(error instanceof Error ? error.message : 'Could not reorder lessons');
     });
   }
 
   async function handleGroupChange(value: string) {
-    if (value === '__new__') {
-      const name = prompt('New group name:');
-      if (!name?.trim()) return;
-      const newId = await createGroup(name.trim());
-      await updateCollection(id, { groupId: newId });
-      const [updatedCol, updatedGroups] = await Promise.all([getCollection(id), getAllGroups()]);
-      if (updatedCol) setCollection(updatedCol);
-      setGroups(updatedGroups);
-    } else {
-      const groupId = value === '' ? null : value;
-      await updateCollection(id, { groupId });
-      const updatedCol = await getCollection(id);
-      if (updatedCol) setCollection(updatedCol);
+    try {
+      if (value === '__new__') {
+        const name = prompt('New group name:');
+        if (!name?.trim()) return;
+        const newId = await createGroup(name.trim());
+        await updateCollection(id, { groupId: newId });
+        const [updatedCol, updatedGroups] = await Promise.all([getCollection(id), getAllGroups()]);
+        if (updatedCol) setCollection(updatedCol);
+        setGroups(updatedGroups);
+      } else {
+        const groupId = value === '' ? null : value;
+        await updateCollection(id, { groupId });
+        const updatedCol = await getCollection(id);
+        if (updatedCol) setCollection(updatedCol);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update collection');
     }
   }
 

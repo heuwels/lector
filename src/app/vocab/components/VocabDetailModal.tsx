@@ -41,6 +41,8 @@ export default function VocabDetailModal({
         try {
             await onDelete(entry.id);
             onClose();
+        } catch {
+            // The parent owns the error toast. Keep the modal open for retry.
         } finally {
             setIsDeleting(false);
         }

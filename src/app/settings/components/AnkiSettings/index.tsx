@@ -86,8 +86,12 @@ export default function AnkiSettings() {
   const [ankiConnectUrl, setAnkiConnectUrl] = useState('http://localhost:8765');
 
   const chooseTransport = (next: AnkiTransport) => {
+    const previous = transport === 'addon' || transport === 'ankiconnect' ? transport : null;
     setTransportOverride(next);
-    setSetting('ankiTransport', next);
+    void setSetting('ankiTransport', next).catch((error) => {
+      setTransportOverride(previous);
+      setAnkiError(error instanceof Error ? error.message : 'Failed to save Anki transport');
+    });
   };
 
   useEffect(() => {
@@ -212,7 +216,9 @@ export default function AnkiSettings() {
               value={ankiConnectUrl}
               onChange={(e) => {
                 setAnkiConnectUrl(e.target.value);
-                setSetting('ankiConnectUrl', e.target.value);
+                void setSetting('ankiConnectUrl', e.target.value).catch((error) => {
+                  setAnkiError(error instanceof Error ? error.message : 'Failed to save Anki URL');
+                });
                 // Invalidate the anki.ts URL cache so the next request
                 // (e.g. the connection check below) uses the new value.
                 refreshAnkiUrl();

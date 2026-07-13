@@ -39,9 +39,13 @@ export default function KnownWordsImport() {
       return;
     }
 
-    await importKnownWords(words);
-    toast.success(`Successfully imported ${words.length} words as known.`);
-    setImportText('');
+    try {
+      await importKnownWords(words);
+      toast.success(`Successfully imported ${words.length} words as known.`);
+      setImportText('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to import known words');
+    }
   };
 
   // Import LingQ words with their states and translations
