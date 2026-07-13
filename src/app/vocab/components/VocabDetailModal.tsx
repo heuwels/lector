@@ -25,6 +25,9 @@ export default function VocabDetailModal({
         try {
             await onUpdate(entry.id, { translation, state });
             setIsEditing(false);
+        } catch {
+            // The page-level mutation handler owns the error toast. Keep the
+            // draft open for retry without leaking a rejected click promise.
         } finally {
             setIsSaving(false);
         }
@@ -60,6 +63,7 @@ export default function VocabDetailModal({
             onClick={onClose}
         >
             <div
+                data-testid="vocab-detail-modal"
                 className="w-full max-w-lg rounded-lg bg-card p-6 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
@@ -83,11 +87,16 @@ export default function VocabDetailModal({
                 <div className="space-y-4">
                     {/* Translation */}
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-foreground">
+                        <label
+                            htmlFor="vocab-translation"
+                            className="mb-1 block text-sm font-medium text-foreground"
+                        >
                             Translation
                         </label>
                         {isEditing ? (
                             <textarea
+                                id="vocab-translation"
+                                data-testid="vocab-translation-edit"
                                 value={translation}
                                 onChange={(e) => setTranslation(e.target.value)}
                                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
