@@ -4,7 +4,7 @@ import { createMiddleware } from 'hono/factory';
 import { db } from '../db';
 import { getCurrentUserId } from '../lib/user';
 import { REDACTION_SENTINEL, validateSettingWrite } from '../lib/settings-keys';
-import { buildUserExport } from '../lib/user-export';
+import { buildUserExport, USER_EXPORT_FORMAT, USER_EXPORT_VERSION } from '../lib/user-export';
 import { countWords } from '../lib/html-to-markdown';
 import {
   DEFAULT_LANGUAGE,
@@ -190,6 +190,17 @@ const ONBOARDING_STEPS = new Set(['reader', 'practice', 'summary']);
 
 function validateRestoreEnvelope(value: unknown): string | null {
   if (!isRecord(value)) return 'Backup must be a JSON object';
+
+  // Legacy backups had no format marker (and the old settings UI added its
+  // own numeric version), so keep accepting unmarked payloads. Once a payload
+  // identifies itself as a Lector learning-data takeout, require an exact
+  // version match instead of silently attempting a lossy future restore.
+  if (value.format !== undefined && value.format !== USER_EXPORT_FORMAT) {
+    return 'Unsupported backup format';
+  }
+  if (value.format === USER_EXPORT_FORMAT && value.version !== USER_EXPORT_VERSION) {
+    return `Unsupported ${USER_EXPORT_FORMAT} version`;
+  }
 
   for (const [key, limit] of Object.entries(RESTORE_ARRAY_LIMITS) as Array<
     [RestoreArrayKey, number]
@@ -379,7 +390,13 @@ function packFor(language: string | undefined | null): LanguageConfig {
 // (lib/user-export.ts) is shared with the admin export (#221) so both paths
 // emit the same restore-ready shape.
 app.get('/', (c) => {
-  return c.json(buildUserExport(getCurrentUserId(c)));
+  const takeout = buildUserExport(getCurrentUserId(c));
+  c.header('Cache-Control', 'private, no-store');
+  c.header(
+    'Content-Disposition',
+    `attachment; filename="lector-learning-data-${takeout.exportedAt.slice(0, 10)}.json"`,
+  );
+  return c.json(takeout);
 });
 
 // POST /api/data — restore a backup.

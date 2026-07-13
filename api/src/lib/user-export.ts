@@ -1,14 +1,18 @@
 /**
- * Full per-user data export (#225 takeout; reused by the admin dashboard
+ * Portable per-user learning-data export (#225; reused by the admin dashboard
  * #221 to export any account on the operator's behalf). One builder, so the
  * self-service export (GET /api/data) and the admin-triggered export produce
  * byte-identical payloads and can never drift.
  */
 import { db, SettingRow } from '../db';
-import { SENSITIVE_KEYS, REDACTION_SENTINEL } from './settings-keys';
 import { sanitizeLegacyCacheAcceptedInput, type CacheAcceptedInput } from './dictionary-db';
 
+export const USER_EXPORT_FORMAT = 'lector-learning-data';
+export const USER_EXPORT_VERSION = 1;
+
 export interface UserExport {
+  format: typeof USER_EXPORT_FORMAT;
+  version: typeof USER_EXPORT_VERSION;
   exportedAt: string;
   collections: unknown[];
   collectionGroups: unknown[];
@@ -31,6 +35,8 @@ export interface UserExport {
 // the restore envelope. Ownership is also transport metadata, not learner data.
 const NON_PORTABLE_TEXT_CONTROLS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g;
 
+const PORTABLE_SETTING_KEYS = ['targetLanguage', 'timezone'] as const;
+
 function portableValue(value: unknown): unknown {
   if (typeof value === 'string') return value.replace(NON_PORTABLE_TEXT_CONTROLS, '');
   if (Array.isArray(value)) return value.map(portableValue);
@@ -47,20 +53,16 @@ function portableRows(rows: unknown[]): unknown[] {
 }
 
 /**
- * Everything owned by `userId`, in restore-ready shape. Credentials are
- * redacted (never hand out API keys in cleartext, #233) — the sentinel keeps
- * the key visible so restore knows to skip it.
+ * Portable learning records owned by `userId`, in restore-ready shape. Only
+ * language and timezone preferences travel with the data; provider settings,
+ * endpoint URLs, credentials, billing state and other operational data do not.
  */
 export function buildUserExport(userId: string): UserExport {
   const settings = (
-    db.prepare('SELECT * FROM settings WHERE userId = ?').all(userId) as SettingRow[]
-  ).map(({ key, value }) => ({
-    key,
-    value: (SENSITIVE_KEYS.has(key) ? REDACTION_SENTINEL : value).replace(
-      NON_PORTABLE_TEXT_CONTROLS,
-      '',
-    ),
-  }));
+    db
+      .prepare('SELECT key, value FROM settings WHERE userId = ? AND key IN (?, ?) ORDER BY key')
+      .all(userId, ...PORTABLE_SETTING_KEYS) as SettingRow[]
+  ).map(({ key, value }) => ({ key, value: value.replace(NON_PORTABLE_TEXT_CONTROLS, '') }));
 
   const acceptedDictionaryEntries = (
     db
@@ -117,31 +119,99 @@ export function buildUserExport(userId: string): UserExport {
   });
 
   return {
+    format: USER_EXPORT_FORMAT,
+    version: USER_EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
-    collections: portableRows(db.prepare('SELECT * FROM collections WHERE userId = ?').all(userId)),
-    collectionGroups: portableRows(
-      db.prepare('SELECT * FROM collection_groups WHERE userId = ?').all(userId),
+    collections: portableRows(
+      db
+        .prepare(
+          `SELECT id, title, author, coverUrl, groupId, sortOrder, language, createdAt, lastReadAt
+           FROM collections WHERE userId = ?`,
+        )
+        .all(userId),
     ),
-    lessons: portableRows(db.prepare('SELECT * FROM lessons WHERE userId = ?').all(userId)),
-    vocab: portableRows(db.prepare('SELECT * FROM vocab WHERE userId = ?').all(userId)),
-    knownWords: portableRows(db.prepare('SELECT * FROM knownWords WHERE userId = ?').all(userId)),
+    collectionGroups: portableRows(
+      db
+        .prepare('SELECT id, name, sortOrder, createdAt FROM collection_groups WHERE userId = ?')
+        .all(userId),
+    ),
+    lessons: portableRows(
+      db
+        .prepare(
+          `SELECT id, collectionId, title, sortOrder, textContent,
+                  progress_scrollPosition, progress_percentComplete, wordCount,
+                  language, createdAt, lastReadAt
+           FROM lessons WHERE userId = ?`,
+        )
+        .all(userId),
+    ),
+    vocab: portableRows(
+      db
+        .prepare(
+          `SELECT id, text, type, sentence, translation, state, stateUpdatedAt,
+                  reviewCount, bookId, chapter, language, createdAt, pushedToAnki, ankiNoteId
+           FROM vocab WHERE userId = ?`,
+        )
+        .all(userId),
+    ),
+    knownWords: portableRows(
+      db
+        .prepare('SELECT word, language, state, domain FROM knownWords WHERE userId = ?')
+        .all(userId),
+    ),
     clozeSentences: portableRows(
-      db.prepare('SELECT * FROM clozeSentences WHERE userId = ?').all(userId),
+      db
+        .prepare(
+          `SELECT id, sentence, clozeWord, clozeIndex, translation, source, collection,
+                  wordRank, tatoebaSentenceId, vocabEntryId, masteryLevel, nextReview,
+                  reviewCount, lastReviewed, timesCorrect, timesIncorrect, blacklisted, language
+           FROM clozeSentences WHERE userId = ?`,
+        )
+        .all(userId),
     ),
     journalEntries: portableRows(
-      db.prepare('SELECT * FROM journal_entries WHERE userId = ?').all(userId),
+      db
+        .prepare(
+          `SELECT id, body, correctedBody, corrections, status, wordCount, language,
+                  entryDate, createdAt, updatedAt
+           FROM journal_entries WHERE userId = ?`,
+        )
+        .all(userId),
     ),
-    dailyStats: portableRows(db.prepare('SELECT * FROM dailyStats WHERE userId = ?').all(userId)),
+    dailyStats: portableRows(
+      db
+        .prepare(
+          `SELECT date, language, wordsRead, newWordsSaved, wordsMarkedKnown, minutesRead,
+                  clozePracticed, points, dictionaryLookups, ankiReviews, sessionStartedAt
+           FROM dailyStats WHERE userId = ?`,
+        )
+        .all(userId),
+    ),
     acceptedDictionaryEntries,
     learnerProfiles: portableRows(
-      db.prepare('SELECT * FROM learner_profiles WHERE userId = ?').all(userId),
+      db
+        .prepare(
+          `SELECT language, approximateLevel, interests, dailyMinutes, createdAt, updatedAt
+           FROM learner_profiles WHERE userId = ?`,
+        )
+        .all(userId),
     ),
     onboardingProgress: portableRows(
-      db.prepare('SELECT * FROM onboarding_progress WHERE userId = ?').all(userId),
+      db
+        .prepare(
+          `SELECT version, status, currentStep, language, starterCollectionId,
+                  recommendedLessonId, recommendedLessonTitle, nextLessonId, nextLessonTitle,
+                  startedAt, completedAt, updatedAt
+           FROM onboarding_progress WHERE userId = ?`,
+        )
+        .all(userId),
     ),
     learnerEvents: portableRows(
       db
-        .prepare('SELECT * FROM learner_events WHERE userId = ? ORDER BY occurredAt, rowid')
+        .prepare(
+          `SELECT id, eventType, language, lessonId, vocabId, properties, idempotencyKey, occurredAt
+           FROM learner_events WHERE userId = ? ORDER BY occurredAt, rowid`,
+        )
         .all(userId),
     ),
     settings,

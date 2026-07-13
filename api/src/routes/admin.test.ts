@@ -350,7 +350,12 @@ describe('GET /api/admin/users/:id/export', () => {
 
     const res = await buildApp().request(`/api/admin/users/${ALICE}/export`, asUser(ADMIN));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { vocab: unknown[] };
+    expect(res.headers.get('cache-control')).toBe('private, no-store');
+    expect(res.headers.get('content-disposition')).toMatch(
+      /^attachment; filename="lector-learning-data-\d{4}-\d{2}-\d{2}\.json"$/,
+    );
+    const body = (await res.json()) as { format: string; version: number; vocab: unknown[] };
+    expect(body).toMatchObject({ format: 'lector-learning-data', version: 1 });
     expect(body.vocab.length).toBe(1);
 
     const missing = await buildApp().request('/api/admin/users/nobody/export', asUser(ADMIN));

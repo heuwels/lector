@@ -2,8 +2,9 @@
  * Single source of truth for the settings-table key policy (#233).
  *
  * SENSITIVE_KEYS are credentials: the settings GET routes mask them as `true`,
- * and the full-DB export (`GET /api/data`) replaces their values with
- * REDACTION_SENTINEL so a backup never carries live keys.
+ * and the learning-data takeout (`GET /api/data`) omits them entirely. The
+ * REDACTION_SENTINEL remains part of restore compatibility for older backups
+ * that represented a secret setting without carrying its live value.
  *
  * KNOWN_SETTING_KEYS is every key the app actually writes (settings UI, setup,
  * CLI, boot migrations in db.ts). Settings writes reject anything else — an
