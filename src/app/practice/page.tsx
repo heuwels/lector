@@ -76,6 +76,11 @@ import {
 } from '@/lib/onboarding';
 import { startPostOnboardingTour } from '@/lib/post-onboarding-tour';
 
+function isInteractiveKeyTarget(event: KeyboardEvent): boolean {
+  const target = event.target;
+  return target instanceof HTMLElement && !!target.closest('button, input, textarea, select, a');
+}
+
 export default function PracticePage() {
   const router = useRouter();
 
@@ -140,6 +145,7 @@ export default function PracticePage() {
     dictEntry: ExpandedDictionaryEntry | null;
     isLoading: boolean;
     isContextLoading: boolean;
+    error: string | null;
   } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -222,6 +228,7 @@ export default function PracticePage() {
         dictEntry: null,
         isLoading: true,
         isContextLoading: false,
+        error: null,
       });
 
       // Try the on-device SQLite dictionary first
@@ -240,6 +247,7 @@ export default function PracticePage() {
           dictEntry,
           isLoading: false,
           isContextLoading: false,
+          error: null,
         });
         return;
       }
@@ -253,6 +261,7 @@ export default function PracticePage() {
           dictEntry: null,
           isLoading: false,
           isContextLoading: false,
+          error: null,
         });
       } catch {
         setWordTooltip({
@@ -262,6 +271,7 @@ export default function PracticePage() {
           dictEntry: null,
           isLoading: false,
           isContextLoading: false,
+          error: 'Please try again.',
         });
       }
     },
@@ -780,6 +790,7 @@ export default function PracticePage() {
   useEffect(() => {
     if (state === 'feedback') {
       const handleKeyDown = (e: KeyboardEvent) => {
+        if (isInteractiveKeyTarget(e)) return;
         if (e.key === 'Enter' && !e.repeat) {
           e.preventDefault();
           handleNext();
@@ -795,6 +806,7 @@ export default function PracticePage() {
       !mcLocked
     ) {
       const handleKeyDown = (e: KeyboardEvent) => {
+        if (isInteractiveKeyTarget(e)) return;
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         // Number keys 1-4 for MC selection
         if (e.key >= '1' && e.key <= '4') {
@@ -816,7 +828,8 @@ export default function PracticePage() {
     // Space to trigger TTS in type mode when input is not focused
     if (state === 'practicing' && practiceFormat === 'cloze' && practiceMode === 'type') {
       const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === ' ' && document.activeElement !== inputRef.current) {
+        if (isInteractiveKeyTarget(e)) return;
+        if (e.key === ' ') {
           e.preventDefault();
           if (current) speak(current.sentence.sentence);
         }
@@ -1232,13 +1245,15 @@ export default function PracticePage() {
                                 {clozePunct}
                               </>
                             ) : (
-                              <span
+                              <button
+                                type="button"
                                 data-testid="cloze-word"
                                 onClick={() => handleWordClick(word)}
-                                className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent hover:text-foreground"
+                                aria-label={`Look up ${splitTrailingPunctuation(word)[0]}`}
+                                className="inline cursor-pointer rounded px-0.5 font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                               >
                                 {word}
-                              </span>
+                              </button>
                             )}
                           </span>
                         ))}
@@ -1585,6 +1600,7 @@ export default function PracticePage() {
         isDictionaryResult={!!wordTooltip?.dictEntry}
         isLoading={wordTooltip?.isLoading ?? false}
         isContextLoading={wordTooltip?.isContextLoading ?? false}
+        error={wordTooltip?.error ?? null}
         onClose={() => setWordTooltip(null)}
         onSpeak={(text) => speak(text)}
         onRequestContextTranslation={requestContextTranslation}
