@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { getSetting } from '@/lib/data-layer';
 import { readLanguageCache, writeLanguageCache } from '@/lib/language-cache';
 import { isBareRoute } from '@/lib/auth-client';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function SetupGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -85,7 +86,7 @@ export default function SetupGuard({ children }: { children: React.ReactNode }) 
   if (!checked && pathname !== '/setup' && !isBareRoute(pathname)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        <Spinner size="lg" label="Loading setup" className="text-primary" />
       </div>
     );
   }

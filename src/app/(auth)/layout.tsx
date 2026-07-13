@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLectorMode } from '@/lib/use-env';
+import { Spinner } from '@/components/ui/spinner';
 
 /**
  * Shared shell for the pre-session pages (#218): /login, /register,
@@ -34,7 +35,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           children
         ) : (
           <div className="flex justify-center py-8" data-testid="auth-mode-pending">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+            <Spinner size="lg" label="Loading authentication" className="text-primary" />
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@ import { bounceToLogin } from '@/lib/api-base';
 import { setActiveTenant } from '@/lib/language-cache';
 import { useLectorMode } from '@/lib/use-env';
 import { authClient, isAuthRoute } from '@/lib/auth-client';
+import { Spinner } from '@/components/ui/spinner';
 
 /**
  * Cloud-mode session gate (#218). Wraps SetupGuard in the root layout:
@@ -25,7 +26,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (mode === 'unknown') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        <Spinner size="lg" label="Loading Lector" className="text-primary" />
       </div>
     );
   }
@@ -62,7 +63,7 @@ function CloudSessionGate({ children }: { children: React.ReactNode }) {
   if (!session) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        <Spinner size="lg" label="Loading session" className="text-primary" />
       </div>
     );
   }
