@@ -23,7 +23,7 @@ A self-hosted and cloud language learning reader — LingQ-style reading, Clozem
 
 ### Styleguide
 
-#### Folder structure 
+#### Folder structure
 
 Where appropriate, files should be broken into a folder with categorised files. e.g. components/TranslationDrawer.tsx should become
 
@@ -85,6 +85,8 @@ The word→domain classifier runs through the provider's **Batch API at 50% of s
 
 `LECTOR_MODE` selects the deployment shape: `selfhost` (the default — leave it unset, this is the app as it has always been: single user, no login) or `cloud` — real accounts and per-user data, powered by built-in [Better Auth](https://better-auth.com) sessions ([#218](https://github.com/heuwels/lector/issues/218)). The two modes share one codebase and one image ([#242](https://github.com/heuwels/lector/issues/242)); self-hosting stays free and BYO-everything. Cloud mode is also the **multi-user opt-in for self-hosters** — run it on your own box to give each household member their own library.
 
+> **Switching an existing selfhost box to cloud mode?** Nothing is deleted, but your existing library becomes invisible to the account you sign up with until you explicitly adopt it — read [Adopting existing selfhost data](#adopting-existing-selfhost-data) _before_ you flip the switch.
+
 Cloud mode env:
 
 - `BETTER_AUTH_SECRET` (**required** — cloud refuses to boot without it; generate with `openssl rand -base64 32`)
@@ -100,11 +102,52 @@ Signed-in cloud users can mint **personal API tokens** in Settings — the same 
 
 The **cloud canary** exception is unchanged: `LECTOR_CLOUD_GATE=external` declares that an authenticating gateway (e.g. Cloudflare Access) fronts every request, letting cloud mode boot with app-level auth delegated to the gate (built-in accounts are not mounted). The full canary deployment (AWS CDK + Cloudflare Tunnel) lives in [`deploy/cloud/`](deploy/cloud/).
 
+#### Adopting existing selfhost data ([#327](https://github.com/heuwels/lector/issues/327))
+
+In selfhost mode every row belongs to the implicit `local` user. Switching the same database to `LECTOR_MODE=cloud` deletes nothing, but accounts only see rows they own — so the library, vocabulary, and stats you built up in selfhost are invisible to the account you sign up with until you adopt them. An empty library right after the switch is **not** data loss; don't start re-importing backups into the new account — adopt instead.
+
+`adopt-local-data` reassigns everything owned by `local` to one account. It only adopts into a **fresh** account (one that owns no rows yet) and refuses otherwise, so it can never merge two users; it moves every tenant table in a single transaction; and it's idempotent — once adopted there is no `local` data left to move. Adoption merges nothing and rewrites only row ownership. The default run is a dry run: nothing is written until you pass `--commit`.
+
+The procedure:
+
+1. **Back up first**, with the app stopped: copy `DATA_DIR` (at minimum `lector.db`) somewhere safe — or use your own tooling ([`scripts/backup.sh`](scripts/backup.sh) is the repo's rclone example). Keep the backup until well after you're satisfied.
+2. Enable cloud mode (`LECTOR_MODE=cloud` plus the env above) and start the app.
+3. Create the target account — sign up and verify it once in the browser.
+4. Confirm the target account is registered:
+
+   ```bash
+   # source checkout
+   cd api && bun run adopt-local-data -- --list
+
+   # Docker (service name `lector` in deploy/docker-compose.yml)
+   docker compose exec lector sh -c \
+     'cd /app/api && DATA_DIR=/app/data bun run src/scripts/adopt-local-data.ts --list'
+   ```
+
+5. Dry-run the adoption (the default — no writes) and check the per-table counts it prints against what you expect your library to contain:
+
+   ```bash
+   # source checkout
+   cd api && bun run adopt-local-data -- --to you@example.com
+
+   # Docker
+   docker compose exec lector sh -c \
+     'cd /app/api && DATA_DIR=/app/data bun run src/scripts/adopt-local-data.ts --to you@example.com'
+   ```
+
+   (`--to-id <userId>` targets an account by raw id instead of email; `--help` shows everything.)
+
+6. Re-run the same command with `--commit` appended to apply the reassignment.
+7. Sign in and verify the library, vocabulary, and stats — then keep the backup anyway.
+
+**Rollback:** stop the app, restore the backed-up `DATA_DIR`, and unset `LECTOR_MODE` — adoption only rewrites row ownership, so the pre-switch backup returns you exactly to selfhost state. (Or stay in cloud mode and redo the adoption against a fresh account.)
+
 ### Anki
 
 Two integrations, by deployment shape ([#241](https://github.com/heuwels/lector/issues/241)):
 
 **Self-host — AnkiConnect (browser-direct).** The app connects directly to AnkiConnect on `localhost:8765` from your browser. Install the [AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159) in Anki Desktop, and in its config ensure your app origin is allowed:
+
 ```json
 {
   "webCorsOriginList": ["http://localhost:3000"]
@@ -130,13 +173,13 @@ services:
     container_name: lector
     restart: unless-stopped
     ports:
-      - "3400:3000"   # UI
-      - "3457:3457"   # Hono API — the browser calls it directly, so it must be reachable
+      - '3400:3000' # UI
+      - '3457:3457' # Hono API — the browser calls it directly, so it must be reachable
     environment:
       - NODE_ENV=production
-      - API_URL=http://localhost:3457   # browser-facing API origin — set to http://<host>:3457 for remote access
+      - API_URL=http://localhost:3457 # browser-facing API origin — set to http://<host>:3457 for remote access
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - CLASSIFY_WORKER=1   # word→domain classifier behind the fluency radar (off by default in code)
+      - CLASSIFY_WORKER=1 # word→domain classifier behind the fluency radar (off by default in code)
     volumes:
       - ./data:/app/data
 ```
