@@ -39,9 +39,14 @@ function invalidateActiveScope(scope: string): void {
 }
 
 const COLLECTIONS_QUERY_SCOPE = 'collections';
+const VOCAB_QUERY_SCOPE = 'vocab';
 
 function invalidateCollections(): void {
   invalidateActiveScope(COLLECTIONS_QUERY_SCOPE);
+}
+
+function invalidateVocab(): void {
+  invalidateActiveScope(VOCAB_QUERY_SCOPE);
 }
 
 async function apiError(res: Response, fallback: string): Promise<Error> {
@@ -315,38 +320,44 @@ export async function createStandaloneLesson(data: {
 // ============================================================================
 
 export async function getAllVocab(): Promise<VocabEntry[]> {
-  const res = await apiFetch(`/api/vocab${langParam()}`);
-  const vocab = await res.json();
-  return vocab.map((v: Record<string, unknown>) => ({
-    ...v,
-    stateUpdatedAt: new Date(v.stateUpdatedAt as string),
-    createdAt: new Date(v.createdAt as string),
-  }));
+  return cachedQuery(activeLanguageQueryKey(VOCAB_QUERY_SCOPE, ['all']), async () => {
+    const res = await apiFetch(`/api/vocab${langParam()}`);
+    const vocab = await res.json();
+    return vocab.map((v: Record<string, unknown>) => ({
+      ...v,
+      stateUpdatedAt: new Date(v.stateUpdatedAt as string),
+      createdAt: new Date(v.createdAt as string),
+    }));
+  });
 }
 
 export async function getVocabEntry(id: string): Promise<VocabEntry | undefined> {
-  const res = await apiFetch(`/api/vocab/${id}`);
-  if (!res.ok) return undefined;
-  const data = await res.json();
-  return {
-    ...data,
-    stateUpdatedAt: new Date(data.stateUpdatedAt),
-    createdAt: new Date(data.createdAt),
-  };
+  return cachedQuery(activeLanguageQueryKey(VOCAB_QUERY_SCOPE, ['id', id]), async () => {
+    const res = await apiFetch(`/api/vocab/${id}`);
+    if (!res.ok) return undefined;
+    const data = await res.json();
+    return {
+      ...data,
+      stateUpdatedAt: new Date(data.stateUpdatedAt),
+      createdAt: new Date(data.createdAt),
+    };
+  });
 }
 
 export async function getVocabByText(text: string): Promise<VocabEntry | undefined> {
   // The server filters by exact text (#240) — newest row first, so [0] matches
   // what the old client-side `.find()` over the DESC-ordered list returned.
-  const res = await apiFetch(`/api/vocab${langParam()}&text=${encodeURIComponent(text)}`);
-  const vocab = await res.json();
-  const match = vocab[0];
-  if (!match) return undefined;
-  return {
-    ...match,
-    stateUpdatedAt: new Date(match.stateUpdatedAt),
-    createdAt: new Date(match.createdAt),
-  };
+  return cachedQuery(activeLanguageQueryKey(VOCAB_QUERY_SCOPE, ['text', text]), async () => {
+    const res = await apiFetch(`/api/vocab${langParam()}&text=${encodeURIComponent(text)}`);
+    const vocab = await res.json();
+    const match = vocab[0];
+    if (!match) return undefined;
+    return {
+      ...match,
+      stateUpdatedAt: new Date(match.stateUpdatedAt),
+      createdAt: new Date(match.createdAt),
+    };
+  });
 }
 
 export async function saveVocab(entry: VocabEntry): Promise<string | null> {
@@ -358,6 +369,7 @@ export async function saveVocab(entry: VocabEntry): Promise<string | null> {
   // null = not persisted (#232) — the reader's word-save handlers gate their
   // optimistic UI on this.
   if (!res.ok) return null;
+  invalidateVocab();
   const { id } = await res.json();
   return id;
 }
@@ -368,6 +380,7 @@ export async function updateVocabState(id: string, state: WordState): Promise<bo
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ state }),
   });
+  if (res.ok) invalidateVocab();
   return res.ok;
 }
 
@@ -382,36 +395,43 @@ export async function updateVocabEntry(
     body: JSON.stringify(updates),
   });
   if (!res.ok) throw await apiError(res, 'Could not update vocabulary entry');
+  invalidateVocab();
 }
 
 export async function getVocabByState(state: WordState): Promise<VocabEntry[]> {
-  const res = await apiFetch(`/api/vocab${langParam()}&state=${state}`);
-  const vocab = await res.json();
-  return vocab.map((v: Record<string, unknown>) => ({
-    ...v,
-    stateUpdatedAt: new Date(v.stateUpdatedAt as string),
-    createdAt: new Date(v.createdAt as string),
-  }));
+  return cachedQuery(activeLanguageQueryKey(VOCAB_QUERY_SCOPE, ['state', state]), async () => {
+    const res = await apiFetch(`/api/vocab${langParam()}&state=${state}`);
+    const vocab = await res.json();
+    return vocab.map((v: Record<string, unknown>) => ({
+      ...v,
+      stateUpdatedAt: new Date(v.stateUpdatedAt as string),
+      createdAt: new Date(v.createdAt as string),
+    }));
+  });
 }
 
 export async function getVocabForBook(bookId: string): Promise<VocabEntry[]> {
-  const res = await apiFetch(`/api/vocab${langParam()}&bookId=${bookId}`);
-  const vocab = await res.json();
-  return vocab.map((v: Record<string, unknown>) => ({
-    ...v,
-    stateUpdatedAt: new Date(v.stateUpdatedAt as string),
-    createdAt: new Date(v.createdAt as string),
-  }));
+  return cachedQuery(activeLanguageQueryKey(VOCAB_QUERY_SCOPE, ['book', bookId]), async () => {
+    const res = await apiFetch(`/api/vocab${langParam()}&bookId=${bookId}`);
+    const vocab = await res.json();
+    return vocab.map((v: Record<string, unknown>) => ({
+      ...v,
+      stateUpdatedAt: new Date(v.stateUpdatedAt as string),
+      createdAt: new Date(v.createdAt as string),
+    }));
+  });
 }
 
 export async function getUnpushedVocab(): Promise<VocabEntry[]> {
-  const res = await apiFetch(`/api/vocab${langParam()}&unpushed=true`);
-  const vocab = await res.json();
-  return vocab.map((v: Record<string, unknown>) => ({
-    ...v,
-    stateUpdatedAt: new Date(v.stateUpdatedAt as string),
-    createdAt: new Date(v.createdAt as string),
-  }));
+  return cachedQuery(activeLanguageQueryKey(VOCAB_QUERY_SCOPE, ['unpushed']), async () => {
+    const res = await apiFetch(`/api/vocab${langParam()}&unpushed=true`);
+    const vocab = await res.json();
+    return vocab.map((v: Record<string, unknown>) => ({
+      ...v,
+      stateUpdatedAt: new Date(v.stateUpdatedAt as string),
+      createdAt: new Date(v.createdAt as string),
+    }));
+  });
 }
 
 export async function markVocabPushedToAnki(id: string, ankiNoteId: number): Promise<number> {
@@ -420,12 +440,14 @@ export async function markVocabPushedToAnki(id: string, ankiNoteId: number): Pro
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pushedToAnki: true, ankiNoteId }),
   });
+  if (res.ok) invalidateVocab();
   return res.ok ? 1 : 0;
 }
 
 export async function deleteVocabEntry(id: string): Promise<void> {
   const res = await apiFetch(`/api/vocab/${id}`, { method: 'DELETE' });
   await requireOk(res, 'Could not delete vocabulary entry');
+  invalidateVocab();
 }
 
 // ============================================================================
