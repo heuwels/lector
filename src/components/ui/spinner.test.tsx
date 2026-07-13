@@ -10,8 +10,9 @@ describe('Spinner', () => {
     expect(markup).not.toContain('role="status"');
     expect(markup).toContain('size-8');
     expect(markup).toContain('text-primary');
-    expect(markup).toContain('border-current/25');
-    expect(markup).toContain('border-t-current');
+    expect(markup).toContain('spin-ring-track');
+    expect(markup).toContain('spin-ring-arc');
+    expect(markup).not.toContain('spin-ring--current');
   });
 
   it('exposes an optional accessible loading label', () => {
@@ -20,5 +21,11 @@ describe('Spinner', () => {
     expect(markup).toContain('role="status"');
     expect(markup).toContain('aria-label="Loading lessons"');
     expect(markup).not.toContain('aria-hidden');
+  });
+
+  it('follows currentColor inside colored controls via tone="current"', () => {
+    const markup = renderToStaticMarkup(<Spinner tone="current" />);
+
+    expect(markup).toContain('spin-ring--current');
   });
 });

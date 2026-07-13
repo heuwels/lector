@@ -212,8 +212,333 @@
 @layer components {
   /* Card/panel: 1px border + a shallow 3D bottom "lip" instead of a drop shadow (#147 §4.2). */
   .panel {
-    @apply rounded-xl border border-border border-b-4 bg-card;
+    @apply rounded-xl border border-b-4 border-border bg-card;
     border-bottom-color: var(--lip);
+  }
+
+  /* ── Branded loading states (#147 follow-up; lector-design-demos/10-spinners.html).
+     The ring (ui/spinner) and reading-sweep stay calm for reader surfaces;
+     mastery-ripple and deck-shuffle carry practice energy; page-turn is for
+     big waits only. Everything pauses under prefers-reduced-motion. ── */
+
+  /* Ring (ui/spinner): SVG arc over a token track, slow sage→clay→gold drift. */
+  .spin-ring {
+    animation: spin-ring-turn 1.6s linear infinite;
+  }
+  .spin-ring-track {
+    fill: none;
+    stroke: var(--border);
+  }
+  .spin-ring-arc {
+    fill: none;
+    stroke: var(--primary);
+    stroke-linecap: round;
+    stroke-dasharray: 34 79;
+    animation: spin-ring-drift 4.8s ease-in-out infinite;
+  }
+  /* Inside colored controls (e.g. a sage button) the ring follows currentColor
+     and drops the hue drift. */
+  .spin-ring--current .spin-ring-track {
+    stroke: color-mix(in srgb, currentColor 25%, transparent);
+  }
+  .spin-ring--current .spin-ring-arc {
+    stroke: currentColor;
+    animation: none;
+  }
+
+  /* Mastery ripple: five dots climb the word-state ramp (new → L1..L4 → known).
+     Sized in em — the component's font-size is the dot diameter. */
+  .mastery-ripple {
+    display: inline-flex;
+    gap: 0.65em;
+  }
+  .mastery-ripple > i {
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    background: var(--w-new-bg);
+    border: max(1px, 0.115em) solid var(--w-new-bd);
+    animation: mastery-step 2.1s infinite;
+  }
+  .mastery-ripple > i:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .mastery-ripple > i:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+  .mastery-ripple > i:nth-child(4) {
+    animation-delay: 0.45s;
+  }
+  .mastery-ripple > i:nth-child(5) {
+    animation-delay: 0.6s;
+  }
+
+  /* Page turn: an open spread with faint text rules; the right leaf flips. */
+  .page-turn {
+    position: relative;
+    width: 96px;
+    height: 62px;
+    perspective: 340px;
+  }
+  .page-turn-side {
+    position: absolute;
+    top: 0;
+    width: 48px;
+    height: 62px;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0 11px,
+      var(--border) 11px 14px
+    );
+    background-size: 70% auto;
+    background-repeat: no-repeat;
+  }
+  .page-turn-side--left {
+    left: 0;
+    border-radius: 6px 2px 2px 6px;
+    border-right-color: var(--lip);
+    background-position: 55% 12px;
+  }
+  .page-turn-side--right {
+    right: 0;
+    border-radius: 2px 6px 6px 2px;
+    border-left-color: var(--lip);
+    background-position: 45% 12px;
+  }
+  .page-turn-spine {
+    position: absolute;
+    left: 50%;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--lip);
+    border-radius: 2px;
+  }
+  .page-turn-leaf {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 48px;
+    height: 62px;
+    transform-origin: left center;
+    transform-style: preserve-3d;
+    animation: page-turn-leaf 1.9s cubic-bezier(0.5, 0.1, 0.4, 0.95) infinite;
+  }
+  .page-turn-face {
+    position: absolute;
+    inset: 0;
+    border: 1.5px solid var(--border);
+    background: var(--card);
+    border-radius: 2px 6px 6px 2px;
+    backface-visibility: hidden;
+  }
+  .page-turn-face--back {
+    transform: rotateY(180deg);
+    border-radius: 6px 2px 2px 6px;
+  }
+
+  /* Deck shuffle: three lip-edged flashcards cycle to the back of the pile. */
+  .deck-shuffle {
+    position: relative;
+    width: 74px;
+    height: 92px;
+  }
+  .deck-shuffle > b {
+    position: absolute;
+    inset: 0;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-bottom: 4px solid var(--lip);
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-reading);
+    font-weight: 400;
+    font-size: 22px;
+    color: var(--muted-foreground);
+    animation: deck-shuffle 2.4s cubic-bezier(0.55, 0.1, 0.4, 0.95) infinite;
+  }
+  .deck-shuffle > b::after {
+    content: '';
+    position: absolute;
+    left: 18%;
+    right: 18%;
+    bottom: 16px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--gold-soft);
+  }
+  .deck-shuffle > b:nth-child(2) {
+    animation-delay: -0.8s;
+  }
+  .deck-shuffle > b:nth-child(3) {
+    animation-delay: -1.6s;
+  }
+
+  /* Reading sweep: skeleton text lines with a sage reading-guide highlight. */
+  .reading-sweep {
+    width: 190px;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+  }
+  .reading-sweep > i {
+    height: 11px;
+    border-radius: 6px;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .reading-sweep > i:nth-child(2) {
+    width: 86%;
+  }
+  .reading-sweep > i:nth-child(3) {
+    width: 58%;
+  }
+  .reading-sweep > i::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      var(--primary-soft) 45%,
+      color-mix(in srgb, var(--primary) 28%, transparent) 50%,
+      var(--primary-soft) 55%,
+      transparent 80%
+    );
+    transform: translateX(-100%);
+    animation: reading-sweep 2.2s ease-in-out infinite;
+  }
+  .reading-sweep > i:nth-child(2)::after {
+    animation-delay: 0.18s;
+  }
+  .reading-sweep > i:nth-child(3)::after {
+    animation-delay: 0.36s;
+  }
+}
+
+@keyframes spin-ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes spin-ring-drift {
+  0%,
+  100% {
+    stroke: var(--primary);
+  }
+  33% {
+    stroke: var(--clay);
+  }
+  66% {
+    stroke: var(--gold);
+  }
+}
+@keyframes mastery-step {
+  0%,
+  12% {
+    background: var(--w-new-bg);
+    border-color: var(--w-new-bd);
+    transform: none;
+  }
+  24% {
+    background: var(--w-l1-bg);
+    border-color: var(--w-l1-bd);
+    transform: translateY(-0.38em);
+  }
+  36% {
+    background: var(--w-l2-bg);
+    border-color: var(--w-l2-bd);
+    transform: none;
+  }
+  48% {
+    background: var(--w-l3-bg);
+    border-color: var(--w-l3-bd);
+  }
+  60% {
+    background: var(--w-l4-bg);
+    border-color: var(--w-l4-bd);
+  }
+  72%,
+  84% {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+  100% {
+    background: var(--w-new-bg);
+    border-color: var(--w-new-bd);
+  }
+}
+@keyframes page-turn-leaf {
+  0% {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
+  78%,
+  88% {
+    transform: rotateY(-180deg);
+    opacity: 1;
+  }
+  89% {
+    opacity: 0;
+  }
+  99.9% {
+    transform: rotateY(0deg);
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes deck-shuffle {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    z-index: 3;
+    opacity: 1;
+  }
+  24% {
+    transform: translate(56px, 6px) rotate(9deg) scale(1);
+    z-index: 3;
+    opacity: 1;
+  }
+  33.4% {
+    transform: translate(12px, -14px) rotate(5deg) scale(0.9);
+    z-index: 1;
+    opacity: 0.85;
+  }
+  66.7% {
+    transform: translate(6px, -7px) rotate(2.5deg) scale(0.95);
+    z-index: 1;
+    opacity: 0.92;
+  }
+  100% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    z-index: 2;
+    opacity: 1;
+  }
+}
+@keyframes reading-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin-ring,
+  .spin-ring-arc,
+  .mastery-ripple > i,
+  .page-turn-leaf,
+  .deck-shuffle > b,
+  .reading-sweep > i::after {
+    animation: none !important;
   }
 }
 

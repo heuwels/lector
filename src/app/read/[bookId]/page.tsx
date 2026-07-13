@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { PageTurn } from '@/components/Loaders';
 import MarkdownReader from '@/components/MarkdownReader';
 import OnboardingCoach from '@/components/OnboardingCoach';
 import TranslationDrawer from '@/components/TranslationDrawer';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import {
   type Lesson,
   type LessonSummary,
@@ -1080,7 +1080,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     return (
       <div className="flex min-h-screen items-center justify-center bg-card">
         <div className="flex flex-col items-center gap-4">
-          <Spinner size="xl" className="text-primary" />
+          <PageTurn />
           <p className="text-muted-foreground">Loading lesson...</p>
         </div>
       </div>
