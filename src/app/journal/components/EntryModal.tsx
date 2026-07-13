@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { JournalEntry } from '@/lib/data-layer';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { formatDateTime } from '../utils';
 import CorrectionView from './CorrectionView';
 
@@ -11,24 +12,18 @@ export default function EntryModal({
   onClose: () => void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-card p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto rounded-xl p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground">
+          <DialogTitle>
             {formatDateTime(entry.createdAt)}
-          </h2>
-          <button
-            onClick={onClose}
+          </DialogTitle>
+          <DialogClose
             className="text-muted-foreground hover:text-foreground"
+            aria-label="Close"
           >
             <X className="h-5 w-5" />
-          </button>
+          </DialogClose>
         </div>
         {entry.status === 'submitted' ? (
           <CorrectionView entry={entry} />
@@ -37,7 +32,7 @@ export default function EntryModal({
             {entry.body}
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

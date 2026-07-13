@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { useState } from 'react';
 import { VocabEntry, WordState } from "@/types";
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 export default function VocabDetailModal({
     entry,
@@ -60,29 +61,25 @@ export default function VocabDetailModal({
     ];
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={onClose}
-        >
-            <div
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent
                 data-testid="vocab-detail-modal"
-                className="w-full max-w-lg rounded-lg bg-card p-6 shadow-xl"
-                onClick={(e) => e.stopPropagation()}
+                className="max-w-lg rounded-lg p-6"
             >
                 {/* Header */}
                 <div className="mb-4 flex items-start justify-between">
                     <div>
-                        <h2 className="text-xl font-bold text-foreground">{entry.text}</h2>
+                        <DialogTitle className="text-xl font-bold">{entry.text}</DialogTitle>
                         <span className="text-sm text-muted-foreground">
                             {entry.type === 'phrase' ? 'Phrase' : 'Word'}
                         </span>
                     </div>
-                    <button
-                        onClick={onClose}
+                    <DialogClose
                         className="rounded-full p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        aria-label="Close"
                     >
                         <X className="h-6 w-6" />
-                    </button>
+                    </DialogClose>
                 </div>
 
                 {/* Content */}
@@ -213,7 +210,7 @@ export default function VocabDetailModal({
                         )}
                     </div>
                 </div>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }

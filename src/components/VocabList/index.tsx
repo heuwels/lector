@@ -10,7 +10,14 @@ import PaginationControls from './components/PaginationControls';
 import { stateFilters, stateOrder, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from './constants';
 import { AnkiCardType, SortDirection, SortField, VocabListProps } from './types';
 import { useActiveLanguage } from '@/utils/hooks';
-import { Button } from '../ui/button';
+import { Button, buttonVariants } from '../ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '../ui/dialog';
 import OnboardingTip from '@/components/OnboardingTip';
 
 export default function VocabList({
@@ -477,25 +484,15 @@ export default function VocabList({
       )}
 
       {/* Export-to-Anki modal */}
-      {exportModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setExportModalOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Export to Anki"
-        >
-          <div
-            className="w-full max-w-md rounded-xl bg-card p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="mb-1 text-lg font-semibold text-foreground">Export to Anki</h2>
-            <p className="mb-5 text-sm text-muted-foreground">
-              {selectedIds.size} {selectedIds.size === 1 ? 'word' : 'words'} selected. Choose a card
-              type.
-            </p>
+      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+        <DialogContent className="max-w-md rounded-xl p-6">
+          <DialogTitle className="mb-1">Export to Anki</DialogTitle>
+          <DialogDescription className="mb-5">
+            {selectedIds.size} {selectedIds.size === 1 ? 'word' : 'words'} selected. Choose a card
+            type.
+          </DialogDescription>
 
-            <div className="mb-6 grid grid-cols-2 gap-3">
+          <div className="mb-6 grid grid-cols-2 gap-3">
               <button
                 type="button"
                 data-testid="anki-card-type-basic"
@@ -539,19 +536,16 @@ export default function VocabList({
                   Word is hidden in the sentence; recall it from context.
                 </p>
               </button>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => setExportModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="button" data-testid="anki-export-confirm" onClick={confirmExportToAnki}>
-                Export {selectedIds.size} {selectedIds.size === 1 ? 'card' : 'cards'}
-              </Button>
-            </div>
           </div>
-        </div>
-      )}
+
+          <div className="flex justify-end gap-2">
+            <DialogClose className={buttonVariants({ variant: 'ghost' })}>Cancel</DialogClose>
+            <Button type="button" data-testid="anki-export-confirm" onClick={confirmExportToAnki}>
+              Export {selectedIds.size} {selectedIds.size === 1 ? 'card' : 'cards'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
