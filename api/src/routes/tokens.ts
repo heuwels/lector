@@ -2,36 +2,10 @@ import { Hono } from 'hono';
 import { randomUUID, randomBytes } from 'crypto';
 import { getCurrentUserId } from '../lib/user';
 import { db, ApiTokenRow } from '../db';
+import { parseStoredScopes, VALID_SCOPES } from '../lib/auth';
 import { hashToken } from '../lib/crypto';
 import { entitlements, planLimitResponse } from '../lib/entitlements';
 import { growingRowCheck, utf8Bytes } from '../lib/storage-limits';
-
-const VALID_SCOPES = new Set([
-  '*',
-  'collections:read',
-  'collections:write',
-  'collections:*',
-  'vocab:read',
-  'vocab:write',
-  'vocab:*',
-  'stats:read',
-  'stats:write',
-  'stats:*',
-  'settings:read',
-  'settings:write',
-  'settings:*',
-  'data:export',
-  'data:import',
-  'data:*',
-  'chat:read',
-  'chat:write',
-  'chat:*',
-  // Dedicated category for the Anki addon (#241): its token lives in a config
-  // file on the user's machine, so it should grant Anki sync and nothing else.
-  'anki:read',
-  'anki:write',
-  'anki:*',
-]);
 
 const app = new Hono();
 const MAX_TOKEN_NAME_BYTES = 1024;
@@ -44,8 +18,16 @@ function generateToken(): string {
 
 // POST /api/tokens - Create a new token
 app.post('/', async (c) => {
-  const body = await c.req.json();
-  const { name, scopes = ['*'], expiresAt } = body;
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Malformed JSON body' }, 400);
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return c.json({ error: 'Body must be a JSON object' }, 400);
+  }
+  const { name, scopes = ['*'], expiresAt } = body as Record<string, unknown>;
 
   if (!name || typeof name !== 'string') {
     return c.json({ error: 'Name is required' }, 400);
@@ -69,12 +51,25 @@ app.post('/', async (c) => {
     return c.json({ error: `Invalid scopes: ${invalid.join(', ')}` }, 400);
   }
   const normalizedScopes = [...new Set(scopes as string[])];
-  if (
-    expiresAt !== undefined &&
-    expiresAt !== null &&
-    (typeof expiresAt !== 'string' || expiresAt.length > 64 || Number.isNaN(Date.parse(expiresAt)))
-  ) {
-    return c.json({ error: 'expiresAt must be an ISO date or null' }, 400);
+
+  // Optional expiry must be a real, future timestamp, persisted canonically
+  // (#326). Storing the raw input would let a never-comparable value through;
+  // the auth middleware additionally fails closed on unparseable stored
+  // expiry as defense against legacy/corrupt rows.
+  let normalizedExpiresAt: string | null = null;
+  if (expiresAt !== undefined && expiresAt !== null) {
+    if (
+      typeof expiresAt !== 'string' ||
+      expiresAt.length > 64 ||
+      Number.isNaN(Date.parse(expiresAt))
+    ) {
+      return c.json({ error: 'expiresAt must be an ISO date or null' }, 400);
+    }
+    const expiresAtMs = Date.parse(expiresAt);
+    if (expiresAtMs <= Date.now()) {
+      return c.json({ error: 'expiresAt must be in the future' }, 400);
+    }
+    normalizedExpiresAt = new Date(expiresAtMs).toISOString();
   }
 
   const token = generateToken();
@@ -100,7 +95,7 @@ app.post('/', async (c) => {
         hashToken(token),
         JSON.stringify(normalizedScopes),
         now,
-        expiresAt || null,
+        normalizedExpiresAt,
         userId,
       );
     },
@@ -114,7 +109,7 @@ app.post('/', async (c) => {
       token, // Plain token - returned ONCE
       scopes: normalizedScopes,
       createdAt: now,
-      expiresAt: expiresAt || null,
+      expiresAt: normalizedExpiresAt,
     },
     201,
   );
@@ -128,10 +123,13 @@ app.get('/', (c) => {
     )
     .all(getCurrentUserId(c)) as Omit<ApiTokenRow, 'tokenHash'>[];
 
+  // Corrupt scope metadata renders as [] instead of throwing — the row must
+  // stay visible in Settings so it can be revoked. It cannot authenticate
+  // anyway: the auth middleware fails closed on the same parse (#325).
   return c.json(
     rows.map((row) => ({
       ...row,
-      scopes: JSON.parse(row.scopes as string),
+      scopes: parseStoredScopes(row.scopes as string) ?? [],
     })),
   );
 });
