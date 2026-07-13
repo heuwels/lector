@@ -34,9 +34,16 @@ async function importHyphenatedLesson(page: Page) {
 
 test.describe('Reader word handling', () => {
   let collectionId: string;
+  let knownWordsFetches: number;
 
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
+    knownWordsFetches = 0;
+
+    await page.route('**/api/known-words*', async (route) => {
+      if (route.request().method() === 'GET') knownWordsFetches += 1;
+      await route.continue();
+    });
 
     // Mock translate API (phrase + legacy structured word path).
     await page.route('**/api/translate', async (route) => {
@@ -98,6 +105,80 @@ test.describe('Reader word handling', () => {
     await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
 
     await expect(drawer.getByRole('heading', { name: 'Perdekraal-fees' })).toBeVisible();
+  });
+
+  test('keyboard lookup opens the same word drawer as clicking', async ({ page }) => {
+    const word = page.getByRole('button', { name: 'Look up Perdekraal-fees' });
+    await word.focus();
+    await page.keyboard.press('Enter');
+
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
+    await expect(drawer.getByRole('heading', { name: 'Perdekraal-fees' })).toBeVisible();
+  });
+
+  test('updates one word optimistically without refetching the known-words map', async ({ page }) => {
+    let releaseWrite!: () => void;
+    let writeStarted!: () => void;
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      writeStarted = resolve;
+    });
+    await page.route('**/api/vocab', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      writeStarted();
+      await writeGate;
+      await route.continue();
+    });
+
+    const word = page.getByRole('button', { name: 'Look up Perdekraal-fees' });
+    await word.click();
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer.getByText('[translated:')).toBeVisible();
+    await drawer.getByTestId('mark-word-known').click();
+    await started;
+
+    await expect(drawer.getByTestId('mark-word-known')).toHaveClass(/ring-2/);
+    await expect(word).not.toHaveClass(/w-new-bg/);
+
+    releaseWrite();
+    await expect(drawer).toHaveClass(/translate-x-full/);
+    await expect.poll(() => knownWordsFetches).toBe(1);
+  });
+
+  test('rolls back only the optimistic word when persistence fails', async ({ page }) => {
+    let releaseWrite!: () => void;
+    let writeStarted!: () => void;
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      writeStarted = resolve;
+    });
+    await page.route('**/api/vocab', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      writeStarted();
+      await writeGate;
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+    });
+
+    const word = page.getByRole('button', { name: 'Look up Perdekraal-fees' });
+    await word.click();
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer.getByText('[translated:')).toBeVisible();
+    await drawer.getByTestId('mark-word-known').click();
+    await started;
+
+    await expect(drawer.getByTestId('mark-word-known')).toHaveClass(/ring-2/);
+    await expect(word).not.toHaveClass(/w-new-bg/);
+
+    releaseWrite();
+    await expect(page.getByText('Could not mark the word as known')).toBeVisible();
+    await expect(word).toHaveClass(/w-new-bg/);
+    await expect(drawer.getByTestId('mark-word-known')).not.toHaveClass(/ring-2/);
+    await expect.poll(() => knownWordsFetches).toBe(1);
   });
 
   test('Cmd+number should not trigger word level change', async ({ page }) => {

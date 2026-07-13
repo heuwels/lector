@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ChevronLeft, ChevronRight, SquarePen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import { getKnownWordsMap, updateLessonProgress } from '@/lib/data-layer';
+import { updateLessonProgress } from '@/lib/data-layer';
 import { createTrailingThrottle } from './throttle';
 import type { WordState } from '@/types';
 import { snapToWordBoundaries, splitWords, collectWords, computePhraseHighlightSet } from './utils';
@@ -34,7 +34,7 @@ export default function MarkdownReader({
   onClose,
   onSaveText,
   onEditingChange,
-  refreshTrigger = 0,
+  knownWordsMap,
   prevLesson,
   nextLesson,
 }: MarkdownReaderProps) {
@@ -50,7 +50,6 @@ export default function MarkdownReader({
       ? getLanguageConfig(lesson.language)
       : activeLang;
   const containerRef = useRef<HTMLDivElement>(null);
-  const [knownWordsMap, setKnownWordsMap] = useState<Map<string, WordState>>(new Map());
   const [highlightedPhrase, setHighlightedPhrase] = useState<string[]>([]);
   // The single word the user last clicked (drawer target). Identified by its
   // block's source offset + word index within the block so we highlight the
@@ -93,11 +92,6 @@ export default function MarkdownReader({
       setIsSaving(false);
     }
   }, [draftContent, onSaveText, onEditingChange]);
-
-  // Load known words map
-  useEffect(() => {
-    getKnownWordsMap().then(setKnownWordsMap);
-  }, [refreshTrigger]);
 
   // Restore the last reading position from the lesson itself —
   // progress_scrollPosition is exactly what the scroll handler below saves.

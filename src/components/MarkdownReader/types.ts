@@ -1,4 +1,4 @@
-import type { Lesson, LessonSummary } from "@/types";
+import type { Lesson, LessonSummary, WordState } from "@/types";
 
 export interface MarkdownReaderProps {
     lesson: Lesson;
@@ -9,7 +9,7 @@ export interface MarkdownReaderProps {
     onClose: () => void;
     onSaveText?: (textContent: string) => Promise<void>;
     onEditingChange?: (isEditing: boolean) => void;
-    refreshTrigger?: number;
+    knownWordsMap: Map<string, WordState>;
     prevLesson?: LessonSummary | null;
     nextLesson?: LessonSummary | null;
 }

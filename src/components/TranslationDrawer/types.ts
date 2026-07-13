@@ -1,4 +1,4 @@
-import { VocabEntry } from '@/types';
+import { VocabEntry, WordState } from '@/types';
 
 /**
  * Shape returned by /api/dictionary/lookup. Mirror of the server-side type — kept in
@@ -54,6 +54,8 @@ export interface TranslationDrawerProps {
 
   /** Existing vocab record (if word was previously saved). */
   existingEntry?: VocabEntry | null;
+  /** Reader-local state, including an optimistic state awaiting persistence. */
+  wordState?: WordState;
 
   /** Guided-onboarding progress, shown beside the level buttons so the action
       and its effect on the first review stay visually connected. */
