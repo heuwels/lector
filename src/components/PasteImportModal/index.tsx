@@ -2,20 +2,18 @@
 
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useActiveLanguage } from '@/utils/hooks';
 import type { PasteImportModalProps } from './types';
 
 export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImportModalProps) {
   const activeLang = useActiveLanguage();
-  const modalRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [content, setContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on open/close */
   useEffect(() => {
@@ -24,38 +22,9 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
       setAuthor('');
       setContent('');
       setIsSaving(false);
-      requestAnimationFrame(() => setIsVisible(true));
-      setTimeout(() => titleRef.current?.focus(), 100);
-    } else {
-      setIsVisible(false);
     }
   }, [isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 100);
-    return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
 
@@ -74,20 +43,18 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
     }
   }, [title, author, content, onSave, onClose]);
 
-  if (!isOpen || typeof window === 'undefined') return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div
-        ref={modalRef}
-        className={`flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl transition-all duration-200 ease-out ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        initialFocus={titleRef}
+        className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-lg font-semibold text-foreground">Paste Text</h2>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+          <DialogTitle>Paste Text</DialogTitle>
+          <DialogClose className={buttonVariants({ variant: 'ghost', size: 'icon' })} aria-label="Close">
             <X className="h-5 w-5" />
-          </Button>
+          </DialogClose>
         </div>
 
         {/* Content */}
@@ -158,9 +125,9 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 border-t border-border bg-muted px-6 py-4">
-          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
+          <DialogClose className={buttonVariants({ variant: 'ghost' })} disabled={isSaving}>
             Cancel
-          </Button>
+          </DialogClose>
           <Button
             onClick={handleSave}
             disabled={isSaving || !title.trim() || !content.trim()}
@@ -175,8 +142,7 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
             )}
           </Button>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </DialogContent>
+    </Dialog>
   );
 }
