@@ -11,11 +11,17 @@ const { apiFetch } = vi.hoisted(() => ({
 }));
 
 vi.mock('./api-base', () => ({ apiFetch }));
+vi.mock('./language-cache', () => ({
+  activeTenantId: () => 'local',
+  readLanguageCache: () => 'af',
+}));
 
 import { getFluencyStats, updateClozeAfterReview } from './data-layer';
+import { clearQueryCache } from './query-cache';
 
 beforeEach(() => {
   apiFetch.mockClear();
+  clearQueryCache();
 });
 
 describe('language-scoped stats requests', () => {

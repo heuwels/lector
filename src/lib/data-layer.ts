@@ -27,10 +27,20 @@ function langParam(prefix: '?' | '&' = '?'): string {
   return `${prefix}language=${getActiveLanguage()}`;
 }
 
-function activeLanguageQueryKey(scope: string, params?: QueryKey['params']): QueryKey | null {
+function activeLanguageQueryKey(
+  scope: string,
+  params?: QueryKey['params'],
+  language: string = getActiveLanguage(),
+): QueryKey | null {
   const tenant = activeTenantId();
   if (tenant === null) return null;
-  return { tenant, language: getActiveLanguage(), scope, params };
+  return { tenant, language, scope, params };
+}
+
+function activeTenantQueryKey(scope: string, params?: QueryKey['params']): QueryKey | null {
+  const tenant = activeTenantId();
+  if (tenant === null) return null;
+  return { tenant, scope, params };
 }
 
 function invalidateActiveScope(scope: string): void {
@@ -40,6 +50,9 @@ function invalidateActiveScope(scope: string): void {
 
 const COLLECTIONS_QUERY_SCOPE = 'collections';
 const VOCAB_QUERY_SCOPE = 'vocab';
+const DAILY_STATS_QUERY_SCOPE = 'stats:daily';
+const FLUENCY_STATS_QUERY_SCOPE = 'stats:fluency';
+const READING_STATS_QUERY_SCOPE = 'stats:reading';
 
 function invalidateCollections(): void {
   invalidateActiveScope(COLLECTIONS_QUERY_SCOPE);
@@ -47,6 +60,18 @@ function invalidateCollections(): void {
 
 function invalidateVocab(): void {
   invalidateActiveScope(VOCAB_QUERY_SCOPE);
+}
+
+function invalidateDailyStats(): void {
+  invalidateActiveScope(DAILY_STATS_QUERY_SCOPE);
+}
+
+function invalidateFluencyStats(): void {
+  invalidateActiveScope(FLUENCY_STATS_QUERY_SCOPE);
+}
+
+function invalidateReadingStats(): void {
+  invalidateActiveScope(READING_STATS_QUERY_SCOPE);
 }
 
 async function apiError(res: Response, fallback: string): Promise<Error> {
@@ -125,6 +150,7 @@ export async function createCollection(data: {
   if (!res.ok) throw await apiError(res, 'Could not create collection');
   const { id } = await res.json();
   invalidateCollections();
+  invalidateReadingStats();
   return id;
 }
 
@@ -142,6 +168,7 @@ export async function deleteCollection(id: string): Promise<void> {
   const res = await apiFetch(`/api/collections/${id}`, { method: 'DELETE' });
   await requireOk(res, 'Could not delete collection');
   invalidateCollections();
+  invalidateReadingStats();
 }
 
 export async function updateCollection(
@@ -155,6 +182,7 @@ export async function updateCollection(
   });
   await requireOk(res, 'Could not update collection');
   invalidateCollections();
+  invalidateReadingStats();
 }
 
 // ============================================================================
@@ -223,6 +251,7 @@ export async function addLessonToCollection(
   if (!res.ok) throw await apiError(res, 'Could not create lesson');
   const { id } = await res.json();
   invalidateCollections();
+  invalidateReadingStats();
   return id;
 }
 
@@ -236,12 +265,14 @@ export async function updateLesson(
     body: JSON.stringify(data),
   });
   await requireOk(res, 'Could not update lesson');
+  invalidateReadingStats();
 }
 
 export async function deleteLesson(id: string): Promise<void> {
   const res = await apiFetch(`/api/lessons/${id}`, { method: 'DELETE' });
   await requireOk(res, 'Could not delete lesson');
   invalidateCollections();
+  invalidateReadingStats();
 }
 
 export async function reorderLessons(collectionId: string, ids: string[]): Promise<void> {
@@ -264,7 +295,10 @@ export async function updateLessonProgress(
   });
   // Reader scroll persistence is intentionally best-effort. A transient
   // failure must not interrupt reading or create an unhandled rejection.
-  if (res.ok) invalidateCollections();
+  if (res.ok) {
+    invalidateCollections();
+    invalidateReadingStats();
+  }
   return res.ok;
 }
 
@@ -287,6 +321,7 @@ export async function importEpub(file: File): Promise<{
   }
   const imported = await res.json();
   invalidateCollections();
+  invalidateReadingStats();
   return imported;
 }
 
@@ -308,10 +343,12 @@ export async function createStandaloneLesson(data: {
     // this import so a capped Free account does not accumulate empty shells.
     await apiFetch(`/api/collections/${collectionId}`, { method: 'DELETE' });
     invalidateCollections();
+    invalidateReadingStats();
     throw await apiError(res, 'Could not create imported lesson');
   }
   const { id: lessonId } = await res.json();
   invalidateCollections();
+  invalidateReadingStats();
   return { collectionId, lessonId };
 }
 
@@ -370,6 +407,7 @@ export async function saveVocab(entry: VocabEntry): Promise<string | null> {
   // optimistic UI on this.
   if (!res.ok) return null;
   invalidateVocab();
+  invalidateFluencyStats();
   const { id } = await res.json();
   return id;
 }
@@ -380,7 +418,10 @@ export async function updateVocabState(id: string, state: WordState): Promise<bo
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ state }),
   });
-  if (res.ok) invalidateVocab();
+  if (res.ok) {
+    invalidateVocab();
+    invalidateFluencyStats();
+  }
   return res.ok;
 }
 
@@ -396,6 +437,7 @@ export async function updateVocabEntry(
   });
   if (!res.ok) throw await apiError(res, 'Could not update vocabulary entry');
   invalidateVocab();
+  invalidateFluencyStats();
 }
 
 export async function getVocabByState(state: WordState): Promise<VocabEntry[]> {
@@ -448,6 +490,7 @@ export async function deleteVocabEntry(id: string): Promise<void> {
   const res = await apiFetch(`/api/vocab/${id}`, { method: 'DELETE' });
   await requireOk(res, 'Could not delete vocabulary entry');
   invalidateVocab();
+  invalidateFluencyStats();
 }
 
 // ============================================================================
@@ -471,6 +514,7 @@ export async function updateWordState(word: string, state: WordState): Promise<b
       language: getActiveLanguage(),
     }),
   });
+  if (res.ok) invalidateFluencyStats();
   return res.ok;
 }
 
@@ -543,6 +587,7 @@ export async function bulkUpdateWordStates(
     body: JSON.stringify({ updates, language: getActiveLanguage() }),
   });
   await requireOk(res, 'Could not update known words');
+  invalidateFluencyStats();
 }
 
 // ============================================================================
@@ -737,8 +782,10 @@ export async function getStreak(): Promise<{
   longest: number;
   practicedToday: boolean;
 }> {
-  const res = await apiFetch(`/api/stats/streak${langParam()}`);
-  return res.json();
+  return cachedQuery(activeLanguageQueryKey(DAILY_STATS_QUERY_SCOPE, ['streak']), async () => {
+    const res = await apiFetch(`/api/stats/streak${langParam()}`);
+    return res.json();
+  });
 }
 
 /** One fluency-radar axis — a topic domain's strength, from the /fluency route. */
@@ -781,14 +828,21 @@ export interface FluencyStats {
 export async function getFluencyStats(
   language: string = getActiveLanguage(),
 ): Promise<FluencyStats> {
-  const params = new URLSearchParams({ language });
-  const res = await apiFetch(`/api/stats/fluency?${params}`);
-  return res.json();
+  return cachedQuery(
+    activeLanguageQueryKey(FLUENCY_STATS_QUERY_SCOPE, ['fluency'], language),
+    async () => {
+      const params = new URLSearchParams({ language });
+      const res = await apiFetch(`/api/stats/fluency?${params}`);
+      return res.json();
+    },
+  );
 }
 
 export async function getReadingStats(): Promise<import('./stats-derive').ReadingStats> {
-  const res = await apiFetch(`/api/stats/reading${langParam()}`);
-  return res.json();
+  return cachedQuery(activeLanguageQueryKey(READING_STATS_QUERY_SCOPE), async () => {
+    const res = await apiFetch(`/api/stats/reading${langParam()}`);
+    return res.json();
+  });
 }
 
 // Migration function - no-op for server storage
@@ -877,14 +931,18 @@ export async function deleteJournalEntry(id: string): Promise<void> {
 // ============================================================================
 
 export async function getDailyStats(date: string): Promise<DailyStats | undefined> {
-  const res = await apiFetch(`/api/stats?startDate=${date}&endDate=${date}${langParam('&')}`);
-  const stats = await res.json();
-  return stats[0];
+  return cachedQuery(activeLanguageQueryKey(DAILY_STATS_QUERY_SCOPE, ['date', date]), async () => {
+    const res = await apiFetch(`/api/stats?startDate=${date}&endDate=${date}${langParam('&')}`);
+    const stats = await res.json();
+    return stats[0];
+  });
 }
 
 export async function getTodayStats(): Promise<DailyStats> {
-  const res = await apiFetch(`/api/stats/today${langParam()}`);
-  return res.json();
+  return cachedQuery(activeLanguageQueryKey(DAILY_STATS_QUERY_SCOPE, ['today']), async () => {
+    const res = await apiFetch(`/api/stats/today${langParam()}`);
+    return res.json();
+  });
 }
 
 export async function incrementDailyStat(
@@ -896,6 +954,7 @@ export async function incrementDailyStat(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ field, amount }),
   });
+  if (res.ok) invalidateDailyStats();
   return res.ok;
 }
 
@@ -903,17 +962,24 @@ export async function getStatsForDateRange(
   startDate: string,
   endDate: string,
 ): Promise<DailyStats[]> {
-  const res = await apiFetch(
-    `/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`,
+  return cachedQuery(
+    activeLanguageQueryKey(DAILY_STATS_QUERY_SCOPE, ['range', startDate, endDate]),
+    async () => {
+      const res = await apiFetch(
+        `/api/stats?startDate=${startDate}&endDate=${endDate}${langParam('&')}`,
+      );
+      return res.json();
+    },
   );
-  return res.json();
 }
 
 // All daily-stats rows, oldest first — used by the stats page so the "All" range
 // and full-history cumulative series have everything to work with.
 export async function getAllDailyStats(): Promise<DailyStats[]> {
-  const res = await apiFetch(`/api/stats${langParam()}`);
-  return res.json();
+  return cachedQuery(activeLanguageQueryKey(DAILY_STATS_QUERY_SCOPE, ['all']), async () => {
+    const res = await apiFetch(`/api/stats${langParam()}`);
+    return res.json();
+  });
 }
 
 // App-wide activity per date (no language param on purpose, #238) — feeds the
@@ -924,13 +990,20 @@ export async function getAppWideActivity(): Promise<
     'date' | 'dictionaryLookups' | 'clozePracticed' | 'minutesRead' | 'ankiReviews'
   >[]
 > {
-  const res = await apiFetch('/api/stats/activity');
-  return res.json();
+  return cachedQuery(activeTenantQueryKey(DAILY_STATS_QUERY_SCOPE, ['activity']), async () => {
+    const res = await apiFetch('/api/stats/activity');
+    return res.json();
+  });
 }
 
 export async function getRecentStats(days: number = 7): Promise<DailyStats[]> {
-  const res = await apiFetch(`/api/stats?days=${days}${langParam('&')}`);
-  return res.json();
+  return cachedQuery(
+    activeLanguageQueryKey(DAILY_STATS_QUERY_SCOPE, ['recent', days]),
+    async () => {
+      const res = await apiFetch(`/api/stats?days=${days}${langParam('&')}`);
+      return res.json();
+    },
+  );
 }
 
 // Best-effort sync of Anki's per-day review counts into dailyStats.ankiReviews,
@@ -944,6 +1017,7 @@ export async function syncAnkiReviews(): Promise<{
 }> {
   const res = await apiFetch('/api/anki/sync-reviews', { method: 'POST' });
   if (!res.ok) return { connected: false, synced: 0 };
+  invalidateDailyStats();
   return res.json();
 }
 
@@ -1013,7 +1087,10 @@ export async function seedStarterContent(language: string): Promise<StarterConte
     });
     if (!res.ok) return { seeded: false };
     const result = (await res.json()) as StarterContentResult;
-    if (result.seeded) invalidateCollections();
+    if (result.seeded) {
+      invalidateCollections();
+      invalidateReadingStats();
+    }
     return result;
   } catch {
     return { seeded: false };
