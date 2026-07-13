@@ -59,6 +59,7 @@ import {
 } from './constants';
 import BlacklistSentence from './components/BlacklistSentence';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import { SETTINGS_KEYS } from '@/app/settings/constants';
 import EmptyState from './components/EmptyState';
@@ -1138,7 +1139,7 @@ export default function PracticePage() {
             {/* Loading state */}
             {state === 'loading' && (
               <div className="flex flex-col items-center justify-center py-12">
-                <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
+                <Spinner size="xl" className="mb-4 text-primary" />
                 <p className="text-muted-foreground">Loading sentences...</p>
               </div>
             )}

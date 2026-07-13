@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { apiUrl, checkoutUrl } from '@/lib/api-base';
 import { authClient } from '@/lib/auth-client';
 import { paidPlanFromSearch, type PaidPlan } from '@/lib/auth-return';
@@ -236,7 +237,7 @@ export default function SubscribePage() {
 
       {phase === 'loading' && (
         <div className="flex justify-center py-8">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+          <Spinner size="lg" label="Loading subscription plans" className="text-primary" />
         </div>
       )}
 
