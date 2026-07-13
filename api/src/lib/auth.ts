@@ -4,6 +4,38 @@ import { config } from './config';
 import { hashToken } from './crypto';
 import { LOCAL_USER_ID } from './user';
 
+/**
+ * Every scope value a token may carry. Token creation (routes/tokens.ts)
+ * validates writes against this set, and parseStoredScopes validates reads
+ * against it, so the two sides can't drift (#325/#326).
+ */
+export const VALID_SCOPES = new Set([
+  '*',
+  'collections:read',
+  'collections:write',
+  'collections:*',
+  'vocab:read',
+  'vocab:write',
+  'vocab:*',
+  'stats:read',
+  'stats:write',
+  'stats:*',
+  'settings:read',
+  'settings:write',
+  'settings:*',
+  'data:export',
+  'data:import',
+  'data:*',
+  'chat:read',
+  'chat:write',
+  'chat:*',
+  // Dedicated category for the Anki addon (#241): its token lives in a config
+  // file on the user's machine, so it should grant Anki sync and nothing else.
+  'anki:read',
+  'anki:write',
+  'anki:*',
+]);
+
 const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   collections: { read: 'collections:read', write: 'collections:write' },
   groups: { read: 'collections:read', write: 'collections:write' },
@@ -66,13 +98,24 @@ function tokenHasScope(tokenScopes: string[], requiredScope: string): boolean {
   return false;
 }
 
-function parseScopes(scopesJson: string): string[] {
+/**
+ * Persisted scope metadata is only trusted in the exact shape token creation
+ * writes: a JSON array of recognized scope strings. Anything else — corrupt
+ * JSON, a non-array value, non-string or unknown entries, an empty array —
+ * returns null and the credential is refused (#325). A malformed row must
+ * lose access, never gain wildcard access.
+ */
+export function parseStoredScopes(scopesJson: string): string[] | null {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(scopesJson);
-    return Array.isArray(parsed) ? parsed : ['*'];
+    parsed = JSON.parse(scopesJson);
   } catch {
-    return ['*'];
+    return null;
   }
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+  return parsed.every((scope) => typeof scope === 'string' && VALID_SCOPES.has(scope))
+    ? (parsed as string[])
+    : null;
 }
 
 /**
@@ -131,6 +174,16 @@ export function makePatMiddleware(authRequired: boolean) {
       return c.json({ error: 'Token predates accounts — sign in and mint a new one' }, 401);
     }
 
+    // Validate persisted scope metadata before ANY authorization decision:
+    // a corrupt row denies like an unknown token (fail closed, #325). The
+    // client error stays generic — metadata corruption is an operator
+    // problem, so the detail goes to the server log only.
+    const scopes = parseStoredScopes(matchedToken.scopes);
+    if (scopes === null) {
+      console.warn(`[auth] token ${matchedToken.id} has invalid persisted scopes — denied`);
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+
     // Check scope — default-deny: a resource with no SCOPE_MAP entry is not
     // reachable with a token at all (SECURITY-07). Local/unauthenticated access
     // is unaffected (it never reaches this branch).
@@ -142,7 +195,6 @@ export function makePatMiddleware(authRequired: boolean) {
           403,
         );
       }
-      const scopes = parseScopes(matchedToken.scopes);
       if (!tokenHasScope(scopes, requiredScope)) {
         return c.json({ error: `Insufficient scope. Required: ${requiredScope}` }, 403);
       }
@@ -156,7 +208,7 @@ export function makePatMiddleware(authRequired: boolean) {
     // Store token info in context for routes that need it
     c.set('tokenId', matchedToken.id);
     c.set('tokenName', matchedToken.name);
-    c.set('tokenScopes', parseScopes(matchedToken.scopes));
+    c.set('tokenScopes', scopes);
 
     // Update lastUsedAt
     db.prepare('UPDATE api_tokens SET lastUsedAt = ? WHERE id = ?').run(

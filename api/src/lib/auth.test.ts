@@ -31,6 +31,30 @@ function createTestToken(
   return token;
 }
 
+/**
+ * Insert a token row whose scopes column holds `scopesJson` verbatim —
+ * simulating corrupt, hand-migrated, or legacy rows that token creation
+ * would never write (#325).
+ */
+function createTokenWithRawScopes(scopesJson: string): string {
+  const token = `ltr_${randomBytes(32).toString('base64url')}`;
+  db.prepare(
+    `
+    INSERT INTO api_tokens (id, name, tokenHash, scopes, createdAt, expiresAt, userId)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `,
+  ).run(
+    randomUUID(),
+    'test-token',
+    hashToken(token),
+    scopesJson,
+    new Date().toISOString(),
+    null,
+    LOCAL_USER_ID,
+  );
+  return token;
+}
+
 function cleanupTokens(): void {
   db.prepare("DELETE FROM api_tokens WHERE name = 'test-token'").run();
 }
@@ -230,6 +254,50 @@ describe('Auth middleware', () => {
     expect(res.status).toBe(401);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe('Token has expired');
+  });
+
+  // #325: persisted scope metadata is only trusted in the exact shape token
+  // creation writes. Every other shape must deny — the old parser defaulted
+  // these to wildcard access.
+  test.each([
+    ['malformed JSON', 'not-json{'],
+    ['a JSON object', '{"scopes":["*"]}'],
+    ['JSON null', 'null'],
+    ['a scalar string', '"*"'],
+    ['a scalar number', '123'],
+    ['a mixed-type array', '["collections:read", 42]'],
+    ['an unknown scope name', '["superadmin"]'],
+    ['an empty array', '[]'],
+  ])('denies a token whose stored scopes are %s (fail closed)', async (_label, scopesJson) => {
+    const token = createTokenWithRawScopes(scopesJson);
+    const res = await app.request('/api/collections', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('Invalid token');
+  });
+
+  test('a rejected credential does not update lastUsedAt', async () => {
+    const token = createTokenWithRawScopes('"*"');
+    await app.request('/api/collections', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const row = db
+      .prepare('SELECT lastUsedAt FROM api_tokens WHERE tokenHash = ?')
+      .get(hashToken(token)) as { lastUsedAt: string | null };
+    expect(row.lastUsedAt).toBeNull();
+  });
+
+  test('invalid scope metadata denies even paths outside the scope map', async () => {
+    // The old parser only ran inside the resource branch; validation now
+    // happens for every token request, so nothing downstream ever sees a
+    // token context with unvalidated scopes.
+    const token = createTokenWithRawScopes('not-json{');
+    const res = await app.request('/api/some-future-route', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(401);
   });
 
   test('blocks PAT access to token management routes', async () => {

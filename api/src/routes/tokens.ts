@@ -2,36 +2,10 @@ import { Hono } from 'hono';
 import { randomUUID, randomBytes } from 'crypto';
 import { getCurrentUserId } from '../lib/user';
 import { db, ApiTokenRow } from '../db';
+import { VALID_SCOPES } from '../lib/auth';
 import { hashToken } from '../lib/crypto';
 import { entitlements, planLimitResponse } from '../lib/entitlements';
 import { growingRowCheck, utf8Bytes } from '../lib/storage-limits';
-
-const VALID_SCOPES = new Set([
-  '*',
-  'collections:read',
-  'collections:write',
-  'collections:*',
-  'vocab:read',
-  'vocab:write',
-  'vocab:*',
-  'stats:read',
-  'stats:write',
-  'stats:*',
-  'settings:read',
-  'settings:write',
-  'settings:*',
-  'data:export',
-  'data:import',
-  'data:*',
-  'chat:read',
-  'chat:write',
-  'chat:*',
-  // Dedicated category for the Anki addon (#241): its token lives in a config
-  // file on the user's machine, so it should grant Anki sync and nothing else.
-  'anki:read',
-  'anki:write',
-  'anki:*',
-]);
 
 const app = new Hono();
 const MAX_TOKEN_NAME_BYTES = 1024;
