@@ -16,7 +16,6 @@ import {
   migrateClozeSentences,
   seedSentenceBank,
 } from '@/lib/data-layer';
-import { persistReview } from './persist-review';
 import { speak } from '@/lib/tts';
 import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
 import { translateGloss, translateWord } from '@/lib/claude';
@@ -30,9 +29,7 @@ import {
   tokenizeWords,
 } from '@/lib/languages';
 import {
-  createBlankedSentence,
   calculateDictationPoints,
-  calculateNextReview,
   calculatePoints,
   buildMultipleChoiceOptions,
   checkAnswer,
@@ -47,10 +44,10 @@ import type {
   IFeedbackData,
   PracticeFormat,
   PracticeMode,
-  PracticeState,
   RoundSize,
   RoundType,
 } from './types';
+import { useClozeRound } from './use-cloze-round';
 import {
   COLLECTION_LABELS,
   PRACTICE_FORMAT_SETTING_KEY,
@@ -85,16 +82,30 @@ function isInteractiveKeyTarget(event: KeyboardEvent): boolean {
 export default function PracticePage() {
   const router = useRouter();
 
-  // State
-  const [state, setState] = useState<PracticeState>('setup');
-  const [queue, setQueue] = useState<ClozeSentence[]>([]);
-  const [current, setCurrent] = useState<CurrentSentence | null>(null);
+  const {
+    phase: state,
+    queue,
+    current,
+    roundSize,
+    roundProgress,
+    roundCorrect,
+    points,
+    isRetryPhase,
+    setPhase: setState,
+    setPoints,
+    setRoundSize,
+    beginRound,
+    startRound: startRoundQueue,
+    commitReview,
+    showFeedback,
+    advance,
+    blacklistCurrent,
+  } = useClozeRound();
+
+  // Question-local state stays with the page and is reset explicitly whenever
+  // the round controller presents a new current sentence.
   const [userAnswer, setUserAnswer] = useState('');
   const [originalRoundSize, setOriginalRoundSize] = useState<number>(20);
-  const [roundSize, setRoundSize] = useState<number>(20);
-  const [roundProgress, setRoundProgress] = useState(0);
-  const [roundCorrect, setRoundCorrect] = useState(0);
-  const [points, setPoints] = useState(0);
   const [seeded, setSeeded] = useState(false);
 
   // Translation visibility. Initialised from the "Hide translation by default"
@@ -126,8 +137,6 @@ export default function PracticePage() {
   // Feedback state
   const [feedbackData, setFeedbackData] = useState<IFeedbackData | null>(null);
   const [hintLetters, setHintLetters] = useState(0);
-  const [retryQueue, setRetryQueue] = useState<ClozeSentence[]>([]);
-  const [isRetryPhase, setIsRetryPhase] = useState(false);
 
   // Guided onboarding is deliberately isolated from normal practice. A visit
   // without ?onboarding=1 keeps the existing setup and round behaviour.
@@ -201,7 +210,7 @@ export default function PracticePage() {
       setCollectionCounts(counts);
     };
     init();
-  }, []);
+  }, [setPoints]);
 
   // Save practice mode to localStorage when it changes
   const handleSetPracticeMode = useCallback((mode: PracticeMode) => {
@@ -320,22 +329,17 @@ export default function PracticePage() {
     [],
   );
 
-  // Load next sentence from queue
-  const loadNextSentence = useCallback(
-    (sentenceQueue: ClozeSentence[], override?: { format: PracticeFormat; mode: PracticeMode }) => {
+  // Reset presentation-only state when the round controller selects a card.
+  const prepareSentence = useCallback(
+    (
+      next: CurrentSentence,
+      sentenceQueue: ClozeSentence[],
+      override?: { format: PracticeFormat; mode: PracticeMode },
+    ) => {
       clearMcTimer();
-      if (sentenceQueue.length === 0) {
-        setState('complete');
-        return;
-      }
 
       const activeFormat = override?.format ?? practiceFormat;
       const activeMode = override?.mode ?? practiceMode;
-
-      const nextSentence = sentenceQueue[0];
-      const blankedSentence = createBlankedSentence(nextSentence.sentence, nextSentence.clozeIndex);
-
-      setCurrent({ sentence: nextSentence, blankedSentence });
       setUserAnswer('');
       setFeedbackData(null);
       setDictationResult(null);
@@ -343,7 +347,6 @@ export default function PracticePage() {
       setMcFallback(false);
       setWordTooltip(null);
       submittingRef.current = false;
-      setState('practicing');
 
       // Cloze-only setup. Dictation renders its own card, which manages audio
       // autoplay and input focus itself, so skip MC generation and the input
@@ -351,7 +354,7 @@ export default function PracticePage() {
       if (activeFormat === 'cloze') {
         // Generate MC options if in MC mode
         if (activeMode === 'mc') {
-          generateMcOptionsForSentence(nextSentence, sentenceQueue);
+          generateMcOptionsForSentence(next.sentence, sentenceQueue);
         }
 
         // Focus input after state update (only in type mode)
@@ -361,6 +364,14 @@ export default function PracticePage() {
       }
     },
     [practiceFormat, practiceMode, generateMcOptionsForSentence, clearMcTimer],
+  );
+
+  const presentRound = useCallback(
+    (sentenceQueue: ClozeSentence[], override?: { format: PracticeFormat; mode: PracticeMode }) => {
+      const next = startRoundQueue(sentenceQueue);
+      if (next) prepareSentence(next, sentenceQueue, override);
+    },
+    [prepareSentence, startRoundQueue],
   );
 
   // Start the tiny onboarding review directly from the three cards created in
@@ -412,14 +423,9 @@ export default function PracticePage() {
         }
         setSelectedCollection('mined');
         setOriginalRoundSize(guidedQueue.length);
-        setRoundSize(guidedQueue.length);
-        setRoundProgress(0);
-        setRoundCorrect(0);
-        setRetryQueue([]);
-        setIsRetryPhase(false);
-        setQueue(guidedQueue);
+        beginRound(guidedQueue.length);
         onboardingRoundStartedRef.current = true;
-        loadNextSentence(guidedQueue, { format: 'cloze', mode: 'mc' });
+        presentRound(guidedQueue, { format: 'cloze', mode: 'mc' });
       } catch (error) {
         console.error('Failed to start onboarding practice:', error);
         setOnboardingRecovery(
@@ -430,20 +436,15 @@ export default function PracticePage() {
     };
 
     void startGuidedRound();
-  }, [loadNextSentence, router]);
+  }, [beginRound, presentRound, router, setState]);
 
   // Start a round with explicit params (used by review buttons)
   const startRoundWith = useCallback(
     async (collection: ClozeCollection, type: RoundType, size: number) => {
-      setState('loading');
+      beginRound(size);
       setSelectedCollection(collection);
       setRoundType(type);
       setOriginalRoundSize(size as RoundSize);
-      setRoundSize(size as RoundSize);
-      setRoundProgress(0);
-      setRoundCorrect(0);
-      setRetryQueue([]);
-      setIsRetryPhase(false);
 
       try {
         let sentences: ClozeSentence[];
@@ -461,8 +462,7 @@ export default function PracticePage() {
         }
 
         if (sentences.length > 0) {
-          setQueue(sentences);
-          loadNextSentence(sentences);
+          presentRound(sentences);
         } else {
           setState('empty');
         }
@@ -471,7 +471,7 @@ export default function PracticePage() {
         setState('complete');
       }
     },
-    [loadNextSentence],
+    [beginRound, presentRound, setState],
   );
 
   // Start a round using current state values
@@ -504,56 +504,6 @@ export default function PracticePage() {
     inputRef.current?.focus();
   }, [current, hintLetters, userAnswer]);
 
-  // Persist a graded answer to the shared SRS card and update round/points
-  // state. Format-agnostic: cloze and dictation both decide correctness and
-  // points their own way, then hand the result here. The card, mastery levels
-  // and retry queue are identical across formats (same clozeSentences row).
-  const commitReview = useCallback(
-    async (
-      isCorrect: boolean,
-      earnedPoints: number,
-      newMastery: ClozeMasteryLevel,
-    ): Promise<boolean> => {
-      if (!current) return false;
-      const nextReview = calculateNextReview(newMastery);
-
-      // Persist first (#232). If the review row didn't save, nothing advances —
-      // persistReview already surfaced the error; the caller keeps the learner
-      // on the question instead of showing a feedback screen for a lost answer.
-      const committed = await persistReview(
-        current.sentence.id,
-        current.sentence.clozeWord,
-        isCorrect,
-        earnedPoints,
-        newMastery,
-        nextReview,
-      );
-      if (!committed) return false;
-
-      // Update local state — only count first-pass answers toward round progress,
-      // so retried sentences don't push the counter past roundSize (issue #57).
-      if (!isRetryPhase) {
-        setRoundProgress((prev) => prev + 1);
-        if (isCorrect) setRoundCorrect((prev) => prev + 1);
-      }
-      if (earnedPoints > 0) {
-        setPoints((prev) => prev + earnedPoints);
-      }
-
-      if (!isCorrect) {
-        // Add to retry queue so incorrect answers are re-tested. The card was
-        // just demoted to mastery 0 in the DB — the queued copy must carry that,
-        // or the retry would promote it straight back from its old level.
-        setRetryQueue((prev) => [
-          ...prev,
-          { ...current.sentence, masteryLevel: 0 as ClozeMasteryLevel },
-        ]);
-      }
-      return true;
-    },
-    [current, isRetryPhase],
-  );
-
   // Record a completed cloze answer: decide the mastery and points, then show
   // feedback. Shared by typed answers and multiple choice — the only
   // differences are how correctness is decided (the caller's job, before the
@@ -579,7 +529,7 @@ export default function PracticePage() {
             )
           : 0;
 
-      const committed = await commitReview(isCorrect, earnedPoints, newMastery);
+      const committed = await commitReview({ isCorrect, earnedPoints, newMastery });
       if (!committed) {
         // The answer wasn't saved — stay on the question and unlock the inputs
         // so it can be resubmitted (the error toast came from persistReview).
@@ -622,13 +572,21 @@ export default function PracticePage() {
         previousMastery,
       });
 
-      setState('feedback');
+      showFeedback();
 
       if (isCorrect) {
         speak(current.sentence.sentence);
       }
     },
-    [current, hintLetters, isRetryPhase, commitReview, onboardingMode, onboardingSnapshot],
+    [
+      current,
+      hintLetters,
+      isRetryPhase,
+      commitReview,
+      onboardingMode,
+      onboardingSnapshot,
+      showFeedback,
+    ],
   );
 
   // Record a completed dictation answer: word-level diff against the spoken
@@ -661,7 +619,11 @@ export default function PracticePage() {
       const earnedPoints =
         isPass && !isRetryPhase ? calculateDictationPoints(newMastery, diff.accuracy) : 0;
 
-      const committed = await commitReview(isPass, earnedPoints, newMastery);
+      const committed = await commitReview({
+        isCorrect: isPass,
+        earnedPoints,
+        newMastery,
+      });
       if (!committed) return; // not saved — stay on the dictation input
 
       setDictationResult({
@@ -675,9 +637,9 @@ export default function PracticePage() {
         previousMastery,
       });
 
-      setState('feedback');
+      showFeedback();
     },
-    [current, isRetryPhase, commitReview],
+    [current, isRetryPhase, commitReview, showFeedback],
   );
 
   // Handle answer submission (type mode)
@@ -755,19 +717,10 @@ export default function PracticePage() {
 
   // Handle next sentence
   const handleNext = useCallback(async () => {
-    const remainingQueue = queue.slice(1);
-    setQueue(remainingQueue);
-
-    if (remainingQueue.length > 0) {
-      loadNextSentence(remainingQueue);
-    } else if (retryQueue.length > 0) {
-      const retryList = [...retryQueue];
-      setRetryQueue([]);
-      setQueue(retryList);
-      setIsRetryPhase(true);
-      loadNextSentence(retryList);
+    const nextRound = advance();
+    if (nextRound.current) {
+      prepareSentence(nextRound.current, nextRound.queue);
     } else {
-      setState('complete');
       if (
         onboardingMode &&
         onboardingRoundStartedRef.current &&
@@ -777,15 +730,7 @@ export default function PracticePage() {
         void finishOnboarding();
       }
     }
-  }, [
-    queue,
-    retryQueue,
-    loadNextSentence,
-    onboardingMode,
-    roundProgress,
-    roundSize,
-    finishOnboarding,
-  ]);
+  }, [advance, prepareSentence, onboardingMode, roundProgress, roundSize, finishOnboarding]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -873,22 +818,9 @@ export default function PracticePage() {
   const handleNewRoundPressed = () => startRoundWith(selectedCollection, 'new', roundSize);
 
   const handleSentenceBlacklisted = useCallback(async () => {
-    const remainingQueue = queue.slice(1);
-    setQueue(remainingQueue);
-    setRoundSize(roundSize - 1);
-
-    if (remainingQueue.length > 0) {
-      loadNextSentence(remainingQueue);
-    } else if (retryQueue.length > 0) {
-      const retryList = [...retryQueue];
-      setRetryQueue([]);
-      setQueue(retryList);
-      setIsRetryPhase(true);
-      loadNextSentence(retryList);
-    } else {
-      setState('complete');
-    }
-  }, [queue, retryQueue, roundSize, loadNextSentence]);
+    const nextRound = blacklistCurrent();
+    if (nextRound.current) prepareSentence(nextRound.current, nextRound.queue);
+  }, [blacklistCurrent, prepareSentence]);
 
   const progressPercent = roundSize > 0 ? Math.min((roundProgress / roundSize) * 100, 100) : 0;
   const onboardingEncounteredCount = encounteredOnboardingTerms(onboardingSnapshot).length;
