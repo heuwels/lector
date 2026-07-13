@@ -1,7 +1,7 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
-import prettierConfig from "eslint-config-prettier/flat";
+import { defineConfig, globalIgnores } from 'eslint/config';
+import nextVitals from 'eslint-config-next/core-web-vitals';
+import nextTs from 'eslint-config-next/typescript';
+import prettierConfig from 'eslint-config-prettier/flat';
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -11,15 +11,18 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
+    '.next/**',
+    'out/**',
+    'build/**',
+    'next-env.d.ts',
     // Nested git worktrees and ephemeral state — not first-party source.
-    ".claude/**",
-    "tmp/**",
-    "playwright-report/**",
-    "test-results/**",
+    '.claude/**',
+    'tmp/**',
+    'playwright-report/**',
+    'test-results/**',
+    // Generated CDK synthesis output (gitignored); first-party CDK source in
+    // deploy/cloud/cdk/{bin,lib} stays linted. Keep aligned with .gitignore.
+    'deploy/cloud/cdk/cdk.out/**',
   ]),
 ]);
 
