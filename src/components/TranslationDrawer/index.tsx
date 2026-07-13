@@ -10,6 +10,7 @@ import { wordStateColors, wordStateLabels } from './constants';
 import { ChevronRight, RefreshCw, Sparkles, Volume2, X, Zap } from 'lucide-react';
 import NestedWordButton from './components/NestedWordButton';
 import Gloss from './components/Gloss';
+import { lookupAnnouncement } from './lookup-announcement';
 
 export { type ExpandedDictionaryEntry } from './types';
 
@@ -96,6 +97,13 @@ export default function TranslationDrawer({
   const senses = entry?.senses ?? [];
   const hasRichEntry = senses.length > 0;
   const fallbackTranslation = aiTranslation ?? null;
+  const announcement = lookupAnnouncement({
+    isOpen,
+    word,
+    isLoading: !!isLoading,
+    error,
+    hasResult: !!(hasRichEntry || fallbackTranslation || aiContextTranslation || aiPhraseDetails),
+  });
 
   const content = (
     <div
@@ -106,6 +114,15 @@ export default function TranslationDrawer({
       role="dialog"
       aria-label={`Definition of ${word}`}
     >
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="lookup-announcement"
+      >
+        {announcement}
+      </div>
       {/* Header */}
       <div className="flex-shrink-0 border-b border-border bg-muted/50 px-4 py-3">
         <div className="flex items-start justify-between gap-2">

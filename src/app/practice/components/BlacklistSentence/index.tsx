@@ -36,20 +36,25 @@ export default function BlacklistSentence({
   const handleBlacklist = useCallback(async () => {
     if (!current) return;
 
-    setPendingBlacklist(current.sentence.id);
-    await blacklistClozeSentence(current.sentence.id);
+    try {
+      setPendingBlacklist(current.sentence.id);
+      await blacklistClozeSentence(current.sentence.id);
 
-    toast.info('Sentence hidden', {
-      duration: 2000,
-      action: {
-        label: 'Undo',
-        onClick: handleUndoBlacklist,
-      },
-      onDismiss: clearPendingBlacklist,
-      onAutoClose: clearPendingBlacklist,
-    });
+      toast.info('Sentence hidden', {
+        duration: 2000,
+        action: {
+          label: 'Undo',
+          onClick: handleUndoBlacklist,
+        },
+        onDismiss: clearPendingBlacklist,
+        onAutoClose: clearPendingBlacklist,
+      });
 
-    onSentenceBlacklisted();
+      onSentenceBlacklisted();
+    } catch (error) {
+      setPendingBlacklist(null);
+      toast.error(error instanceof Error ? error.message : 'Failed to hide sentence');
+    }
   }, [current, handleUndoBlacklist, onSentenceBlacklisted]);
 
   return (

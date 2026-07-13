@@ -45,6 +45,7 @@ import {
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/PageHeader';
 import { getOnboardingSnapshot, type OnboardingSnapshot } from '@/lib/onboarding';
+import { toast } from 'sonner';
 
 export default function Home() {
   const router = useRouter();
@@ -206,31 +207,43 @@ export default function Home() {
 
   async function handleCreateGroup() {
     if (!newGroupName.trim()) return;
-    await createGroup(newGroupName.trim());
-    setNewGroupName('');
-    setIsCreatingGroup(false);
-    const updated = await getAllGroups();
-    setGroups(updated);
+    try {
+      await createGroup(newGroupName.trim());
+      setNewGroupName('');
+      setIsCreatingGroup(false);
+      const updated = await getAllGroups();
+      setGroups(updated);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not create group');
+    }
   }
 
   async function handleRenameGroup(id: string, currentName: string) {
     const name = prompt('Rename group:', currentName);
     if (name === null || !name.trim() || name.trim() === currentName) return;
-    await updateGroup(id, { name: name.trim() });
-    const updated = await getAllGroups();
-    setGroups(updated);
+    try {
+      await updateGroup(id, { name: name.trim() });
+      const updated = await getAllGroups();
+      setGroups(updated);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not rename group');
+    }
   }
 
   async function handleDeleteGroup(id: string, name: string) {
     if (!confirm(`Delete group "${name}"? Collections in this group will become ungrouped.`))
       return;
-    await deleteGroup(id);
-    const [updatedGroups, updatedCollections] = await Promise.all([
-      getAllGroups(),
-      getAllCollections(),
-    ]);
-    setGroups(updatedGroups);
-    setCollections(updatedCollections);
+    try {
+      await deleteGroup(id);
+      const [updatedGroups, updatedCollections] = await Promise.all([
+        getAllGroups(),
+        getAllCollections(),
+      ]);
+      setGroups(updatedGroups);
+      setCollections(updatedCollections);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete group');
+    }
   }
 
   async function handleAddCollectionToGroup(groupId: string) {
@@ -249,15 +262,17 @@ export default function Home() {
   function handleCollectionDragEnd(groupId: string, event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setCollections((prev) => {
-      const bucket = prev.filter((c) => c.groupId === groupId);
-      const oldIndex = bucket.findIndex((c) => c.id === active.id);
-      const newIndex = bucket.findIndex((c) => c.id === over.id);
-      if (oldIndex < 0 || newIndex < 0) return prev;
-      const newBucket = arrayMove(bucket, oldIndex, newIndex);
-      reorderCollections(newBucket.map((c) => c.id));
-      let bi = 0;
-      return prev.map((c) => (c.groupId === groupId ? newBucket[bi++] : c));
+    const previous = collections;
+    const bucket = previous.filter((c) => c.groupId === groupId);
+    const oldIndex = bucket.findIndex((c) => c.id === active.id);
+    const newIndex = bucket.findIndex((c) => c.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const newBucket = arrayMove(bucket, oldIndex, newIndex);
+    let bucketIndex = 0;
+    setCollections(previous.map((c) => (c.groupId === groupId ? newBucket[bucketIndex++] : c)));
+    void reorderCollections(newBucket.map((c) => c.id)).catch((error) => {
+      setCollections(previous);
+      toast.error(error instanceof Error ? error.message : 'Could not reorder collections');
     });
   }
 

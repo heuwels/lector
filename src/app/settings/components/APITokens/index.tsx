@@ -229,8 +229,12 @@ export default function APITokens() {
                 variant="destructive"
                 onClick={async () => {
                   if (!confirm(`Revoke token "${token.name}"? This cannot be undone.`)) return;
-                  await revokeApiToken(token.id);
-                  setApiTokens((prev) => prev.filter((t) => t.id !== token.id));
+                  try {
+                    await revokeApiToken(token.id);
+                    setApiTokens((prev) => prev.filter((t) => t.id !== token.id));
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : 'Failed to revoke token');
+                  }
                 }}
                 className="ml-3"
               >

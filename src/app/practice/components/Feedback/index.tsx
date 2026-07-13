@@ -140,29 +140,33 @@ export default function Feedback({
                     const [base, punct] = splitTrailingPunctuation(word);
                     return (
                       <>
-                        <span
+                        <button
+                          type="button"
                           data-testid="cloze-word"
                           onClick={() => onWordClicked(base)}
-                          className={`cursor-pointer rounded px-1 font-bold ${
+                          aria-label={`Look up ${base}`}
+                          className={`inline cursor-pointer rounded px-1 font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
                             feedbackData.isCorrect
                               ? 'border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
                               : 'border border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
                           }`}
                         >
                           {base}
-                        </span>
+                        </button>
                         {punct}
                       </>
                     );
                   })()
                 ) : (
-                  <span
+                  <button
+                    type="button"
                     data-testid="cloze-word"
                     onClick={() => onWordClicked(word)}
-                    className="cursor-pointer rounded px-0.5 transition-colors hover:bg-accent hover:text-foreground"
+                    aria-label={`Look up ${splitTrailingPunctuation(word)[0]}`}
+                    className="inline cursor-pointer rounded px-0.5 font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   >
                     {word}
-                  </span>
+                  </button>
                 )}
               </span>
             ))}
