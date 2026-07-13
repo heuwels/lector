@@ -392,7 +392,13 @@ export function makeAdminRoutes(
     const email = targetEmail(id);
     if (email === null) return c.json({ error: 'User not found' }, 404);
     audit(c, 'export', id, email);
-    return c.json(buildUserExport(id));
+    const takeout = buildUserExport(id);
+    c.header('Cache-Control', 'private, no-store');
+    c.header(
+      'Content-Disposition',
+      `attachment; filename="lector-learning-data-${takeout.exportedAt.slice(0, 10)}.json"`,
+    );
+    return c.json(takeout);
   });
 
   // POST /api/admin/users/:id/suspend { reason? } — lock an abuser. Guarded

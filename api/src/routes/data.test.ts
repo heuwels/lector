@@ -2,6 +2,7 @@ import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { db } from '../db';
 import type { CacheAcceptedInput } from '../lib/dictionary-db';
+import { buildUserExport } from '../lib/user-export';
 import {
   makeEntitlements,
   NO_STORAGE_LIMITS,
@@ -359,6 +360,132 @@ describe('data import/restore — language partitioning', () => {
   });
 });
 
+describe('learning-data takeout', () => {
+  beforeEach(reset);
+  afterEach(reset);
+
+  test('round-trips collections, reading position, vocabulary, SRS state, journal and stats', async () => {
+    const original = {
+      collectionGroups: [{ id: 'takeout-group', name: 'My shelf' }],
+      collections: [
+        {
+          id: 'takeout-collection',
+          title: 'My reader',
+          groupId: 'takeout-group',
+          language: 'de',
+        },
+      ],
+      lessons: [
+        {
+          id: 'takeout-lesson',
+          collectionId: 'takeout-collection',
+          title: 'Kapitel eins',
+          textContent: 'Ich lese jeden Tag.',
+          progress_scrollPosition: 418,
+          progress_percentComplete: 62.5,
+          language: 'de',
+        },
+      ],
+      vocab: [
+        {
+          id: 'takeout-vocab',
+          text: 'lese',
+          state: 'level3',
+          reviewCount: 7,
+          bookId: 'takeout-lesson',
+          language: 'de',
+        },
+      ],
+      knownWords: [{ word: 'tag', state: 'known', domain: 'daily_life', language: 'de' }],
+      clozeSentences: [
+        {
+          id: 'takeout-cloze',
+          sentence: 'Ich lese jeden Tag.',
+          clozeWord: 'lese',
+          clozeIndex: 1,
+          translation: 'I read every day.',
+          source: 'mined',
+          collection: 'mined',
+          vocabEntryId: 'takeout-vocab',
+          masteryLevel: 75,
+          nextReview: '2026-01-08T00:00:00Z',
+          reviewCount: 9,
+          lastReviewed: TS,
+          timesCorrect: 8,
+          timesIncorrect: 1,
+          language: 'de',
+        },
+      ],
+      journalEntries: [
+        {
+          id: 'takeout-journal',
+          body: 'Heute habe ich gelesen.',
+          status: 'submitted',
+          entryDate: '2026-01-01',
+          language: 'de',
+        },
+      ],
+      dailyStats: [
+        {
+          date: '2026-01-01',
+          language: 'de',
+          minutesRead: 18,
+          clozePracticed: 12,
+        },
+      ],
+    };
+
+    expect((await importData(original)).status).toBe(200);
+
+    const exportResponse = await app.request('/');
+    expect(exportResponse.status).toBe(200);
+    expect(exportResponse.headers.get('cache-control')).toBe('private, no-store');
+    expect(exportResponse.headers.get('content-disposition')).toMatch(
+      /^attachment; filename="lector-learning-data-\d{4}-\d{2}-\d{2}\.json"$/,
+    );
+    const before = (await exportResponse.json()) as Record<string, unknown>;
+    expect(before).toMatchObject({
+      format: 'lector-learning-data',
+      version: 1,
+      lessons: [
+        {
+          id: 'takeout-lesson',
+          progress_scrollPosition: 418,
+          progress_percentComplete: 62.5,
+        },
+      ],
+      clozeSentences: [
+        {
+          id: 'takeout-cloze',
+          masteryLevel: 75,
+          nextReview: '2026-01-08T00:00:00Z',
+          reviewCount: 9,
+          timesCorrect: 8,
+          timesIncorrect: 1,
+        },
+      ],
+      dailyStats: [{ date: '2026-01-01', minutesRead: 18, clozePracticed: 12 }],
+    });
+
+    reset();
+    expect((await importData(before)).status).toBe(200);
+    const after = (await (await app.request('/')).json()) as Record<string, unknown>;
+    const beforeState = { ...before };
+    const afterState = { ...after };
+    delete beforeState.exportedAt;
+    delete afterState.exportedAt;
+    expect(afterState).toEqual(beforeState);
+  });
+
+  test('rejects an identified takeout version this server cannot restore', async () => {
+    const response = await importData({ format: 'lector-learning-data', version: 99 });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Unsupported lector-learning-data version',
+    });
+  });
+});
+
 describe('restore is transactional (#237)', () => {
   beforeEach(reset);
   afterEach(reset);
@@ -703,16 +830,26 @@ describe('accepted dictionary export tenancy', () => {
   });
 });
 
-describe('export/restore — credential redaction (#233)', () => {
+describe('export/restore — takeout privacy', () => {
   const clearKeys = () =>
-    db.prepare("DELETE FROM settings WHERE key IN ('anthropicApiKey', 'timezone')").run();
+    db
+      .prepare(
+        "DELETE FROM settings WHERE userId = 'local' AND key IN ('anthropicApiKey', 'openaiUrl', 'targetLanguage', 'timezone')",
+      )
+      .run();
   beforeEach(clearKeys);
   afterEach(clearKeys);
 
-  test('export replaces sensitive settings values with the sentinel', async () => {
+  test('exports only safe portable preferences, never credentials or endpoint URLs', async () => {
     db.prepare(
       "INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'anthropicApiKey', ?)",
     ).run(JSON.stringify('sk-ant-live-secret'));
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'openaiUrl', ?)",
+    ).run(JSON.stringify('https://reader:url-secret@example.com/v1'));
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'targetLanguage', ?)",
+    ).run(JSON.stringify('de'));
     db.prepare(
       "INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'timezone', ?)",
     ).run(JSON.stringify('Australia/Sydney'));
@@ -720,18 +857,83 @@ describe('export/restore — credential redaction (#233)', () => {
     const res = await app.request('/');
     expect(res.status).toBe(200);
     const raw = await res.text();
-    // The raw value must not appear anywhere in the export payload.
     expect(raw).not.toContain('sk-ant-live-secret');
+    expect(raw).not.toContain('url-secret');
+    expect(raw).not.toContain('anthropicApiKey');
+    expect(raw).not.toContain('openaiUrl');
 
     const data = JSON.parse(raw) as { settings: { key: string; value: string }[] };
-    expect(data.settings.find((s) => s.key === 'anthropicApiKey')?.value).toBe('__REDACTED__');
-    // Non-sensitive settings still round-trip verbatim.
-    expect(data.settings.find((s) => s.key === 'timezone')?.value).toBe(
-      JSON.stringify('Australia/Sydney'),
-    );
+    expect(data.settings).toEqual([
+      { key: 'targetLanguage', value: JSON.stringify('de') },
+      { key: 'timezone', value: JSON.stringify('Australia/Sydney') },
+    ]);
   });
 
-  test('restore skips the sentinel instead of clobbering a real stored key', async () => {
+  test('field allowlists keep one tenant and exclude non-learning tables', () => {
+    const owner = 'takeout-owner';
+    const victim = 'takeout-victim';
+    const cleanup = () => {
+      for (const table of [
+        'chat_messages',
+        'api_tokens',
+        'user_provider_credentials',
+        'settings',
+        'collections',
+      ]) {
+        db.prepare(`DELETE FROM ${table} WHERE userId IN (?, ?)`).run(owner, victim);
+      }
+    };
+
+    cleanup();
+    try {
+      db.prepare(
+        `INSERT INTO collections
+          (userId, id, title, author, language, createdAt, lastReadAt)
+         VALUES (?, 'same-id', ?, 'Owner', 'de', ?, ?),
+                (?, 'same-id', 'victim-private-title', 'Victim', 'de', ?, ?)`,
+      ).run(owner, 'owner-private-title', TS, TS, victim, TS, TS);
+      db.prepare(
+        `INSERT INTO settings (userId, key, value)
+         VALUES (?, 'targetLanguage', '"de"'),
+                (?, 'openaiUrl', '"https://reader:url-secret@example.com/v1"')`,
+      ).run(owner, owner);
+      db.prepare(
+        `INSERT INTO user_provider_credentials
+          (userId, provider, ciphertext, model, createdAt, updatedAt)
+         VALUES (?, 'openrouter', 'encrypted-provider-secret', 'model', ?, ?)`,
+      ).run(owner, TS, TS);
+      db.prepare(
+        `INSERT INTO api_tokens
+          (userId, id, name, tokenHash, scopes, createdAt)
+         VALUES (?, 'takeout-token', 'private token', 'private-token-hash', '["data:export"]', ?)`,
+      ).run(owner, TS);
+      db.prepare(
+        `INSERT INTO chat_messages
+          (userId, id, role, content, language, createdAt)
+         VALUES (?, 'takeout-chat', 'user', 'private-chat-content', 'de', ?)`,
+      ).run(owner, TS);
+
+      const takeout = buildUserExport(owner);
+      const raw = JSON.stringify(takeout);
+      expect(takeout.collections).toEqual([
+        expect.objectContaining({ id: 'same-id', title: 'owner-private-title' }),
+      ]);
+      expect(takeout.settings).toEqual([{ key: 'targetLanguage', value: '"de"' }]);
+      expect(raw).not.toContain(owner);
+      expect(raw).not.toContain('victim-private-title');
+      expect(raw).not.toContain('url-secret');
+      expect(raw).not.toContain('encrypted-provider-secret');
+      expect(raw).not.toContain('private-token-hash');
+      expect(raw).not.toContain('private-chat-content');
+      expect(takeout).not.toHaveProperty('chatMessages');
+      expect(takeout).not.toHaveProperty('apiTokens');
+      expect(takeout).not.toHaveProperty('providerCredentials');
+    } finally {
+      cleanup();
+    }
+  });
+
+  test('restore still skips the legacy redaction sentinel', async () => {
     db.prepare(
       "INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'anthropicApiKey', ?)",
     ).run(JSON.stringify('sk-ant-real'));

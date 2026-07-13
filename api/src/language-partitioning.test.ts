@@ -38,24 +38,6 @@ const PARTITIONED = [
 // work lands — it's exempt from the stale-entry check so concurrent branches
 // don't trip each other.
 const ALLOWLIST: { file: string; match: string; why: string; transient?: boolean }[] = [
-  // Whole-DB backup: export dumps every language; the import side threads language
-  // per row. The builder is shared by self-service GET /api/data and the admin
-  // export (#221), so the queries live in lib/user-export.ts.
-  { file: 'lib/user-export.ts', match: 'SELECT * FROM collections', why: 'full-DB backup export' },
-  { file: 'lib/user-export.ts', match: 'SELECT * FROM lessons', why: 'full-DB backup export' },
-  { file: 'lib/user-export.ts', match: 'SELECT * FROM vocab', why: 'full-DB backup export' },
-  { file: 'lib/user-export.ts', match: 'SELECT * FROM knownWords', why: 'full-DB backup export' },
-  {
-    file: 'lib/user-export.ts',
-    match: 'SELECT * FROM clozeSentences',
-    why: 'full-DB backup export',
-  },
-  {
-    file: 'lib/user-export.ts',
-    match: 'SELECT * FROM journal_entries',
-    why: 'full-DB backup export',
-  },
-  { file: 'lib/user-export.ts', match: 'SELECT * FROM dailyStats', why: 'full-DB backup export' },
   // Admin dashboard (#221): service-wide aggregates that intentionally span
   // every language — per-user storage (lesson-text bytes) and last-active day.
   {
