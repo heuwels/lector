@@ -64,6 +64,7 @@ export interface AdminSummary {
     contextTranslationsPerDay: number;
   };
   usageTracked: boolean;
+  billingResyncAvailable: boolean;
 }
 
 /** True if the caller is an admin (200 from the gated probe), false on 403/404. */
@@ -137,6 +138,8 @@ export const resendVerification = (id: string) =>
 export const forceVerify = (id: string) => action(id, 'verify', 'Verify');
 /** Sign the account out of every session. */
 export const revokeSessions = (id: string) => action(id, 'revoke-sessions', 'Revoke sessions');
+/** Reconcile the local billing mirror with Paddle's current account state. */
+export const resyncPaddle = (id: string) => action(id, 'resync-paddle', 'Paddle resync');
 
 export interface AdminAuditEntry {
   id: number;

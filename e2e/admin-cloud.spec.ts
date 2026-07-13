@@ -169,6 +169,33 @@ test.describe.serial('admin dashboard (#221)', () => {
     expect(entry?.actorEmail).toBe(ADMIN_EMAIL);
   });
 
+  test('the operator can trigger the per-user Paddle resync action', async ({ browser }) => {
+    const operator = await signIn(browser, ADMIN_EMAIL);
+    let resyncedUserId: string | null = null;
+
+    await operator.route(`${ADMIN_API}/api/admin/summary`, async (route) => {
+      const response = await route.fetch();
+      const summary = await response.json();
+      await route.fulfill({ response, json: { ...summary, billingResyncAvailable: true } });
+    });
+    await operator.route('**/api/admin/users/*/resync-paddle', async (route) => {
+      resyncedUserId = new URL(route.request().url()).pathname.split('/').at(-2) ?? null;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ customers: 1, subscriptions: 1, applied: 2, stale: 0 }),
+      });
+    });
+
+    await operator.goto('/admin');
+    const row = operator.locator('tbody tr').filter({ hasText: USER_EMAIL });
+    await row.getByRole('button', { name: 'More actions' }).click();
+    await row.getByRole('button', { name: 'Resync from Paddle' }).click();
+
+    await expect.poll(() => resyncedUserId).not.toBeNull();
+    await expect(operator.getByText(`Billing resynced from Paddle — ${USER_EMAIL}`)).toBeVisible();
+  });
+
   test('suspending an account locks it out; takeout stays open; restore reopens', async ({
     browser,
   }) => {

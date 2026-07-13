@@ -96,9 +96,11 @@ Design notes:
    | `sentry-traces-sample-rate`          | String       | `SENTRY_TRACES_SAMPLE_RATE` (0–1, server/API only; `0` = errors only, no traces; default full sampling)                                                                                                                                                   |
    | `ghcr-token`                         | SecureString | image-pull login (only if the package goes private again)                                                                                                                                                                                                 |
 
-   The Paddle server key must grant `transaction.write`,
+   The Paddle server key must grant `transaction.write`, `customer.read`,
    `customer_portal_session.write`, `subscription.read`, and
-   `subscription.write`. The public checkout token remains in lector-site.
+   `subscription.write`. Customer + subscription read access powers the
+   admin dashboard's on-demand billing-mirror resync. The public checkout
+   token remains in lector-site.
 
    ```bash
    aws ssm put-parameter --name /lector/canary/tunnel-token \

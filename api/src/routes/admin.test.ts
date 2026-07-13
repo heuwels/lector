@@ -493,6 +493,145 @@ describe('comp / uncomp (complimentary membership for testers)', () => {
   });
 });
 
+describe('Paddle billing resync', () => {
+  test('re-applies current Paddle state through the mirror and audit-logs the action', async () => {
+    seedSubscription(ALICE, 'active', 'pri_monthly');
+    const calls: Array<{ email: string; knownCustomerIds: readonly string[] }> = [];
+    const app = buildApp(gate, {
+      billingResyncEnabled: true,
+      now: () => new Date('2026-07-12T02:00:00Z'),
+      billingReader: {
+        fetchBillingSnapshot: async (args) => {
+          calls.push(args);
+          return {
+            customers: [
+              {
+                event_type: 'customer.updated',
+                occurred_at: '2026-07-12T01:59:00Z',
+                data: { id: `ctm_${ALICE}`, email: EMAILS[ALICE] },
+              },
+            ],
+            subscriptions: [
+              {
+                event_type: 'subscription.updated',
+                occurred_at: '2026-07-12T01:59:01Z',
+                data: {
+                  id: `sub_${ALICE}`,
+                  customer_id: `ctm_${ALICE}`,
+                  status: 'canceled',
+                  custom_data: { lectorUserId: ALICE },
+                  current_billing_period: null,
+                  items: [{ price: { id: 'pri_monthly' } }],
+                },
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const res = await app.request(`/api/admin/users/${ALICE}/resync-paddle`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ customers: 1, subscriptions: 1, applied: 2, stale: 0 });
+    expect(calls).toEqual([{ email: EMAILS[ALICE], knownCustomerIds: [`ctm_${ALICE}`] }]);
+    expect(
+      (
+        db
+          .prepare('SELECT status FROM billing_subscriptions WHERE paddleSubscriptionId = ?')
+          .get(`sub_${ALICE}`) as { status: string }
+      ).status,
+    ).toBe('canceled');
+    const audit = db
+      .prepare('SELECT action, detail FROM admin_audit_log ORDER BY id DESC LIMIT 1')
+      .get() as { action: string; detail: string };
+    expect(audit.action).toBe('paddle_resync');
+    expect(audit.detail).toContain('1 subscription(s), 2 applied');
+
+    const repeated = await app.request(`/api/admin/users/${ALICE}/resync-paddle`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
+    expect(repeated.status).toBe(429);
+    expect(repeated.headers.get('retry-after')).toBe('30');
+    expect(calls).toHaveLength(1);
+  });
+
+  test('discovers a completely missing subscription by the account email', async () => {
+    const app = buildApp(gate, {
+      billingResyncEnabled: true,
+      billingReader: {
+        fetchBillingSnapshot: async ({ email, knownCustomerIds }) => {
+          expect(email).toBe(EMAILS[ALICE]);
+          expect(knownCustomerIds).toEqual([]);
+          return {
+            customers: [
+              {
+                event_type: 'customer.updated',
+                occurred_at: '2026-07-12T01:00:00Z',
+                data: { id: 'ctm_discovered', email },
+              },
+            ],
+            subscriptions: [
+              {
+                event_type: 'subscription.updated',
+                occurred_at: '2026-07-12T01:00:01Z',
+                data: {
+                  id: 'sub_discovered',
+                  customer_id: 'ctm_discovered',
+                  status: 'active',
+                  custom_data: null,
+                  current_billing_period: { ends_at: '2026-08-12T01:00:00Z' },
+                  items: [{ price: { id: 'pri_monthly' } }],
+                },
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const res = await app.request(`/api/admin/users/${ALICE}/resync-paddle`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
+    expect(res.status).toBe(200);
+    expect(
+      db
+        .prepare('SELECT status, userId FROM billing_subscriptions WHERE paddleSubscriptionId = ?')
+        .get('sub_discovered'),
+    ).toEqual({ status: 'active', userId: null });
+    const detail = await app.request(`/api/admin/users/${ALICE}`, asUser(ADMIN));
+    expect((await detail.json()).entitled).toBe(true);
+  });
+
+  test('is absent when Paddle billing is off and reports no matching account safely', async () => {
+    const disabled = await buildApp().request(`/api/admin/users/${ALICE}/resync-paddle`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
+    expect(disabled.status).toBe(404);
+
+    const enabled = buildApp(gate, {
+      billingResyncEnabled: true,
+      billingReader: {
+        fetchBillingSnapshot: async () => ({ customers: [], subscriptions: [] }),
+      },
+    });
+    const missing = await enabled.request(`/api/admin/users/${ALICE}/resync-paddle`, {
+      method: 'POST',
+      ...asUser(ADMIN),
+    });
+    expect(missing.status).toBe(409);
+    expect((await missing.json()).error).toBe('billing_account_not_found');
+    expect((db.prepare('SELECT COUNT(*) AS n FROM admin_audit_log').get() as { n: number }).n).toBe(
+      0,
+    );
+  });
+});
+
 describe('auth support actions', () => {
   const post = (path: string) =>
     buildApp().request(`/api/admin/users/${path}`, { method: 'POST', ...asUser(ADMIN) });

@@ -19,6 +19,7 @@ import {
   resendVerification,
   forceVerify,
   revokeSessions,
+  resyncPaddle,
   type AdminSummary,
   type AdminUserRow,
   type AdminAuditEntry,
@@ -460,6 +461,15 @@ export default function AdminPage() {
                         </button>
                         {menuId === u.id && (
                           <div className="absolute right-0 z-10 mt-1 w-52 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                            {summary?.billingResyncAvailable && (
+                              <MenuItem
+                                onClick={() =>
+                                  runAction(u, resyncPaddle, 'Billing resynced from Paddle')
+                                }
+                              >
+                                Resync from Paddle
+                              </MenuItem>
+                            )}
                             <MenuItem
                               onClick={() =>
                                 runAction(

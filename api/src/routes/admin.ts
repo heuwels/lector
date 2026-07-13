@@ -9,7 +9,7 @@
  * (Cloud/Plus billing bypass), reset MFA, trigger password reset, resend /
  * force email verification, revoke sessions.
  * Deferred (own issues): impersonate (#320), hard-delete/GDPR (#321),
- * resync-from-Paddle (#322), $-cost dashboard (#226).
+ * $-cost dashboard (#226).
  */
 import { Hono, type Context } from 'hono';
 import { db } from '../db';
@@ -24,10 +24,21 @@ import {
   type AdminGateOptions,
   type CompPlan,
 } from '../lib/admin';
-import { billingConfig, getUserEmail } from '../lib/billing';
+import {
+  applyPaddleEvent,
+  billingConfig,
+  findBillingSubscriptions,
+  findPaddleCustomerId,
+  getUserEmail,
+} from '../lib/billing';
 import { buildUserExport } from '../lib/user-export';
 import { recordAdminAction, recentAuditLog, type AdminAction } from '../lib/admin-audit';
 import { getAuthEngine } from '../lib/accounts';
+import {
+  makePaddleBillingOperations,
+  PaddleBillingError,
+  type PaddleBillingReader,
+} from '../lib/paddle-billing';
 
 /**
  * Auth-engine actions the support endpoints trigger. A seam so route tests
@@ -42,8 +53,12 @@ export interface AdminAuthActions {
 export interface AdminRouteOptions {
   freeTierEnabled?: boolean;
   billingExemptEmails?: Set<string>;
+  billingResyncEnabled?: boolean;
+  billingReader?: PaddleBillingReader;
   now?: () => Date;
 }
+
+const PADDLE_RESYNC_COOLDOWN_MS = 30_000;
 
 const realAuthActions: AdminAuthActions = {
   requestPasswordReset: async (email) => {
@@ -155,7 +170,12 @@ export function makeAdminRoutes(
   const resolveEmail = gate.resolveEmail ?? getUserEmail;
   const freeTierEnabled = options.freeTierEnabled ?? billingConfig.freeTierEnabled;
   const billingExemptEmails = options.billingExemptEmails ?? billingConfig.exemptEmails;
+  const billingResyncEnabled =
+    options.billingResyncEnabled ?? (billingConfig.enforced && Boolean(billingConfig.apiKey));
+  const billingReader = options.billingReader ?? makePaddleBillingOperations(billingConfig);
   const now = options.now ?? (() => new Date());
+  const lastPaddleResync = new Map<string, number>();
+  const paddleResyncInFlight = new Set<string>();
 
   app.use('*', makeRequireAdmin(gate));
 
@@ -372,6 +392,7 @@ export function makeAdminRoutes(
       usageTotals,
       freeUsageTotals,
       usageTracked: hasUsageCounters(),
+      billingResyncAvailable: billingResyncEnabled,
     });
   });
 
@@ -476,6 +497,85 @@ export function makeAdminRoutes(
     setCompedPlan(id, null, null);
     audit(c, 'uncomp', id, email);
     return c.json({ id, compedPlan: null });
+  });
+
+  // POST /api/admin/users/:id/resync-paddle — repair a stale local billing
+  // mirror from Paddle's current customer + subscription entities. The client
+  // supplies no Paddle identifiers: known ids come from the signed mirror and
+  // missing customers are discovered by the target account's exact email.
+  app.post('/users/:id/resync-paddle', async (c) => {
+    if (!billingResyncEnabled) {
+      return c.json({ error: 'Paddle billing is not enabled on this deployment' }, 404);
+    }
+    const id = c.req.param('id');
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
+
+    if (paddleResyncInFlight.has(id)) {
+      c.header('Retry-After', '1');
+      return c.json({ error: 'paddle_resync_rate_limited' }, 429);
+    }
+    const requestedAt = now().getTime();
+    const previous = lastPaddleResync.get(id);
+    if (previous !== undefined && requestedAt - previous < PADDLE_RESYNC_COOLDOWN_MS) {
+      c.header(
+        'Retry-After',
+        String(Math.ceil((PADDLE_RESYNC_COOLDOWN_MS - requestedAt + previous) / 1000)),
+      );
+      return c.json({ error: 'paddle_resync_rate_limited' }, 429);
+    }
+    // Set before awaiting to make concurrent double-clicks a single outbound
+    // sweep. Failed attempts clear the cooldown so an operator can retry.
+    lastPaddleResync.set(id, requestedAt);
+    paddleResyncInFlight.add(id);
+
+    try {
+      const knownCustomerIds = new Set(
+        findBillingSubscriptions(id, email).map((subscription) => subscription.paddleCustomerId),
+      );
+      const emailCustomerId = findPaddleCustomerId(email);
+      if (emailCustomerId) knownCustomerIds.add(emailCustomerId);
+      const snapshot = await billingReader.fetchBillingSnapshot({
+        email,
+        knownCustomerIds: [...knownCustomerIds],
+      });
+      if (snapshot.customers.length === 0 && snapshot.subscriptions.length === 0) {
+        lastPaddleResync.delete(id);
+        return c.json({ error: 'billing_account_not_found' }, 409);
+      }
+
+      const result = db.transaction(() => {
+        let applied = 0;
+        let stale = 0;
+        for (const event of [...snapshot.customers, ...snapshot.subscriptions]) {
+          const outcome = applyPaddleEvent(event);
+          if (outcome === 'customer' || outcome === 'subscription') applied++;
+          else if (outcome === 'stale') stale++;
+        }
+        const counts = {
+          customers: snapshot.customers.length,
+          subscriptions: snapshot.subscriptions.length,
+          applied,
+          stale,
+        };
+        audit(
+          c,
+          'paddle_resync',
+          id,
+          email,
+          `${counts.customers} customer(s), ${counts.subscriptions} subscription(s), ${applied} applied, ${stale} current`,
+        );
+        return counts;
+      })();
+      return c.json(result);
+    } catch (error) {
+      lastPaddleResync.delete(id);
+      const code = error instanceof PaddleBillingError ? error.code : 'unknown';
+      console.error(`[admin] Paddle resync failed: ${code}`);
+      return c.json({ error: 'paddle_resync_unavailable' }, 502);
+    } finally {
+      paddleResyncInFlight.delete(id);
+    }
   });
 
   // POST /api/admin/users/:id/reset-mfa — clear the account's two-factor auth

@@ -429,7 +429,7 @@ export function verifyPaddleSignature(
 }
 
 /** The slice of a Paddle webhook event the mirror needs. */
-interface PaddleEvent {
+export interface PaddleEvent {
   event_type?: string;
   occurred_at?: string;
   data?: {

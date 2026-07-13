@@ -17,6 +17,7 @@ export type AdminAction =
   | 'resend_verification'
   | 'force_verify'
   | 'revoke_sessions'
+  | 'paddle_resync'
   | 'export';
 
 export interface AuditEntry {
