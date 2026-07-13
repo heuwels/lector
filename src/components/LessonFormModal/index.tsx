@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Spinner } from '@/components/ui/spinner';
 import type { LessonFormModalProps } from './types';
 
 export default function LessonFormModal({
@@ -119,7 +120,7 @@ export default function LessonFormModal({
           >
             {isSaving ? (
               <div className="flex items-center gap-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
+                <Spinner />
                 Saving...
               </div>
             ) : (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import {
   type JournalEntry,
   getJournalEntries,
@@ -14,6 +14,7 @@ import EntryModal from './components/EntryModal';
 import HistoryCard from './components/HistoryCard';
 import { formatDate } from './utils';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import PageHeader from '@/components/PageHeader';
 import { useActiveLanguage } from '@/utils/hooks';
 
@@ -213,7 +214,7 @@ export default function JournalPage() {
                   onClick={handleSubmit}
                   disabled={isSubmitting || !bodyText.trim()}
                 >
-                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSubmitting && <Spinner />}
                   {isSubmitting ? 'Correcting...' : 'Submit for Correction'}
                 </Button>
               </div>

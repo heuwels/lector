@@ -392,10 +392,9 @@ export default function SubscribePage() {
               >
                 {opening === primary.id ? (
                   <>
-                    <span
-                      className="h-4 w-4 animate-spin rounded-full border-2 border-background/40 border-t-background"
-                      role="status"
-                      aria-label="Opening checkout"
+                    <Spinner
+                      label="Opening checkout"
+                      className="text-background"
                       data-testid="subscribe-price-opening"
                     />
                     Opening checkout…

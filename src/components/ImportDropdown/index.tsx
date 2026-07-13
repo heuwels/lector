@@ -3,6 +3,7 @@
 import { ChevronDown, Plus } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { IMPORT_OPTIONS } from './constants';
 import type { ImportDropdownProps, ImportSource } from './types';
 
@@ -66,7 +67,7 @@ export default function ImportDropdown({
       <Button onClick={() => setIsOpen(!isOpen)} disabled={disabled || isImporting}>
         {isImporting ? (
           <>
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
+            <Spinner />
             Importing...
           </>
         ) : (

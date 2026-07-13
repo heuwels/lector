@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronRight, Info, Loader2, Plus, X } from 'lucide-react';
+import { Check, ChevronRight, Info, Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import Markdown from 'react-markdown';
 import { getActiveLanguage } from '@/lib/data-layer';
 import { apiFetch } from '@/lib/api-base';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function ClozeFeedback({
   isCorrect,
@@ -174,7 +175,7 @@ export default function ClozeFeedback({
           >
             {isAddingToAnki ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner />
                 Adding...
               </>
             ) : (
@@ -193,7 +194,7 @@ export default function ClozeFeedback({
         >
           {isExplaining ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner />
               Explaining...
             </>
           ) : (
