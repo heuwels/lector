@@ -6,6 +6,7 @@ import { bounceToSubscribe, BILLING_ROUTE } from '@/lib/api-base';
 import { useLectorMode } from '@/lib/use-env';
 import { isAuthRoute } from '@/lib/auth-client';
 import { fetchBillingStatus } from '@/lib/billing';
+import { Spinner } from '@/components/ui/spinner';
 
 /**
  * Cloud-mode subscription gate (#224), AuthGuard's billing sibling. Sits
@@ -58,7 +59,7 @@ function CloudBillingGate({ children }: { children: React.ReactNode }) {
   if (state !== 'ok') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        <Spinner size="lg" label="Loading subscription" className="text-primary" />
       </div>
     );
   }
