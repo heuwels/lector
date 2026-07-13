@@ -1,6 +1,7 @@
 import '../test-guard';
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { db } from '../db';
+import { getLanguageConfig } from '../lib/languages';
 import { resetTtsCache } from '../lib/tts-cache';
 import app from './tts';
 
@@ -22,6 +23,12 @@ beforeEach(() => {
   db.prepare(
     "DELETE FROM usage_counters WHERE userId = 'local' AND metric = 'ttsCharsPerMonth'",
   ).run();
+  db.prepare("DELETE FROM settings WHERE userId = 'local' AND key = 'targetLanguage'").run();
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  db.prepare("DELETE FROM settings WHERE userId = 'local' AND key = 'targetLanguage'").run();
 });
 
 afterAll(() => {
@@ -103,6 +110,51 @@ describe('TTS route request boundaries', () => {
     );
     expect(JSON.parse((await captured.request?.text()) ?? '{}').input.text).toBe(text);
     expect(ttsUsage()).toBe(2_500);
+  });
+
+  test('resolves an omitted language from settings and clamps the speaking rate', async () => {
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      'local',
+      'targetLanguage',
+      '"de"',
+    );
+    const captured: { request: Request | null } = { request: null };
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      captured.request = new Request(input, init);
+      return Response.json({ audioContent: 'ZGV1dHNjaA==' });
+    }) as unknown as typeof fetch;
+
+    const response = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'sprachroute', rate: 99 }),
+    });
+    const requestBody = JSON.parse((await captured.request?.text()) ?? '{}');
+    const german = getLanguageConfig('de');
+
+    expect(response.status).toBe(200);
+    expect(requestBody.voice).toMatchObject({
+      languageCode: german.ttsCode,
+      name: german.ttsVoice,
+    });
+    expect(requestBody.audioConfig.speakingRate).toBe(4);
+  });
+
+  test('refunds usage when the provider returns no audio content', async () => {
+    globalThis.fetch = (async () => Response.json({})) as unknown as typeof fetch;
+
+    const response = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'missing-audio-route' }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: 'No audio content returned',
+      fallback: true,
+    });
+    expect(ttsUsage()).toBe(0);
   });
 });
 

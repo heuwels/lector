@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { isBlockedAddress, assertSafePublicUrl, SsrfError } from './safe-fetch';
+import { isBlockedAddress, assertSafePublicUrl, safeFetch, SsrfError } from './safe-fetch';
 
 describe('isBlockedAddress', () => {
   test('blocks internal / metadata / reserved IPv4', () => {
@@ -65,5 +65,26 @@ describe('assertSafePublicUrl', () => {
   test('allows a public literal IP', async () => {
     const u = await assertSafePublicUrl('http://1.1.1.1/');
     expect(u.protocol).toBe('http:');
+  });
+});
+
+describe('safeFetch redirect validation', () => {
+  test('revalidates every redirect and refuses an internal second hop', async () => {
+    const originalFetch = globalThis.fetch;
+    const seen: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return new Response(null, {
+        status: 302,
+        headers: { Location: 'http://127.0.0.1/admin' },
+      });
+    }) as unknown as typeof fetch;
+
+    try {
+      await expect(safeFetch('http://1.1.1.1/start')).rejects.toBeInstanceOf(SsrfError);
+      expect(seen).toEqual(['http://1.1.1.1/start']);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

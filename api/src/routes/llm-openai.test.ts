@@ -1,11 +1,16 @@
 import '../test-guard';
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { db } from '../db';
 import { makeLlmOpenaiRoutes } from './llm-openai';
 
 const originalFetch = globalThis.fetch;
 
-afterAll(() => {
+afterEach(() => {
   globalThis.fetch = originalFetch;
+  db.prepare(
+    "DELETE FROM settings WHERE key = 'openaiApiKey' AND userId LIKE 'llm-openai-%'",
+  ).run();
+  db.prepare("DELETE FROM settings WHERE key = 'openaiApiKey' AND userId = 'local'").run();
 });
 
 describe('OpenAI-compatible model discovery route', () => {
@@ -50,5 +55,74 @@ describe('OpenAI-compatible model discovery route', () => {
     expect(await response.json()).toEqual({ models: ['local-a', 'local-b'] });
     expect(captured.request?.url).toBe('http://127.0.0.1:11434/v1/models');
     expect(captured.request?.headers.get('Authorization')).toBe('Bearer local-secret');
+  });
+
+  test('rejects malformed JSON and a missing endpoint before fetching', async () => {
+    let fetchCalls = 0;
+    globalThis.fetch = (async () => {
+      fetchCalls += 1;
+      throw new Error('invalid input must not fetch');
+    }) as unknown as typeof fetch;
+    const app = makeLlmOpenaiRoutes('selfhost');
+
+    const malformed = await app.request('/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{',
+    });
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toEqual({ error: 'invalid JSON body' });
+
+    const missing = await app.request('/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    expect(missing.status).toBe(400);
+    expect(await missing.json()).toEqual({ error: 'endpoint is required' });
+    expect(fetchCalls).toBe(0);
+  });
+
+  test('maps an upstream model-list failure to 502', async () => {
+    globalThis.fetch = (async () =>
+      new Response('denied', { status: 401 })) as unknown as typeof fetch;
+    const app = makeLlmOpenaiRoutes('selfhost');
+
+    const response = await app.request('/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'http://127.0.0.1:11434' }),
+    });
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: '/v1/models error: denied' });
+  });
+
+  test('uses only the current tenant saved credential when the body omits a key', async () => {
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      'local',
+      'openaiApiKey',
+      '"saved-local-key"',
+    );
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      'llm-openai-intruder',
+      'openaiApiKey',
+      '"intruder-key"',
+    );
+    const captured: { authorization: string | null } = { authorization: null };
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      captured.authorization = new Request(input, init).headers.get('Authorization');
+      return Response.json({ data: [] });
+    }) as unknown as typeof fetch;
+    const app = makeLlmOpenaiRoutes('selfhost');
+
+    const response = await app.request('/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'http://127.0.0.1:11434' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(captured.authorization).toBe('Bearer saved-local-key');
   });
 });

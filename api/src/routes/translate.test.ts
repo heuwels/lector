@@ -1,5 +1,5 @@
 import '../test-guard';
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { db } from '../db';
 import {
   makeEntitlements,
@@ -157,10 +157,13 @@ async function planLimit(res: Response, metric: string) {
   return body;
 }
 
-beforeEach(() => {
+function resetTranslationRows() {
   db.prepare("DELETE FROM usage_counters WHERE userId = 'local'").run();
   db.prepare("DELETE FROM settings WHERE userId = 'local' AND key = 'targetLanguage'").run();
-});
+}
+
+beforeEach(resetTranslationRows);
+afterEach(resetTranslationRows);
 
 describe('translation input boundaries', () => {
   test('rejects malformed and oversized values before quota or provider work', async () => {
@@ -256,6 +259,27 @@ describe('managed Free translations', () => {
     expect(engine.getUsage('local', 'phraseTranslationsPerDay')).toBe(1);
     expect(engine.getUsage('local', 'contextTranslationsPerDay')).toBe(1);
     expect(engine.getUsage('local', 'llmRequestsPerMonth')).toBe(0);
+  });
+
+  test('resolves an omitted language from the current user setting before prompting', async () => {
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      'local',
+      'targetLanguage',
+      '"de"',
+    );
+    const engine = makeEngine({ now: () => new Date('2026-07-15T12:00:00Z') });
+    const { app, provider } = makeApp({ engine });
+
+    const response = await post(app, '/', {
+      word: 'ziehen',
+      sentence: 'Wir ziehen morgen um.',
+      type: 'word',
+    });
+
+    expect(response.status).toBe(200);
+    expect(provider.calls).toHaveLength(1);
+    expect(provider.calls[0].messages[0].content).toContain('German');
+    expect(provider.calls[0].messages[0].content).not.toContain('Afrikaans');
   });
 
   test('rejects seven phrase words and managed enrichment without calling a provider', async () => {
