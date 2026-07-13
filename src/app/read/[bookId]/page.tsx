@@ -6,6 +6,7 @@ import MarkdownReader from '@/components/MarkdownReader';
 import OnboardingCoach from '@/components/OnboardingCoach';
 import TranslationDrawer from '@/components/TranslationDrawer';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import {
   type Lesson,
   type LessonSummary,
@@ -1079,7 +1080,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     return (
       <div className="flex min-h-screen items-center justify-center bg-card">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-3 border-primary border-t-transparent" />
+          <Spinner size="xl" className="text-primary" />
           <p className="text-muted-foreground">Loading lesson...</p>
         </div>
       </div>
