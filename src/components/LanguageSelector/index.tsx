@@ -13,6 +13,7 @@ import { LANGUAGES } from '@/lib/languages';
 import { LanguageCode } from '@/types/language';
 import { useActiveLanguage } from '@/utils/hooks';
 import { setLanguageInStorage } from '@/utils/storage';
+import { toast } from 'sonner';
 
 export default function LanguageSelector({ compact = false }: { compact?: boolean }) {
   const activeLang = useActiveLanguage();
@@ -41,12 +42,16 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
   }, [activeLang.code]);
 
   async function handleSwitch(code: LanguageCode) {
-    await setSetting('targetLanguage', code);
-    setLanguageInStorage(code);
-    // First-ever switch to a language seeds its starter content before the
-    // reload lands wherever the user was; never throws (#315).
-    await seedStarterContent(code);
-    window.location.reload();
+    try {
+      await setSetting('targetLanguage', code);
+      setLanguageInStorage(code);
+      // First-ever switch to a language seeds its starter content before the
+      // reload lands wherever the user was; never throws (#315).
+      await seedStarterContent(code);
+      window.location.reload();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not change language');
+    }
   }
 
   const knownBadge = knownWordsCount ? (

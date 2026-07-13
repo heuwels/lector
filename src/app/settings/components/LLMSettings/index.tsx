@@ -103,6 +103,12 @@ export default function LLMSettings() {
     }
   };
 
+  const runSettingMutation = (mutation: Promise<unknown>) => {
+    void mutation.catch((error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to save setting');
+    });
+  };
+
   // Save LLM provider setting
   const saveLLMProvider = async (provider: LLMProvider) => {
     setLlmProvider(provider);
@@ -312,7 +318,7 @@ export default function LLMSettings() {
         </label>
         <select
           value={llmProvider}
-          onChange={(e) => saveLLMProvider(e.target.value as LLMProvider)}
+          onChange={(e) => runSettingMutation(saveLLMProvider(e.target.value as LLMProvider))}
           data-testid="llm-provider"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
         >
@@ -332,7 +338,7 @@ export default function LLMSettings() {
               </label>
               <div className="flex gap-2">
                 <button
-                  onClick={() => saveAnthropicAuthMode('api_key')}
+                  onClick={() => runSettingMutation(saveAnthropicAuthMode('api_key'))}
                   disabled={isFetchingLlmStatus}
                   className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
                     anthropicAuthMode === 'api_key'
@@ -343,7 +349,7 @@ export default function LLMSettings() {
                   API Key
                 </button>
                 <button
-                  onClick={() => saveAnthropicAuthMode('oauth')}
+                  onClick={() => runSettingMutation(saveAnthropicAuthMode('oauth'))}
                   disabled={isFetchingLlmStatus}
                   className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
                     anthropicAuthMode === 'oauth'
@@ -390,7 +396,7 @@ export default function LLMSettings() {
                   Replace
                 </button>
                 <button
-                  onClick={clearAnthropicApiKey}
+                  onClick={() => runSettingMutation(clearAnthropicApiKey())}
                   className="rounded-md border border-destructive/40 bg-background px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
                 >
                   Clear
@@ -406,7 +412,7 @@ export default function LLMSettings() {
                   className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
                 />
                 <button
-                  onClick={() => saveAnthropicApiKey(newApiKey)}
+                  onClick={() => runSettingMutation(saveAnthropicApiKey(newApiKey))}
                   disabled={!newApiKey.trim()}
                   className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -456,7 +462,7 @@ export default function LLMSettings() {
                   Replace
                 </button>
                 <button
-                  onClick={clearClaudeOauthToken}
+                  onClick={() => runSettingMutation(clearClaudeOauthToken())}
                   className="rounded-md border border-destructive/40 bg-background px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
                 >
                   Clear
@@ -472,7 +478,7 @@ export default function LLMSettings() {
                   className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
                 />
                 <button
-                  onClick={() => saveClaudeOauthToken(newOauthToken)}
+                  onClick={() => runSettingMutation(saveClaudeOauthToken(newOauthToken))}
                   disabled={!newOauthToken.trim()}
                   className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -504,7 +510,7 @@ export default function LLMSettings() {
             </label>
             <select
               value={openaiPreset}
-              onChange={(e) => saveOpenaiPreset(e.target.value as OpenAIPreset)}
+              onChange={(e) => runSettingMutation(saveOpenaiPreset(e.target.value as OpenAIPreset))}
               data-testid="openai-preset"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
             >
@@ -524,7 +530,7 @@ export default function LLMSettings() {
             <input
               type="text"
               value={openaiUrl}
-              onChange={(e) => saveOpenaiUrl(e.target.value)}
+              onChange={(e) => runSettingMutation(saveOpenaiUrl(e.target.value))}
               placeholder="http://localhost:11434"
               data-testid="openai-endpoint"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
@@ -557,7 +563,7 @@ export default function LLMSettings() {
                 </button>
                 <button
                   type="button"
-                  onClick={clearOpenaiApiKey}
+                  onClick={() => runSettingMutation(clearOpenaiApiKey())}
                   className="rounded-md border border-destructive/40 bg-background px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
                   data-testid="openai-api-key-clear"
                 >
@@ -576,7 +582,7 @@ export default function LLMSettings() {
                 />
                 <button
                   type="button"
-                  onClick={() => saveOpenaiApiKey(newOpenaiApiKey)}
+                  onClick={() => runSettingMutation(saveOpenaiApiKey(newOpenaiApiKey))}
                   disabled={!newOpenaiApiKey.trim()}
                   className="rounded-md bg-primary px-3 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   data-testid="openai-api-key-save"
@@ -612,7 +618,7 @@ export default function LLMSettings() {
                 type="text"
                 list="openai-model-options"
                 value={openaiModel}
-                onChange={(e) => saveOpenaiModel(e.target.value)}
+                onChange={(e) => runSettingMutation(saveOpenaiModel(e.target.value))}
                 placeholder={openaiFetchingModels ? 'Fetching models…' : 'Type a model name, or fetch the list'}
                 data-testid="openai-model"
                 className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none "
