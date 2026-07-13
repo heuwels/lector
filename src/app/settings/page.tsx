@@ -12,6 +12,7 @@ import TTSSettings from './components/TTSSettings';
 import LLMSettings from './components/LLMSettings';
 import PracticeSettings from './components/PracticeSettings';
 import VersionInfo from './components/VersionInfo';
+import DeleteAccount from './components/DeleteAccount';
 import PageHeader from '@/components/PageHeader';
 import BYOKSettings from './components/BYOKSettings';
 import CloudPlanSettings from './components/CloudPlanSettings';
@@ -34,6 +35,7 @@ export default function SettingsPage() {
         <KnownWordsImport />
         <Export />
         <DataManagement />
+        <DeleteAccount />
         <VersionInfo />
       </div>
     </main>

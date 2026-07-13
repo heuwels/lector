@@ -112,6 +112,15 @@ function LoginForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <h2 className="text-lg font-semibold text-foreground">Sign in</h2>
 
+      {params.get('deleted') === '1' && (
+        <div
+          className="rounded-lg border border-border bg-[var(--primary-soft)] p-3 text-sm text-foreground"
+          data-testid="login-deleted-notice"
+        >
+          Your account and all of its data have been permanently deleted.
+        </div>
+      )}
+
       {unverifiedEmail && (
         <div
           className="rounded-lg border border-border bg-[var(--primary-soft)] p-3 text-sm text-foreground"
