@@ -12,7 +12,7 @@
  *   docker compose exec <service> sh -c \
  *     'cd /app/api && DATA_DIR=/app/data bun run src/scripts/adopt-local-data.ts --to you@example.com'
  *
- * Back up first (scripts/backup.sh). Safe against the live DB in WAL mode;
+ * Back up first (README → Backups). Safe against the live DB in WAL mode;
  * running with the app stopped is tidiest.
  */
 import { getDatabaseInstance } from '../db';
@@ -138,7 +138,9 @@ function main(): void {
       return;
     }
 
-    console.log(args.commit ? 'Reassigned to this account:' : "Rows owned by 'local' that WOULD move:");
+    console.log(
+      args.commit ? 'Reassigned to this account:' : "Rows owned by 'local' that WOULD move:",
+    );
     for (const table of Object.keys(report.moved) as (keyof typeof report.moved)[]) {
       const n = report.moved[table];
       if (n > 0) console.log(`  ${String(table).padEnd(16)} ${fmt(n).padStart(10)}`);
@@ -149,7 +151,7 @@ function main(): void {
       console.log(`\nDone — moved ${fmt(report.totalMoved)} rows into ${label}.`);
     } else {
       console.log('\nDRY RUN — nothing written. Re-run with --commit to apply.');
-      console.log('Tip: back up first (scripts/backup.sh).');
+      console.log('Tip: back up first (README → Backups).');
     }
   } catch (err) {
     if (err instanceof AdoptConflictError) {

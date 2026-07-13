@@ -433,6 +433,10 @@ describe('per-user library ratchet (#220)', () => {
       "INSERT INTO dailyStats (userId, date, language, dictionaryLookups) VALUES (?, '2026-01-01', 'af', 9)",
     ).run(INTRUDER);
     db.prepare(
+      `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
+       VALUES ('j_backup_intruder', 'Geheime dagboek.', 'submitted', 2, '2026-01-01', 'af', ?, ?, ?)`,
+    ).run(TS, TS, INTRUDER);
+    db.prepare(
       "INSERT INTO settings (userId, key, value) VALUES (?, 'ratchet_secret', '\"x\"')",
     ).run(INTRUDER);
     db.prepare(
@@ -458,6 +462,7 @@ describe('per-user library ratchet (#220)', () => {
     expect(backup.lessons).toHaveLength(0);
     expect(backup.vocab).toHaveLength(0);
     expect(backup.dailyStats).toHaveLength(0);
+    expect(backup.journalEntries).toHaveLength(0);
     expect(backup.learnerProfiles).toHaveLength(0);
     expect(backup.onboardingProgress).toHaveLength(0);
     expect(backup.learnerEvents).toHaveLength(0);
