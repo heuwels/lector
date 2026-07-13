@@ -7,6 +7,7 @@ import {
   type VocabEntry,
   type Collection,
   type WordState,
+  updateVocabEntry,
   updateVocabState,
   getAllVocab,
   getAllCollections,
@@ -140,11 +141,11 @@ export default function VocabPage() {
   // Update entry
   const handleUpdateEntry = async (id: string, updates: Partial<VocabEntry>) => {
     try {
-      // Use updateVocabState for state changes, or a general update API call
-      if (updates.state) {
-        await updateVocabState(id, updates.state);
-      }
-      // For other updates, we'd need an update endpoint - for now just reload
+      await updateVocabEntry(id, {
+        state: updates.state,
+        translation: updates.translation,
+        sentence: updates.sentence,
+      });
       await loadData();
       // Update selected entry if it's the one being edited
       if (selectedEntry?.id === id) {
