@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Plus } from 'lucide-react';
 import LessonFormModal from '@/components/LessonFormModal';
+import { ReadingSweep } from '@/components/Loaders';
 import {
   DndContext,
   closestCenter,
@@ -38,7 +39,6 @@ import {
 } from '@/lib/data-layer';
 import SortableLessonRow from '../components/SortableLessonRow';
 import { toast } from 'sonner';
-import { Spinner } from '@/components/ui/spinner';
 
 export default function CollectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -179,7 +179,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
     return (
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <div className="flex h-64 items-center justify-center">
-          <Spinner size="lg" label="Loading collection" className="text-foreground" />
+          <ReadingSweep label="Loading collection" />
         </div>
       </main>
     );

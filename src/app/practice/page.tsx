@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle, Star } from 'lucide-react';
+import { DeckShuffle } from '@/components/Loaders';
 import TranslationDrawer from '@/components/TranslationDrawer';
 import {
   ClozeSentence,
@@ -56,7 +57,6 @@ import {
 } from './constants';
 import BlacklistSentence from './components/BlacklistSentence';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import { SETTINGS_KEYS } from '@/app/settings/constants';
 import EmptyState from './components/EmptyState';
@@ -1071,7 +1071,7 @@ export default function PracticePage() {
             {/* Loading state */}
             {state === 'loading' && (
               <div className="flex flex-col items-center justify-center py-12">
-                <Spinner size="xl" className="mb-4 text-primary" />
+                <DeckShuffle className="mb-4" />
                 <p className="text-muted-foreground">Loading sentences...</p>
               </div>
             )}

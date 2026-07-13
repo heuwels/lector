@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ChevronDown, Folder, Plus, Sparkles } from 'lucide-react';
+import { ReadingSweep } from '@/components/Loaders';
 import AddCollectionTile from './components/AddCollectionTile';
 import EmptyState from './components/EmptyState';
 import GroupMenu from './components/GroupMenu';
@@ -43,7 +44,6 @@ import {
   type CollectionGroup,
 } from '@/lib/data-layer';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import PageHeader from '@/components/PageHeader';
 import { getOnboardingSnapshot, type OnboardingSnapshot } from '@/lib/onboarding';
 import { toast } from 'sonner';
@@ -402,7 +402,7 @@ export default function Home() {
       )}
       {isLoading ? (
         <div className="flex h-64 items-center justify-center">
-          <Spinner size="lg" label="Loading library" className="text-foreground" />
+          <ReadingSweep label="Loading library" />
         </div>
       ) : (
         <section>
