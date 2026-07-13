@@ -9,6 +9,7 @@
 import { DEFAULT_LANGUAGE, foldWord, getLanguageConfig, isValidLanguageCode } from './languages';
 import { apiFetch } from './api-base';
 import { activeTenantId, readLanguageCache } from './language-cache';
+import { cachedQuery, clearTenantQueries, invalidateQueries, type QueryKey } from './query-cache';
 
 // Active language helper — reads the tenant-keyed cache (#281), falls back
 // to the default (SSR, cloud pre-session, or simply nothing cached yet).
@@ -24,6 +25,23 @@ export function getActivePack() {
 
 function langParam(prefix: '?' | '&' = '?'): string {
   return `${prefix}language=${getActiveLanguage()}`;
+}
+
+function activeLanguageQueryKey(scope: string, params?: QueryKey['params']): QueryKey | null {
+  const tenant = activeTenantId();
+  if (tenant === null) return null;
+  return { tenant, language: getActiveLanguage(), scope, params };
+}
+
+function invalidateActiveScope(scope: string): void {
+  const tenant = activeTenantId();
+  if (tenant !== null) invalidateQueries({ tenant, scope });
+}
+
+const COLLECTIONS_QUERY_SCOPE = 'collections';
+
+function invalidateCollections(): void {
+  invalidateActiveScope(COLLECTIONS_QUERY_SCOPE);
 }
 
 async function apiError(res: Response, fallback: string): Promise<Error> {
@@ -77,8 +95,10 @@ import type {
 // ============================================================================
 
 export async function getAllCollections(): Promise<Collection[]> {
-  const res = await apiFetch(`/api/collections${langParam()}`);
-  return res.json();
+  return cachedQuery(activeLanguageQueryKey(COLLECTIONS_QUERY_SCOPE), async () => {
+    const res = await apiFetch(`/api/collections${langParam()}`);
+    return res.json();
+  });
 }
 
 export async function getCollection(id: string): Promise<Collection | undefined> {
@@ -99,6 +119,7 @@ export async function createCollection(data: {
   });
   if (!res.ok) throw await apiError(res, 'Could not create collection');
   const { id } = await res.json();
+  invalidateCollections();
   return id;
 }
 
@@ -109,11 +130,13 @@ export async function reorderCollections(ids: string[]): Promise<void> {
     body: JSON.stringify({ ids }),
   });
   await requireOk(res, 'Could not reorder collections');
+  invalidateCollections();
 }
 
 export async function deleteCollection(id: string): Promise<void> {
   const res = await apiFetch(`/api/collections/${id}`, { method: 'DELETE' });
   await requireOk(res, 'Could not delete collection');
+  invalidateCollections();
 }
 
 export async function updateCollection(
@@ -126,6 +149,7 @@ export async function updateCollection(
     body: JSON.stringify(data),
   });
   await requireOk(res, 'Could not update collection');
+  invalidateCollections();
 }
 
 // ============================================================================
@@ -158,11 +182,13 @@ export async function updateGroup(
     body: JSON.stringify(data),
   });
   await requireOk(res, 'Could not update group');
+  invalidateCollections();
 }
 
 export async function deleteGroup(id: string): Promise<void> {
   const res = await apiFetch(`/api/groups/${id}`, { method: 'DELETE' });
   await requireOk(res, 'Could not delete group');
+  invalidateCollections();
 }
 
 // ============================================================================
@@ -191,6 +217,7 @@ export async function addLessonToCollection(
   });
   if (!res.ok) throw await apiError(res, 'Could not create lesson');
   const { id } = await res.json();
+  invalidateCollections();
   return id;
 }
 
@@ -209,6 +236,7 @@ export async function updateLesson(
 export async function deleteLesson(id: string): Promise<void> {
   const res = await apiFetch(`/api/lessons/${id}`, { method: 'DELETE' });
   await requireOk(res, 'Could not delete lesson');
+  invalidateCollections();
 }
 
 export async function reorderLessons(collectionId: string, ids: string[]): Promise<void> {
@@ -231,6 +259,7 @@ export async function updateLessonProgress(
   });
   // Reader scroll persistence is intentionally best-effort. A transient
   // failure must not interrupt reading or create an unhandled rejection.
+  if (res.ok) invalidateCollections();
   return res.ok;
 }
 
@@ -251,7 +280,9 @@ export async function importEpub(file: File): Promise<{
     const err = await res.json();
     throw new Error(err.error || 'Failed to import EPUB');
   }
-  return res.json();
+  const imported = await res.json();
+  invalidateCollections();
+  return imported;
 }
 
 export async function createStandaloneLesson(data: {
@@ -271,9 +302,11 @@ export async function createStandaloneLesson(data: {
     // limit rejects the second half, remove the collection created solely for
     // this import so a capped Free account does not accumulate empty shells.
     await apiFetch(`/api/collections/${collectionId}`, { method: 'DELETE' });
+    invalidateCollections();
     throw await apiError(res, 'Could not create imported lesson');
   }
   const { id: lessonId } = await res.json();
+  invalidateCollections();
   return { collectionId, lessonId };
 }
 
@@ -957,7 +990,9 @@ export async function seedStarterContent(language: string): Promise<StarterConte
       body: JSON.stringify({ language }),
     });
     if (!res.ok) return { seeded: false };
-    return await res.json();
+    const result = (await res.json()) as StarterContentResult;
+    if (result.seeded) invalidateCollections();
+    return result;
   } catch {
     return { seeded: false };
   }
@@ -1083,7 +1118,10 @@ export async function importFromDexie(data: Record<string, unknown[]>): Promise<
     body: JSON.stringify(data),
   });
   await requireOk(res, 'Could not import learning data');
-  return res.json();
+  const result = await res.json();
+  const tenant = activeTenantId();
+  if (tenant !== null) clearTenantQueries(tenant);
+  return result;
 }
 
 // ============================================================================

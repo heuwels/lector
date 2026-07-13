@@ -24,6 +24,7 @@
  */
 
 import { lectorMode } from './api-base';
+import { clearQueryCache, clearTenantQueries } from './query-cache';
 import { LANGUAGE_CHANGE_EVENT } from '@/constants/storage';
 
 const LEGACY_KEY = 'lector-target-language';
@@ -39,6 +40,7 @@ let cloudTenant: string | null = null;
  */
 export function setActiveTenant(userId: string): void {
   if (cloudTenant === userId) return;
+  clearQueryCache();
   cloudTenant = userId;
   if (typeof window !== 'undefined') {
     queueMicrotask(() => window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT)));
@@ -99,5 +101,6 @@ export function writeLanguageCache(code: string): void {
   migrateLegacyKey();
   const tenant = tenantId();
   if (!tenant) return;
+  clearTenantQueries(tenant);
   window.localStorage.setItem(keyFor(tenant), code);
 }
