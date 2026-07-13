@@ -464,6 +464,19 @@ describe('learning-data takeout', () => {
           timesIncorrect: 1,
         },
       ],
+      // Asserted on the export itself (not just the final equality check):
+      // if the builder dropped journals, both exports would be empty and the
+      // round-trip would still "pass" while losing every entry (#294).
+      journalEntries: [
+        {
+          id: 'takeout-journal',
+          body: 'Heute habe ich gelesen.',
+          status: 'submitted',
+          entryDate: '2026-01-01',
+          language: 'de',
+          wordCount: 4,
+        },
+      ],
       dailyStats: [{ date: '2026-01-01', minutesRead: 18, clozePracticed: 12 }],
     });
 

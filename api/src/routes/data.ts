@@ -389,6 +389,19 @@ function packFor(language: string | undefined | null): LanguageConfig {
 // GET /api/data — full backup for the requesting user. The builder
 // (lib/user-export.ts) is shared with the admin export (#221) so both paths
 // emit the same restore-ready shape.
+//
+// "Full" means every table the POST below can rebuild (#294). The rest is
+// excluded deliberately, not by oversight:
+// - chat_messages — 7-day-TTL ephemera, expired by design
+// - api_tokens + user_provider_credentials — secrets; tokens are re-mintable
+//   and only hashes are stored, which are useless on another instance
+// - billing_*, usage_counters, admin_*, classify_batches, anki_pending —
+//   operational state of THIS deployment, not portable learner data
+// - dictionaries, sentence banks, TTS audio cache — global shared content,
+//   re-derivable on any install (#216); the user's own accepted AI entries DO
+//   travel as acceptedDictionaryEntries
+// - settings — only the portable pair (targetLanguage, timezone); see
+//   lib/user-export.ts
 app.get('/', (c) => {
   const takeout = buildUserExport(getCurrentUserId(c));
   c.header('Cache-Control', 'private, no-store');
