@@ -256,6 +256,27 @@ describe('Auth middleware', () => {
     expect(body.error).toBe('Token has expired');
   });
 
+  // #326: an unparseable stored expiry can't be compared, so it must read as
+  // expired — `new Date(bad) < now` is false, which made these tokens eternal.
+  test('returns 401 for a token whose stored expiry is not a date (fail closed)', async () => {
+    const token = createTestToken(['*'], 'not-a-real-date');
+    const res = await app.request('/api/collections', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('Token has expired');
+  });
+
+  test('a token with a valid future expiry still authenticates', async () => {
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const token = createTestToken(['*'], future);
+    const res = await app.request('/api/collections', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+  });
+
   // #325: persisted scope metadata is only trusted in the exact shape token
   // creation writes. Every other shape must deny — the old parser defaulted
   // these to wildcard access.

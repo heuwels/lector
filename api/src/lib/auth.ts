@@ -162,9 +162,14 @@ export function makePatMiddleware(authRequired: boolean) {
       return c.json({ error: 'Invalid token' }, 401);
     }
 
-    // Check expiry
-    if (matchedToken.expiresAt && new Date(matchedToken.expiresAt) < new Date()) {
-      return c.json({ error: 'Token has expired' }, 401);
+    // Check expiry — fail closed (#326): a stored value that doesn't parse
+    // as a date can't be compared, so it must read as expired, not eternal.
+    // (`new Date(bad) < now` is NaN < now, which is false — i.e. immortal.)
+    if (matchedToken.expiresAt) {
+      const expiresAtMs = Date.parse(matchedToken.expiresAt);
+      if (Number.isNaN(expiresAtMs) || expiresAtMs < Date.now()) {
+        return c.json({ error: 'Token has expired' }, 401);
+      }
     }
 
     // Cloud proper: the PAT is the credential, so it must carry a real tenant
