@@ -25,6 +25,7 @@ test.describe('Language Setup & Switching', () => {
     await expect(heading).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId('setup-language-af')).toBeVisible();
     await expect(page.getByTestId('setup-language-de')).toBeVisible();
+    await expect(page.getByTestId('setup-language-eo')).toBeVisible();
     await expect(page.getByTestId('setup-language-es')).toBeVisible();
     await expect(page.getByTestId('setup-language-fr')).toBeVisible();
     await expect(page.getByTestId('setup-language-it')).toBeVisible();
@@ -57,6 +58,7 @@ test.describe('Language Setup & Switching', () => {
     // Should show language options
     await expect(page.getByTestId('language-option-af').first()).toBeVisible();
     await expect(page.getByTestId('language-option-de').first()).toBeVisible();
+    await expect(page.getByTestId('language-option-eo').first()).toBeVisible();
     await expect(page.getByTestId('language-option-es').first()).toBeVisible();
     await expect(page.getByTestId('language-option-fr').first()).toBeVisible();
     await expect(page.getByTestId('language-option-it').first()).toBeVisible();

@@ -13,10 +13,21 @@ export default function TTSSettings() {
   const [googleTTSAvailable, setGoogleTTSAvailable] = useState<boolean | null>(null);
   const [managedTTSIncluded, setManagedTTSIncluded] = useState<boolean | null>(null);
 
+  // Languages without a Google voice (eo) always speak through the server's
+  // self-hosted eSpeak NG engine — no engine choice, no plan gating, no
+  // browser fallback (#307 §3.2c). The picker below absents itself.
+  const espeakOnly =
+    activeLang.pronunciation.audio !== 'none' && !activeLang.pronunciation.audio.includes('google');
+
   useEffect(() => {
     const init = async () => {
       setCurrentTTSMode(getTTSMode());
       setTTSSpeed(parseFloat(localStorage.getItem(SETTINGS_KEYS.TTS_SPEED) || '1.0'));
+
+      // eSpeak-only languages skip the managed-voice probe entirely: the
+      // Google mode/upsell UI is hidden, and probing /api/tts would just
+      // synthesize a throwaway espeak clip.
+      if (espeakOnly) return;
 
       if (lectorMode() === 'cloud') {
         const entitlements = await getEntitlements();
@@ -40,7 +51,7 @@ export default function TTSSettings() {
     };
 
     void init();
-  }, []);
+  }, [espeakOnly]);
 
   const handleTTSModeChanged = (ttsMode: TTSMode) => {
     setCurrentTTSMode(ttsMode);
@@ -55,77 +66,80 @@ export default function TTSSettings() {
   };
 
   const testSpeaking = useCallback(() => {
-    let samplePhrase = 'Hello, how are you?';
-
-    switch (activeLang.code) {
-      case 'af':
-        samplePhrase = 'Hallo, hoe gaan dit met jou?';
-        break;
-      case 'de':
-        samplePhrase = 'Hallo, wie geht es dir?';
-        break;
-      case 'es':
-        samplePhrase = '¿Hola, cómo estás?';
-        break;
-    }
-
-    speak(samplePhrase, ttsSpeed);
+    // Every pack carries a sample sentence — no per-language switch needed.
+    speak(activeLang.testPhrase, ttsSpeed);
   }, [activeLang, ttsSpeed]);
 
   return (
     <section className="panel space-y-4 p-6" data-testid="tts-settings">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">Text-to-Speech</h2>
-        {googleTTSAvailable !== null && (
+        {espeakOnly ? (
           <div className="flex items-center gap-2">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                googleTTSAvailable ? 'bg-primary' : 'bg-yellow-500'
-              }`}
-            />
-            <span className="text-sm text-muted-foreground">
-              {managedTTSIncluded === false
-                ? 'Browser voice · Free'
-                : googleTTSAvailable
-                  ? 'Managed voice available'
-                  : 'Using browser voice'}
-            </span>
+            <span className="inline-block h-2 w-2 rounded-full bg-primary" />
+            <span className="text-sm text-muted-foreground">Synthesized voice</span>
           </div>
+        ) : (
+          googleTTSAvailable !== null && (
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${
+                  googleTTSAvailable ? 'bg-primary' : 'bg-yellow-500'
+                }`}
+              />
+              <span className="text-sm text-muted-foreground">
+                {managedTTSIncluded === false
+                  ? 'Browser voice · Free'
+                  : googleTTSAvailable
+                    ? 'Managed voice available'
+                    : 'Using browser voice'}
+              </span>
+            </div>
+          )
         )}
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-foreground">Voice Engine</label>
-        <p className="mb-2 text-xs text-muted-foreground">
-          {managedTTSIncluded === false
-            ? 'Browser speech stays free and works across reading, practice, and dictation. Cloud adds a consistent managed voice.'
-            : 'Managed voices offer more consistent pronunciation; your browser voice is always available.'}
+      {espeakOnly ? (
+        <p className="text-xs text-muted-foreground" data-testid="espeak-voice-note">
+          {activeLang.name} is spoken by eSpeak NG, a synthesized voice hosted by Lector — the only
+          text-to-speech engine that exists for {activeLang.name}. It sounds robotic but pronounces
+          every word exactly, and it&apos;s included on every plan.
         </p>
-        <div className="flex gap-2">
-          <Button
-            disabled={!googleTTSAvailable}
-            onClick={() => handleTTSModeChanged('google')}
-            variant={currentTTSMode === 'google' ? 'default' : 'secondary'}
-          >
-            Managed voice
-          </Button>
-          <Button
-            onClick={() => handleTTSModeChanged('browser')}
-            variant={currentTTSMode === 'browser' ? 'default' : 'secondary'}
-          >
-            Browser Built-in
-          </Button>
-        </div>
-        {managedTTSIncluded === false && (
-          <p className="mt-3 rounded-lg border border-border bg-[var(--primary-soft)] p-3 text-xs text-foreground">
-            Want Lector&apos;s managed voice?{' '}
-            <a href="/subscribe" className="font-semibold text-primary hover:underline">
-              Upgrade to Cloud
-            </a>
-            . Adding your own AI key does not change audio because voice usage is hosted by Lector.
+      ) : (
+        <div>
+          <label className="block text-sm font-medium text-foreground">Voice Engine</label>
+          <p className="mb-2 text-xs text-muted-foreground">
+            {managedTTSIncluded === false
+              ? 'Browser speech stays free and works across reading, practice, and dictation. Cloud adds a consistent managed voice.'
+              : 'Managed voices offer more consistent pronunciation; your browser voice is always available.'}
           </p>
-        )}
-      </div>
+          <div className="flex gap-2">
+            <Button
+              disabled={!googleTTSAvailable}
+              onClick={() => handleTTSModeChanged('google')}
+              variant={currentTTSMode === 'google' ? 'default' : 'secondary'}
+            >
+              Managed voice
+            </Button>
+            <Button
+              onClick={() => handleTTSModeChanged('browser')}
+              variant={currentTTSMode === 'browser' ? 'default' : 'secondary'}
+            >
+              Browser Built-in
+            </Button>
+          </div>
+          {managedTTSIncluded === false && (
+            <p className="mt-3 rounded-lg border border-border bg-[var(--primary-soft)] p-3 text-xs text-foreground">
+              Want Lector&apos;s managed voice?{' '}
+              <a href="/subscribe" className="font-semibold text-primary hover:underline">
+                Upgrade to Cloud
+              </a>
+              . Adding your own AI key does not change audio because voice usage is hosted by
+              Lector.
+            </p>
+          )}
+        </div>
+      )}
 
       <div>
         <Button onClick={testSpeaking}>Test Voice</Button>

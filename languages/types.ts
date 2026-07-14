@@ -44,6 +44,33 @@ export interface ScriptConfig {
   fontClass?: string;
 }
 
+/** Server-side TTS engines a language can be spoken by (#307 §3.2). */
+export type TtsEngine = 'google' | 'espeak';
+
+/**
+ * Pronunciation capability (#307 §3.2) — two orthogonal axes, because a
+ * language can have BOTH a synthesized voice and a phonetic gloss (Esperanto:
+ * eSpeak audio + rule-generated IPA), which a single mode union can't express.
+ */
+export interface PronunciationConfig {
+  /**
+   * Server TTS engines that can speak this language, ordered best-first — or
+   * 'none' for languages where synthesized audio is wrong *on principle*
+   * (disputed/reconstructed pronunciation: Koine Greek, Latin, Biblical
+   * Hebrew…). On 'none' the speaker UI absents itself rather than silently
+   * mis-speaking via a wrong-language browser voice. Browser TTS remains a
+   * client-side concern layered on top ('google' languages only).
+   */
+  audio: readonly TtsEngine[] | 'none';
+  /**
+   * Rule-rendered phonetic gloss. 'ipa' = IPA is derivable from spelling by
+   * rule (Esperanto: one-phoneme-per-letter + fixed penultimate stress), so
+   * lookups can attach a pronunciation without TTS, dictionary data, or a
+   * model.
+   */
+  gloss?: 'ipa';
+}
+
 export interface LanguageConfig {
   /** English name, e.g. "German". */
   name: string;
@@ -53,18 +80,20 @@ export interface LanguageConfig {
   code: LanguageCode;
   /** Flag emoji. */
   flag: string;
-  /** Primary TTS locale, e.g. "de-DE". */
-  ttsCode: string;
-  /** Preferred Google Cloud TTS voice. */
-  ttsVoice: string;
+  /** Primary TTS locale, e.g. "de-DE". Required when 'google' ∈ pronunciation.audio. */
+  ttsCode?: string;
+  /** Preferred Google Cloud TTS voice. Required when 'google' ∈ pronunciation.audio. */
+  ttsVoice?: string;
   /** Tatoeba 3-letter code, e.g. "deu". */
   tatoebaCode: string;
-  /** Browser-TTS fallback locales, most-specific first. */
-  fallbackTts: string[];
+  /** Browser-TTS fallback locales, most-specific first. Only meaningful for 'google' languages. */
+  fallbackTts?: string[];
   /** Cloze stop-words — function words never worth blanking. */
   avoidWords: Set<string>;
   /** Sample sentence for voice/settings previews. */
   testPhrase: string;
+  /** Which engines (if any) may speak this language + optional phonetic gloss (#307 §3.2). */
+  pronunciation: PronunciationConfig;
   /** Script behavior — tokenization, folding, direction (#289). */
   script: ScriptConfig;
 }

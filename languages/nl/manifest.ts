@@ -38,6 +38,8 @@ export const nl = {
   fallbackTts: ['nl', 'nl-NL', 'nl-BE'],
   avoidWords: AVOID_WORDS,
   testPhrase: 'Hallo, hoe gaat het met je?',
+  // Google is the canonical voice; browser TTS layers on client-side (#307 §3.2).
+  pronunciation: { audio: ['google'] as const },
   script: {
     bcp47: 'nl',
     direction: 'ltr' as const,

@@ -17,6 +17,8 @@ export const es = {
   fallbackTts: ['es', 'es-ES', 'es-MX'],
   avoidWords: AVOID_WORDS,
   testPhrase: '¡Hola! ¿Cómo estás?',
+  // Google is the canonical voice; browser TTS layers on client-side (#307 §3.2).
+  pronunciation: { audio: ['google'] as const },
   script: {
     bcp47: 'es',
     direction: 'ltr' as const,

@@ -43,6 +43,16 @@ const CORPUS: Record<LanguageCode, string[]> = {
     '„Sind Sie sicher?“, fragte er. Über größere Straßen fußt man nicht.',
     'Das Mädchen aß süße Äpfel — und zwar viele!',
   ],
+  eo: [
+    'Saluton, kiel vi fartas?',
+    // All six supersignoj (U+0108–U+016D) sit inside the legacy ø–ž range,
+    // so eo must tokenize byte-identically with the old pattern too.
+    'Eĥoŝanĝo ĉiuĵaŭde: la ses supersignoj ĉ, ĝ, ĥ, ĵ, ŝ kaj ŭ.',
+    'La ĝardeno estas bela, ĉu ne? Ŝi aĉetis ĉokoladon kaj ĵurnalon.',
+    'Mi loĝas en malgranda urbo ekde 1999 — ĝi estas tre trankvila.',
+    "De l' mondo venis aŭdaca knabo.",
+    'Hodiaŭ estas belega tago, ankaŭ morgaŭ estos.',
+  ],
   es: [
     '¡Hola! ¿Cómo estás?',
     'El niño comió mañana; ¿por qué no?',

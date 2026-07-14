@@ -3,13 +3,32 @@ import path from 'path';
 import fs from 'fs';
 import { db as userDb } from '../db';
 import { DEFAULT_LANGUAGE, foldWord, getLanguageConfig, isValidLanguageCode } from './languages';
+import { esperantoIpa } from '../../../languages/eo/ipa';
 import { acceptedDictionaryContentBytes } from './storage-limits';
+
+// x-system fold (#307 §3.4): learners without an Esperanto keyboard type
+// cx/gx/hx/jx/sx/ux for the supersignoj (ĉ ĝ ĥ ĵ ŝ ŭ). Folded at the lookup
+// boundary ONLY — storage and display keep proper orthography. The digraphs
+// are unambiguous because x is not an Esperanto letter. (The h-system is NOT
+// folded: h is a real letter, and words like "flughaveno" contain a true g+h.)
+const EO_X_DIGRAPHS: Record<string, string> = {
+  cx: 'ĉ',
+  gx: 'ĝ',
+  hx: 'ĥ',
+  jx: 'ĵ',
+  sx: 'ŝ',
+  ux: 'ŭ',
+};
 
 // Dictionary keys are folded via the language pack (#289): NFC + case fold,
 // matching how the reader folds words before lookups.
 function foldKey(word: string, language: string): string {
   const pack = getLanguageConfig(isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE);
-  return foldWord(word, pack);
+  const folded = foldWord(word, pack);
+  if (language === 'eo' && folded.includes('x')) {
+    return folded.replace(/[cghjsu]x/gu, (digraph) => EO_X_DIGRAPHS[digraph] ?? digraph);
+  }
+  return folded;
 }
 
 /**
@@ -131,6 +150,190 @@ function undoubleConsonant(stem: string): string | null {
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Esperanto rule-based morphology (#307 §3.3) — deterministic, not heuristic
+// ---------------------------------------------------------------------------
+// Unlike the Afrikaans affix rules above (a best-effort heuristic), Esperanto
+// morphology is algorithmic and exhaustive: POS is encoded in the ending
+// (-o noun, -a adjective, -e adverb, -i/-as/-is/-os/-us/-u verb), the
+// grammatical endings -j (plural) and -n (accusative) strip cleanly, and
+// derivation uses a closed, documented affix set. That lets the analyzer
+// out-cover kaikki on productive compounds (malsanulejo = mal+san+ul+ej+o)
+// while staying exact. Every path below still only returns a real dictionary
+// row — the rules generate candidates, the dictionary decides.
+
+const EO_FINITE_VERB_LABELS: Record<string, string> = {
+  as: 'present tense of',
+  is: 'past tense of',
+  os: 'future tense of',
+  us: 'conditional of',
+  u: 'imperative of',
+};
+
+// Derivational prefixes, matched at the word start.
+const EO_PREFIXES = ['mal', 'eks', 'mis', 'dis', 'pra', 'ĉef', 'ek', 'ge', 're', 'bo', 'fi'];
+
+// Derivational suffixes (incl. the six participle morphemes), peeled from the
+// root end, longest first so -ist wins over -it, -ind over -id.
+const EO_SUFFIXES = [
+  'estr',
+  'ist',
+  'ind',
+  'ebl',
+  'ant',
+  'int',
+  'ont',
+  'aĵ',
+  'ec',
+  'ej',
+  'ul',
+  'in',
+  'et',
+  'eg',
+  'il',
+  'an',
+  'ar',
+  'id',
+  'em',
+  'ig',
+  'iĝ',
+  'ad',
+  'er',
+  'um',
+  'at',
+  'it',
+  'ot',
+];
+
+// Roots this short are never worth peeling toward (sci- is the shortest
+// common root at 3).
+const EO_MIN_ROOT = 3;
+
+/**
+ * Resolve an Esperanto root against the dictionary by trying each
+ * part-of-speech vowel. A root is not a lemma on its own — kaikki lemmas are
+ * full words (sano, sana, scii) — so `kur` resolves via kuri/kuro/kura.
+ */
+function eoResolveRoot(stmts: Stmts, root: string): EntryRow | undefined {
+  for (const posVowel of ['o', 'i', 'a', 'e']) {
+    const row = stmts.selectEntry.get(root + posVowel) as EntryRow | undefined;
+    if (row) return row;
+  }
+  return undefined;
+}
+
+/**
+ * Depth-first affix peeling with backtracking: at each step try to resolve
+ * the root, else peel a suffix, else peel a prefix. Backtracking matters —
+ * greedy peeling dead-ends on words like malsanulejo, where the stem
+ * `malsan` superficially ends in the suffix -an but actually carries the
+ * prefix mal-. Deterministic (fixed affix order, depth-capped) and every
+ * result is a real dictionary row.
+ */
+function eoPeelToRoot(
+  stmts: Stmts,
+  root: string,
+  depth: number,
+  peeled: string[],
+): { row: EntryRow; peeled: string[] } | undefined {
+  if (root.length < EO_MIN_ROOT) return undefined;
+  const row = eoResolveRoot(stmts, root);
+  if (row) return { row, peeled };
+  if (depth >= 5) return undefined;
+
+  const suffix = EO_SUFFIXES.find((s) => root.endsWith(s) && root.length - s.length >= EO_MIN_ROOT);
+  if (suffix) {
+    const hit = eoPeelToRoot(stmts, root.slice(0, -suffix.length), depth + 1, [
+      ...peeled,
+      `-${suffix}-`,
+    ]);
+    if (hit) return hit;
+  }
+  const prefix = EO_PREFIXES.find(
+    (p) => root.startsWith(p) && root.length - p.length >= EO_MIN_ROOT,
+  );
+  if (prefix) {
+    const hit = eoPeelToRoot(stmts, root.slice(prefix.length), depth + 1, [
+      ...peeled,
+      `${prefix}-`,
+    ]);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+function eoLookupByRule(stmts: Stmts, lower: string): ExpandedDictionaryEntry | undefined {
+  // 1. Grammatical endings on nominals and correlatives: belajn → bela,
+  //    domojn → domo, tiujn → tiu, min → mi. Exact-base matches only.
+  const grammatical: Array<[string, string]> = [
+    ['jn', 'accusative plural of'],
+    ['j', 'plural of'],
+    ['n', 'accusative of'],
+  ];
+  for (const [ending, label] of grammatical) {
+    if (lower.endsWith(ending) && lower.length - ending.length >= MIN_STEM) {
+      const base = lower.slice(0, -ending.length);
+      const row = stmts.selectEntry.get(base) as EntryRow | undefined;
+      if (row) return buildEntry(row, stmts, lower, { stem: row.word, label });
+    }
+  }
+
+  // 2. Finite verb → infinitive (the kaikki lemma): parolas → paroli.
+  for (const [ending, label] of Object.entries(EO_FINITE_VERB_LABELS)) {
+    if (lower.endsWith(ending) && lower.length - ending.length >= MIN_STEM) {
+      const infinitive = lower.slice(0, -ending.length) + 'i';
+      const row = stmts.selectEntry.get(infinitive) as EntryRow | undefined;
+      if (row) return buildEntry(row, stmts, lower, { stem: row.word, label });
+    }
+  }
+
+  // 3. Derived adverb → its adjective/noun source: rapide → rapida,
+  //    hejme → hejmo.
+  if (lower.endsWith('e') && lower.length - 1 >= MIN_STEM) {
+    for (const posVowel of ['a', 'o']) {
+      const row = stmts.selectEntry.get(lower.slice(0, -1) + posVowel) as EntryRow | undefined;
+      if (row) {
+        return buildEntry(row, stmts, lower, { stem: row.word, label: 'adverbial form of' });
+      }
+    }
+  }
+
+  // 4. Productive derivation: strip the grammatical + POS endings down to the
+  //    root, then peel derivational affixes until a dictionary word resolves
+  //    (malsanulejo → malsanulej → [ej] malsanul → [ul] malsan → [mal] san →
+  //    sano). Each peel is only accepted if the eventual stem is a real entry.
+  let stem = lower;
+  if (stem.endsWith('n')) stem = stem.slice(0, -1);
+  if (stem.endsWith('j')) stem = stem.slice(0, -1);
+  if (/(?:as|is|os|us)$/u.test(stem) && stem === lower) {
+    stem = stem.slice(0, -2);
+  } else if (/[oaieu]$/u.test(stem)) {
+    stem = stem.slice(0, -1);
+  } else {
+    return undefined; // not shaped like an Esperanto word form
+  }
+
+  const hit = eoPeelToRoot(stmts, stem, 0, []);
+  if (hit && hit.row.word !== lower) {
+    const label = hit.peeled.length
+      ? `${hit.peeled.reverse().join(' + ')} form of`
+      : 'derived from';
+    return buildEntry(hit.row, stmts, lower, { stem: hit.row.word, label });
+  }
+
+  // 5. Root compounds resolve to their head — the final root (vaporŝipo →
+  //    ŝipo). Longest tail wins; ≥4 chars including the POS vowel keeps junk
+  //    matches out.
+  const compoundSource = lower.replace(/(?:jn|j|n)$/u, '');
+  for (let i = 1; i <= compoundSource.length - 4; i++) {
+    const tail = compoundSource.slice(i);
+    const row = stmts.selectEntry.get(tail) as EntryRow | undefined;
+    if (row) return buildEntry(row, stmts, lower, { stem: row.word, label: 'compound ending in' });
+  }
+
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -620,6 +823,25 @@ export function lookupWord(
   word: string,
   language: string,
 ): ExpandedDictionaryEntry | undefined {
+  const entry = resolveWord(userId, word, language);
+
+  // Esperanto pronunciation is a pure function of the spelling (the pack's
+  // `gloss: 'ipa'` capability, #307 §3.2b), so every hit carries the rule IPA
+  // of the SURFACE form the user looked up — more accurate for inflected and
+  // compound lookups than the lemma's dictionary transcription, and it also
+  // covers AI-cache entries and forms kaikki never enumerated.
+  if (entry && language === 'eo') {
+    const ipa = esperantoIpa(foldKey(word, language));
+    if (ipa) entry.ipa = ipa;
+  }
+  return entry;
+}
+
+function resolveWord(
+  userId: string,
+  word: string,
+  language: string,
+): ExpandedDictionaryEntry | undefined {
   const lower = foldKey(word, language);
   const stmts = getStmts(language);
 
@@ -638,6 +860,14 @@ export function lookupWord(
         const label = infl.type ? `${infl.type.replace(/,/g, ' ')} form of` : 'inflected form of';
         return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
       }
+    }
+
+    // Step 3-eo: Esperanto's regular morphology resolves by rule (#307 §3.3) —
+    // grammatical endings, finite verbs, derived adverbs, then affix peeling
+    // for productive compounds kaikki never enumerated.
+    if (language === 'eo') {
+      const ruled = eoLookupByRule(stmts, lower);
+      if (ruled) return ruled;
     }
 
     // Steps 3–4 use Afrikaans-specific affix morphology — only run for `af`.

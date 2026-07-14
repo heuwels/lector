@@ -13,6 +13,13 @@ const MAX_TTS_BODY_BYTES = 32 * 1024;
 // locally before reserving quota or paying for an upstream request.
 const MAX_TTS_TEXT_BYTES = 5_000;
 
+// eSpeak NG's default speaking rate is 175 words-per-minute; the client's
+// rate multiplier maps onto it (app default 0.9× ≈ 158 wpm), clamped to
+// espeak's sensible range.
+const ESPEAK_BASE_WPM = 175;
+const ESPEAK_MIN_WPM = 80;
+const ESPEAK_MAX_WPM = 450;
+
 interface SynthesizeRequest {
   input: { text: string };
   voice: {
@@ -27,9 +34,51 @@ interface SynthesizeRequest {
   };
 }
 
+/**
+ * Synthesize via self-hosted eSpeak NG (#307 §3.2c) — the only
+ * commercially-usable Esperanto TTS, baked into the API image (Dockerfile
+ * runner stage `apk add espeak-ng`). Invoked as an arm's-length subprocess:
+ * text goes in via stdin (no shell, no argv-length limits), WAV comes out on
+ * stdout. No cache, no key, no metering — formant synthesis runs hundreds×
+ * realtime on one CPU core, so regenerating is cheaper than storing.
+ *
+ * eSpeak needs no per-language voice field: its Esperanto voice id is just
+ * `eo`, so the pack's `code` serves until some language diverges.
+ */
+async function synthesizeWithEspeak(text: string, voice: string, rate: number): Promise<string> {
+  const wpm = Math.round(
+    Math.min(ESPEAK_MAX_WPM, Math.max(ESPEAK_MIN_WPM, ESPEAK_BASE_WPM * rate)),
+  );
+  const proc = Bun.spawn(
+    // -b 1: stdin is UTF-8. --stdin + --stdout: text in, WAV out.
+    ['espeak-ng', '-v', voice, '-s', String(wpm), '-b', '1', '--stdin', '--stdout'],
+    { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
+  );
+  proc.stdin.write(text);
+  await proc.stdin.end();
+
+  const [wav, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).arrayBuffer(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+
+  if (exitCode !== 0 || wav.byteLength === 0) {
+    throw new Error(
+      `espeak-ng exited ${exitCode} with ${wav.byteLength} bytes${stderr ? `: ${stderr.slice(0, 200)}` : ''}`,
+    );
+  }
+  return Buffer.from(wav).toString('base64');
+}
+
 const app = new Hono();
 
-// POST /api/tts — synthesize speech via Google Cloud TTS, returned as base64.
+// POST /api/tts — synthesize speech, returned as base64. Dispatches on the
+// language pack's pronunciation capability (#307 §3.2): Google Cloud TTS for
+// the national-language packs, self-hosted eSpeak NG for Esperanto, and an
+// explicit no-audio answer for `audio: 'none'` languages (disputed or
+// reconstructed pronunciation), which must NOT trigger the client's
+// browser-voice fallback.
 app.post(
   '/',
   bodyLimit({
@@ -52,6 +101,39 @@ app.post(
 
       const lang = resolveLanguage(language, userId);
       const langConfig = getLanguageConfig(lang);
+      const audio = langConfig.pronunciation.audio;
+
+      if (audio === 'none') {
+        // No `fallback: true`: nothing should speak this language (#307 §3.2a).
+        return c.json({ error: 'This language has no synthesized voice', noAudio: true }, 404);
+      }
+
+      // Engine dispatch: packs declare their engines best-first. Today each
+      // pack declares a single engine (national languages `['google']`, eo
+      // `['espeak']`); the ordered-list form is the seam the §3.2c plan
+      // matrix (espeak as the free-tier engine everywhere) later slots into.
+      if (!audio.includes('google')) {
+        // eSpeak: unmetered on every tier (zero marginal cost — #307 §3.2c)
+        // and uncached (regenerating is cheaper than storing). On failure
+        // there is deliberately no `fallback: true` — an espeak-only language
+        // has no browser voice to fall back to, and mis-speaking in a
+        // wrong-language voice is the failure mode this seam exists to kill.
+        const rateNum = typeof rate === 'number' ? rate : 0.9;
+        try {
+          const audioContent = await synthesizeWithEspeak(text, langConfig.code, rateNum);
+          return c.json({ audioContent, contentType: 'audio/wav' });
+        } catch (err) {
+          console.error('eSpeak TTS error:', err);
+          return c.json({ error: 'Speech synthesis failed', noAudio: true }, 500);
+        }
+      }
+
+      // Google path. A pack that lists 'google' must carry the voice fields.
+      if (!langConfig.ttsCode || !langConfig.ttsVoice) {
+        console.error(`Language "${lang}" declares Google TTS but has no ttsCode/ttsVoice`);
+        return c.json({ error: 'TTS voice not configured for this language', fallback: true }, 503);
+      }
+
       const speakingRate = Math.max(0.25, Math.min(4.0, rate)); // Google's range is 0.25–4.0
 
       // Cache first (#226): identical (language, voice, rate, text) always

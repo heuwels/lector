@@ -12,7 +12,7 @@ import { foldWord } from '@/lib/languages';
 import { getVocabByText, saveVocab } from '@/lib/data-layer';
 import { ANKI_CLOZE_DECK_SETTING_KEY } from '../../constants';
 import { CurrentSentence, IFeedbackData } from '../../types';
-import { isTTSAvailable, speak } from '@/lib/tts';
+import { canSpeak, speak } from '@/lib/tts';
 import { useActiveLanguage } from '@/utils/hooks';
 
 export default function Feedback({
@@ -120,7 +120,7 @@ export default function Feedback({
           <span className="text-sm font-medium text-muted-foreground">
             {feedbackData.isCorrect ? 'Correct!' : 'Incorrect'}
           </span>
-          {isTTSAvailable() && feedbackData.isCorrect && (
+          {canSpeak() && feedbackData.isCorrect && (
             <Button type="button" onClick={handleSpeak} variant="ghost">
               <Volume2 className="h-4 w-4" />
               Listen Again

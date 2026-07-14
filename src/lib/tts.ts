@@ -17,10 +17,37 @@ function activeLangConfig() {
 }
 
 // Accepted langs for the active language, most-specific first — e.g.
-// af → ['af-ZA', 'af', 'nl-NL', 'nl']; de → ['de-DE', 'de'].
+// af → ['af-ZA', 'af', 'nl-NL', 'nl']; de → ['de-DE', 'de']. Languages without
+// a Google voice (eo) have no ttsCode/fallbackTts — only the bare code remains
+// (browser TTS is not used for them, but voice listings stay well-defined).
 function candidateLangs(): string[] {
   const config = activeLangConfig();
-  return [config.ttsCode, config.code, ...config.fallbackTts];
+  return [config.ttsCode, config.code, ...(config.fallbackTts ?? [])].filter(
+    (lang): lang is string => Boolean(lang),
+  );
+}
+
+/**
+ * Whether the active language has synthesized audio at all. Speaker buttons
+ * gate on this: for `pronunciation.audio: 'none'` languages (disputed or
+ * reconstructed pronunciation — #307 §3.2a) the speaker UI absents itself
+ * rather than silently mis-speaking through a wrong-language browser voice.
+ */
+export function hasAudio(): boolean {
+  return activeLangConfig().pronunciation.audio !== 'none';
+}
+
+/**
+ * Whether a speaker control should render for the active language in this
+ * browser: 'none' languages never speak; server-engine languages (eo →
+ * eSpeak NG) always can, independent of browser voices; Google languages
+ * keep the historical browser-TTS availability check (their fallback path).
+ */
+export function canSpeak(): boolean {
+  const audio = activeLangConfig().pronunciation.audio;
+  if (audio === 'none') return false;
+  if (!audio.includes('google')) return true;
+  return isTTSAvailable();
 }
 
 // Preferred voice name patterns (higher quality voices)
@@ -95,8 +122,10 @@ function scoreVoice(voice: SpeechSynthesisVoice): number {
 
   // Prefer exact language match for the active language
   const primaryLang = activeLangConfig().ttsCode;
-  if (voice.lang === primaryLang) score += 3;
-  if (voice.lang.startsWith(primaryLang.split('-')[0])) score += 2;
+  if (primaryLang) {
+    if (voice.lang === primaryLang) score += 3;
+    if (voice.lang.startsWith(primaryLang.split('-')[0])) score += 2;
+  }
 
   return score;
 }
@@ -184,10 +213,12 @@ export function getCurrentVoiceName(): string | undefined {
 }
 
 /**
- * Speak using Google Cloud TTS
- * @returns true if successful, false if should fall back to browser TTS
+ * Speak via the server TTS route. The API dispatches to the engine the active
+ * language declares (`pronunciation.audio`): Google for the national-language
+ * packs, self-hosted eSpeak NG for Esperanto (#307 §3.2c).
+ * @returns true if successful, false if the caller may fall back to browser TTS
  */
-async function speakWithGoogle(text: string, rate: number): Promise<boolean> {
+async function speakWithServer(text: string, rate: number): Promise<boolean> {
   try {
     const response = await apiFetch('/api/tts', {
       method: 'POST',
@@ -199,7 +230,7 @@ async function speakWithGoogle(text: string, rate: number): Promise<boolean> {
 
     // Check if we should fall back to browser TTS
     if (data.fallback || data.error) {
-      console.log('Google TTS unavailable, using browser TTS:', data.error);
+      console.log('Managed TTS unavailable:', data.error);
       return false;
     }
 
@@ -213,7 +244,7 @@ async function speakWithGoogle(text: string, rate: number): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error('Google TTS error:', error);
+    console.error('Server TTS error:', error);
     return false;
   }
 }
@@ -238,8 +269,10 @@ function speakWithBrowser(text: string, rate: number): void {
     utterance.voice = voice;
     utterance.lang = voice.lang;
   } else {
-    // Set language even without a specific voice
-    utterance.lang = activeLangConfig().ttsCode;
+    // Set language even without a specific voice (bcp47 covers languages
+    // without a Google ttsCode).
+    const config = activeLangConfig();
+    utterance.lang = config.ttsCode ?? config.script.bcp47;
   }
 
   // Set speech parameters
@@ -252,12 +285,30 @@ function speakWithBrowser(text: string, rate: number): void {
 }
 
 /**
- * Speaks text via system audio
- * Uses Google Cloud TTS if available, falls back to browser TTS
+ * Speaks text via system audio, dispatching on the active language's
+ * pronunciation capability (#307 §3.2):
+ * - `audio: 'none'` — no-op. Nothing can sensibly speak the language; the
+ *   speaker UI is already absent (see `hasAudio`).
+ * - server-engine-only languages (eo → eSpeak NG) — always the server route,
+ *   unmetered, and NEVER browser TTS: there is no matching browser voice, so
+ *   a failure surfaces instead of mis-speaking in the wrong language.
+ * - Google languages — managed TTS when entitled, browser TTS otherwise
+ *   (existing behavior).
  * @param text - The text to speak
  * @param rate - Speech rate (default 0.9 for clearer learning)
  */
 export async function speak(text: string, rate: number = DEFAULT_RATE): Promise<void> {
+  const audio = activeLangConfig().pronunciation.audio;
+  if (audio === 'none') return;
+
+  if (!audio.includes('google')) {
+    // eSpeak-only language: no plan gating (synthesis is zero-marginal-cost
+    // and unmetered on every tier — #307 §3.2c) and no browser fallback.
+    const success = await speakWithServer(text, rate);
+    if (!success) console.error('TTS failed and this language has no browser fallback voice');
+    return;
+  }
+
   const mode = getTTSMode();
 
   if (mode === 'google') {
@@ -271,7 +322,7 @@ export async function speak(text: string, rate: number = DEFAULT_RATE): Promise<
         return;
       }
     }
-    const success = await speakWithGoogle(text, rate);
+    const success = await speakWithServer(text, rate);
     if (success) return;
   }
 

@@ -102,6 +102,12 @@ WORKDIR /app
 # Copy Bun binary from the official image
 COPY --from=oven/bun:1-alpine /usr/local/bin/bun /usr/local/bin/bun
 
+# eSpeak NG — the self-hosted TTS engine for languages without a Google voice
+# (Esperanto, #307 §3.2c). A few-MB formant synthesizer invoked by the API as
+# an arm's-length subprocess (api/src/routes/tts.ts); GPL obligations don't
+# attach because nothing GPL is distributed with, or linked into, Lector code.
+RUN apk add --no-cache espeak-ng
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATA_DIR=/app/data

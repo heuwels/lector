@@ -17,7 +17,7 @@ import {
   migrateClozeSentences,
   seedSentenceBank,
 } from '@/lib/data-layer';
-import { speak } from '@/lib/tts';
+import { hasAudio, speak } from '@/lib/tts';
 import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
 import { translateGloss, translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
@@ -112,7 +112,11 @@ export default function PracticePage() {
   // setting on mount; Alt+T toggles it live during a round.
   const [showTranslation, setShowTranslation] = useState(true);
 
-  // Practice format (cloze vs dictation) and, within cloze, the answer mode
+  // Practice format (cloze vs dictation) and, within cloze, the answer mode.
+  // Dictation ("type what you hear") requires synthesized audio — for
+  // `pronunciation.audio: 'none'` languages (#307 §3.2a) the format is
+  // unavailable and the stored format falls back to cloze.
+  const dictationAvailable = hasAudio();
   const [practiceFormat, setPracticeFormat] = useState<PracticeFormat>('cloze');
   const [practiceMode, setPracticeMode] = useState<PracticeMode>('type');
   const [roundType, setRoundType] = useState<RoundType>('new');
@@ -192,9 +196,10 @@ export default function PracticePage() {
           setPracticeMode(savedMode);
         }
 
-        // Load saved practice format (cloze vs dictation)
+        // Load saved practice format (cloze vs dictation). A stored dictation
+        // preference is ignored for languages without synthesized audio.
         const savedFormat = localStorage.getItem(PRACTICE_FORMAT_SETTING_KEY);
-        if (savedFormat === 'cloze' || savedFormat === 'dictation') {
+        if (savedFormat === 'cloze' || (savedFormat === 'dictation' && hasAudio())) {
           setPracticeFormat(savedFormat);
         }
       }
@@ -856,17 +861,19 @@ export default function PracticePage() {
                   <div>Cloze</div>
                   <div className="mt-0.5 text-[11px] font-normal opacity-75">Fill in the blank</div>
                 </Button>
-                <Button
-                  aria-label="Dictation"
-                  onClick={() => handleSetPracticeFormat('dictation')}
-                  variant={practiceFormat === 'dictation' ? 'default' : 'secondary'}
-                  className="flex h-14 flex-col justify-center gap-0"
-                >
-                  <div>Dictation</div>
-                  <div className="mt-0.5 text-[11px] font-normal opacity-75">
-                    Type what you hear
-                  </div>
-                </Button>
+                {dictationAvailable && (
+                  <Button
+                    aria-label="Dictation"
+                    onClick={() => handleSetPracticeFormat('dictation')}
+                    variant={practiceFormat === 'dictation' ? 'default' : 'secondary'}
+                    className="flex h-14 flex-col justify-center gap-0"
+                  >
+                    <div>Dictation</div>
+                    <div className="mt-0.5 text-[11px] font-normal opacity-75">
+                      Type what you hear
+                    </div>
+                  </Button>
+                )}
               </div>
             </div>
 

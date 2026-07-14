@@ -12,6 +12,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'When do I use "der", "die", and "das"?',
     'How do separable verbs work in German?',
   ],
+  eo: [
+    'How does the accusative -n ending work?',
+    'Explain the correlative table (kiu, tiu, ĉiu, neniu…)',
+    'How do word-building affixes like mal-, -ul-, and -ej- combine?',
+  ],
   es: [
     'When do I use "ser" vs "estar"?',
     'What\'s the difference between "por" and "para"?',

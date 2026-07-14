@@ -84,6 +84,10 @@ export default function TranslationDrawer({
   const handleSpeakWord = useCallback(() => onSpeak(word), [onSpeak, word]);
   const handleSpeakSentence = useCallback(() => onSpeak(sentence), [onSpeak, sentence]);
 
+  // Languages with `pronunciation.audio: 'none'` (#307 §3.2a) have no sensible
+  // synthesized voice — the speaker buttons absent themselves entirely.
+  const speakable = pack.pronunciation.audio !== 'none';
+
   const currentState = wordState ?? existingEntry?.state ?? 'new';
   const stateColors = wordStateColors[currentState];
   const isPhrase = word.includes(' ');
@@ -133,14 +137,16 @@ export default function TranslationDrawer({
                 title={wordStateLabels[currentState]}
               />
               <h2 className="text-xl font-semibold break-words text-foreground">{word}</h2>
-              <button
-                onClick={handleSpeakWord}
-                className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                title="Hear pronunciation"
-                aria-label="Hear pronunciation"
-              >
-                <Volume2 className="h-5 w-5" />
-              </button>
+              {speakable && (
+                <button
+                  onClick={handleSpeakWord}
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  title="Hear pronunciation"
+                  aria-label="Hear pronunciation"
+                >
+                  <Volume2 className="h-5 w-5" />
+                </button>
+              )}
               {entry?.ipa && (
                 <span className="font-mono text-sm text-muted-foreground">{entry.ipa}</span>
               )}
@@ -451,14 +457,16 @@ export default function TranslationDrawer({
               <p className="flex-1 text-sm leading-relaxed text-muted-foreground italic">
                 {sentence}
               </p>
-              <button
-                onClick={handleSpeakSentence}
-                className="flex-shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                title="Hear sentence"
-                aria-label="Hear sentence"
-              >
-                <Volume2 className="h-4 w-4" />
-              </button>
+              {speakable && (
+                <button
+                  onClick={handleSpeakSentence}
+                  className="flex-shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  title="Hear sentence"
+                  aria-label="Hear sentence"
+                >
+                  <Volume2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </section>
         )}
