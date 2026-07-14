@@ -210,6 +210,8 @@ export const it = {
   fallbackTts: ['it', 'it-IT', 'it-CH'],
   avoidWords: AVOID_WORDS,
   testPhrase: 'Ciao! Come stai?',
+  // Google is the canonical voice; browser TTS layers on client-side (#307 §3.2).
+  pronunciation: { audio: ['google'] as const },
   script: {
     bcp47: 'it',
     direction: 'ltr' as const,

@@ -15,14 +15,15 @@ import {
 import { setLanguageInStorage } from '@/utils/storage';
 import { Button } from '@/components/ui/button';
 
-const languageCards: { code: LanguageCode; flag: string; native: string; name: string }[] = [
-  { code: 'af', flag: LANGUAGES.af.flag, native: LANGUAGES.af.native, name: LANGUAGES.af.name },
-  { code: 'de', flag: LANGUAGES.de.flag, native: LANGUAGES.de.native, name: LANGUAGES.de.name },
-  { code: 'es', flag: LANGUAGES.es.flag, native: LANGUAGES.es.native, name: LANGUAGES.es.name },
-  { code: 'fr', flag: LANGUAGES.fr.flag, native: LANGUAGES.fr.native, name: LANGUAGES.fr.name },
-  { code: 'it', flag: LANGUAGES.it.flag, native: LANGUAGES.it.native, name: LANGUAGES.it.name },
-  { code: 'nl', flag: LANGUAGES.nl.flag, native: LANGUAGES.nl.native, name: LANGUAGES.nl.name },
-];
+// Registry-derived (#307): every language in LANGUAGES gets a setup card —
+// no hand-kept mirror to forget when a pack lands.
+const languageCards: { code: LanguageCode; flag: string; native: string; name: string }[] =
+  Object.values(LANGUAGES).map((lang) => ({
+    code: lang.code,
+    flag: lang.flag,
+    native: lang.native,
+    name: lang.name,
+  }));
 
 const levelOptions: Array<{ value: ApproximateLevel; label: string }> = [
   { value: 'new', label: 'Just starting' },

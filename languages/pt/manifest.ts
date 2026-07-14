@@ -22,6 +22,8 @@ export const pt = {
   fallbackTts: ['pt', 'pt-BR', 'pt-PT'],
   avoidWords: AVOID_WORDS,
   testPhrase: 'Olá! Tudo bem?',
+  // Google is the canonical voice; browser TTS layers on client-side (#307 §3.2).
+  pronunciation: { audio: ['google'] as const },
   script: {
     bcp47: 'pt',
     direction: 'ltr' as const,

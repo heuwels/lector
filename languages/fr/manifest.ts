@@ -25,6 +25,8 @@ export const fr = {
   fallbackTts: ['fr', 'fr-FR', 'fr-CA'],
   avoidWords: AVOID_WORDS,
   testPhrase: 'Bonjour ! Comment ça va ?',
+  // Google is the canonical voice; browser TTS layers on client-side (#307 §3.2).
+  pronunciation: { audio: ['google'] as const },
   script: {
     bcp47: 'fr',
     direction: 'ltr' as const,

@@ -243,3 +243,76 @@ describe('TTS caching (#226)', () => {
     }
   });
 });
+
+// eSpeak NG engine branch (#307 §3.2c) — Esperanto's only voice, synthesized
+// through the real binary. Skipped when espeak-ng isn't installed locally;
+// CI installs it (see .github/workflows/ci.yml api-tests) so the branch is
+// always exercised there, and the production image bakes it in (Dockerfile
+// runner stage).
+const hasEspeak = Bun.which('espeak-ng') !== null;
+
+describe.skipIf(!hasEspeak)('TTS espeak engine (#307)', () => {
+  test('eo synthesizes WAV via espeak-ng — no Google call, no key, no metering', async () => {
+    delete process.env.GOOGLE_CLOUD_API_KEY; // espeak must not need it
+    let fetchCalls = 0;
+    globalThis.fetch = (async () => {
+      fetchCalls++;
+      throw new Error('espeak languages must never reach Google');
+    }) as unknown as typeof fetch;
+
+    const response = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'Saluton, kiel vi fartas?', language: 'eo' }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = (await response.json()) as { audioContent: string; contentType: string };
+    expect(data.contentType).toBe('audio/wav');
+    // Real synthesis: decodes to a RIFF/WAVE container with actual audio in it.
+    const wav = Buffer.from(data.audioContent, 'base64');
+    expect(wav.subarray(0, 4).toString('ascii')).toBe('RIFF');
+    expect(wav.subarray(8, 12).toString('ascii')).toBe('WAVE');
+    expect(wav.byteLength).toBeGreaterThan(1_000);
+
+    expect(fetchCalls).toBe(0);
+    // Unmetered on every tier — synthesis is zero-marginal-cost (#307 §3.2c).
+    expect(ttsUsage()).toBeNull();
+  });
+
+  test('the espeak rate maps the client multiplier onto words-per-minute', async () => {
+    // 0.5× of 175 wpm ≈ 88 wpm vs 1.5× ≈ 263 wpm: the slow clip must carry
+    // more samples for the same sentence. Compare real output sizes.
+    const synth = async (rate: number) => {
+      const res = await app.request('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: 'La ĝardeno estas bela kaj granda', language: 'eo', rate }),
+      });
+      expect(res.status).toBe(200);
+      const { audioContent } = (await res.json()) as { audioContent: string };
+      return Buffer.from(audioContent, 'base64').byteLength;
+    };
+
+    const slow = await synth(0.5);
+    const fast = await synth(1.5);
+    expect(slow).toBeGreaterThan(fast);
+  });
+
+  test('an espeak-only language resolves from settings like any other', async () => {
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      'local',
+      'targetLanguage',
+      '"eo"',
+    );
+
+    const response = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'bonan tagon' }), // language omitted → settings
+    });
+
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { contentType: string }).contentType).toBe('audio/wav');
+  });
+});

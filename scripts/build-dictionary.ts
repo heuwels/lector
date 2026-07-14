@@ -88,6 +88,26 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-de.txt',
     glossFilter: true,
   },
+  eo: {
+    // Canonical /Esperanto/ URL (kaikki has no /downloads/eo/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Esperanto/kaikki.org-dictionary-Esperanto.jsonl'],
+    // a-z + the six supersignoj ĉ ĝ ĥ ĵ ŝ ŭ — the complete 28-letter alphabet
+    // (q w x y are not Esperanto letters). Apostrophe is a token boundary (the
+    // poetic o-elision "mond'" is not a lemma form); hyphen stays a word char,
+    // matching the runtime tokenizer.
+    letterClass: 'a-zĉĝĥĵŝŭA-ZĈĜĤĴŜŬ-',
+    // No hand affix rules at build time: kaikki Esperanto is form-of-rich
+    // (plural/accusative/finite-verb forms carry their own entries), and the
+    // runtime adds the deterministic rule analyzer for productive compounds
+    // (api/src/lib/dictionary-db.ts eoLookupByRule, #307 §3.3) which the
+    // build-time coverage gate doesn't need.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiou',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-eo.txt',
+    glossFilter: true,
+  },
   es: {
     // Canonical /Spanish/ URL (kaikki has no /downloads/es/ mirror).
     kaikkiUrls: ['https://kaikki.org/dictionary/Spanish/kaikki.org-dictionary-Spanish.jsonl'],
@@ -622,6 +642,113 @@ interface LookupShape {
   word: string;
 }
 
+// Esperanto rule morphology for the coverage lookup — mirrors the runtime
+// analyzer (api/src/lib/dictionary-db.ts eoLookupByRule, #307 §3.3) so the
+// gate reflects what the live lookup will actually resolve: grammatical
+// endings (-j/-n), finite verbs (→ -i), derived adverbs (→ -a/-o), and
+// derivational affix peeling for productive compounds (futbalisto,
+// hungarlingve). Keep the affix lists in sync with the runtime.
+const EO_PREFIXES = ['mal', 'eks', 'mis', 'dis', 'pra', 'ĉef', 'ek', 'ge', 're', 'bo', 'fi'];
+const EO_SUFFIXES = [
+  'estr',
+  'ist',
+  'ind',
+  'ebl',
+  'ant',
+  'int',
+  'ont',
+  'aĵ',
+  'ec',
+  'ej',
+  'ul',
+  'in',
+  'et',
+  'eg',
+  'il',
+  'an',
+  'ar',
+  'id',
+  'em',
+  'ig',
+  'iĝ',
+  'ad',
+  'er',
+  'um',
+  'at',
+  'it',
+  'ot',
+];
+const EO_MIN_ROOT = 3;
+
+function eoRuleLookup(exact: Database.Statement, lower: string): { word: string } | undefined {
+  const tryExact = (w: string) => exact.get(w) as { word: string } | undefined;
+  const resolveRoot = (root: string) => {
+    for (const v of ['o', 'i', 'a', 'e']) {
+      const row = tryExact(root + v);
+      if (row) return row;
+    }
+    return undefined;
+  };
+
+  // grammatical endings: domojn → domo, belaj → bela
+  for (const ending of ['jn', 'j', 'n']) {
+    if (lower.endsWith(ending) && lower.length - ending.length >= 2) {
+      const row = tryExact(lower.slice(0, -ending.length));
+      if (row) return row;
+    }
+  }
+  // finite verb → infinitive: rezultigas → rezultigi
+  const verb = lower.match(/(?:as|is|os|us|u)$/u);
+  if (verb && lower.length - verb[0].length >= 2) {
+    const row = tryExact(lower.slice(0, -verb[0].length) + 'i');
+    if (row) return row;
+  }
+  // derived adverb → adjective/noun: hejme → hejmo
+  if (lower.endsWith('e') && lower.length >= 3) {
+    for (const v of ['a', 'o']) {
+      const row = tryExact(lower.slice(0, -1) + v);
+      if (row) return row;
+    }
+  }
+  // affix peeling to a dictionary root: futbalisto → futbalo. Depth-first
+  // with backtracking, like the runtime analyzer — greedy peeling dead-ends
+  // on stems like malsan- (suffix -an vs prefix mal-).
+  const peel = (root: string, depth: number): { word: string } | undefined => {
+    if (root.length < EO_MIN_ROOT) return undefined;
+    const row = resolveRoot(root);
+    if (row && row.word !== lower) return row;
+    if (depth >= 5) return undefined;
+    const suffix = EO_SUFFIXES.find(
+      (s) => root.endsWith(s) && root.length - s.length >= EO_MIN_ROOT,
+    );
+    if (suffix) {
+      const hit = peel(root.slice(0, -suffix.length), depth + 1);
+      if (hit) return hit;
+    }
+    const prefix = EO_PREFIXES.find(
+      (p) => root.startsWith(p) && root.length - p.length >= EO_MIN_ROOT,
+    );
+    if (prefix) {
+      const hit = peel(root.slice(prefix.length), depth + 1);
+      if (hit) return hit;
+    }
+    return undefined;
+  };
+  let stem = lower.replace(/n$/u, '').replace(/j$/u, '');
+  if (/(?:as|is|os|us)$/u.test(stem) && stem === lower) stem = stem.slice(0, -2);
+  else if (/[oaieu]$/u.test(stem)) stem = stem.slice(0, -1);
+  else return undefined;
+  const peeledHit = peel(stem, 0);
+  if (peeledHit) return peeledHit;
+  // root compound → its head: hungarlingve → lingvo
+  const compoundSource = lower.replace(/(?:jn|j|n)$/u, '');
+  for (let i = 1; i <= compoundSource.length - 4; i++) {
+    const row = tryExact(compoundSource.slice(i));
+    if (row) return row;
+  }
+  return undefined;
+}
+
 function buildLookup(db: Database.Database): (w: string) => LookupShape | undefined {
   const exact = db.prepare('SELECT word FROM entries WHERE word = ?');
   const byInflection = db.prepare('SELECT lemma FROM inflections WHERE inflected_form = ? LIMIT 1');
@@ -636,6 +763,11 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
     if (infl) {
       const lemma = exact.get(infl.lemma) as { word: string } | undefined;
       if (lemma) return lemma;
+    }
+
+    if (LANG === 'eo') {
+      const ruled = eoRuleLookup(exact, lower);
+      if (ruled) return ruled;
     }
 
     for (const prefix of PREFIXES) {
@@ -676,12 +808,18 @@ function tokenize(text: string): string[] {
 function gatherCorpus(): Set<string> {
   const corpus = new Set<string>();
 
-  // From data/lector.db vocab.text
+  // From data/lector.db vocab.text — the BUILD language's rows only. The vocab
+  // table holds every language the user studies; without the filter, building
+  // (say) the eo dictionary in a lived-in checkout poisons the coverage gate
+  // with Afrikaans vocab and fails on words the eo dictionary rightly misses.
+  // (Earlier non-af builds dodged this only by running in fresh clones.)
   if (fs.existsSync(LECTOR_DB_PATH)) {
     try {
       const lectorDb = new Database(LECTOR_DB_PATH, { readonly: true });
       try {
-        const rows = lectorDb.prepare('SELECT DISTINCT lower(text) AS t FROM vocab').all() as {
+        const rows = lectorDb
+          .prepare('SELECT DISTINCT lower(text) AS t FROM vocab WHERE language = ?')
+          .all(LANG) as {
           t: string;
         }[];
         for (const row of rows) {
@@ -699,8 +837,9 @@ function gatherCorpus(): Set<string> {
     }
   }
 
-  // From data/books/*
-  if (fs.existsSync(BOOKS_DIR)) {
+  // From data/books/* — af only: book files carry no language tag (a legacy
+  // af-era corpus source), so other languages must not inherit them.
+  if (LANG === 'af' && fs.existsSync(BOOKS_DIR)) {
     const files = fs.readdirSync(BOOKS_DIR, { withFileTypes: true });
     for (const f of files) {
       if (!f.isFile()) continue;
