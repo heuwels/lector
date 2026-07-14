@@ -25,7 +25,7 @@ export default function Analytics() {
     <>
       <Script
         async
-        src="https://plausible.io/js/pa-NBQHiTrDyS5mweKtdqu6v.js"
+        src="https://plausible.io/js/pa-xQmf4ajJGkUSy59pCYMJz.js"
         strategy="afterInteractive"
       />
       <Script id="plausible-init" strategy="afterInteractive">
