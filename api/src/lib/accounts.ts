@@ -12,6 +12,7 @@ import { getMigrations } from 'better-auth/db/migration';
 import type { Database } from 'bun:sqlite';
 import { config } from './config';
 import { sendEmail } from './email';
+import { purgeTenantData } from './account-deletion';
 import { getDatabaseInstance } from '../db';
 
 export interface OidcOptions {
@@ -130,6 +131,36 @@ export function createAuthEngine(opts: AuthEngineOptions) {
         } catch (err) {
           console.error(`[accounts] failed to send verification email to ${user.email}:`, err);
         }
+      },
+    },
+    user: {
+      // Right-to-erasure (#227). Deletion is confirmed out-of-band by an emailed
+      // link (sendDeleteAccountVerification) — the same rail as signup
+      // verification and password reset — so it works for password AND
+      // OAuth/OIDC accounts alike, where there's no password to re-challenge.
+      // beforeDelete wipes the tenant's own data (account-deletion.ts) in the
+      // same request that removes the Better Auth identity; running it BEFORE
+      // deletion means a purge failure aborts the whole thing — the account
+      // stays intact and retryable rather than becoming a half-erased orphan.
+      deleteUser: {
+        enabled: true,
+        sendDeleteAccountVerification: async ({ user, url }) => {
+          try {
+            await sendEmail({
+              to: user.email,
+              subject: 'Confirm your Lector account deletion',
+              text:
+                `You asked to permanently delete your Lector account (${user.email}) and all of its data.\n\n` +
+                `This cannot be undone. Confirm the deletion here:\n${url}\n\n` +
+                `If this wasn't you, do NOT click the link — change your password instead, as someone may have access to your session. This link expires in 24 hours.`,
+            });
+          } catch (err) {
+            console.error(`[accounts] failed to send delete-account verification to ${user.email}:`, err);
+          }
+        },
+        beforeDelete: async (user) => {
+          purgeTenantData(user.id, user.email);
+        },
       },
     },
     socialProviders: opts.github ? { github: opts.github } : {},

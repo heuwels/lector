@@ -6,7 +6,7 @@
  * user-scoping ratchet's job (routes/user-scoping.test.ts); this suite pins
  * the credential layer that feeds it a userId.
  */
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, test, expect, beforeAll, afterAll, afterEach } from 'bun:test';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { Database } from 'bun:sqlite';
@@ -46,6 +46,10 @@ function extractUrl(email: EmailMessage): string {
   const match = email.text.match(/https?:\/\/\S+/);
   if (!match) throw new Error(`no URL in email: ${email.text}`);
   return match[0];
+}
+
+function settingsCount(userId: string): number {
+  return (db.prepare('SELECT COUNT(*) AS c FROM settings WHERE userId = ?').get(userId) as { c: number }).c;
 }
 
 /** Collapse Set-Cookie headers into a Cookie header for follow-up requests. */
@@ -302,6 +306,66 @@ describe('password reset', () => {
       body: JSON.stringify({ email: 'ghost@example.com', redirectTo: '/reset' }),
     });
     expect(res.status).toBe(200);
+  });
+});
+
+describe('account deletion (#227): emailed-link right-to-erasure', () => {
+  const EMAIL = 'deleter@example.com';
+  const BYSTANDER = 'bystander@example.com';
+  const PASSWORD = 'erase-me-please-9';
+
+  // The bystander's seeded row must be cleaned up even if the test throws, so
+  // the shared test DB is left as we found it.
+  let bystanderId: string | null = null;
+  afterEach(() => {
+    if (bystanderId) db.prepare('DELETE FROM settings WHERE userId = ?').run(bystanderId);
+    bystanderId = null;
+  });
+
+  async function tenantIdFor(cookie: string): Promise<string> {
+    const res = await app.request(`${BASE}/api/whoami`, { headers: { Cookie: cookie } });
+    return ((await res.json()) as { userId: string }).userId;
+  }
+
+  test('delete-user emails a link; following it wipes the tenant, spares others, and kills the account', async () => {
+    // Two verified accounts, each with a row of tenant data in the app DB.
+    await signUp(BYSTANDER, PASSWORD);
+    await verifyLatestEmail();
+    bystanderId = await tenantIdFor(cookiesFrom(await signIn(BYSTANDER, PASSWORD)));
+
+    await signUp(EMAIL, PASSWORD);
+    await verifyLatestEmail();
+    const cookie = cookiesFrom(await signIn(EMAIL, PASSWORD));
+    const userId = await tenantIdFor(cookie);
+    expect(userId).not.toBe(LOCAL_USER_ID);
+
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(userId, 'theme', '"dark"');
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(bystanderId, 'theme', '"light"');
+
+    // sendDeleteAccountVerification is configured (lib/accounts.ts), so the POST
+    // emails a confirmation link and does NOT delete inline.
+    const start = await app.request(`${BASE}/api/auth/delete-user`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ callbackURL: `${BASE}/login?deleted=1` }),
+    });
+    expect(start.status).toBe(200);
+    expect(((await start.json()) as { message: string }).message).toMatch(/verification email sent/i);
+    // Nothing is erased until the link is followed.
+    expect(settingsCount(userId)).toBe(1);
+
+    // The emailed link (session attached) completes the deletion and redirects.
+    const url = extractUrl(lastEmailMatching(/deletion/i));
+    expect(url).toContain('/api/auth/delete-user/callback');
+    const done = await app.request(url, { headers: { Cookie: cookie } });
+    expect([200, 302]).toContain(done.status);
+
+    // The deleting tenant's data is gone; the bystander's is untouched.
+    expect(settingsCount(userId)).toBe(0);
+    expect(settingsCount(bystanderId)).toBe(1);
+
+    // The account itself no longer exists — the old credentials are dead.
+    expect((await signIn(EMAIL, PASSWORD)).status).toBe(401);
   });
 });
 
