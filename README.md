@@ -110,7 +110,7 @@ In selfhost mode every row belongs to the implicit `local` user. Switching the s
 
 The procedure:
 
-1. **Back up first**, with the app stopped: copy `DATA_DIR` (at minimum `lector.db`) somewhere safe — or use your own tooling ([`scripts/backup.sh`](scripts/backup.sh) is the repo's rclone example). Keep the backup until well after you're satisfied.
+1. **Back up first**, with the app stopped: copy `DATA_DIR` (at minimum `lector.db`) somewhere safe — see [Backups](#backups). Keep the backup until well after you're satisfied.
 2. Enable cloud mode (`LECTOR_MODE=cloud` plus the env above) and start the app.
 3. Create the target account — sign up and verify it once in the browser.
 4. Confirm the target account is registered:
@@ -189,6 +189,19 @@ Both ports must be published: the browser loads the UI from `:3400` and calls th
 Environment variables are injected at runtime — no secrets are baked into the Docker image.
 
 See `deploy/` for a full docker-compose setup with health checks.
+
+### Backups
+
+Two supported paths ([#294](https://github.com/heuwels/lector/issues/294)):
+
+- **In-app export** — Settings → Learning data → "Export all learning data" (`GET /api/data`): a portable JSON takeout of your library, vocabulary, SRS state, journal and stats that restores into any Lector instance via `POST /api/data`.
+- **Volume-level** — copy `DATA_DIR`. With the app stopped, a plain copy is safe. Against a running app, checkpoint the SQLite WAL first so the copy isn't torn mid-write:
+
+  ```bash
+  sqlite3 "$DATA_DIR/lector.db" "PRAGMA wal_checkpoint(TRUNCATE)" && cp -a "$DATA_DIR" /path/to/backups/
+  ```
+
+The cloud deployment doesn't use either of these for durability — it streams every write to S3 via Litestream (see [`deploy/cloud/`](deploy/cloud/), [#270](https://github.com/heuwels/lector/issues/270)).
 
 ## Sentence Bank
 

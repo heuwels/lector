@@ -17,6 +17,7 @@ function reset() {
   db.prepare('DELETE FROM cached_related_forms').run();
   db.prepare('DELETE FROM cached_entries').run();
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
+  db.prepare("DELETE FROM dailyStats WHERE userId IN ('alice', 'bob', 'charlie')").run();
 }
 
 describe('dictionary accepted cache routes', () => {
@@ -98,6 +99,57 @@ describe('dictionary accepted cache routes', () => {
     expect(response.status).toBe(413);
     expect(
       db.prepare('SELECT COUNT(*) AS n FROM cached_entries WHERE userId = ?').get('alice'),
+    ).toEqual({ n: 0 });
+  });
+
+  test('rejects a missing lookup word and returns a clean miss without recording study', async () => {
+    const missing = await request('alice', '/lookup?language=af');
+    expect(missing.status).toBe(400);
+    expect(await missing.json()).toEqual({ error: 'Word is required' });
+
+    const miss = await request('alice', '/lookup?word=zzmissing&language=af');
+    expect(miss.status).toBe(200);
+    expect(await miss.json()).toEqual({ entry: null });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM dailyStats WHERE userId = 'alice'").get()).toEqual(
+      { n: 0 },
+    );
+  });
+
+  test('a cache hit records the lookup on the resolved language row', async () => {
+    const cached = await request('alice', '/cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        word: 'zzstudied',
+        language: 'af',
+        senses: [{ partOfSpeech: 'noun', gloss: 'studied meaning' }],
+      }),
+    });
+    expect(cached.status).toBe(200);
+
+    const lookup = await request('alice', '/lookup?word=zzstudied&language=af');
+
+    expect(lookup.status).toBe(200);
+    expect(
+      db
+        .prepare(
+          "SELECT language, dictionaryLookups FROM dailyStats WHERE userId = 'alice' ORDER BY date DESC LIMIT 1",
+        )
+        .get(),
+    ).toEqual({ language: 'af', dictionaryLookups: 1 });
+  });
+
+  test('rejects malformed JSON before any cache write', async () => {
+    const response = await request('alice', '/cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{',
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Malformed JSON body' });
+    expect(
+      db.prepare("SELECT COUNT(*) AS n FROM cached_entries WHERE userId = 'alice'").get(),
     ).toEqual({ n: 0 });
   });
 });

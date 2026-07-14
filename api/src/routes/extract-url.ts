@@ -25,6 +25,8 @@ interface ExtractUrlRouteDeps {
   rateLimiter: ExtractionBurstLimiter;
   enforceRateLimit: boolean;
   trustedProxy: TrustedProxy;
+  fetchPage?: typeof safeFetch;
+  readPageBody?: typeof readBodyCapped;
 }
 
 function firstValidIp(value: string | undefined): string | null {
@@ -49,6 +51,8 @@ export function makeExtractUrlRoutes({
   rateLimiter,
   enforceRateLimit,
   trustedProxy,
+  fetchPage = safeFetch,
+  readPageBody = readBodyCapped,
 }: ExtractUrlRouteDeps): Hono {
   const app = new Hono();
 
@@ -72,7 +76,7 @@ export function makeExtractUrlRoutes({
         // safeFetch enforces http(s) + blocks internal/metadata addresses (SSRF)
         // and re-validates every redirect hop. The 15s deadline bounds the whole
         // redirect chain.
-        const response = await safeFetch(url, {
+        const response = await fetchPage(url, {
           headers: {
             'User-Agent':
               'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -90,7 +94,7 @@ export function makeExtractUrlRoutes({
           );
         }
 
-        const bytes = await readBodyCapped(response, MAX_RESPONSE_BYTES);
+        const bytes = await readPageBody(response, MAX_RESPONSE_BYTES);
         // Decode using the declared charset, falling back to UTF-8 for an absent
         // or unrecognised label (TextDecoder throws on an unknown encoding).
         const contentType = response.headers.get('content-type') || '';

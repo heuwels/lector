@@ -130,3 +130,117 @@ describe('EPUB import plan limits', () => {
     expect(localCount('lessons')).toBe(0);
   });
 });
+
+describe('EPUB import request and parser boundaries', () => {
+  const engine = () =>
+    strictEngine({
+      maxCollections: 10,
+      maxLessons: 10,
+      maxLessonTextBytes: 10_000,
+      maxLessonTextBytesTotal: 100_000,
+      maxCollectionMetadataBytes: 10_000,
+    });
+
+  test('rejects a missing file before invoking the parser', async () => {
+    let parseCalls = 0;
+    const app = makeImportRoutes({
+      engine: engine(),
+      parse() {
+        parseCalls += 1;
+        return parsed();
+      },
+    });
+    const form = new FormData();
+    form.append('language', 'af');
+
+    const response = await app.request('/epub', { method: 'POST', body: form });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'File required' });
+    expect(parseCalls).toBe(0);
+  });
+
+  test('maps malformed multipart input to a route-level 400 without parsing', async () => {
+    let parseCalls = 0;
+    const app = makeImportRoutes({
+      engine: engine(),
+      parse() {
+        parseCalls += 1;
+        return parsed();
+      },
+    });
+
+    const response = await app.request('/epub', {
+      method: 'POST',
+      headers: { 'Content-Type': 'multipart/form-data; boundary=expected-boundary' },
+      body: '--different-boundary--',
+    });
+
+    expect(response.status).toBe(400);
+    expect(parseCalls).toBe(0);
+    expect(localCount('collections')).toBe(0);
+  });
+
+  test('rejects an oversized upload from Content-Length before parsing', async () => {
+    let parseCalls = 0;
+    const app = makeImportRoutes({
+      engine: engine(),
+      parse() {
+        parseCalls += 1;
+        return parsed();
+      },
+    });
+
+    const response = await app.request('/epub', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': String(50 * 1024 * 1024 + 1),
+      },
+      body: 'small test body',
+    });
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: 'EPUB is too large (max 50 MB).' });
+    expect(parseCalls).toBe(0);
+  });
+
+  test('returns a parser failure without leaving collection or lesson rows', async () => {
+    const app = makeImportRoutes({
+      engine: engine(),
+      parse() {
+        throw new Error('invalid central directory');
+      },
+    });
+
+    const response = await app.request('/epub', { method: 'POST', body: upload() });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Failed to parse EPUB file' });
+    expect(localCount('collections')).toBe(0);
+    expect(localCount('lessons')).toBe(0);
+  });
+
+  test('rolls back the collection when a chapter insert fails', async () => {
+    const app = makeImportRoutes({
+      engine: engine(),
+      parse: () => ({
+        title: 'Rollback book',
+        author: 'Test author',
+        chapters: [
+          {
+            title: null as unknown as string,
+            markdown: 'Valid body',
+            wordCount: 2,
+          },
+        ],
+      }),
+    });
+
+    const response = await app.request('/epub', { method: 'POST', body: upload() });
+
+    expect(response.status).toBe(400);
+    expect(localCount('collections')).toBe(0);
+    expect(localCount('lessons')).toBe(0);
+  });
+});
