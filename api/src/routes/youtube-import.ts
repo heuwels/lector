@@ -12,6 +12,7 @@ import { collectionMetadataBytes, lessonTextBytes } from '../lib/storage-limits'
 import {
   buildInnerTubePlayerRequest,
   extractCaptionTracks,
+  extractPlayabilityStatus,
   extractVideoMeta,
   parseJson3Transcript,
   parseYouTubeVideoId,
@@ -130,9 +131,11 @@ interface ResolvedVideo {
   }>;
 }
 
+type ResolveErrorCode = 'INVALID_URL' | 'FETCH_FAILED' | 'NO_CAPTIONS' | 'BLOCKED';
+
 type ResolveOutcome =
   | { ok: true; video: ResolvedVideo }
-  | { ok: false; code: 'INVALID_URL' | 'FETCH_FAILED' | 'NO_CAPTIONS'; message: string };
+  | { ok: false; code: ResolveErrorCode; message: string };
 
 // Fetch the video's InnerTube player response and pull out metadata + caption
 // tracks. Shared by /resolve (list languages) and /import (pick the chosen one).
@@ -174,6 +177,20 @@ async function resolveVideo(fetchPlayer: FetchPlayer, url: string): Promise<Reso
 
   const tracks = extractCaptionTracks(result.player);
   if (tracks.length === 0) {
+    // No captions can mean two very different things. If YouTube declined the
+    // request (a bot/login challenge — common on cloud/datacenter IPs, absent on
+    // residential ones), say so plainly instead of blaming the video (#334).
+    const play = extractPlayabilityStatus(result.player);
+    if (play.status && play.status !== 'OK') {
+      return {
+        ok: false,
+        code: 'BLOCKED',
+        message:
+          `YouTube declined this request${play.reason ? ` ("${play.reason}")` : ''}. ` +
+          'This usually means the server’s network is being challenged rather than the ' +
+          'video lacking captions — a self-hosted Lector on a home connection is unaffected.',
+      };
+    }
     return {
       ok: false,
       code: 'NO_CAPTIONS',
@@ -186,10 +203,11 @@ async function resolveVideo(fetchPlayer: FetchPlayer, url: string): Promise<Reso
   return { ok: true, video: { videoId, title: meta.title, channel: meta.channel, tracks } };
 }
 
-const RESOLVE_ERROR_STATUS: Record<'INVALID_URL' | 'FETCH_FAILED' | 'NO_CAPTIONS', 400 | 422> = {
+const RESOLVE_ERROR_STATUS: Record<ResolveErrorCode, 400 | 422 | 502> = {
   INVALID_URL: 400,
   FETCH_FAILED: 400,
   NO_CAPTIONS: 422,
+  BLOCKED: 502,
 };
 
 export function makeYoutubeImportRoutes({
