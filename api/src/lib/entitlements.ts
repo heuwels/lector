@@ -340,7 +340,10 @@ const DEFAULT_PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxJournalTextBytesTotal: null,
     maxWriteBatchBytes: null,
     maxAudioStorageBytes: 10 * 1024 * 1024 * 1024,
-    audioTranscriptionMinutesPerMonth: 1_500,
+    // 15 hours of transcription a month (~$2.70 worst-case at hosted ASR
+    // rates) — still several podcasts a week, and the largest single COGS
+    // line Plus carries, so deliberately not higher.
+    audioTranscriptionMinutesPerMonth: 900,
     llmRequestsPerMonth: 20_000,
     ttsCharsPerMonth: 1_500_000,
     wordGlossesPerMonth: 50_000,
