@@ -9,6 +9,12 @@ import { apiUrl } from './api';
 const VIDEO_URL = 'https://www.youtube.com/watch?v=vid00000010';
 const NO_CAPTIONS_URL = 'https://youtu.be/vid00000011';
 
+// These drive the API's LECTOR_YOUTUBE_FIXTURE seam, set only on the dev
+// webServer (playwright.config.ts). The production Docker image run
+// (E2E_EXTERNAL_SERVER) has no fixture env — importing there would hit live
+// YouTube, which CI must never do — so skip, exactly like starter-content.spec.
+const externalServer = !!process.env.E2E_EXTERNAL_SERVER;
+
 async function cleanupImports(page: import('@playwright/test').Page) {
   const res = await page.request.get(apiUrl('/api/collections'));
   const collections = await res.json();
@@ -20,6 +26,8 @@ async function cleanupImports(page: import('@playwright/test').Page) {
 }
 
 test.describe('YouTube transcript import', () => {
+  test.skip(externalServer, 'transcript-import fixtures are not shipped in the production image');
+
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await cleanupImports(page);
