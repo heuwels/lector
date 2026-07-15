@@ -10,6 +10,7 @@ export default function ImportDropdown({
   onFileImport,
   onAudioImport,
   onUrlImport,
+  onYouTubeImport,
   onPasteImport,
   disabled = false,
   isImporting = false,
@@ -55,6 +56,7 @@ export default function ImportDropdown({
     file: onFileImport,
     audio: onAudioImport,
     url: onUrlImport,
+    youtube: onYouTubeImport,
     paste: onPasteImport,
   };
 

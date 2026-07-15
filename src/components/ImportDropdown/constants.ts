@@ -1,5 +1,5 @@
 import React from 'react';
-import { AudioLines, File, Link, Text } from 'lucide-react';
+import { AudioLines, Captions, File, Link, Text } from 'lucide-react';
 import type { ImportSource } from './types';
 
 export const IMPORT_OPTIONS: Array<{
@@ -21,6 +21,11 @@ export const IMPORT_OPTIONS: Array<{
     source: 'url',
     label: 'Import from URL',
     icon: Link,
+  },
+  {
+    source: 'youtube',
+    label: 'YouTube Transcript',
+    icon: Captions,
   },
   {
     source: 'paste',

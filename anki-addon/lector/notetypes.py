@@ -16,9 +16,11 @@ BASIC_MODEL = "Lector"
 CLOZE_MODEL = "Lector Cloze"
 
 # Field order matters only for Anki's first-field-is-sort-key rule: Word leads
-# so the browser column reads naturally; LectorId/Lang sit at the back.
-BASIC_FIELDS = ["Word", "Sentence", "Translation", "Meaning", "LectorId", "Lang"]
-CLOZE_FIELDS = ["Text", "Word", "Translation", "Meaning", "LectorId", "Lang"]
+# so the browser column reads naturally; LectorId/Lang sit at the back. Source
+# (heuwels/lector#334) carries a link back to a video transcript's timestamp;
+# it's empty for ordinary cards.
+BASIC_FIELDS = ["Word", "Sentence", "Translation", "Meaning", "Source", "LectorId", "Lang"]
+CLOZE_FIELDS = ["Text", "Word", "Translation", "Meaning", "Source", "LectorId", "Lang"]
 
 CSS = """\
 .card {
@@ -44,11 +46,13 @@ BASIC_FRONT = (
 BASIC_BACK = (
     "{{FrontSide}}<hr id=answer>{{Translation}}"
     "{{#Meaning}}<br><br><b>{{Word}}</b> = {{Meaning}}{{/Meaning}}"
+    "{{#Source}}<br><br><small>{{Source}}</small>{{/Source}}"
 )
 CLOZE_FRONT = "{{cloze:Text}}{{#Translation}}<br><br><small>{{Translation}}</small>{{/Translation}}"
 CLOZE_BACK = (
     "{{cloze:Text}}{{#Translation}}<br><br><small>{{Translation}}</small>{{/Translation}}"
     "{{#Meaning}}<br><br><b>{{Word}}</b> = {{Meaning}}{{/Meaning}}"
+    "{{#Source}}<br><br><small>{{Source}}</small>{{/Source}}"
 )
 
 

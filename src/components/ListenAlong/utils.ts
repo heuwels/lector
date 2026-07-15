@@ -1,4 +1,4 @@
-import type { TranscriptSegment } from '@/types';
+import type { AudioTranscriptSegment } from '@/types';
 
 /**
  * The segment the playhead is inside (or the last one it passed): greatest idx
@@ -6,7 +6,7 @@ import type { TranscriptSegment } from '@/types';
  * depends on text offsets, so transcript edits can't break it. -1 before the
  * first segment.
  */
-export function activeSegmentIndex(segments: TranscriptSegment[], ms: number): number {
+export function activeSegmentIndex(segments: AudioTranscriptSegment[], ms: number): number {
   let low = 0;
   let high = segments.length - 1;
   let answer = -1;

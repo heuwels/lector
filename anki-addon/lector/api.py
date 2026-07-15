@@ -20,11 +20,11 @@ TIMEOUT_SECONDS = 15
 # api/src/lib/anki-protocol.ts; bump the pair together when request/response
 # shapes change. The server bridges older protocols with transformers and
 # refuses ones below its minimum with a 426 whose message we show verbatim.
-PROTOCOL = 1
+PROTOCOL = 2
 
 # Keep in step with manifest.json's human_version (AnkiWeb installs don't
 # ship the manifest, so this constant is the runtime source of truth).
-ADDON_VERSION = "1.1.0"
+ADDON_VERSION = "1.2.0"
 
 
 class LectorApiError(Exception):

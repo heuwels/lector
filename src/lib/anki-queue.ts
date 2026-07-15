@@ -19,6 +19,11 @@ export interface AnkiQueueItem {
   sentence?: string;
   translation?: string;
   meaning?: string;
+  /** #334 — source video watch URL + segment start/end (ms) for a card mined
+   *  from a transcript. The server renders these into the note's Source field. */
+  sourceUrl?: string;
+  clipStartMs?: number;
+  clipEndMs?: number;
 }
 
 export interface AnkiQueueResult {

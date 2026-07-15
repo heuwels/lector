@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import type { TranscriptSegment } from '@/types';
+import type { AudioTranscriptSegment } from '@/types';
 import { activeSegmentIndex, formatClock, nextPlaybackRate, PLAYBACK_RATES } from './utils';
 
-const SEGMENTS: TranscriptSegment[] = [
+const SEGMENTS: AudioTranscriptSegment[] = [
   { idx: 0, startMs: 0, endMs: 2000, text: 'Een.' },
   { idx: 1, startMs: 2000, endMs: 4500, text: 'Twee.' },
   // Gap between 4500 and 5000 (silence in the recording).

@@ -100,6 +100,9 @@ export default defineConfig({
             // starter-content.spec.ts skips its fixture-dependent tests under
             // E2E_EXTERNAL_SERVER, where this env (and the fixture) is absent.
             STARTER_CONTENT_ROOT: '../e2e/fixtures/starter-content',
+            // YouTube transcript import (#334): serve fixtures instead of live
+            // YouTube so the import path is exercised deterministically in CI.
+            LECTOR_YOUTUBE_FIXTURE: '../e2e/fixtures/youtube-transcript.json',
           },
         },
         {

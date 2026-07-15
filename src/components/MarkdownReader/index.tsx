@@ -11,6 +11,9 @@ import { useActiveLanguage } from '@/utils/hooks';
 import { MarkdownReaderProps } from './types';
 import { Button } from '@/components/ui/button';
 import ReaderArticle, { type ActiveReaderWord } from './ReaderArticle';
+import TranscriptReader from './TranscriptReader';
+import YouTubePlayer, { type SeekTarget } from '@/components/YouTubePlayer';
+import type { TranscriptSegment, YouTubeSourceMeta } from '@/types';
 
 export default function MarkdownReader({
   lesson,
@@ -47,6 +50,33 @@ export default function MarkdownReader({
   const [draftContent, setDraftContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // YouTube transcript lessons (#334): parse the stored segments + provenance.
+  // A malformed/empty payload falls back to the ordinary markdown reader.
+  const transcript = useMemo(() => {
+    if (lesson.sourceType !== 'youtube') return null;
+    try {
+      const segments = lesson.segments ? (JSON.parse(lesson.segments) as TranscriptSegment[]) : [];
+      const meta = lesson.sourceMeta ? (JSON.parse(lesson.sourceMeta) as YouTubeSourceMeta) : null;
+      if (!Array.isArray(segments) || segments.length === 0 || !meta?.videoId) return null;
+      return { segments, meta };
+    } catch {
+      return null;
+    }
+  }, [lesson.sourceType, lesson.segments, lesson.sourceMeta]);
+
+  const [seekTarget, setSeekTarget] = useState<SeekTarget | null>(null);
+  const [activeSegmentIndex, setActiveSegmentIndex] = useState<number | null>(null);
+  const seekNonce = useRef(0);
+  const handleSeek = useCallback((seconds: number, segmentIndex: number) => {
+    seekNonce.current += 1;
+    setSeekTarget({ seconds, nonce: seekNonce.current });
+    setActiveSegmentIndex(segmentIndex);
+  }, []);
+
+  // Editing rewrites the flattened text, which would desync the timestamped
+  // segments — so transcript correction is disabled for MVP (#334 follow-up).
+  const canEdit = !transcript && !!onSaveText;
 
   const startEdit = useCallback(() => {
     setDraftContent(lesson.textContent);
@@ -218,7 +248,7 @@ export default function MarkdownReader({
           <div className="flex items-center gap-2 print:hidden">
             <div className="text-sm text-muted-foreground">{scrollPercentage}%</div>
             {headerAction}
-            {onSaveText && (
+            {canEdit && (
               <button
                 onClick={startEdit}
                 data-testid="edit-text-button"
@@ -261,6 +291,36 @@ export default function MarkdownReader({
               progress.
             </p>
           </div>
+        ) : transcript ? (
+          <>
+            <div className="sticky top-0 z-10 mx-auto max-w-[46em] bg-card px-4 pt-4 pb-2 sm:px-8">
+              <YouTubePlayer videoId={transcript.meta.videoId} seekTarget={seekTarget} />
+              <a
+                href={transcript.meta.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 block text-xs text-muted-foreground hover:text-foreground hover:underline"
+              >
+                {transcript.meta.captionKind === 'asr'
+                  ? 'Auto-generated captions'
+                  : 'Creator captions'}
+                {transcript.meta.channel ? ` · ${transcript.meta.channel}` : ''} · Open on YouTube
+              </a>
+            </div>
+            <TranscriptReader
+              segments={transcript.segments}
+              sourceUrl={transcript.meta.sourceUrl}
+              pack={pack}
+              knownWordsMap={knownWordsMap}
+              highlightedPhrase={highlightedPhrase}
+              activeWord={activeWord}
+              activeSegmentIndex={activeSegmentIndex}
+              onWordClick={onWordClick}
+              onActivateWord={setActiveWord}
+              onClearPhrase={clearPhraseHighlight}
+              onSeek={handleSeek}
+            />
+          </>
         ) : (
           <ReaderArticle
             content={lesson.textContent}

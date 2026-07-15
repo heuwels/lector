@@ -103,6 +103,7 @@ export type {
   DailyStats,
   Settings,
   TranscriptSegment,
+  AudioTranscriptSegment,
   TranscriptionStatus,
 } from '@/types';
 
@@ -120,7 +121,7 @@ import type {
   DailyStats,
   ClozeCollection,
   ClozeMasteryLevel,
-  TranscriptSegment,
+  AudioTranscriptSegment,
 } from '@/types';
 
 // ============================================================================
@@ -357,7 +358,7 @@ export async function importAudio(
 }
 
 /** Transcript segments for listen-along (#185); empty until transcription is done. */
-export async function getLessonSegments(lessonId: string): Promise<TranscriptSegment[]> {
+export async function getLessonSegments(lessonId: string): Promise<AudioTranscriptSegment[]> {
   const res = await apiFetch(`/api/lessons/${lessonId}/segments`);
   if (!res.ok) return [];
   return res.json();
@@ -399,6 +400,64 @@ export async function createStandaloneLesson(data: {
   invalidateCollections();
   invalidateReadingStats();
   return { collectionId, lessonId };
+}
+
+// ---------------------------------------------------------------------------
+// YouTube transcript import (#334)
+// ---------------------------------------------------------------------------
+
+export interface YouTubeCaptionTrack {
+  languageCode: string;
+  languageName: string;
+  kind: 'standard' | 'asr';
+}
+
+export interface YouTubeResolveResult {
+  videoId: string;
+  title: string;
+  channel: string;
+  tracks: YouTubeCaptionTrack[];
+}
+
+/** Discriminated result so the modal can show an actionable message per code. */
+export type YouTubeResolveResponse =
+  | { ok: true; data: YouTubeResolveResult }
+  | { ok: false; code: string; message: string };
+
+/** List a video's available caption tracks + metadata (no persistence). */
+export async function resolveYouTubeTranscript(url: string): Promise<YouTubeResolveResponse> {
+  const res = await apiFetch('/api/import/youtube/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return {
+      ok: false,
+      code: body.code || 'FETCH_FAILED',
+      message: body.error || 'Could not resolve that YouTube video.',
+    };
+  }
+  return { ok: true, data: body as YouTubeResolveResult };
+}
+
+/** Import a chosen caption track as a timestamped transcript lesson. */
+export async function importYouTubeTranscript(input: {
+  url: string;
+  languageCode: string;
+  kind: 'standard' | 'asr';
+}): Promise<{ collectionId: string; lessonId: string; title: string; segmentCount: number }> {
+  const res = await apiFetch('/api/import/youtube', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...input, language: getActiveLanguage() }),
+  });
+  if (!res.ok) throw await apiError(res, 'Could not import the transcript');
+  const imported = await res.json();
+  invalidateCollections();
+  invalidateReadingStats();
+  return imported;
 }
 
 // ============================================================================

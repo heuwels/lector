@@ -42,6 +42,27 @@ export interface CollectionGroup {
 /** Lifecycle of an audio-backed lesson's transcription (#185); absent on text lessons. */
 export type TranscriptionStatus = 'pending' | 'processing' | 'done' | 'error';
 
+/** One timestamped transcript cue for a YouTube-imported lesson (#334). */
+export interface TranscriptSegment {
+  /** Seconds from the start of the video. */
+  start: number;
+  /** Seconds from the start of the video. */
+  end: number;
+  text: string;
+}
+
+/** Provenance for a YouTube-imported lesson (#334), stored as JSON on the row. */
+export interface YouTubeSourceMeta {
+  videoId: string;
+  sourceUrl: string;
+  channel: string;
+  videoTitle: string;
+  captionLanguage: string;
+  captionLanguageName?: string;
+  captionKind: 'standard' | 'asr';
+  importedAt: string;
+}
+
 export interface Lesson {
   id: string;
   collectionId: string | null;
@@ -52,6 +73,12 @@ export interface Lesson {
   progress_percentComplete: number;
   wordCount: number;
   language?: string;
+  /** 'youtube' for imported transcripts; null/undefined for markdown lessons. */
+  sourceType?: string | null;
+  /** JSON string of {@link YouTubeSourceMeta} when sourceType is 'youtube'. */
+  sourceMeta?: string | null;
+  /** JSON string of {@link TranscriptSegment}[] when sourceType is 'youtube'. */
+  segments?: string | null;
   createdAt: string;
   lastReadAt: string;
   /** Set on audio-backed lessons (#185): the audio file's playable duration. */
@@ -75,8 +102,10 @@ export interface LessonSummary {
   transcriptionError?: string | null;
 }
 
-/** One audio-timestamped transcript sentence for listen-along (#185). */
-export interface TranscriptSegment {
+/** One audio-timestamped transcript sentence for listen-along (#185). Distinct
+ * from the YouTube cue shape above: these are DB rows (transcript_segments) in
+ * milliseconds, produced by the background ASR worker. */
+export interface AudioTranscriptSegment {
   idx: number;
   startMs: number;
   endMs: number;

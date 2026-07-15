@@ -26,7 +26,7 @@ import {
   SkipBack,
   SkipForward,
 } from 'lucide-react';
-import type { Lesson, TranscriptSegment, WordState } from '@/types';
+import type { AudioTranscriptSegment, Lesson, WordState } from '@/types';
 import { foldWord, getLanguageConfig, isValidLanguageCode } from '@/lib/languages';
 import { useActiveLanguage } from '@/utils/hooks';
 import { splitWords } from '@/components/MarkdownReader/utils';
@@ -38,7 +38,7 @@ const SKIP_SECONDS = 5;
 
 export interface ListenAlongProps {
   lesson: Lesson;
-  segments: TranscriptSegment[];
+  segments: AudioTranscriptSegment[];
   audioUrl: string;
   knownWordsMap: Map<string, WordState>;
   wordPanelOpen?: boolean;
@@ -175,7 +175,7 @@ export default function ListenAlong({
   );
 
   const handleWordTap = useCallback(
-    (segment: TranscriptSegment, wordIndex: number, text: string) => {
+    (segment: AudioTranscriptSegment, wordIndex: number, text: string) => {
       // Interacting with a word always pauses — the whole point is to stop and
       // look it up without losing the playhead.
       unitPlayer()?.stop();
