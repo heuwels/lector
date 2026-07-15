@@ -106,7 +106,12 @@ COPY --from=oven/bun:1-alpine /usr/local/bin/bun /usr/local/bin/bun
 # (Esperanto, #307 §3.2c). A few-MB formant synthesizer invoked by the API as
 # an arm's-length subprocess (api/src/routes/tts.ts); GPL obligations don't
 # attach because nothing GPL is distributed with, or linked into, Lector code.
-RUN apk add --no-cache espeak-ng
+# ffmpeg supplies ffprobe for the audio-import duration probe (#185) — same
+# arm's-length subprocess posture (api/src/lib/audio-probe.ts). Whisper itself
+# is deliberately NOT in this image: transcription talks to an external
+# OpenAI-compatible ASR server via ASR_URL (in-container Whisper would be
+# CPU-only inside Docker's VM — slow, and it pins the cores Lector shares).
+RUN apk add --no-cache espeak-ng ffmpeg
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
