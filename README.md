@@ -118,7 +118,7 @@ optional but recommended — it supplies the duration estimate at upload time.
 On billed deployments two plan limits meter the feature (selfhost is
 unaffected): `audioTranscriptionMinutesPerMonth` (ASR compute scales with
 duration, so minutes are reserved at upload from the probed duration — 300/mo
-on Cloud, 1,500/mo on Plus, 0 on Free) and `maxAudioStorageBytes` (total audio
+on Cloud, 900/mo on Plus, 0 on Free) and `maxAudioStorageBytes` (total audio
 on disk — 2 GiB Cloud, 10 GiB Plus). Both are tunable via
 `LECTOR_PLAN_LIMITS`; a deployment running a local Whisper can grant Free
 minutes at no third-party cost.
