@@ -49,6 +49,12 @@ jobs:
           node-version: 22
           cache: npm
       - uses: oven-sh/setup-bun@v2
+      # eSpeak NG backs the espeak TTS engine (#307 §3.2c) — the Esperanto e2e
+      # spec synthesizes through the real binary, exactly as in ci.yml. Keep
+      # the two e2e jobs' system deps in lockstep or a release tag fails on
+      # specs that passed PR CI.
+      - name: Install eSpeak NG
+        run: sudo apt-get update && sudo apt-get install -y espeak-ng
       - run: npm ci
       - run: cd api && bun install --frozen-lockfile
       - name: Fetch on-device dictionaries
