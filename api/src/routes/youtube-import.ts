@@ -60,6 +60,35 @@ function loadYoutubeFixtures(): YoutubeFixture | null {
   return fixtureCache ?? null;
 }
 
+// Optional residential-egress relay (#334). YouTube challenges its InnerTube/
+// timedtext endpoints from datacenter IPs ("sign in to confirm you're not a
+// bot"), so a cloud deployment can route just these two calls through an
+// operator-run relay on a residential connection — a reverse-proxy to
+// www.youtube.com reached over a private network. Set YOUTUBE_RELAY_BASE (e.g.
+// https://lector-proxy.example.com) and optionally YOUTUBE_RELAY_BASIC_AUTH
+// ("user:pass"). Unset on self-hosts, whose home IP already works.
+export function relayRewrite(
+  originalUrl: string,
+): { url: string; headers: Record<string, string> } | null {
+  const base = process.env.YOUTUBE_RELAY_BASE;
+  if (!base) return null;
+  let target: URL;
+  let relay: URL;
+  try {
+    target = new URL(originalUrl);
+    relay = new URL(base);
+  } catch {
+    return null;
+  }
+  // Swap only the origin; keep YouTube's path + query (incl. caption signatures).
+  target.protocol = relay.protocol;
+  target.host = relay.host;
+  const headers: Record<string, string> = {};
+  const auth = process.env.YOUTUBE_RELAY_BASIC_AUTH;
+  if (auth) headers.Authorization = `Basic ${Buffer.from(auth).toString('base64')}`;
+  return { url: target.toString(), headers };
+}
+
 // The real player fetch: POST YouTube's public InnerTube `player` endpoint
 // through safeFetch (SSRF allowlist, re-validated per redirect hop), capped and
 // UTF-8 decoded. See buildInnerTubePlayerRequest for why InnerTube rather than
@@ -73,6 +102,24 @@ async function defaultFetchPlayer(
     return player ? { status: 200, player } : { status: 404, player: null };
   }
   const req = buildInnerTubePlayerRequest(videoId);
+  const relay = relayRewrite(req.url);
+  if (relay) {
+    // Trusted operator endpoint on a private (100.x/CGNAT) address that
+    // safeFetch's SSRF guard would otherwise reject — fetch it directly.
+    const response = await fetch(relay.url, {
+      method: 'POST',
+      headers: { ...req.headers, ...relay.headers },
+      body: req.body,
+      signal: AbortSignal.timeout(20000),
+    });
+    let player: unknown | null = null;
+    try {
+      player = JSON.parse(await response.text());
+    } catch {
+      player = null;
+    }
+    return { status: response.status, player };
+  }
   const response = await safeFetch(req.url, {
     method: 'POST',
     headers: req.headers,
@@ -100,10 +147,17 @@ async function defaultFetchTranscript(url: string): Promise<{ status: number; bo
     }
     return { status: 404, body: '' };
   }
+  const iosUa = 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X)';
+  const relay = relayRewrite(url);
+  if (relay) {
+    const response = await fetch(relay.url, {
+      headers: { 'User-Agent': iosUa, ...relay.headers },
+      signal: AbortSignal.timeout(20000),
+    });
+    return { status: response.status, body: await response.text() };
+  }
   const response = await safeFetch(url, {
-    headers: {
-      'User-Agent': 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X)',
-    },
+    headers: { 'User-Agent': iosUa },
     signal: AbortSignal.timeout(15000),
     maxRedirects: 5,
   });
