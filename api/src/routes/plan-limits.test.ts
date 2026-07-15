@@ -31,6 +31,7 @@ const STRICT: PlanLimits = {
   wordGlossesPerMonth: 100,
   phraseTranslationsPerDay: 10,
   contextTranslationsPerDay: 10,
+  audioTranscriptionMinutesPerMonth: 100,
 };
 
 function strictEngine(overrides: Partial<EntitlementsDeps> = {}) {

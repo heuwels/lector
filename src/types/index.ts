@@ -39,6 +39,9 @@ export interface CollectionGroup {
   collectionCount?: number;
 }
 
+/** Lifecycle of an audio-backed lesson's transcription (#185); absent on text lessons. */
+export type TranscriptionStatus = 'pending' | 'processing' | 'done' | 'error';
+
 export interface Lesson {
   id: string;
   collectionId: string | null;
@@ -51,6 +54,10 @@ export interface Lesson {
   language?: string;
   createdAt: string;
   lastReadAt: string;
+  /** Set on audio-backed lessons (#185): the audio file's playable duration. */
+  audioDurationMs?: number | null;
+  transcriptionStatus?: TranscriptionStatus | null;
+  transcriptionError?: string | null;
 }
 
 export interface LessonSummary {
@@ -63,6 +70,17 @@ export interface LessonSummary {
   wordCount: number;
   createdAt: string;
   lastReadAt: string;
+  audioDurationMs?: number | null;
+  transcriptionStatus?: TranscriptionStatus | null;
+  transcriptionError?: string | null;
+}
+
+/** One audio-timestamped transcript sentence for listen-along (#185). */
+export interface TranscriptSegment {
+  idx: number;
+  startMs: number;
+  endMs: number;
+  text: string;
 }
 
 export interface VocabEntry {
@@ -83,7 +101,7 @@ export interface VocabEntry {
 }
 
 export interface KnownWord {
-  word: string;  // lowercase, normalized - primary key
+  word: string; // lowercase, normalized - primary key
   state: WordState;
   // Topic-domain key for the fluency radar (e.g. 'food'), 'general', or
   // undefined when not yet classified by the background word-classifier.
@@ -112,7 +130,7 @@ export interface ClozeSentence {
 }
 
 export interface DailyStats {
-  date: string;  // YYYY-MM-DD, primary key
+  date: string; // YYYY-MM-DD, primary key
   wordsRead: number;
   newWordsSaved: number;
   wordsMarkedKnown: number;
@@ -126,6 +144,6 @@ export interface DailyStats {
 }
 
 export interface Settings {
-  key: string;  // primary key
+  key: string; // primary key
   value: unknown;
 }

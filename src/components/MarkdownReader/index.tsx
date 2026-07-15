@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  useCallback,
-} from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ChevronLeft, ChevronRight, SquarePen } from 'lucide-react';
 import { updateLessonProgress } from '@/lib/data-layer';
@@ -29,6 +22,7 @@ export default function MarkdownReader({
   knownWordsMap,
   prevLesson,
   nextLesson,
+  headerAction,
 }: MarkdownReaderProps) {
   const router = useRouter();
   const activeLang = useActiveLanguage();
@@ -223,6 +217,7 @@ export default function MarkdownReader({
         ) : (
           <div className="flex items-center gap-2 print:hidden">
             <div className="text-sm text-muted-foreground">{scrollPercentage}%</div>
+            {headerAction}
             {onSaveText && (
               <button
                 onClick={startEdit}

@@ -147,6 +147,7 @@ describe('journal route', () => {
       wordGlossesPerMonth: 1,
       phraseTranslationsPerDay: null,
       contextTranslationsPerDay: null,
+      audioTranscriptionMinutesPerMonth: null,
     };
     const engine = makeEntitlements({
       enforced: true,

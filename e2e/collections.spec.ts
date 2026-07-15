@@ -27,7 +27,7 @@ test.describe("Collections & Lessons", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const fileInput = page.locator('input[type="file"]');
+    const fileInput = page.getByTestId("document-file-input");
     await fileInput.setInputFiles(
       path.join(__dirname, "fixtures/test-book.epub")
     );

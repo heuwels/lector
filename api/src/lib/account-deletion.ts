@@ -37,6 +37,7 @@
  */
 import { db } from '../db';
 import { TENANT_TABLES } from './adopt-local-data';
+import { deleteAudioFile } from './audio-files';
 
 export const ERASURE_TABLES = [
   ...TENANT_TABLES,
@@ -67,10 +68,19 @@ export function purgeTenantData(userId: string, email?: string): void {
   // Some tables are Better Auth's (twoFactor) or otherwise cloud-only; the
   // sweep must stay safe on a selfhost/test DB that never ran those migrations.
   const present = new Set(
-    (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map(
-      (r) => r.name,
-    ),
+    (
+      db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]
+    ).map((r) => r.name),
   );
+
+  // Uploaded lesson audio (#185) lives on disk, not in SQLite — capture the
+  // tenant's file paths before the rows go, unlink after the transaction
+  // commits (a rolled-back erasure must not have destroyed files).
+  const audioPaths = (
+    db
+      .prepare('SELECT audioPath FROM lessons WHERE userId = ? AND audioPath IS NOT NULL')
+      .all(userId) as { audioPath: string }[]
+  ).map((r) => r.audioPath);
 
   const run = db.transaction(() => {
     // Capture the Paddle customer ids linked to this tenant BEFORE deleting the
@@ -99,4 +109,5 @@ export function purgeTenantData(userId: string, email?: string): void {
     }
   });
   run();
+  for (const audioPath of audioPaths) deleteAudioFile(audioPath);
 }

@@ -17,6 +17,9 @@ const DATA_DIR = process.env.DATA_DIR || '../data';
 const OLD_DB_PATH = path.join(DATA_DIR, 'afrikaans.db');
 const DB_PATH = path.join(DATA_DIR, 'lector.db');
 export const BOOKS_DIR = path.join(DATA_DIR, 'books');
+// Uploaded lesson audio lives on disk (never in SQLite), one file per lesson:
+// AUDIO_DIR/<lessonId><ext> (#185). Deleted by the lesson/collection delete routes.
+export const AUDIO_DIR = path.join(DATA_DIR, 'audio');
 
 let _db: Database | null = null;
 
@@ -25,6 +28,7 @@ function getDb(): Database {
 
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.mkdirSync(BOOKS_DIR, { recursive: true });
+  fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
   // Migrate DB filename: afrikaans.db -> lector.db
   if (!fs.existsSync(DB_PATH)) {
@@ -391,6 +395,21 @@ function getDb(): Database {
       submittedAt TEXT NOT NULL,
       requests TEXT NOT NULL
     );
+
+    -- Audio-timestamped transcript segments for audio-backed lessons (#185).
+    -- The canonical listen-along sync data: sentence-level rows in playback
+    -- order (idx). The lesson's textContent drives reading mode; these rows
+    -- drive listen-along, so transcript edits never break sync. FK enforcement
+    -- is off app-wide — lesson/collection delete routes cascade these manually.
+    CREATE TABLE IF NOT EXISTS transcript_segments (
+      userId TEXT NOT NULL DEFAULT 'local',
+      lessonId TEXT NOT NULL,
+      idx INTEGER NOT NULL,
+      startMs INTEGER NOT NULL,
+      endMs INTEGER NOT NULL,
+      text TEXT NOT NULL,
+      PRIMARY KEY (userId, lessonId, idx)
+    );
   `);
 
   // Migrations for existing databases
@@ -483,6 +502,32 @@ function getDb(): Database {
   // Runs after migrateAddUserIdColumn (needs the userId column) and before
   // ensurePartitionIndexes (the rebuilds drop every index on the way).
   migrateCompositeTenantKeys(_db);
+
+  // lessons audio columns (#185) — audio-backed lessons (podcast import). NULL
+  // on ordinary text lessons. Added after migrateCompositeTenantKeys (which
+  // rebuilds lessons for the compound PK) so the columns survive that rebuild
+  // when both run on the same boot.
+  const lessonAudioCols = _db.prepare('PRAGMA table_info(lessons)').all() as { name: string }[];
+  if (!lessonAudioCols.some((c) => c.name === 'audioPath')) {
+    _db.exec('ALTER TABLE lessons ADD COLUMN audioPath TEXT');
+  }
+  if (!lessonAudioCols.some((c) => c.name === 'audioDurationMs')) {
+    _db.exec('ALTER TABLE lessons ADD COLUMN audioDurationMs INTEGER');
+  }
+  if (!lessonAudioCols.some((c) => c.name === 'audioBytes')) {
+    // Size of the stored audio file — the entitlement engine's live usage
+    // source for maxAudioStorageBytes (the file itself lives outside SQLite).
+    _db.exec('ALTER TABLE lessons ADD COLUMN audioBytes INTEGER');
+  }
+  if (!lessonAudioCols.some((c) => c.name === 'transcriptionStatus')) {
+    _db.exec('ALTER TABLE lessons ADD COLUMN transcriptionStatus TEXT');
+  }
+  if (!lessonAudioCols.some((c) => c.name === 'transcriptionError')) {
+    _db.exec('ALTER TABLE lessons ADD COLUMN transcriptionError TEXT');
+  }
+  if (!lessonAudioCols.some((c) => c.name === 'transcriptionAttempts')) {
+    _db.exec('ALTER TABLE lessons ADD COLUMN transcriptionAttempts INTEGER NOT NULL DEFAULT 0');
+  }
 
   // Dead table from a long-removed translation-comparison experiment (DEBT-03).
   _db.exec('DROP TABLE IF EXISTS translation_evaluations');
@@ -1529,6 +1574,9 @@ export interface JournalEntryRow {
   updatedAt: string;
 }
 
+/** Lifecycle of an audio-backed lesson's transcription (#185); NULL on text lessons. */
+export type TranscriptionStatus = 'pending' | 'processing' | 'done' | 'error';
+
 export interface LessonRow {
   userId: string;
   id: string;
@@ -1541,6 +1589,21 @@ export interface LessonRow {
   wordCount: number;
   createdAt: string;
   lastReadAt: string;
+  audioPath: string | null;
+  audioDurationMs: number | null;
+  audioBytes: number | null;
+  transcriptionStatus: TranscriptionStatus | null;
+  transcriptionError: string | null;
+  transcriptionAttempts: number;
+}
+
+export interface TranscriptSegmentRow {
+  userId: string;
+  lessonId: string;
+  idx: number;
+  startMs: number;
+  endMs: number;
+  text: string;
 }
 
 export interface VocabRow {

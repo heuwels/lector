@@ -41,6 +41,7 @@ function createSchema(db: Database): void {
     CREATE TABLE cached_senses    (id INTEGER PRIMARY KEY, userId TEXT NOT NULL DEFAULT 'local', word TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af');
     CREATE TABLE cached_related_forms (id INTEGER PRIMARY KEY, userId TEXT NOT NULL DEFAULT 'local', word TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'af');
     CREATE TABLE anki_pending     (userId TEXT NOT NULL DEFAULT 'local', vocabId TEXT NOT NULL, cardType TEXT NOT NULL DEFAULT 'basic', queuedAt TEXT NOT NULL DEFAULT '', PRIMARY KEY (userId, vocabId, cardType));
+    CREATE TABLE transcript_segments (userId TEXT NOT NULL DEFAULT 'local', lessonId TEXT NOT NULL, idx INTEGER NOT NULL, PRIMARY KEY (userId, lessonId, idx));
     CREATE TABLE user_provider_credentials (userId TEXT NOT NULL, provider TEXT NOT NULL, ciphertext TEXT NOT NULL, model TEXT NOT NULL, PRIMARY KEY (userId, provider));
     CREATE TABLE "user"           (id TEXT PRIMARY KEY, email TEXT NOT NULL, name TEXT);
   `);
@@ -118,9 +119,16 @@ function seedLocal(db: Database): void {
       'INSERT INTO anki_pending (userId, vocabId, cardType, queuedAt) VALUES (?, ?, ?, ?)',
     ).run(LOCAL_USER_ID, `vocab-${i}`, 'basic', '2026-01-01');
   }
+  for (let i = 0; i < 2; i++) {
+    db.prepare('INSERT INTO transcript_segments (userId, lessonId, idx) VALUES (?, ?, ?)').run(
+      LOCAL_USER_ID,
+      'lessons-0',
+      i,
+    );
+  }
 }
 
-const LOCAL_TOTAL = 39;
+const LOCAL_TOTAL = 41;
 
 describe('adoptLocalData', () => {
   let db: Database;

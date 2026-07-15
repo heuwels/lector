@@ -104,6 +104,11 @@ export interface PlanLimits {
   maxJournalTextBytesTotal: number | null;
   /** Positive learner-content growth accepted by one structured bulk write. */
   maxWriteBatchBytes: number | null;
+  /** Bytes of stored lesson audio on disk (podcast import, #185). */
+  maxAudioStorageBytes: number | null;
+  /** Minutes of audio transcribed per UTC calendar month (#185) — ASR compute
+   * scales with duration, not file size, so minutes is the metered unit. */
+  audioTranscriptionMinutesPerMonth: number | null;
   /** Managed-key LLM requests per month. */
   llmRequestsPerMonth: number | null;
   /** Managed-key TTS characters per month. */
@@ -147,12 +152,14 @@ export const NO_STORAGE_LIMITS = {
   maxJournalEntryBytes: null,
   maxJournalTextBytesTotal: null,
   maxWriteBatchBytes: null,
+  maxAudioStorageBytes: null,
 } as const;
 
 export type LimitMetric = keyof PlanLimits;
 
 export const METRIC_WINDOW = {
   journalWordsPerMonth: 'month',
+  audioTranscriptionMinutesPerMonth: 'month',
   llmRequestsPerMonth: 'month',
   ttsCharsPerMonth: 'month',
   wordGlossesPerMonth: 'month',
@@ -181,7 +188,8 @@ export type LiveLimitMetric =
   | 'maxClozeTextBytesTotal'
   | 'maxAcceptedDictionaryBytesTotal'
   | 'maxAnkiPendingTextBytesTotal'
-  | 'maxJournalTextBytesTotal';
+  | 'maxJournalTextBytesTotal'
+  | 'maxAudioStorageBytes';
 
 export interface AtomicLimitCheck {
   metric: LimitMetric;
@@ -239,6 +247,16 @@ const DEFAULT_PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxJournalEntryBytes: 64 * 1024,
     maxJournalTextBytesTotal: 512 * 1024,
     maxWriteBatchBytes: 2 * 1024 * 1024,
+    // Hosted transcription runs on the deployment's ASR backend (managed
+    // capacity, like the LLM/TTS pools), so Free gets no minutes by default —
+    // that zero is what blocks Free audio import. Unlike the LLM/TTS pools it
+    // is deliberately overridable: a deployment running a local Whisper can
+    // grant Free minutes via LECTOR_PLAN_LIMITS at no third-party cost. The
+    // storage ceiling must then be finite and non-zero (Free `max*` values can
+    // be lowered but never raised, so 0 here would make Free audio impossible
+    // to enable). Audio files are not part of the export/restore proof.
+    maxAudioStorageBytes: 200 * 1024 * 1024,
+    audioTranscriptionMinutesPerMonth: 0,
     llmRequestsPerMonth: 0,
     ttsCharsPerMonth: 0,
     wordGlossesPerMonth: 1_000,
@@ -278,6 +296,10 @@ const DEFAULT_PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxJournalEntryBytes: null,
     maxJournalTextBytesTotal: null,
     maxWriteBatchBytes: null,
+    // ~30 hours of 128 kbps audio on disk; 300 min ≈ five podcast hours of
+    // transcription a month. Generous for a learner, bounded for the operator.
+    maxAudioStorageBytes: 2 * 1024 * 1024 * 1024,
+    audioTranscriptionMinutesPerMonth: 300,
     llmRequestsPerMonth: 5_000,
     ttsCharsPerMonth: 300_000,
     wordGlossesPerMonth: 10_000,
@@ -317,6 +339,8 @@ const DEFAULT_PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxJournalEntryBytes: null,
     maxJournalTextBytesTotal: null,
     maxWriteBatchBytes: null,
+    maxAudioStorageBytes: 10 * 1024 * 1024 * 1024,
+    audioTranscriptionMinutesPerMonth: 1_500,
     llmRequestsPerMonth: 20_000,
     ttsCharsPerMonth: 1_500_000,
     wordGlossesPerMonth: 50_000,
@@ -384,6 +408,8 @@ const UNLIMITED: PlanLimits = {
   maxJournalEntryBytes: null,
   maxJournalTextBytesTotal: null,
   maxWriteBatchBytes: null,
+  maxAudioStorageBytes: null,
+  audioTranscriptionMinutesPerMonth: null,
   llmRequestsPerMonth: null,
   ttsCharsPerMonth: null,
   wordGlossesPerMonth: null,
@@ -891,6 +917,14 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
            ), 0) AS used FROM anki_pending WHERE userId = ?`,
           userId,
         );
+      case 'maxAudioStorageBytes':
+        // The files live on disk, not in SQLite — audioBytes is stamped at
+        // upload, so the SUM tracks exactly what the audio dir holds.
+        return scalarUsage(
+          `SELECT COALESCE(SUM(audioBytes), 0) AS used
+             FROM lessons WHERE userId = ? AND audioPath IS NOT NULL`,
+          userId,
+        );
     }
   }
 
@@ -914,6 +948,7 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
     'maxAcceptedDictionaryBytesTotal',
     'maxJournalTextBytesTotal',
     'maxAnkiPendingTextBytesTotal',
+    'maxAudioStorageBytes',
   ]);
 
   const DIRECT_SIZE_METRICS = new Set<LimitMetric>([

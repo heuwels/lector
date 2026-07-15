@@ -7,7 +7,7 @@
  */
 
 import { DEFAULT_LANGUAGE, foldWord, getLanguageConfig, isValidLanguageCode } from './languages';
-import { apiFetch } from './api-base';
+import { apiFetch, apiUrl } from './api-base';
 import { activeTenantId, readLanguageCache } from './language-cache';
 import { cachedQuery, clearTenantQueries, invalidateQueries, type QueryKey } from './query-cache';
 
@@ -102,6 +102,8 @@ export type {
   ClozeSentence,
   DailyStats,
   Settings,
+  TranscriptSegment,
+  TranscriptionStatus,
 } from '@/types';
 
 export type { ReadingStats } from './stats-derive';
@@ -118,6 +120,7 @@ import type {
   DailyStats,
   ClozeCollection,
   ClozeMasteryLevel,
+  TranscriptSegment,
 } from '@/types';
 
 // ============================================================================
@@ -323,6 +326,52 @@ export async function importEpub(file: File): Promise<{
   invalidateCollections();
   invalidateReadingStats();
   return imported;
+}
+
+export async function importAudio(
+  file: File,
+  title?: string,
+): Promise<{
+  collectionId: string;
+  lessonId: string;
+  title: string;
+  audioDurationMs: number | null;
+  transcriptionStatus: 'pending';
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('language', getActiveLanguage());
+  if (title) formData.append('title', title);
+  const res = await apiFetch('/api/import/audio', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to import audio');
+  }
+  const imported = await res.json();
+  invalidateCollections();
+  invalidateReadingStats();
+  return imported;
+}
+
+/** Transcript segments for listen-along (#185); empty until transcription is done. */
+export async function getLessonSegments(lessonId: string): Promise<TranscriptSegment[]> {
+  const res = await apiFetch(`/api/lessons/${lessonId}/segments`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+/** Direct (range-seekable) audio URL for an audio-backed lesson — feed it to <audio src>. */
+export function lessonAudioUrl(lessonId: string): string {
+  return apiUrl(`/api/lessons/${lessonId}/audio`);
+}
+
+export async function retryTranscription(lessonId: string): Promise<void> {
+  const res = await apiFetch(`/api/lessons/${lessonId}/retry-transcription`, { method: 'POST' });
+  await requireOk(res, 'Could not retry transcription');
+  invalidateCollections();
 }
 
 export async function createStandaloneLesson(data: {

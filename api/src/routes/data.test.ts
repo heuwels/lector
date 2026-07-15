@@ -59,6 +59,7 @@ const LIMITED: PlanLimits = {
   wordGlossesPerMonth: 1_000,
   phraseTranslationsPerDay: 10,
   contextTranslationsPerDay: 10,
+  audioTranscriptionMinutesPerMonth: 0,
 };
 
 function installLimitedEngine(compedPlan: 'cloud' | 'plus' | null = null) {

@@ -7,15 +7,20 @@ import MarkdownReader from '@/components/MarkdownReader';
 import OnboardingCoach from '@/components/OnboardingCoach';
 import TranslationDrawer from '@/components/TranslationDrawer';
 import { Button } from '@/components/ui/button';
+import ListenAlong from '@/components/ListenAlong';
 import {
   type Lesson,
   type LessonSummary,
+  type TranscriptSegment,
   type VocabEntry,
   type WordState,
   getEntitlements,
   createOnboardingCloze,
   getLesson,
   getLessonsForCollection,
+  getLessonSegments,
+  lessonAudioUrl,
+  retryTranscription,
   getKnownWordsMap,
   saveVocab,
   getVocabByText,
@@ -37,6 +42,7 @@ import {
 import { speak } from '@/lib/tts';
 import { foldWord } from '@/lib/languages';
 import { toast } from 'sonner';
+import { Headphones, LoaderCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
 import { useActiveLanguage } from '@/utils/hooks';
@@ -61,6 +67,9 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   const [siblings, setSiblings] = useState<LessonSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Listen-along (#185): the audio lesson's transcript segments + mode toggle.
+  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+  const [listenMode, setListenMode] = useState(false);
   const [readerWordStates, setReaderWordStates] = useState<Map<string, WordState>>(new Map());
   const readerWordStatesRef = useRef(readerWordStates);
   const readerWordStateLoadRef = useRef<{
@@ -151,6 +160,41 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
 
     loadLesson();
   }, [activeLang.code, lessonId]);
+
+  // Audio lesson (#185): fetch segments once transcription is done, and poll
+  // the lesson while it's still transcribing so the reader unlocks by itself.
+  const transcriptionStatus = lesson?.transcriptionStatus ?? null;
+  useEffect(() => {
+    if (transcriptionStatus === 'done') {
+      let cancelled = false;
+      getLessonSegments(lessonId).then((loaded) => {
+        if (!cancelled) setSegments(loaded);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (transcriptionStatus !== 'pending' && transcriptionStatus !== 'processing') return;
+    const timer = setInterval(async () => {
+      try {
+        const updated = await getLesson(lessonId);
+        if (updated && updated.transcriptionStatus !== transcriptionStatus) setLesson(updated);
+      } catch {
+        /* transient — next tick retries */
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [lessonId, transcriptionStatus]);
+
+  async function handleRetryTranscription() {
+    try {
+      await retryTranscription(lessonId);
+      const updated = await getLesson(lessonId);
+      if (updated) setLesson(updated);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not retry transcription');
+    }
+  }
 
   const applyReaderWordState = useCallback(
     (word: string, state: WordState) => {
@@ -1098,6 +1142,50 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     );
   }
 
+  // Audio lesson still transcribing (#185): there's no text yet, so hold the
+  // reader with a status screen; the poll above unlocks it when the job lands.
+  if (lesson.transcriptionStatus === 'pending' || lesson.transcriptionStatus === 'processing') {
+    return (
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-4 bg-card p-8"
+        data-testid="transcription-pending"
+      >
+        <LoaderCircle className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="text-xl text-foreground">Transcribing audio…</div>
+        <p className="max-w-sm text-center text-sm text-muted-foreground">
+          &ldquo;{lesson.title}&rdquo; is being transcribed in the background. This usually takes a
+          few minutes; the lesson opens automatically when it&rsquo;s ready.
+        </p>
+        <Button variant="secondary" onClick={() => router.push('/')}>
+          Back to Library
+        </Button>
+      </div>
+    );
+  }
+  if (lesson.transcriptionStatus === 'error') {
+    return (
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-4 bg-card p-8"
+        data-testid="transcription-error"
+      >
+        <div className="text-xl text-destructive">Transcription failed</div>
+        {lesson.transcriptionError && (
+          <p className="max-w-md text-center text-sm text-muted-foreground">
+            {lesson.transcriptionError}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <Button onClick={handleRetryTranscription} data-testid="retry-transcription">
+            Retry
+          </Button>
+          <Button variant="secondary" onClick={() => router.push('/')}>
+            Back to Library
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // What the drawer renders as the rich entry: a real dictionary hit if we have
   // one, otherwise the AI's enriched structured result mapped into the same
   // shape. Kept separate from wordPanel.dictEntry (which stays null for AI) so
@@ -1142,17 +1230,42 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   return (
     <div className="flex h-dvh flex-col overflow-x-hidden bg-card print:block print:h-auto print:overflow-visible">
       <div className="relative flex-1 overflow-hidden print:block print:h-auto print:overflow-visible">
-        <MarkdownReader
-          lesson={lesson}
-          onWordClick={handleWordClick}
-          wordPanelOpen={wordPanel.isOpen}
-          onClose={handleClose}
-          onSaveText={handleSaveText}
-          onEditingChange={handleEditingChange}
-          knownWordsMap={readerWordStates}
-          prevLesson={prevLesson}
-          nextLesson={nextLesson}
-        />
+        {listenMode && segments.length > 0 ? (
+          <ListenAlong
+            lesson={lesson}
+            segments={segments}
+            audioUrl={lessonAudioUrl(lesson.id)}
+            knownWordsMap={readerWordStates}
+            wordPanelOpen={wordPanel.isOpen}
+            onWordClick={handleWordClick}
+            onExit={() => setListenMode(false)}
+          />
+        ) : (
+          <MarkdownReader
+            lesson={lesson}
+            onWordClick={handleWordClick}
+            wordPanelOpen={wordPanel.isOpen}
+            onClose={handleClose}
+            onSaveText={handleSaveText}
+            onEditingChange={handleEditingChange}
+            knownWordsMap={readerWordStates}
+            prevLesson={prevLesson}
+            nextLesson={nextLesson}
+            headerAction={
+              segments.length > 0 ? (
+                <button
+                  onClick={() => setListenMode(true)}
+                  title="Listen along"
+                  aria-label="Listen along"
+                  data-testid="listen-along-toggle"
+                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent"
+                >
+                  <Headphones className="h-5 w-5" />
+                </button>
+              ) : undefined
+            }
+          />
+        )}
       </div>
       <TranslationDrawer
         isOpen={wordPanel.isOpen}
