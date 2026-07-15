@@ -65,6 +65,11 @@ GOOGLE_CLOUD_API_KEY=...
 # default is OFF (keeps tests LLM-free), so opt in wherever the radar should
 # populate; the shipped compose files set it for you.
 CLASSIFY_WORKER=1
+
+# Background audio transcription for podcast import (#185). Off by default
+# (keeps tests ASR-free); needs an OpenAI-compatible Whisper backend — see
+# "Audio import & transcription" below.
+TRANSCRIBE_WORKER=1
 ```
 
 The app works without API keys — the local dictionary covers the top 2000 words. Claude API is only needed for uncommon words and phrase translation.
@@ -81,6 +86,42 @@ The word→domain classifier runs through the provider's **Batch API at 50% of s
 
 - `CLASSIFY_BATCH=0` — force the synchronous path even when batching is available
 - `CLASSIFY_BATCH_MAX_REQUESTS` — prompts per submitted batch, each carrying `CLASSIFY_BATCH_SIZE` words (default 40 × 30 = up to 1,200 words per batch)
+
+#### Audio import & transcription ([#185](https://github.com/heuwels/lector/issues/185))
+
+"Import Audio" uploads a podcast episode or recording; a background worker
+transcribes it into a timestamped transcript that works as a normal reading
+lesson **and** as a listen-along player (continuous playback or sentence-by-
+sentence shadowing). Transcription talks to any OpenAI-compatible
+`POST /v1/audio/transcriptions` backend:
+
+- **Local (default, recommended on a Mac):** run
+  [Speaches](https://speaches.ai) / `faster-whisper-server` **natively on the
+  host** — not inside the Lector container, which has no GPU/Metal on
+  Docker-for-Mac. The default `ASR_URL` is `http://localhost:8000`; from a
+  container use `ASR_URL=http://host.docker.internal:8000`. With the server's
+  idle TTL the multi-GB model loads on the first job and unloads afterwards,
+  so it costs ~nothing while quiet — and because transcription is a background
+  job, the cold-start latency is invisible.
+- **Hosted fallback (Groq):** `ASR_URL=https://api.groq.com/openai` +
+  `ASR_API_KEY` + `ASR_MAX_BYTES=104857600`. A ~40-minute episode is ~3–7¢ on
+  `whisper-large-v3`.
+
+`ASR_MODEL` defaults to `whisper-large-v3` (best Afrikaans accuracy; the
+language hint is always sent — Whisper mis-detects Afrikaans as Dutch on
+auto-detect). Enable the worker with `TRANSCRIBE_WORKER=1`. Audio files live
+on disk under `DATA_DIR/audio/` and are **not** part of the export/restore
+backup (the transcript text is; segments and audio are a
+[#109](https://github.com/heuwels/lector/issues/109) follow-up). `ffmpeg` is
+optional but recommended — it supplies the duration estimate at upload time.
+
+On billed deployments two plan limits meter the feature (selfhost is
+unaffected): `audioTranscriptionMinutesPerMonth` (ASR compute scales with
+duration, so minutes are reserved at upload from the probed duration — 300/mo
+on Cloud, 1,500/mo on Plus, 0 on Free) and `maxAudioStorageBytes` (total audio
+on disk — 2 GiB Cloud, 10 GiB Plus). Both are tunable via
+`LECTOR_PLAN_LIMITS`; a deployment running a local Whisper can grant Free
+minutes at no third-party cost.
 
 #### Deployment mode
 

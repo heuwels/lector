@@ -9,6 +9,7 @@ export const DEFAULT_API_REQUEST_BODY_LIMIT_BYTES = 8 * 1024 * 1024;
 const PURPOSE_SPECIFIC_LIMIT_PATHS = new Set([
   '/api/data',
   '/api/import/epub',
+  '/api/import/audio',
   '/api/billing/webhook',
 ]);
 

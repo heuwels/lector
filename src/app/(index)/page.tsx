@@ -40,6 +40,7 @@ import {
   reorderCollections,
   createStandaloneLesson,
   importEpub,
+  importAudio,
   seedStarterContent,
   type Collection,
   type CollectionGroup,
@@ -67,6 +68,7 @@ export default function Home() {
   const [isAddingStarter, setIsAddingStarter] = useState(false);
   const [onboarding, setOnboarding] = useState<OnboardingSnapshot | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -144,6 +146,38 @@ export default function Home() {
 
   async function handleImportClick() {
     fileInputRef.current?.click();
+  }
+
+  async function handleAudioImportClick() {
+    audioInputRef.current?.click();
+  }
+
+  async function handleAudioFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const imported = await importAudio(file);
+      setCollections(await getAllCollections());
+      const minutes = imported.audioDurationMs
+        ? Math.max(1, Math.round(imported.audioDurationMs / 60000))
+        : null;
+      // Transcription runs in the background; give a rough local-Whisper time
+      // estimate (cost only matters on a hosted fallback, where it's cents).
+      toast.success(
+        `"${imported.title}" uploaded — transcription started` +
+          (minutes ? ` (~${minutes} min of audio; usually transcribes in a few minutes)` : ''),
+      );
+    } catch (error) {
+      console.error('Error importing audio:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to import audio file.');
+    } finally {
+      setIsImporting(false);
+      if (audioInputRef.current) {
+        audioInputRef.current.value = '';
+      }
+    }
   }
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -348,6 +382,7 @@ export default function Home() {
 
           <ImportDropdown
             onFileImport={handleImportClick}
+            onAudioImport={handleAudioImportClick}
             onUrlImport={() => setIsWebImportOpen(true)}
             onYouTubeImport={() => setIsYouTubeImportOpen(true)}
             onPasteImport={() => setIsPasteImportOpen(true)}
@@ -358,6 +393,15 @@ export default function Home() {
             type="file"
             accept=".epub,.md,.markdown"
             onChange={handleFileChange}
+            data-testid="document-file-input"
+            className="hidden"
+          />
+          <input
+            ref={audioInputRef}
+            type="file"
+            accept="audio/*,.mp3,.m4a,.m4b,.mp4,.wav,.ogg,.oga,.opus,.flac,.aac,.webm"
+            onChange={handleAudioFileChange}
+            data-testid="audio-file-input"
             className="hidden"
           />
         </div>

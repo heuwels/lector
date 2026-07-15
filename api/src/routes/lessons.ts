@@ -1,10 +1,11 @@
 import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
-import { db, LessonRow } from '../db';
+import { db, LessonRow, TranscriptSegmentRow } from '../db';
 import { countWords } from '../lib/html-to-markdown';
 import { normalizeText } from '../lib/languages';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
+import { audioContentType, deleteAudioFile } from '../lib/audio-files';
 import { entitlements, planLimitResponse } from '../lib/entitlements';
 import { aggregateGrowthCheck, growingRowCheck, lessonTextBytes } from '../lib/storage-limits';
 import {
@@ -31,6 +32,104 @@ app.get('/:id', (c) => {
   }
 
   return c.json(lesson);
+});
+
+// GET /api/lessons/:id/segments (#185)
+// The audio-timestamped transcript segments for listen-along, in playback
+// order. Empty array until transcription is done (or for text lessons).
+app.get('/:id/segments', (c) => {
+  const userId = getCurrentUserId(c);
+  const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'), userId);
+  const owned = db
+    .prepare('SELECT 1 FROM lessons WHERE id = ? AND userId = ? AND language = ?')
+    .get(id, userId, lang);
+  if (!owned) {
+    return c.json({ error: 'Lesson not found' }, 404);
+  }
+  const segments = db
+    .prepare(
+      'SELECT idx, startMs, endMs, text FROM transcript_segments WHERE userId = ? AND lessonId = ? ORDER BY idx ASC',
+    )
+    .all(userId, id) as Pick<TranscriptSegmentRow, 'idx' | 'startMs' | 'endMs' | 'text'>[];
+  return c.json(segments);
+});
+
+// GET /api/lessons/:id/audio (#185)
+// Range-seekable audio serving for the listen-along player. Seeking a long
+// podcast in <audio> requires honoring `Range` with 206 + Content-Range —
+// browsers refuse to scrub otherwise. The browser talks to Hono directly
+// (the Next proxy was removed in #188), so nothing strips these headers.
+app.get('/:id/audio', async (c) => {
+  const userId = getCurrentUserId(c);
+  const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'), userId);
+  const lesson = db
+    .prepare('SELECT audioPath FROM lessons WHERE id = ? AND userId = ? AND language = ?')
+    .get(id, userId, lang) as { audioPath: string | null } | undefined;
+  if (!lesson?.audioPath) {
+    return c.json({ error: 'Lesson has no audio' }, 404);
+  }
+  const file = Bun.file(lesson.audioPath);
+  if (!(await file.exists())) {
+    return c.json({ error: 'Audio file is missing' }, 404);
+  }
+  const size = file.size;
+  const contentType = audioContentType(lesson.audioPath);
+
+  const range = c.req.header('range');
+  const match = range?.match(/^bytes=(\d*)-(\d*)$/);
+  if (match && (match[1] !== '' || match[2] !== '')) {
+    // Suffix form (bytes=-N) means "the last N bytes".
+    const start =
+      match[1] === '' ? Math.max(0, size - parseInt(match[2], 10)) : parseInt(match[1], 10);
+    let end = match[1] !== '' && match[2] !== '' ? parseInt(match[2], 10) : size - 1;
+    end = Math.min(end, size - 1);
+    if (start > end || start >= size) {
+      return new Response(null, {
+        status: 416,
+        headers: { 'Content-Range': `bytes */${size}` },
+      });
+    }
+    return new Response(file.slice(start, end + 1), {
+      status: 206,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Range': `bytes ${start}-${end}/${size}`,
+        'Content-Length': String(end - start + 1),
+        'Accept-Ranges': 'bytes',
+      },
+    });
+  }
+
+  return new Response(file, {
+    status: 200,
+    headers: {
+      'Content-Type': contentType,
+      'Content-Length': String(size),
+      'Accept-Ranges': 'bytes',
+    },
+  });
+});
+
+// POST /api/lessons/:id/retry-transcription (#185)
+// Re-queue a failed transcription (error → pending, counter reset) so the
+// import UI's Retry button works after fixing the ASR server / config.
+app.post('/:id/retry-transcription', (c) => {
+  const userId = getCurrentUserId(c);
+  const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'), userId);
+  const changed = db
+    .prepare(
+      `UPDATE lessons
+          SET transcriptionStatus = 'pending', transcriptionError = NULL, transcriptionAttempts = 0
+        WHERE id = ? AND userId = ? AND language = ? AND transcriptionStatus = 'error'`,
+    )
+    .run(id, userId, lang).changes;
+  if (changed === 0) {
+    return c.json({ error: 'Lesson has no failed transcription to retry' }, 404);
+  }
+  return c.json({ success: true });
 });
 
 // PUT /api/lessons/:id
@@ -120,20 +219,27 @@ app.delete('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
   const lang = resolveLanguage(c.req.query('language'), userId);
+  let audioPath: string | null = null;
   db.transaction(() => {
     const owned = db
-      .prepare('SELECT 1 FROM lessons WHERE id = ? AND userId = ? AND language = ?')
-      .get(id, userId, lang);
+      .prepare('SELECT audioPath FROM lessons WHERE id = ? AND userId = ? AND language = ?')
+      .get(id, userId, lang) as { audioPath: string | null } | undefined;
     if (!owned) return;
+    audioPath = owned.audioPath;
 
     // Vocabulary is portable after its source lesson is removed.
     db.prepare('UPDATE vocab SET bookId = NULL WHERE bookId = ? AND userId = ?').run(id, userId);
+    // FK enforcement is off app-wide, so cascade the segments manually.
+    db.prepare('DELETE FROM transcript_segments WHERE userId = ? AND lessonId = ?').run(userId, id);
     db.prepare('DELETE FROM lessons WHERE id = ? AND userId = ? AND language = ?').run(
       id,
       userId,
       lang,
     );
   })();
+  // The audio file is outside the transaction by nature; unlink after the row
+  // is gone so a failed delete never orphans a lesson that points at nothing.
+  deleteAudioFile(audioPath);
   return c.json({ success: true });
 });
 

@@ -33,6 +33,7 @@ import {
   updateCollection,
   getAllGroups,
   createGroup,
+  retryTranscription,
   type Collection,
   type CollectionGroup,
   type LessonSummary,
@@ -106,6 +107,32 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   async function refreshLessons() {
     const updated = await getLessonsForCollection(id);
     setLessons(updated);
+  }
+
+  // While an audio lesson is transcribing in the background (#185), poll the
+  // list so the row flips to readable (or to a retryable error) on its own.
+  const hasTranscribing = lessons.some(
+    (l) => l.transcriptionStatus === 'pending' || l.transcriptionStatus === 'processing',
+  );
+  useEffect(() => {
+    if (!hasTranscribing) return;
+    const timer = setInterval(async () => {
+      try {
+        setLessons(await getLessonsForCollection(id));
+      } catch {
+        /* transient — next tick retries */
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [hasTranscribing, id]);
+
+  async function handleRetryTranscription(lessonId: string) {
+    try {
+      await retryTranscription(lessonId);
+      await refreshLessons();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not retry transcription');
+    }
   }
 
   async function handleAddLesson(data: { title: string; textContent: string }) {
@@ -265,6 +292,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
                 index={i}
                 onEdit={openEditLesson}
                 onDelete={handleDeleteLesson}
+                onRetryTranscription={handleRetryTranscription}
               />
             ))}
           </SortableContext>

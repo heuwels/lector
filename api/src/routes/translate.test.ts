@@ -24,6 +24,7 @@ const FREE: PlanLimits = {
   wordGlossesPerMonth: 1_000,
   phraseTranslationsPerDay: 10,
   contextTranslationsPerDay: 10,
+  audioTranscriptionMinutesPerMonth: 0,
 };
 
 const CLOUD: PlanLimits = {
@@ -37,6 +38,7 @@ const CLOUD: PlanLimits = {
   wordGlossesPerMonth: 10_000,
   phraseTranslationsPerDay: null,
   contextTranslationsPerDay: null,
+  audioTranscriptionMinutesPerMonth: null,
 };
 
 const PLUS: PlanLimits = {
@@ -50,6 +52,7 @@ const PLUS: PlanLimits = {
   wordGlossesPerMonth: 50_000,
   phraseTranslationsPerDay: null,
   contextTranslationsPerDay: null,
+  audioTranscriptionMinutesPerMonth: null,
 };
 
 class FakeProvider implements LLMProvider {

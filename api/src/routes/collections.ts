@@ -15,6 +15,7 @@ import {
   validatePersistedId,
 } from '../lib/storage-limits';
 import { validateOptionalLanguage, validateOwnedReference } from '../lib/persisted-input';
+import { deleteAudioFile } from '../lib/audio-files';
 
 const app = new Hono();
 
@@ -232,11 +233,30 @@ app.delete('/:id', (c) => {
   const userId = getCurrentUserId(c);
   const id = c.req.param('id');
   const lang = resolveLanguage(c.req.query('language'), userId);
+  let audioPaths: string[] = [];
   db.transaction(() => {
     const owned = db
       .prepare('SELECT 1 FROM collections WHERE id = ? AND userId = ? AND language = ?')
       .get(id, userId, lang);
     if (!owned) return;
+
+    // Audio-backed lessons (#185): collect files + cascade segments before the
+    // lesson rows disappear. SQLite can't cascade files, and FK enforcement is
+    // off app-wide, so both are manual here.
+    audioPaths = (
+      db
+        .prepare(
+          `SELECT audioPath FROM lessons
+            WHERE collectionId = ? AND userId = ? AND language = ? AND audioPath IS NOT NULL`,
+        )
+        .all(id, userId, lang) as { audioPath: string }[]
+    ).map((row) => row.audioPath);
+    db.prepare(
+      `DELETE FROM transcript_segments
+        WHERE userId = ? AND lessonId IN (
+          SELECT id FROM lessons WHERE collectionId = ? AND userId = ? AND language = ?
+        )`,
+    ).run(userId, id, userId, lang);
 
     // Vocabulary survives collection deletion. `bookId` is the legacy name
     // for its source lesson id, so clear pointers to every lesson being
@@ -265,6 +285,7 @@ app.delete('/:id', (c) => {
       lang,
     );
   })();
+  for (const audioPath of audioPaths) deleteAudioFile(audioPath);
   return c.json({ success: true });
 });
 
@@ -276,7 +297,8 @@ app.get('/:id/lessons', (c) => {
     .prepare(
       `
     SELECT id, collectionId, title, sortOrder, progress_scrollPosition,
-      progress_percentComplete, wordCount, createdAt, lastReadAt
+      progress_percentComplete, wordCount, createdAt, lastReadAt,
+      audioDurationMs, transcriptionStatus, transcriptionError
     FROM lessons
     WHERE collectionId = ? AND userId = ?
     ORDER BY sortOrder ASC

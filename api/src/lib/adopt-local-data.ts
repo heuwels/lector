@@ -64,6 +64,10 @@ export const TENANT_TABLES = [
   // Anki export queue (#241): adopted so cards queued before the switch still
   // reach the addon afterwards (rows join vocab on the same userId).
   'anki_pending',
+  // Listen-along transcript segments (#185): the audio-lesson sync data moves
+  // with its lessons. (The audio files under DATA_DIR/audio stay on disk and
+  // are keyed by lessonId, which adoption preserves.)
+  'transcript_segments',
 ] as const;
 
 export type TenantTable = (typeof TENANT_TABLES)[number];

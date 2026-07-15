@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Lesson, LessonSummary, WordState } from '@/types';
 
 /** Where a clicked word came from, when the lesson is a video transcript
@@ -23,4 +24,6 @@ export interface MarkdownReaderProps {
   knownWordsMap: Map<string, WordState>;
   prevLesson?: LessonSummary | null;
   nextLesson?: LessonSummary | null;
+  /** Extra header button(s), e.g. the listen-along toggle on audio lessons (#185). */
+  headerAction?: ReactNode;
 }

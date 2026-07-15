@@ -33,6 +33,7 @@ const LIMITS: Record<PlanId, PlanLimits> = {
     wordGlossesPerMonth: 3,
     phraseTranslationsPerDay: 2,
     contextTranslationsPerDay: 2,
+    audioTranscriptionMinutesPerMonth: 0,
   },
   cloud: {
     ...NO_STORAGE_LIMITS,
@@ -45,6 +46,7 @@ const LIMITS: Record<PlanId, PlanLimits> = {
     wordGlossesPerMonth: 4,
     phraseTranslationsPerDay: null,
     contextTranslationsPerDay: null,
+    audioTranscriptionMinutesPerMonth: null,
   },
   plus: {
     ...NO_STORAGE_LIMITS,
@@ -57,6 +59,7 @@ const LIMITS: Record<PlanId, PlanLimits> = {
     wordGlossesPerMonth: 8,
     phraseTranslationsPerDay: null,
     contextTranslationsPerDay: null,
+    audioTranscriptionMinutesPerMonth: null,
   },
 };
 

@@ -14,7 +14,7 @@ import type { LanguageConfig } from '@/lib/languages';
 import { foldWord, splitSentences } from '@/lib/languages';
 import type { WordState } from '@/types';
 import { collectWords, computePhraseHighlightSet, splitWords } from './utils';
-import { stateClasses } from './theme';
+import WordCell from '@/components/WordCell';
 
 export interface ActiveReaderWord {
   blockId: number;
@@ -111,42 +111,22 @@ const ReaderBlock = memo(function ReaderBlock({
 
         const wordIndex = context.i++;
         const state = knownWordsMap.get(foldWord(part.text, pack));
-        const colorClass = state ? stateClasses[state] : stateClasses.new;
         const isPhraseHighlighted = phraseSet.has(wordIndex);
         const isActiveWord = activeWord?.blockId === blockId && activeWord.wordIndex === wordIndex;
-        const isHighlighted = isPhraseHighlighted || isActiveWord;
 
         return (
-          <span
+          <WordCell
             key={`${keyPrefix}-${index}`}
-            data-leaf=""
-            data-testid="reader-word"
-            role="button"
-            tabIndex={0}
-            aria-label={`Look up ${part.text}`}
-            onClick={(event) => {
+            text={part.text}
+            state={state}
+            isActive={isActiveWord}
+            isPhraseHighlighted={isPhraseHighlighted}
+            onActivate={(text, element) => {
               onClearPhrase();
               onActivateWord({ blockId, wordIndex });
-              onWordClick(part.text, findSentence(event.currentTarget, pack));
+              onWordClick(text, findSentence(element, pack));
             }}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' && event.key !== ' ') return;
-              event.preventDefault();
-              onClearPhrase();
-              onActivateWord({ blockId, wordIndex });
-              onWordClick(part.text, findSentence(event.currentTarget, pack));
-            }}
-            data-phrase-highlighted={isPhraseHighlighted || undefined}
-            data-active-word={isActiveWord || undefined}
-            className={`cursor-pointer rounded-[7px] px-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${colorClass} ${isActiveWord ? 'ring-2 ring-[var(--clay)]' : ''}`}
-            style={
-              isHighlighted
-                ? { backgroundColor: 'color-mix(in srgb, var(--clay) 22%, transparent)' }
-                : undefined
-            }
-          >
-            {part.text}
-          </span>
+          />
         );
       });
     }

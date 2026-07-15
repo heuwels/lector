@@ -8,6 +8,7 @@ import type { ImportDropdownProps, ImportSource } from './types';
 
 export default function ImportDropdown({
   onFileImport,
+  onAudioImport,
   onUrlImport,
   onYouTubeImport,
   onPasteImport,
@@ -53,6 +54,7 @@ export default function ImportDropdown({
 
   const handlers: Record<ImportSource, () => void> = {
     file: onFileImport,
+    audio: onAudioImport,
     url: onUrlImport,
     youtube: onYouTubeImport,
     paste: onPasteImport,

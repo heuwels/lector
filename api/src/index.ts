@@ -41,6 +41,7 @@ import { accountStatusMiddleware } from './lib/admin';
 import { getAuthEngine, runAuthMigrations, resolveTrustedOrigins } from './lib/accounts';
 import { HTTPException } from 'hono/http-exception';
 import { startClassifyWorker } from './lib/classify-worker';
+import { startTranscribeWorker } from './lib/transcribe-worker';
 import { isByokAvailable } from './lib/byok';
 import { defaultRequestBodyLimit } from './lib/request-body-limit';
 // Aliased: this file's Bun.serve export below is also named `config`.
@@ -231,6 +232,11 @@ console.log(`Lector API running on http://localhost:${port}`);
 // CLASSIFY_WORKER=1, so it only runs where it's explicitly enabled (this Hono
 // process) and never under test/e2e.
 startClassifyWorker();
+
+// Background audio→transcript worker for podcast import (#185). No-op unless
+// TRANSCRIBE_WORKER=1 — same opt-in shape as the classifier, so it never runs
+// under test/e2e.
+startTranscribeWorker();
 
 const config = {
   port,

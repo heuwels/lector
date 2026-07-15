@@ -25,6 +25,7 @@ export default function MarkdownReader({
   knownWordsMap,
   prevLesson,
   nextLesson,
+  headerAction,
 }: MarkdownReaderProps) {
   const router = useRouter();
   const activeLang = useActiveLanguage();
@@ -246,6 +247,7 @@ export default function MarkdownReader({
         ) : (
           <div className="flex items-center gap-2 print:hidden">
             <div className="text-sm text-muted-foreground">{scrollPercentage}%</div>
+            {headerAction}
             {canEdit && (
               <button
                 onClick={startEdit}
