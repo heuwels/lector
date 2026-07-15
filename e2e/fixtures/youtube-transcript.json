@@ -1,0 +1,40 @@
+{
+  "players": {
+    "vid00000010": {
+      "videoDetails": {
+        "title": "Klein Rooikappie",
+        "author": "Storiekanaal"
+      },
+      "captions": {
+        "playerCaptionsTracklistRenderer": {
+          "captionTracks": [
+            {
+              "baseUrl": "https://www.youtube.com/api/timedtext?v=vid00000010&lang=af",
+              "name": {
+                "simpleText": "Afrikaans"
+              },
+              "languageCode": "af"
+            },
+            {
+              "baseUrl": "https://www.youtube.com/api/timedtext?v=vid00000010&lang=af&kind=asr",
+              "name": {
+                "simpleText": "Afrikaans"
+              },
+              "languageCode": "af",
+              "kind": "asr"
+            }
+          ]
+        }
+      }
+    },
+    "vid00000011": {
+      "videoDetails": {
+        "title": "Geen onderskrifte",
+        "author": "Kanaal"
+      }
+    }
+  },
+  "transcripts": {
+    "v=vid00000010": "{\"events\":[{\"tStartMs\":0,\"dDurationMs\":3000,\"segs\":[{\"utf8\":\"Eendag was daar \"},{\"utf8\":\"n dogtertjie\"}]},{\"tStartMs\":3000,\"dDurationMs\":4000,\"segs\":[{\"utf8\":\"met die rooi kappie\"}]},{\"tStartMs\":7000,\"dDurationMs\":3000,\"segs\":[{\"utf8\":\"Sy loop deur die woud\"}]}]}"
+  }
+}

@@ -7,6 +7,7 @@ import { foldWord, getLanguageConfig } from '../lib/languages';
 import {
   ankiCardToState,
   buildClozeText,
+  buildSourceLinkHtml,
   highlightWordHtml,
   splitTrailingPunctuation,
   stateRank,
@@ -167,6 +168,10 @@ interface QueueItem {
   sentence?: string;
   translation?: string;
   meaning?: string;
+  // #334 — transcript provenance for the note's Source field.
+  sourceUrl?: string;
+  clipStartMs?: number;
+  clipEndMs?: number;
 }
 
 function optionalString(value: unknown): string | null {
@@ -194,11 +199,13 @@ app.post('/queue', async (c) => {
   // Re-queue = UPDATE with a version bump (never OR REPLACE): the version is
   // what lets /ack detect that its confirmation is stale (review P1 #2).
   const upsertPending = db.prepare(`
-    INSERT INTO anki_pending (userId, vocabId, cardType, word, sentence, translation, meaning, queuedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO anki_pending (userId, vocabId, cardType, word, sentence, translation, meaning, sourceUrl, clipStartMs, clipEndMs, queuedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(userId, vocabId, cardType) DO UPDATE SET
       word = excluded.word, sentence = excluded.sentence,
       translation = excluded.translation, meaning = excluded.meaning,
+      sourceUrl = excluded.sourceUrl, clipStartMs = excluded.clipStartMs,
+      clipEndMs = excluded.clipEndMs,
       queuedAt = excluded.queuedAt, version = anki_pending.version + 1
   `);
 
@@ -212,6 +219,9 @@ app.post('/queue', async (c) => {
     sentence: string | null;
     translation: string | null;
     meaning: string | null;
+    sourceUrl: string | null;
+    clipStartMs: number | null;
+    clipEndMs: number | null;
   };
   const planned: PlannedQueueWrite[] = [];
 
@@ -225,12 +235,24 @@ app.post('/queue', async (c) => {
       });
       continue;
     }
-    const invalidOverride = (['word', 'sentence', 'translation', 'meaning'] as const).find(
+    const invalidOverride = (
+      ['word', 'sentence', 'translation', 'meaning', 'sourceUrl'] as const
+    ).find(
       (field) =>
         item[field] !== undefined && item[field] !== null && typeof item[field] !== 'string',
     );
     if (invalidOverride) {
       failed.push({ id, error: `${invalidOverride} must be a string` });
+      continue;
+    }
+    const invalidClip = (['clipStartMs', 'clipEndMs'] as const).find(
+      (field) =>
+        item[field] !== undefined &&
+        item[field] !== null &&
+        (typeof item[field] !== 'number' || !Number.isFinite(item[field]) || item[field]! < 0),
+    );
+    if (invalidClip) {
+      failed.push({ id, error: `${invalidClip} must be a non-negative number` });
       continue;
     }
 
@@ -257,6 +279,9 @@ app.post('/queue', async (c) => {
       sentence: optionalString(item.sentence),
       translation: optionalString(item.translation),
       meaning: optionalString(item.meaning),
+      sourceUrl: optionalString(item.sourceUrl),
+      clipStartMs: typeof item.clipStartMs === 'number' ? Math.floor(item.clipStartMs) : null,
+      clipEndMs: typeof item.clipEndMs === 'number' ? Math.floor(item.clipEndMs) : null,
     });
   }
 
@@ -265,7 +290,7 @@ app.post('/queue', async (c) => {
     (
       db
         .prepare(
-          `SELECT vocabId, cardType, word, sentence, translation, meaning
+          `SELECT vocabId, cardType, word, sentence, translation, meaning, sourceUrl
            FROM anki_pending WHERE userId = ?`,
         )
         .all(userId) as Array<{
@@ -275,6 +300,7 @@ app.post('/queue', async (c) => {
         sentence: string | null;
         translation: string | null;
         meaning: string | null;
+        sourceUrl: string | null;
       }>
     ).map((row) => [`${row.vocabId}\0${row.cardType}`, row]),
   );
@@ -308,6 +334,9 @@ app.post('/queue', async (c) => {
         item.sentence,
         item.translation,
         item.meaning,
+        item.sourceUrl,
+        item.clipStartMs,
+        item.clipEndMs,
         now,
       );
     }
@@ -348,7 +377,8 @@ app.get('/pending', (c) => {
     .prepare(
       `
     SELECT p.vocabId, p.cardType, p.word AS pWord, p.sentence AS pSentence,
-           p.translation AS pTranslation, p.meaning AS pMeaning, p.queuedAt, p.version,
+           p.translation AS pTranslation, p.meaning AS pMeaning,
+           p.sourceUrl, p.clipStartMs, p.clipEndMs, p.queuedAt, p.version,
            v.text, v.sentence, v.translation, v.language
     FROM anki_pending p
     JOIN vocab v ON v.userId = p.userId AND v.id = p.vocabId
@@ -364,6 +394,9 @@ app.get('/pending', (c) => {
     pSentence: string | null;
     pTranslation: string | null;
     pMeaning: string | null;
+    sourceUrl: string | null;
+    clipStartMs: number | null;
+    clipEndMs: number | null;
     queuedAt: string;
     version: number;
     text: string;
@@ -402,6 +435,13 @@ app.get('/pending', (c) => {
       clozeText,
       translation,
       meaning,
+      // #334 — render-ready Source anchor (empty for non-transcript cards). The
+      // protocol-1 downgrade step strips this for addons that predate the field.
+      source: buildSourceLinkHtml({
+        sourceUrl: row.sourceUrl,
+        clipStartMs: row.clipStartMs,
+        clipEndMs: row.clipEndMs,
+      }),
       queuedAt: row.queuedAt,
       version: row.version,
     });

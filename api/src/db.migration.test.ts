@@ -62,6 +62,12 @@ function createOldSchema(db: Database) {
       lastReadAt TEXT NOT NULL,
       language TEXT NOT NULL DEFAULT 'af',
       userId TEXT NOT NULL DEFAULT 'local',
+      -- #334 transcript columns: on a real aged DB these are ALTERed on before
+      -- migrateCompositeTenantKeys runs, so the rebuild's column-list copy can
+      -- read them. Present here to prove that copy.
+      sourceType TEXT,
+      sourceMeta TEXT,
+      segments TEXT,
       FOREIGN KEY (collectionId) REFERENCES collections(id) ON DELETE CASCADE
     );
     CREATE INDEX idx_lessons_collectionId ON lessons(collectionId);

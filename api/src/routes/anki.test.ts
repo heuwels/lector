@@ -1,6 +1,7 @@
 import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { db } from '../db';
+import { ANKI_PROTOCOL_CURRENT } from '../lib/anki-protocol';
 
 const { default: app } = await import('../routes/anki');
 
@@ -397,6 +398,41 @@ describe('GET /api/anki/pending', () => {
     expect(pending[0].translation).toBe('override-t');
   });
 
+  test('renders a Source link from transcript timestamps (#334)', async () => {
+    seedVocab('v1', 'huis', { sentence: 'Die huis is groot.' });
+    await post('/queue', {
+      items: [
+        {
+          id: 'v1',
+          cardType: 'word',
+          sourceUrl: 'https://www.youtube.com/watch?v=vid00000001',
+          clipStartMs: 72000,
+          clipEndMs: 78000,
+        },
+      ],
+    });
+
+    const { pending } = (await (
+      await app.request('/pending', {
+        headers: { 'X-Lector-Anki-Protocol': String(ANKI_PROTOCOL_CURRENT) },
+      })
+    ).json()) as { pending: Array<{ source: string }> };
+    expect(pending[0].source).toBe(
+      '<a href="https://www.youtube.com/watch?v=vid00000001&amp;t=72s">▶ 1:12–1:18</a>',
+    );
+  });
+
+  test('Source is empty for non-transcript cards', async () => {
+    seedVocab('v1', 'huis', { sentence: 'Die huis is groot.' });
+    await post('/queue', { items: [{ id: 'v1', cardType: 'basic' }] });
+    const { pending } = (await (
+      await app.request('/pending', {
+        headers: { 'X-Lector-Anki-Protocol': String(ANKI_PROTOCOL_CURRENT) },
+      })
+    ).json()) as { pending: Array<{ source: string }> };
+    expect(pending[0].source).toBe('');
+  });
+
   test('drops (and deletes) clozes invalidated after queueing; hides orphans', async () => {
     seedVocab('v1', 'huis');
     seedVocab('v2', 'groot');
@@ -669,17 +705,49 @@ describe('addon protocol handshake', () => {
   test('addon endpoints advertise the current protocol on every response', async () => {
     const pending = await app.request('/pending');
     expect(pending.status).toBe(200);
-    expect(pending.headers.get('x-lector-anki-protocol-current')).toBe('1');
+    expect(pending.headers.get('x-lector-anki-protocol-current')).toBe(
+      String(ANKI_PROTOCOL_CURRENT),
+    );
 
     const ack = await post('/ack', { results: [] });
     expect(ack.status).toBe(400); // body validation still runs under the handshake
-    expect(ack.headers.get('x-lector-anki-protocol-current')).toBe('1');
+    expect(ack.headers.get('x-lector-anki-protocol-current')).toBe(String(ANKI_PROTOCOL_CURRENT));
   });
 
   test('a header-less (pre-handshake 1.0) addon is served normally', async () => {
     const res = await app.request('/pending');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ pending: [], remaining: 0 });
+  });
+
+  test('strips the protocol-2 source field for a protocol-1 addon (#334)', async () => {
+    seedVocab('v1', 'huis', { sentence: 'Die huis is groot.' });
+    await post('/queue', {
+      items: [
+        {
+          id: 'v1',
+          cardType: 'word',
+          sourceUrl: 'https://www.youtube.com/watch?v=vid00000001',
+          clipStartMs: 1000,
+          clipEndMs: 2000,
+        },
+      ],
+    });
+
+    // Protocol 1 (or header-less): the addon has no Source field, so it must not
+    // receive one; the current (protocol 2) client does.
+    const v1 = (await (
+      await app.request('/pending', { headers: { 'X-Lector-Anki-Protocol': '1' } })
+    ).json()) as { pending: Array<Record<string, unknown>> };
+    expect('source' in v1.pending[0]).toBe(false);
+
+    const v2 = (await (
+      await app.request('/pending', {
+        headers: { 'X-Lector-Anki-Protocol': String(ANKI_PROTOCOL_CURRENT) },
+      })
+    ).json()) as { pending: Array<Record<string, unknown>> };
+    expect(typeof v2.pending[0].source).toBe('string');
+    expect(v2.pending[0].source).toContain('<a href=');
   });
 
   test('an explicit supported protocol header is served normally', async () => {

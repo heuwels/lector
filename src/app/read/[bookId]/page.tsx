@@ -25,7 +25,7 @@ import {
   markVocabPushedToAnki,
 } from '@/lib/data-layer';
 import { phraseSelectionLimitPayload, showPlanLimitToast } from '@/lib/plan-limits';
-import { addWordCard, addClozeCard } from '@/lib/anki';
+import { addWordCard, addClozeCard, buildSourceLinkHtml } from '@/lib/anki';
 import { queueForAnki } from '@/lib/anki-queue';
 import { useAnkiTransport } from '@/lib/anki-transport';
 import { translateWord, translatePhrase, streamWordGloss, enrichWord } from '@/lib/claude';
@@ -41,6 +41,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
 import { useActiveLanguage } from '@/utils/hooks';
 import { patchWordState } from '@/components/MarkdownReader/optimistic-word-state';
+import type { WordSource } from '@/components/MarkdownReader/types';
 import {
   encounteredOnboardingTerms,
   getOnboardingSnapshot,
@@ -69,6 +70,9 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   } | null>(null);
   const translationRequestId = useRef(0);
   const existingEntryLookup = useRef<Promise<VocabEntry | undefined> | null>(null);
+  // For transcript lessons (#334): the segment source of the word currently in
+  // the drawer, so a mined card can carry its timestamped YouTube link.
+  const currentWordSourceRef = useRef<WordSource | null>(null);
 
   const [wordPanel, setWordPanel] = useState<WordPanelState>({
     isOpen: false,
@@ -265,7 +269,10 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
 
   // Handle word click from reader
   const handleWordClick = useCallback(
-    async (word: string, sentence: string) => {
+    async (word: string, sentence: string, source?: WordSource) => {
+      // Remember (or clear) the transcript segment this word came from so a
+      // subsequent Anki mine can attach the timestamped source link.
+      currentWordSourceRef.current = source ?? null;
       const isPhrase = word.includes(' ');
 
       // Reflect the plan's phrase-selection cap before calling the API (#222).
@@ -867,6 +874,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       wordPanel.translation ??
       '';
     const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
+    // Transcript provenance (#334) for the current word, if it came from a video.
+    const source = currentWordSourceRef.current;
 
     const entry = await ensureVocabEntry();
 
@@ -879,7 +888,16 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       // card must show the displayed casing ("Häuser") like the AnkiConnect
       // path always has.
       const result = await queueForAnki([
-        { id: entry.id, cardType: 'word', word: wordPanel.word, translation, meaning: wordMeaning },
+        {
+          id: entry.id,
+          cardType: 'word',
+          word: wordPanel.word,
+          translation,
+          meaning: wordMeaning,
+          ...(source
+            ? { sourceUrl: source.sourceUrl, clipStartMs: source.startMs, clipEndMs: source.endMs }
+            : {}),
+        },
       ]);
       if (result.failed.length > 0) throw new Error(result.failed[0].error);
       setWordPanel((prev) => ({
@@ -891,7 +909,13 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       return;
     }
 
-    const noteId = await addWordCard(deckName, wordPanel.word, translation, wordMeaning);
+    const noteId = await addWordCard(
+      deckName,
+      wordPanel.word,
+      translation,
+      wordMeaning,
+      source ? buildSourceLinkHtml(source) : undefined,
+    );
     await markVocabPushedToAnki(entry.id, noteId);
     setWordPanel((prev) => ({
       ...prev,
@@ -905,6 +929,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     async (blankWord: string) => {
       const { cloze: clozeDeck } = getAnkiDecks();
       const translation = wordPanel.aiContextTranslation ?? wordPanel.translation ?? '';
+      const source = currentWordSourceRef.current;
 
       const entry = await ensureVocabEntry();
 
@@ -920,6 +945,13 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
             sentence: wordPanel.word,
             translation,
             meaning: translation,
+            ...(source
+              ? {
+                  sourceUrl: source.sourceUrl,
+                  clipStartMs: source.startMs,
+                  clipEndMs: source.endMs,
+                }
+              : {}),
           },
         ]);
         if (result.failed.length > 0) throw new Error(result.failed[0].error);
@@ -938,6 +970,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         blankWord,
         translation,
         translation,
+        source ? buildSourceLinkHtml(source) : undefined,
       );
       await markVocabPushedToAnki(entry.id, noteId);
       setWordPanel((prev) => ({

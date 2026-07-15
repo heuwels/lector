@@ -9,6 +9,7 @@ import type { ImportDropdownProps, ImportSource } from './types';
 export default function ImportDropdown({
   onFileImport,
   onUrlImport,
+  onYouTubeImport,
   onPasteImport,
   disabled = false,
   isImporting = false,
@@ -53,6 +54,7 @@ export default function ImportDropdown({
   const handlers: Record<ImportSource, () => void> = {
     file: onFileImport,
     url: onUrlImport,
+    youtube: onYouTubeImport,
     paste: onPasteImport,
   };
 
