@@ -62,6 +62,32 @@ export function transcriptMarkdown(result: TranscriptionResult): string {
   return normalizeText(paragraphs.join('\n\n'));
 }
 
+/** A real speaker repeats a line at most a couple of times in a row; more is
+ * the decoder looping. */
+const MAX_CONSECUTIVE_REPEATS = 2;
+
+/**
+ * Collapse Whisper repetition loops: on non-speech stretches (music, long
+ * silence) the decoder re-emits its last hypothesis over and over, yielding
+ * runs of a dozen identical segments. Keep at most two consecutive copies and
+ * drop the rest — the dropped span simply keeps the previous line highlighted
+ * during playback, which is what that stretch of audio actually is. Applies
+ * to any backend (local whisper.cpp, Speaches, Groq); server-side VAD reduces
+ * the artifact but can't be assumed.
+ */
+export function collapseRepeatedSegments(
+  segments: TranscriptionResult['segments'],
+): TranscriptionResult['segments'] {
+  const kept: TranscriptionResult['segments'] = [];
+  let run = 0;
+  for (const segment of segments) {
+    const previous = kept[kept.length - 1];
+    run = previous && previous.text.trim() === segment.text.trim() ? run + 1 : 1;
+    if (run <= MAX_CONSECUTIVE_REPEATS) kept.push(segment);
+  }
+  return kept;
+}
+
 /**
  * Boot-time janitor: any lesson stuck in 'processing' was orphaned by a crash
  * or sleep mid-job — reset it so the loop picks it up again. Its attempt was
@@ -107,8 +133,12 @@ function markError(database: Database, row: PendingTranscription, message: strin
 export function applyTranscript(
   database: Database,
   row: PendingTranscription,
-  result: TranscriptionResult,
+  rawResult: TranscriptionResult,
 ): void {
+  const result: TranscriptionResult = {
+    ...rawResult,
+    segments: collapseRepeatedSegments(rawResult.segments),
+  };
   const text = transcriptMarkdown(result);
   const insertSegment = database.prepare(
     'INSERT INTO transcript_segments (userId, lessonId, idx, startMs, endMs, text) VALUES (?, ?, ?, ?, ?, ?)',

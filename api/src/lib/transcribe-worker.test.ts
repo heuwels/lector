@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   applyTranscript,
+  collapseRepeatedSegments,
   resetStaleTranscriptions,
   selectNextPending,
   transcribeNextPending,
@@ -124,6 +125,53 @@ describe('transcriptMarkdown', () => {
 
   test('falls back to the flat text when the backend returned no segments', () => {
     expect(transcriptMarkdown({ text: 'Net plat teks.', segments: [] })).toBe('Net plat teks.');
+  });
+});
+
+describe('collapseRepeatedSegments', () => {
+  const seg = (idx: number, text: string) => ({
+    startMs: idx * 1000,
+    endMs: (idx + 1) * 1000,
+    text,
+  });
+
+  test('caps a Whisper repetition loop at two consecutive copies', () => {
+    const looped = [
+      seg(0, 'Eerste sin.'),
+      ...Array.from({ length: 12 }, (_, i) => seg(i + 1, 'Muziek in die are.')),
+      seg(13, 'Laaste sin.'),
+    ];
+    const kept = collapseRepeatedSegments(looped);
+    expect(kept.map((s) => s.text)).toEqual([
+      'Eerste sin.',
+      'Muziek in die are.',
+      'Muziek in die are.',
+      'Laaste sin.',
+    ]);
+  });
+
+  test('leaves genuine (non-consecutive) repeats and short runs alone', () => {
+    const segments = [seg(0, 'My God!'), seg(1, 'Wat nou?'), seg(2, 'My God!'), seg(3, 'My God!')];
+    expect(collapseRepeatedSegments(segments)).toEqual(segments);
+  });
+
+  test('applyTranscript stores the collapsed segments, not the raw loop', () => {
+    const id = insertLesson(db);
+    const row = selectNextPending(db) as PendingTranscription;
+    applyTranscript(db, row, {
+      text: 'unused',
+      segments: [
+        seg(0, 'Sin.'),
+        seg(1, 'Loop.'),
+        seg(2, 'Loop.'),
+        seg(3, 'Loop.'),
+        seg(4, 'Loop.'),
+      ],
+    });
+    const count = db
+      .prepare('SELECT COUNT(*) AS n FROM transcript_segments WHERE lessonId = ?')
+      .get(id) as { n: number };
+    expect(count.n).toBe(3);
   });
 });
 
