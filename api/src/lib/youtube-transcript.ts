@@ -221,6 +221,24 @@ export function extractCaptionTracks(player: unknown): CaptionTrack[] {
   return out;
 }
 
+/**
+ * Read `playabilityStatus` from a player response. When captions are missing,
+ * this tells a genuinely caption-less video (status `OK`) apart from YouTube
+ * declining the request — e.g. `LOGIN_REQUIRED` "Sign in to confirm you're not
+ * a bot", which datacenter/cloud IPs get and residential IPs don't (#334).
+ */
+export function extractPlayabilityStatus(player: unknown): {
+  status: string | null;
+  reason: string | null;
+} {
+  const ps = (player as { playabilityStatus?: { status?: unknown; reason?: unknown } })
+    ?.playabilityStatus;
+  return {
+    status: typeof ps?.status === 'string' ? ps.status : null,
+    reason: typeof ps?.reason === 'string' ? ps.reason : null,
+  };
+}
+
 /** Pull title/channel out of a parsed player response. */
 export function extractVideoMeta(player: unknown, videoId: string): VideoMeta {
   const details = (player as { videoDetails?: { title?: unknown; author?: unknown } })
