@@ -71,6 +71,11 @@ import { Construct } from 'constructs';
  *   /lector/canary/admin-emails        String        optional — LECTOR_ADMIN_EMAILS (comma-separated admin-dashboard operators, #221)
  *   /lector/canary/sentry-dsn          String        optional — SENTRY_DSN (error tracking + tracing, API + browser; public DSN; unset = off)
  *   /lector/canary/sentry-traces-sample-rate String  optional — SENTRY_TRACES_SAMPLE_RATE (0–1, server/API only; 0 = errors only)
+ *   /lector/canary/transcribe-worker   String        optional — TRANSCRIBE_WORKER ("1" boots the audio-transcription drain loop, #185)
+ *   /lector/canary/asr-url             String        optional — ASR_URL (OpenAI-compatible transcription endpoint; hosted boxes use a hosted ASR — OpenRouter "https://openrouter.ai/api" (reuse the deployment key) or Groq "https://api.groq.com/openai". Never run Whisper on the instance.)
+ *   /lector/canary/asr-api-key         SecureString  optional — ASR_API_KEY (bearer for the ASR endpoint; for OpenRouter, the same value as openrouter-api-key)
+ *   /lector/canary/asr-model           String        optional — ASR_MODEL (default whisper-large-v3; OpenRouter uses "openai/whisper-large-v3")
+ *   /lector/canary/asr-max-bytes       String        optional — ASR_MAX_BYTES (provider multipart cap; OpenRouter and Groq free tier: 26214400)
  *   /lector/canary/ghcr-token          SecureString  optional — only if the ghcr package goes private again
  */
 
@@ -348,6 +353,13 @@ put BILLING_EXEMPT_EMAILS billing-exempt-emails
 put LECTOR_ADMIN_EMAILS   admin-emails
 put SENTRY_DSN            sentry-dsn
 put SENTRY_TRACES_SAMPLE_RATE sentry-traces-sample-rate
+# Audio-lesson transcription (#185): worker gate + external OpenAI-compatible
+# ASR endpoint (Groq on hosted boxes — never run Whisper on the instance).
+put TRANSCRIBE_WORKER     transcribe-worker
+put ASR_URL               asr-url
+put ASR_API_KEY           asr-api-key
+put ASR_MODEL             asr-model
+put ASR_MAX_BYTES         asr-max-bytes
 mv "$TMP" "$ENVFILE"
 if ! grep -q "^TUNNEL_TOKEN=" "$ENVFILE"; then
   echo "WARNING: __PARAM_PREFIX__/tunnel-token is missing - cloudflared will crash-loop until it exists (put the parameter, then run /srv/lector/update.sh)" >&2
