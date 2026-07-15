@@ -164,6 +164,23 @@ describe('POST /resolve', () => {
     expect(await res.json()).toMatchObject({ code: 'NO_CAPTIONS' });
   });
 
+  test('reports BLOCKED (not NO_CAPTIONS) when YouTube challenges the request', async () => {
+    // The datacenter-IP bot block (#334): captions are absent but the real
+    // cause is a login/bot challenge, so we must not blame the video.
+    const blocked = {
+      videoDetails: { title: 'x', author: 'y' },
+      playabilityStatus: {
+        status: 'LOGIN_REQUIRED',
+        reason: "Sign in to confirm you're not a bot",
+      },
+    };
+    const res = await post(makeApp({ player: blocked }), '/resolve', { url: VIDEO_URL });
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.code).toBe('BLOCKED');
+    expect(body.error).toContain('Sign in to confirm');
+  });
+
   test('maps an upstream non-200 to FETCH_FAILED', async () => {
     const res = await post(makeApp({ playerStatus: 429 }), '/resolve', { url: VIDEO_URL });
     expect(res.status).toBe(400);
