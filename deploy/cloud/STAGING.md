@@ -71,6 +71,16 @@ Optional staging-only values follow the production suffixes in `README.md`, incl
 Plus prices, Resend, Turnstile, LLM/TTS keys, exempt accounts, and Sentry. The stack
 sets `SENTRY_ENVIRONMENT=staging`; production sets `production`.
 
+To enable audio transcription (podcast import, #185), set `transcribe-worker=1`,
+`asr-url=https://openrouter.ai/api`, `asr-model=openai/whisper-large-v3`,
+`asr-max-bytes=26214400` (OpenRouter's multipart cap), and `asr-api-key`
+(SecureString — for OpenRouter, the same value as `openrouter-api-key`; the
+seam stays separate so a dedicated ASR vendor is a param flip). Groq direct
+(`asr-url=https://api.groq.com/openai`, bare `whisper-large-v3`) returns
+noticeably finer segment timestamps — better shadowing granularity — if a Groq
+key is available. Hosted boxes always use an external ASR endpoint — never run
+Whisper on the instance (it would pin the burstable CPUs the app shares).
+
 To exercise Free in staging, add `/lector/staging/free-tier-enabled` as exact
 lowercase `true` only after both Turnstile parameters, the Google TTS key for
 the paid managed-voice upsell, the OpenRouter key,
