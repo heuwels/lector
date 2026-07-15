@@ -42,9 +42,9 @@ FIELD_MAP = {
     # card type → note field → pending-item key. sentenceHtml arrives
     # pre-bolded from the server (same rendering the browser path produced);
     # word cards leave Sentence empty so the template's word-only front shows.
-    "basic": {"Word": "word", "Sentence": "sentenceHtml", "Translation": "translation", "Meaning": "meaning"},
-    "word": {"Word": "word", "Sentence": "", "Translation": "translation", "Meaning": "meaning"},
-    "cloze": {"Text": "clozeText", "Word": "word", "Translation": "translation", "Meaning": "meaning"},
+    "basic": {"Word": "word", "Sentence": "sentenceHtml", "Translation": "translation", "Meaning": "meaning", "Source": "source"},
+    "word": {"Word": "word", "Sentence": "", "Translation": "translation", "Meaning": "meaning", "Source": "source"},
+    "cloze": {"Text": "clozeText", "Word": "word", "Translation": "translation", "Meaning": "meaning", "Source": "source"},
 }
 
 

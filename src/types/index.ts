@@ -39,6 +39,27 @@ export interface CollectionGroup {
   collectionCount?: number;
 }
 
+/** One timestamped transcript cue for a YouTube-imported lesson (#334). */
+export interface TranscriptSegment {
+  /** Seconds from the start of the video. */
+  start: number;
+  /** Seconds from the start of the video. */
+  end: number;
+  text: string;
+}
+
+/** Provenance for a YouTube-imported lesson (#334), stored as JSON on the row. */
+export interface YouTubeSourceMeta {
+  videoId: string;
+  sourceUrl: string;
+  channel: string;
+  videoTitle: string;
+  captionLanguage: string;
+  captionLanguageName?: string;
+  captionKind: 'standard' | 'asr';
+  importedAt: string;
+}
+
 export interface Lesson {
   id: string;
   collectionId: string | null;
@@ -49,6 +70,12 @@ export interface Lesson {
   progress_percentComplete: number;
   wordCount: number;
   language?: string;
+  /** 'youtube' for imported transcripts; null/undefined for markdown lessons. */
+  sourceType?: string | null;
+  /** JSON string of {@link YouTubeSourceMeta} when sourceType is 'youtube'. */
+  sourceMeta?: string | null;
+  /** JSON string of {@link TranscriptSegment}[] when sourceType is 'youtube'. */
+  segments?: string | null;
   createdAt: string;
   lastReadAt: string;
 }
@@ -83,7 +110,7 @@ export interface VocabEntry {
 }
 
 export interface KnownWord {
-  word: string;  // lowercase, normalized - primary key
+  word: string; // lowercase, normalized - primary key
   state: WordState;
   // Topic-domain key for the fluency radar (e.g. 'food'), 'general', or
   // undefined when not yet classified by the background word-classifier.
@@ -112,7 +139,7 @@ export interface ClozeSentence {
 }
 
 export interface DailyStats {
-  date: string;  // YYYY-MM-DD, primary key
+  date: string; // YYYY-MM-DD, primary key
   wordsRead: number;
   newWordsSaved: number;
   wordsMarkedKnown: number;
@@ -126,6 +153,6 @@ export interface DailyStats {
 }
 
 export interface Settings {
-  key: string;  // primary key
+  key: string; // primary key
   value: unknown;
 }

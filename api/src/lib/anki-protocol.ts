@@ -6,7 +6,7 @@
 // raise ANKI_PROTOCOL_MIN and old addons get a 426 whose message they surface
 // verbatim. Mirrored by PROTOCOL in anki-addon/lector/api.py — bump together.
 
-export const ANKI_PROTOCOL_CURRENT = 1;
+export const ANKI_PROTOCOL_CURRENT = 2;
 export const ANKI_PROTOCOL_MIN = 1;
 export const ANKI_PROTOCOL_HEADER = 'x-lector-anki-protocol';
 export const ANKI_PROTOCOL_CURRENT_HEADER = 'x-lector-anki-protocol-current';
@@ -19,15 +19,35 @@ declare module 'hono' {
 
 // One entry per protocol step, keyed by the OLDER version: `request` lifts a
 // v-shaped request body to v+1, `response` lowers a (v+1)-shaped response body
-// back to v. Missing entries are identity. Empty today — protocol 1 is
-// current; when protocol 2 changes a shape, add `1: { … }` here instead of
-// breaking shipped addons.
+// back to v. Missing entries are identity.
 export interface AnkiProtocolStep {
   request?: (path: string, body: unknown) => unknown;
   response?: (path: string, body: unknown) => unknown;
 }
 
-export const ANKI_PROTOCOL_STEPS: Record<number, AnkiProtocolStep> = {};
+export const ANKI_PROTOCOL_STEPS: Record<number, AnkiProtocolStep> = {
+  // 1 → 2 (#334): protocol 2 adds a `source` field to each /pending item (a
+  // render-ready link back to a video transcript's timestamp). A protocol-1
+  // addon has no Source note field, so lower the response by dropping it — the
+  // shipped addon keeps working, just without the extra field.
+  1: {
+    response(path, body) {
+      if (path !== '/pending') return body;
+      const b = body as { pending?: unknown };
+      if (!b || !Array.isArray(b.pending)) return body;
+      return {
+        ...b,
+        pending: b.pending.map((item) => {
+          if (item && typeof item === 'object' && 'source' in item) {
+            const { source: _source, ...rest } = item as Record<string, unknown>;
+            return rest;
+          }
+          return item;
+        }),
+      };
+    },
+  },
+};
 
 export function parseAnkiProtocol(header: string | undefined | null): number {
   if (header === undefined || header === null || header.trim() === '') return 1;

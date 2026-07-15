@@ -12,6 +12,7 @@ A self-hosted and cloud language learning reader — LingQ-style reading, Clozem
 - **Vocabulary mining** — save words from reading, track known/learning states
 - **AnkiConnect** — push cards directly to your local Anki (browser-to-localhost, no proxy)
 - **Web/paste import** — extract articles via Readability, paste text directly
+- **YouTube transcript import** — turn a video's captions into a lesson with clickable, seekable timestamps; the video is never downloaded or hosted, and mined cards carry a timestamped source link into Anki
 - **SQLite storage** — all data local, no cloud dependency
 
 ## Getting Started

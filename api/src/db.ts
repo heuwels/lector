@@ -58,6 +58,16 @@ function getDb(): Database {
       progress_scrollPosition INTEGER DEFAULT 0,
       progress_percentComplete REAL DEFAULT 0,
       wordCount INTEGER DEFAULT 0,
+      -- Non-text lesson kinds (#334). sourceType NULL = an ordinary markdown
+      -- lesson; 'youtube' = an imported transcript whose timestamped cues live
+      -- in the segments JSON column (an array of start/end/text) and whose
+      -- provenance (video id, URL, channel, caption language/kind, importedAt)
+      -- lives in the sourceMeta JSON column. textContent still holds the
+      -- flattened readable text so the whole existing reader/vocab/wordCount
+      -- pipeline works unchanged.
+      sourceType TEXT,
+      sourceMeta TEXT,
+      segments TEXT,
       createdAt TEXT NOT NULL,
       lastReadAt TEXT NOT NULL,
       FOREIGN KEY (collectionId) REFERENCES collections(id) ON DELETE CASCADE
@@ -372,6 +382,14 @@ function getDb(): Database {
       sentence TEXT,
       translation TEXT,
       meaning TEXT,
+      -- Video-lesson provenance (#334): when a card is mined from a YouTube
+      -- transcript segment these carry the source watch URL and the segment's
+      -- start/end (ms), so /pending can render a "Source" field linking back to
+      -- the exact moment. NULL for every ordinary card. This is the MVP
+      -- "timestamp/link" fallback — no audio is downloaded.
+      sourceUrl TEXT,
+      clipStartMs INTEGER,
+      clipEndMs INTEGER,
       queuedAt TEXT NOT NULL,
       version INTEGER NOT NULL DEFAULT 1,
       PRIMARY KEY (userId, vocabId, cardType)
@@ -449,6 +467,32 @@ function getDb(): Database {
   }
   if (!collectionCols.some((col) => col.name === 'sortOrder')) {
     _db.exec('ALTER TABLE collections ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0');
+  }
+
+  // lessons transcript columns (#334). Added before migrateCompositeTenantKeys
+  // so an aged DB has them when that rebuild's column-list copy runs (the
+  // rebuild's lessons_new DDL includes them). A DB already rebuilt to the
+  // composite PK skips the rebuild, so this ALTER is what adds them there.
+  const lessonCols = _db.prepare('PRAGMA table_info(lessons)').all() as { name: string }[];
+  if (lessonCols.length > 0) {
+    if (!lessonCols.some((c) => c.name === 'sourceType'))
+      _db.exec('ALTER TABLE lessons ADD COLUMN sourceType TEXT');
+    if (!lessonCols.some((c) => c.name === 'sourceMeta'))
+      _db.exec('ALTER TABLE lessons ADD COLUMN sourceMeta TEXT');
+    if (!lessonCols.some((c) => c.name === 'segments'))
+      _db.exec('ALTER TABLE lessons ADD COLUMN segments TEXT');
+  }
+
+  // anki_pending source-provenance columns (#334). anki_pending is not part of
+  // the composite-PK rebuild, so a guarded ALTER is the whole migration.
+  const ankiSourceCols = _db.prepare('PRAGMA table_info(anki_pending)').all() as { name: string }[];
+  if (ankiSourceCols.length > 0) {
+    if (!ankiSourceCols.some((c) => c.name === 'sourceUrl'))
+      _db.exec('ALTER TABLE anki_pending ADD COLUMN sourceUrl TEXT');
+    if (!ankiSourceCols.some((c) => c.name === 'clipStartMs'))
+      _db.exec('ALTER TABLE anki_pending ADD COLUMN clipStartMs INTEGER');
+    if (!ankiSourceCols.some((c) => c.name === 'clipEndMs'))
+      _db.exec('ALTER TABLE anki_pending ADD COLUMN clipEndMs INTEGER');
   }
 
   migrateVocabForeignKey(_db);
@@ -808,6 +852,9 @@ export function migrateCompositeTenantKeys(database: Database) {
           progress_scrollPosition INTEGER DEFAULT 0,
           progress_percentComplete REAL DEFAULT 0,
           wordCount INTEGER DEFAULT 0,
+          sourceType TEXT,
+          sourceMeta TEXT,
+          segments TEXT,
           language TEXT NOT NULL DEFAULT 'af',
           createdAt TEXT NOT NULL,
           lastReadAt TEXT NOT NULL,
@@ -824,6 +871,9 @@ export function migrateCompositeTenantKeys(database: Database) {
         'progress_scrollPosition',
         'progress_percentComplete',
         'wordCount',
+        'sourceType',
+        'sourceMeta',
+        'segments',
         'language',
         'createdAt',
         'lastReadAt',
@@ -1539,6 +1589,11 @@ export interface LessonRow {
   progress_scrollPosition: number;
   progress_percentComplete: number;
   wordCount: number;
+  // #334 — NULL for ordinary markdown lessons; 'youtube' for imported
+  // transcripts. `sourceMeta`/`segments` are JSON strings (see the table DDL).
+  sourceType: string | null;
+  sourceMeta: string | null;
+  segments: string | null;
   createdAt: string;
   lastReadAt: string;
 }
@@ -1578,6 +1633,11 @@ export interface AnkiPendingRow {
   sentence: string | null;
   translation: string | null;
   meaning: string | null;
+  // #334 — source watch URL + segment start/end (ms) for cards mined from a
+  // video transcript; NULL otherwise.
+  sourceUrl: string | null;
+  clipStartMs: number | null;
+  clipEndMs: number | null;
   queuedAt: string;
   version: number;
 }

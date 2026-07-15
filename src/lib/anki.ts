@@ -73,7 +73,13 @@ interface CardInfo {
 
 // Rank used for upgrade-only sync (ignored shares known's rank so it is never overridden).
 const STATE_RANK: Record<WordState, number> = {
-  new: 0, level1: 1, level2: 2, level3: 3, level4: 4, known: 5, ignored: 5,
+  new: 0,
+  level1: 1,
+  level2: 2,
+  level3: 3,
+  level4: 4,
+  known: 5,
+  ignored: 5,
 };
 
 /**
@@ -103,10 +109,14 @@ export function ankiCardToState(type: number, interval: number): WordState | nul
  */
 export function findNewAnkiWords(
   existingEntries: ReadonlyArray<{ text: string }>,
-  ankiStates: ReadonlyMap<string, { type: number; interval: number; sentence: string; translation: string }>,
+  ankiStates: ReadonlyMap<
+    string,
+    { type: number; interval: number; sentence: string; translation: string }
+  >,
 ): Array<{ text: string; state: WordState; sentence: string; translation: string }> {
   const existingWords = new Set(existingEntries.map((e) => e.text.toLowerCase()));
-  const newWords: Array<{ text: string; state: WordState; sentence: string; translation: string }> = [];
+  const newWords: Array<{ text: string; state: WordState; sentence: string; translation: string }> =
+    [];
   for (const [word, data] of ankiStates) {
     if (existingWords.has(word)) continue;
     const state = ankiCardToState(data.type, data.interval);
@@ -149,10 +159,7 @@ export function reconcileAnkiStates(
 /**
  * Make a request directly to AnkiConnect on localhost
  */
-async function ankiRequest<T>(
-  action: string,
-  params?: Record<string, unknown>
-): Promise<T> {
+async function ankiRequest<T>(action: string, params?: Record<string, unknown>): Promise<T> {
   const url = await getAnkiUrl();
   const response = await fetch(url, {
     method: 'POST',
@@ -203,7 +210,7 @@ export async function getDeckNames(): Promise<string[]> {
  * @param deckName - Name of the deck to create
  */
 async function ensureDeckExists(deckName: string): Promise<void> {
-  await ankiRequest("createDeck", { deck: deckName });
+  await ankiRequest('createDeck', { deck: deckName });
 }
 
 /**
@@ -220,7 +227,7 @@ export async function addBasicCard(
   sentence: string,
   targetWord: string,
   translation: string,
-  wordMeaning: string
+  wordMeaning: string,
 ): Promise<number> {
   console.log(`[Anki] Adding basic card to deck "${deckName}" for word "${targetWord}"`);
 
@@ -236,14 +243,14 @@ export async function addBasicCard(
   // and happily highlighted embedded fragments; the lookarounds treat any
   // letter/digit neighbor as word-internal, in every script.
   const highlightedSentence = sentence.replace(
-    new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(cleanTarget)})(?![\\p{L}\\p{N}_])`, "giu"),
-    "<b>$1</b>"
+    new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(cleanTarget)})(?![\\p{L}\\p{N}_])`, 'giu'),
+    '<b>$1</b>',
   );
 
-  const noteId = await ankiRequest<number | null>("addNote", {
+  const noteId = await ankiRequest<number | null>('addNote', {
     note: {
       deckName,
-      modelName: "Basic",
+      modelName: 'Basic',
       fields: {
         Front: `${highlightedSentence}<br><br><small>Word: <b>${cleanTarget}</b></small>`,
         Back: `${translation}<br><br><b>${cleanTarget}</b> = ${wordMeaning}`,
@@ -251,13 +258,15 @@ export async function addBasicCard(
       options: {
         allowDuplicate: true, // Allow duplicates - same word from different sentences is fine
       },
-      tags: ["lector", "vocabulary"],
+      tags: ['lector', 'vocabulary'],
     },
   });
 
   // AnkiConnect returns null if the note couldn't be added
   if (noteId === null) {
-    throw new Error("Failed to add note - check that 'Basic' note type exists with 'Front' and 'Back' fields");
+    throw new Error(
+      "Failed to add note - check that 'Basic' note type exists with 'Front' and 'Back' fields",
+    );
   }
 
   console.log(`[Anki] Successfully added basic note with ID: ${noteId}`);
@@ -274,9 +283,11 @@ export async function addWordCard(
   targetWord: string,
   translation: string,
   wordMeaning: string,
+  sourceHtml?: string,
 ): Promise<number> {
   await ensureDeckExists(deckName);
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
+  const sourceLine = sourceHtml ? `<br><br><small>${sourceHtml}</small>` : '';
 
   const noteId = await ankiRequest<number | null>('addNote', {
     note: {
@@ -284,7 +295,7 @@ export async function addWordCard(
       modelName: 'Basic',
       fields: {
         Front: `<b>${cleanTarget}</b>`,
-        Back: `${translation}<br><br><b>${cleanTarget}</b> = ${wordMeaning}`,
+        Back: `${translation}<br><br><b>${cleanTarget}</b> = ${wordMeaning}${sourceLine}`,
       },
       options: { allowDuplicate: true },
       tags: ['lector', 'vocabulary'],
@@ -311,8 +322,8 @@ export async function addWordCard(
 export function buildClozeText(sentence: string, targetWord: string): string {
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
   return sentence.replace(
-    new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(cleanTarget)})(?![\\p{L}\\p{N}_])`, "giu"),
-    "{{c1::$1}}"
+    new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(cleanTarget)})(?![\\p{L}\\p{N}_])`, 'giu'),
+    '{{c1::$1}}',
   );
 }
 
@@ -330,7 +341,8 @@ export async function addClozeCard(
   sentence: string,
   targetWord: string,
   translation: string,
-  wordMeaning: string
+  wordMeaning: string,
+  sourceHtml?: string,
 ): Promise<number> {
   console.log(`[Anki] Adding cloze card to deck "${deckName}" for word "${targetWord}"`);
 
@@ -338,6 +350,7 @@ export async function addClozeCard(
 
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
   const clozeText = buildClozeText(sentence, targetWord);
+  const sourceLine = sourceHtml ? `<br><br><small>${sourceHtml}</small>` : '';
 
   // A note without a {{c1::…}} blank is invalid — fail with a clear message
   // instead of letting AnkiConnect reject it opaquely.
@@ -347,24 +360,26 @@ export async function addClozeCard(
 
   console.log(`[Anki] Cloze text: ${clozeText}`);
 
-  const noteId = await ankiRequest<number | null>("addNote", {
+  const noteId = await ankiRequest<number | null>('addNote', {
     note: {
       deckName,
-      modelName: "Cloze",
+      modelName: 'Cloze',
       fields: {
         Text: `${clozeText}<br><br><small>Translation: ${translation}</small>`,
-        Extra: `<b>${cleanTarget}</b> = ${wordMeaning}`,
+        Extra: `<b>${cleanTarget}</b> = ${wordMeaning}${sourceLine}`,
       },
       options: {
         allowDuplicate: true, // Allow duplicates - user may want the same word from different sentences
       },
-      tags: ["lector", "vocabulary", "cloze"],
+      tags: ['lector', 'vocabulary', 'cloze'],
     },
   });
 
   // AnkiConnect returns null if the note couldn't be added
   if (noteId === null) {
-    throw new Error("Failed to add note - check that 'Cloze' note type exists with 'Text' and 'Extra' fields");
+    throw new Error(
+      "Failed to add note - check that 'Cloze' note type exists with 'Text' and 'Extra' fields",
+    );
   }
 
   console.log(`[Anki] Successfully added note with ID: ${noteId}`);
@@ -373,7 +388,10 @@ export async function addClozeCard(
 
 /** Strip HTML tags and trim whitespace. */
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -429,11 +447,14 @@ function extractTranslation(backField: string, textField: string, extraField: st
  * from, producing junk imports.
  */
 export async function syncWordStates(): Promise<
-  Map<string, { interval: number; type: number; sentence: string; translation: string; deckName: string }>
+  Map<
+    string,
+    { interval: number; type: number; sentence: string; translation: string; deckName: string }
+  >
 > {
-  const query = "(tag:lector OR tag:afrikaans-reader)";
+  const query = '(tag:lector OR tag:afrikaans-reader)';
   console.log(`Anki sync query: ${query}`);
-  const cardIds = await ankiRequest<number[]>("findCards", { query });
+  const cardIds = await ankiRequest<number[]>('findCards', { query });
   console.log(`Found ${cardIds.length} cards in Anki`);
 
   if (cardIds.length === 0) {
@@ -441,12 +462,15 @@ export async function syncWordStates(): Promise<
   }
 
   // Get card info
-  const cardsInfo = await ankiRequest<CardInfo[]>("cardsInfo", {
+  const cardsInfo = await ankiRequest<CardInfo[]>('cardsInfo', {
     cards: cardIds,
   });
 
   // Build a map of word -> { type, interval, sentence, translation, deckName }
-  const wordStates = new Map<string, { interval: number; type: number; sentence: string; translation: string; deckName: string }>();
+  const wordStates = new Map<
+    string,
+    { interval: number; type: number; sentence: string; translation: string; deckName: string }
+  >();
 
   for (const card of cardsInfo) {
     // Extract the target word. Try in order:
@@ -457,11 +481,11 @@ export async function syncWordStates(): Promise<
 
     let word: string | null = null;
 
-    const frontField = card.fields["Front"]?.value || "";
-    const textField = card.fields["Text"]?.value || "";
-    const backField = card.fields["Back"]?.value || "";
-    const extraField = card.fields["Extra"]?.value || "";
-    const wordField = card.fields["Word"]?.value || "";
+    const frontField = card.fields['Front']?.value || '';
+    const textField = card.fields['Text']?.value || '';
+    const backField = card.fields['Back']?.value || '';
+    const extraField = card.fields['Extra']?.value || '';
+    const wordField = card.fields['Word']?.value || '';
 
     const boldMatch = (frontField || textField).match(/<b>([^<]+)<\/b>/);
     if (boldMatch) {
@@ -491,9 +515,7 @@ export async function syncWordStates(): Promise<
         // Keep the card that maps to the highest lector state (dedup by rank).
         const existing = wordStates.get(word);
         const cardRank = STATE_RANK[cardState];
-        const existingState = existing
-          ? ankiCardToState(existing.type, existing.interval)
-          : null;
+        const existingState = existing ? ankiCardToState(existing.type, existing.interval) : null;
         const existingRank = existingState ? STATE_RANK[existingState] : -1;
         if (cardRank > existingRank) {
           wordStates.set(word, {
@@ -508,8 +530,10 @@ export async function syncWordStates(): Promise<
     }
   }
 
-  console.log(`Extracted ${wordStates.size} unique words from Anki cards:`,
-    Array.from(wordStates.keys()).slice(0, 10).join(', ') + (wordStates.size > 10 ? '...' : ''));
+  console.log(
+    `Extracted ${wordStates.size} unique words from Anki cards:`,
+    Array.from(wordStates.keys()).slice(0, 10).join(', ') + (wordStates.size > 10 ? '...' : ''),
+  );
   return wordStates;
 }
 
@@ -517,5 +541,57 @@ export async function syncWordStates(): Promise<
  * Escape special regex characters in a string
  */
 function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** mm:ss / h:mm:ss label for a millisecond offset (#334). Mirrors
+ *  formatClipTimestamp in api/src/lib/anki.ts. */
+export function formatClipTimestamp(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const seconds = s % 60;
+  const two = (n: number) => String(n).padStart(2, '0');
+  return hours > 0 ? `${hours}:${two(minutes)}:${two(seconds)}` : `${minutes}:${two(seconds)}`;
+}
+
+function escapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Render the Anki "Source" line for a card mined from a video transcript
+ * (#334): a link to the source video at the segment start, labelled with the
+ * segment's start–end. Mirrors buildSourceLinkHtml in api/src/lib/anki.ts (the
+ * selfhost browser→AnkiConnect path builds the card HTML client-side). Returns
+ * '' when there is no usable source URL.
+ */
+export function buildSourceLinkHtml(source: {
+  sourceUrl?: string | null;
+  startMs?: number | null;
+  endMs?: number | null;
+}): string {
+  const raw = typeof source.sourceUrl === 'string' ? source.sourceUrl.trim() : '';
+  if (!raw) return '';
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return '';
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+  const start = typeof source.startMs === 'number' && source.startMs >= 0 ? source.startMs : null;
+  const end = typeof source.endMs === 'number' && source.endMs >= 0 ? source.endMs : null;
+  if (start !== null) url.searchParams.set('t', `${Math.floor(start / 1000)}s`);
+  const range =
+    start !== null && end !== null
+      ? `${formatClipTimestamp(start)}–${formatClipTimestamp(end)}`
+      : start !== null
+        ? formatClipTimestamp(start)
+        : 'Source';
+  return `<a href="${escapeHtmlAttr(url.toString())}">▶ ${range}</a>`;
 }

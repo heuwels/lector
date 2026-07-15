@@ -61,12 +61,14 @@ export function ankiPendingContentBytes(input: {
   sentence?: unknown;
   translation?: unknown;
   meaning?: unknown;
+  sourceUrl?: unknown;
 }): number {
   return (
     utf8Bytes(input.word) +
     utf8Bytes(input.sentence) +
     utf8Bytes(input.translation) +
-    utf8Bytes(input.meaning)
+    utf8Bytes(input.meaning) +
+    utf8Bytes(input.sourceUrl)
   );
 }
 

@@ -11,6 +11,7 @@ import SortableCollectionCard from './components/SortableCollectionCard';
 import CollectionCard from '@/components/CollectionCard';
 import ImportDropdown from '@/components/ImportDropdown';
 import WebImportModal from '@/components/WebImportModal';
+import YouTubeImportModal from '@/components/YouTubeImportModal';
 import PasteImportModal from '@/components/PasteImportModal';
 import {
   DndContext,
@@ -55,6 +56,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [isWebImportOpen, setIsWebImportOpen] = useState(false);
+  const [isYouTubeImportOpen, setIsYouTubeImportOpen] = useState(false);
   const [isPasteImportOpen, setIsPasteImportOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
@@ -347,6 +349,7 @@ export default function Home() {
           <ImportDropdown
             onFileImport={handleImportClick}
             onUrlImport={() => setIsWebImportOpen(true)}
+            onYouTubeImport={() => setIsYouTubeImportOpen(true)}
             onPasteImport={() => setIsPasteImportOpen(true)}
             isImporting={isImporting}
           />
@@ -410,6 +413,14 @@ export default function Home() {
             isOpen={isWebImportOpen}
             onClose={() => setIsWebImportOpen(false)}
             onSave={handleWebImportSave}
+          />
+          <YouTubeImportModal
+            isOpen={isYouTubeImportOpen}
+            onClose={() => setIsYouTubeImportOpen(false)}
+            onImported={({ lessonId }) => {
+              setIsYouTubeImportOpen(false);
+              router.push(`/read/${lessonId}`);
+            }}
           />
           <PasteImportModal
             isOpen={isPasteImportOpen}

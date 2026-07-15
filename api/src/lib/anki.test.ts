@@ -2,6 +2,8 @@ import { describe, test, expect } from 'bun:test';
 import {
   ankiCardToState,
   buildClozeText,
+  buildSourceLinkHtml,
+  formatClipTimestamp,
   highlightWordHtml,
   splitTrailingPunctuation,
   stateRank,
@@ -52,5 +54,40 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation('haar.')).toEqual(['haar', '.']);
     expect(splitTrailingPunctuation('„Sind')).toEqual(['Sind', '']);
     expect(splitTrailingPunctuation("'n")).toEqual(["'n", '']);
+  });
+});
+
+describe('buildSourceLinkHtml (#334)', () => {
+  test('links to the start timestamp and labels start–end', () => {
+    expect(
+      buildSourceLinkHtml({
+        sourceUrl: 'https://www.youtube.com/watch?v=abc',
+        clipStartMs: 72000,
+        clipEndMs: 78000,
+      }),
+    ).toBe('<a href="https://www.youtube.com/watch?v=abc&amp;t=72s">▶ 1:12–1:18</a>');
+  });
+
+  test('escapes the href and rejects non-http(s) / empty URLs', () => {
+    expect(buildSourceLinkHtml({ sourceUrl: '', clipStartMs: 0, clipEndMs: 1 })).toBe('');
+    expect(
+      buildSourceLinkHtml({ sourceUrl: 'javascript:alert(1)', clipStartMs: 0, clipEndMs: 1 }),
+    ).toBe('');
+    // A crafted query value can't break out of the href attribute: URL
+    // serialization percent-encodes the quote/brackets before the anchor is
+    // built, so no raw injection survives.
+    const html = buildSourceLinkHtml({
+      sourceUrl: 'https://x.test/watch?a="><b>',
+      clipStartMs: null,
+      clipEndMs: null,
+    });
+    expect(html).not.toContain('"><b>');
+    expect(html).toContain('%22');
+    expect(html.startsWith('<a href="https://x.test/watch?')).toBe(true);
+  });
+
+  test('formatClipTimestamp', () => {
+    expect(formatClipTimestamp(9000)).toBe('0:09');
+    expect(formatClipTimestamp(3661000)).toBe('1:01:01');
   });
 });

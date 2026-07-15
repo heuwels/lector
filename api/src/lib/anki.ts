@@ -11,7 +11,13 @@ import type { WordState } from '../db';
  * overridden). Mirrors STATE_RANK in src/lib/anki.ts.
  */
 const STATE_RANK: Record<WordState, number> = {
-  new: 0, level1: 1, level2: 2, level3: 3, level4: 4, known: 5, ignored: 5,
+  new: 0,
+  level1: 1,
+  level2: 2,
+  level3: 3,
+  level4: 4,
+  known: 5,
+  ignored: 5,
 };
 
 export function stateRank(state: WordState): number {
@@ -81,4 +87,62 @@ export function buildClozeText(sentence: string, targetWord: string): string {
 export function highlightWordHtml(sentence: string, targetWord: string): string {
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
   return sentence.replace(wholeWordPattern(cleanTarget), '<b>$1</b>');
+}
+
+/** mm:ss / h:mm:ss label for a millisecond offset (#334). */
+export function formatClipTimestamp(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const seconds = s % 60;
+  const two = (n: number) => String(n).padStart(2, '0');
+  return hours > 0 ? `${hours}:${two(minutes)}:${two(seconds)}` : `${minutes}:${two(seconds)}`;
+}
+
+function escapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Render the note's Source field for a card mined from a video transcript
+ * (#334): an anchor to the source video at the segment start, labelled with the
+ * segment's start–end. The card retains the exact moment without Lector ever
+ * hosting the video (the MVP "timestamp/link" fallback — no audio download).
+ *
+ * Returns '' when there is no usable source URL. The URL is validated to
+ * http(s) and the href is attribute-escaped, since on the addon path it
+ * originates from the (client-supplied) queue item and is written verbatim into
+ * an Anki note field.
+ */
+export function buildSourceLinkHtml(opts: {
+  sourceUrl: string | null | undefined;
+  clipStartMs: number | null | undefined;
+  clipEndMs: number | null | undefined;
+}): string {
+  const raw = typeof opts.sourceUrl === 'string' ? opts.sourceUrl.trim() : '';
+  if (!raw) return '';
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return '';
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+
+  const start =
+    typeof opts.clipStartMs === 'number' && opts.clipStartMs >= 0 ? opts.clipStartMs : null;
+  const end = typeof opts.clipEndMs === 'number' && opts.clipEndMs >= 0 ? opts.clipEndMs : null;
+  if (start !== null) url.searchParams.set('t', `${Math.floor(start / 1000)}s`);
+
+  const range =
+    start !== null && end !== null
+      ? `${formatClipTimestamp(start)}–${formatClipTimestamp(end)}`
+      : start !== null
+        ? formatClipTimestamp(start)
+        : 'Source';
+  return `<a href="${escapeHtmlAttr(url.toString())}">▶ ${range}</a>`;
 }
