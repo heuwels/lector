@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { db, type LessonRow } from '../db';
 import { makeEntitlements, parsePlanLimitOverrides, type PlanLimits } from '../lib/entitlements';
 import type { ExtractionBurstLimiter } from '../lib/rate-limit';
-import { makeYoutubeImportRoutes, type FetchPlayer, type FetchTranscript } from './youtube-import';
+import {
+  makeYoutubeImportRoutes,
+  relayRewrite,
+  type FetchPlayer,
+  type FetchTranscript,
+} from './youtube-import';
 
 function strictEngine(overrides: Partial<PlanLimits> = {}) {
   const defaults = parsePlanLimitOverrides(undefined);
@@ -275,5 +280,46 @@ describe('POST / (import)', () => {
         }
       ).n,
     ).toBe(0);
+  });
+});
+
+describe('relayRewrite (#334 residential egress relay)', () => {
+  const prev = {
+    base: process.env.YOUTUBE_RELAY_BASE,
+    auth: process.env.YOUTUBE_RELAY_BASIC_AUTH,
+  };
+  const restore = (
+    key: 'YOUTUBE_RELAY_BASE' | 'YOUTUBE_RELAY_BASIC_AUTH',
+    val: string | undefined,
+  ) => {
+    if (val === undefined) delete process.env[key];
+    else process.env[key] = val;
+  };
+  afterEach(() => {
+    restore('YOUTUBE_RELAY_BASE', prev.base);
+    restore('YOUTUBE_RELAY_BASIC_AUTH', prev.auth);
+  });
+
+  test('returns null when no relay is configured', () => {
+    delete process.env.YOUTUBE_RELAY_BASE;
+    expect(relayRewrite('https://www.youtube.com/youtubei/v1/player?key=x')).toBeNull();
+  });
+
+  test('swaps only the origin, preserving path + query, and adds basic auth', () => {
+    process.env.YOUTUBE_RELAY_BASE = 'https://lector-proxy.example.com';
+    process.env.YOUTUBE_RELAY_BASIC_AUTH = 'lector:secret';
+    const out = relayRewrite('https://www.youtube.com/api/timedtext?v=abc&lang=af&fmt=json3');
+    expect(out?.url).toBe('https://lector-proxy.example.com/api/timedtext?v=abc&lang=af&fmt=json3');
+    expect(out?.headers.Authorization).toBe(
+      `Basic ${Buffer.from('lector:secret').toString('base64')}`,
+    );
+  });
+
+  test('omits the auth header when no credentials are set', () => {
+    process.env.YOUTUBE_RELAY_BASE = 'https://lector-proxy.example.com';
+    delete process.env.YOUTUBE_RELAY_BASIC_AUTH;
+    const out = relayRewrite('https://www.youtube.com/youtubei/v1/player?key=x');
+    expect(out?.url).toBe('https://lector-proxy.example.com/youtubei/v1/player?key=x');
+    expect(out?.headers.Authorization).toBeUndefined();
   });
 });
