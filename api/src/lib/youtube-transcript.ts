@@ -196,7 +196,11 @@ function readName(name: unknown): string {
 
 /** Pull the caption tracks out of a parsed player response. */
 export function extractCaptionTracks(player: unknown): CaptionTrack[] {
-  const tracks = (player as any)?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+  const tracks = (
+    player as {
+      captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: unknown } };
+    }
+  )?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
   if (!Array.isArray(tracks)) return [];
 
   const out: CaptionTrack[] = [];
@@ -219,7 +223,8 @@ export function extractCaptionTracks(player: unknown): CaptionTrack[] {
 
 /** Pull title/channel out of a parsed player response. */
 export function extractVideoMeta(player: unknown, videoId: string): VideoMeta {
-  const details = (player as any)?.videoDetails;
+  const details = (player as { videoDetails?: { title?: unknown; author?: unknown } })
+    ?.videoDetails;
   return {
     videoId,
     title: typeof details?.title === 'string' && details.title ? details.title : videoId,
@@ -256,7 +261,7 @@ export function parseJson3Transcript(body: string | unknown): TranscriptSegment[
       return [];
     }
   }
-  const events = (data as any)?.events;
+  const events = (data as { events?: unknown })?.events;
   if (!Array.isArray(events)) return [];
 
   const segments: TranscriptSegment[] = [];

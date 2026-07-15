@@ -39,7 +39,8 @@ export const ANKI_PROTOCOL_STEPS: Record<number, AnkiProtocolStep> = {
         ...b,
         pending: b.pending.map((item) => {
           if (item && typeof item === 'object' && 'source' in item) {
-            const { source: _source, ...rest } = item as Record<string, unknown>;
+            const rest = { ...(item as Record<string, unknown>) };
+            delete rest.source;
             return rest;
           }
           return item;
