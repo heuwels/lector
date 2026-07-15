@@ -144,6 +144,8 @@ CLASSIFY_LLM_URL classify-llm-url
 CLASSIFY_LLM_MODEL classify-llm-model
 CLASSIFY_LLM_API_KEY openrouter-api-key
 LECTOR_FREE_TIER free-tier-enabled
+YOUTUBE_RELAY_BASE youtube-relay-base
+YOUTUBE_RELAY_BASIC_AUTH youtube-relay-basic-auth
 MAPPINGS
 if ! set_image "$DESIRED_IMAGE"; then
   echo "could not pin $DESIRED_IMAGE in $COMPOSE" >&2
