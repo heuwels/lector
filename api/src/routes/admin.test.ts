@@ -131,7 +131,16 @@ beforeEach(() => {
   seedUser(BOB, { verified: false });
 });
 
-afterAll(reset);
+// Drop the fabricated Better-Auth tables, not just their rows: the shared
+// .test-data DB outlives this file, and a leftover `session` (userId-carrying,
+// not a getDb migration) trips the ERASURE_TABLES completeness ratchet in
+// account-deletion.test.ts whenever this file happens to run first.
+afterAll(() => {
+  reset();
+  db.exec(
+    'DROP TABLE IF EXISTS session; DROP TABLE IF EXISTS twoFactor; DROP TABLE IF EXISTS user;',
+  );
+});
 
 describe('requireAdmin gate', () => {
   test('cloud non-admin → 403 admin_required', async () => {

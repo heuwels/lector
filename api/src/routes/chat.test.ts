@@ -1,6 +1,7 @@
 import '../test-guard';
-import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, afterAll, mock } from 'bun:test';
 import { db } from '../db';
+import * as actualLlm from '../lib/llm';
 import {
   makeEntitlements,
   parsePlanLimitOverrides,
@@ -9,12 +10,22 @@ import {
 
 // Mock the provider factory so POST never reaches a real LLM. Each test swaps
 // `currentProvider` and inspects `captured` to assert what the route sent.
+//
+// bun module mocks are process-global and outlive this file, so the factory
+// must spread the real module — a bare `{ getProvider }` erased every other
+// export (`completeJson`, `MANAGED_TRANSLATION_MODEL`, …) for any test file
+// that happened to load after this one, which is CI-order-dependent. The
+// afterAll re-mock hands later files the real getProvider back too.
 let currentProvider: unknown = null;
 const captured: { messages?: { role: string; content: string }[] } = {};
 
 mock.module('../lib/llm', () => ({
+  ...actualLlm,
   getProvider: () => currentProvider,
 }));
+afterAll(() => {
+  mock.module('../lib/llm', () => ({ ...actualLlm }));
+});
 
 const { default: app, MAX_CHAT_MESSAGE_BYTES } = await import('../routes/chat');
 

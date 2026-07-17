@@ -53,34 +53,56 @@ function clearAll() {
 }
 
 function rowsFor(table: string, userId: string): number {
-  return (db.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE userId = ?`).get(userId) as { c: number }).c;
+  return (
+    db.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE userId = ?`).get(userId) as { c: number }
+  ).c;
 }
 
 /** One row in every seeded tenant table (+ the Paddle mirror pair) for `userId`. */
 function seed(userId: string, email: string, customerId: string) {
-  db.prepare('INSERT INTO collections (userId, id, title, createdAt, lastReadAt) VALUES (?,?,?,?,?)')
-    .run(userId, `col-${userId}`, 'A book', NOW, NOW);
-  db.prepare('INSERT INTO lessons (userId, id, title, createdAt, lastReadAt) VALUES (?,?,?,?,?)')
-    .run(userId, `les-${userId}`, 'A lesson', NOW, NOW);
-  db.prepare('INSERT INTO collection_groups (userId, id, name, createdAt) VALUES (?,?,?,?)')
-    .run(userId, `grp-${userId}`, 'A group', NOW);
+  db.prepare(
+    'INSERT INTO collections (userId, id, title, createdAt, lastReadAt) VALUES (?,?,?,?,?)',
+  ).run(userId, `col-${userId}`, 'A book', NOW, NOW);
+  db.prepare(
+    'INSERT INTO lessons (userId, id, title, createdAt, lastReadAt) VALUES (?,?,?,?,?)',
+  ).run(userId, `les-${userId}`, 'A lesson', NOW, NOW);
+  db.prepare('INSERT INTO collection_groups (userId, id, name, createdAt) VALUES (?,?,?,?)').run(
+    userId,
+    `grp-${userId}`,
+    'A group',
+    NOW,
+  );
   db.prepare(
     'INSERT INTO vocab (userId, id, text, type, sentence, translation, state, stateUpdatedAt, createdAt) VALUES (?,?,?,?,?,?,?,?,?)',
   ).run(userId, `voc-${userId}`, 'woord', 'word', 'n sin', 'a sentence', 'new', NOW, NOW);
   db.prepare(
     'INSERT INTO clozeSentences (userId, id, sentence, clozeWord, clozeIndex, translation, source, collection, nextReview) VALUES (?,?,?,?,?,?,?,?,?)',
   ).run(userId, `clz-${userId}`, 'n sin', 'woord', 0, 'a sentence', 'tatoeba', 'top500', NOW);
-  db.prepare('INSERT INTO knownWords (userId, word, language, state) VALUES (?,?,?,?)')
-    .run(userId, `word-${userId}`, 'af', 'known');
-  db.prepare('INSERT INTO dailyStats (userId, date, language) VALUES (?,?,?)')
-    .run(userId, '2026-07-14', 'af');
-  db.prepare('INSERT INTO journal_entries (userId, id, entryDate, createdAt, updatedAt) VALUES (?,?,?,?,?)')
-    .run(userId, `jnl-${userId}`, '2026-07-14', NOW, NOW);
-  db.prepare('INSERT INTO chat_messages (userId, id, role, content, createdAt) VALUES (?,?,?,?,?)')
-    .run(userId, `cht-${userId}`, 'user', 'hallo', NOW);
-  db.prepare('INSERT INTO settings (userId, key, value) VALUES (?,?,?)').run(userId, 'theme', '"dark"');
-  db.prepare('INSERT INTO api_tokens (userId, id, name, tokenHash, createdAt) VALUES (?,?,?,?,?)')
-    .run(userId, `tok-${userId}`, 'CLI', `hash-${userId}`, NOW);
+  db.prepare('INSERT INTO knownWords (userId, word, language, state) VALUES (?,?,?,?)').run(
+    userId,
+    `word-${userId}`,
+    'af',
+    'known',
+  );
+  db.prepare('INSERT INTO dailyStats (userId, date, language) VALUES (?,?,?)').run(
+    userId,
+    '2026-07-14',
+    'af',
+  );
+  db.prepare(
+    'INSERT INTO journal_entries (userId, id, entryDate, createdAt, updatedAt) VALUES (?,?,?,?,?)',
+  ).run(userId, `jnl-${userId}`, '2026-07-14', NOW, NOW);
+  db.prepare(
+    'INSERT INTO chat_messages (userId, id, role, content, createdAt) VALUES (?,?,?,?,?)',
+  ).run(userId, `cht-${userId}`, 'user', 'hallo', NOW);
+  db.prepare('INSERT INTO settings (userId, key, value) VALUES (?,?,?)').run(
+    userId,
+    'theme',
+    '"dark"',
+  );
+  db.prepare(
+    'INSERT INTO api_tokens (userId, id, name, tokenHash, createdAt) VALUES (?,?,?,?,?)',
+  ).run(userId, `tok-${userId}`, 'CLI', `hash-${userId}`, NOW);
   db.prepare(
     'INSERT INTO learner_profiles (userId, language, approximateLevel, dailyMinutes, createdAt, updatedAt) VALUES (?,?,?,?,?,?)',
   ).run(userId, 'af', 'new', 15, NOW, NOW);
@@ -99,13 +121,18 @@ function seed(userId: string, email: string, customerId: string) {
   db.prepare(
     'INSERT INTO cached_entries (userId, word, language, sourceSentence, createdAt, updatedAt) VALUES (?,?,?,?,?,?)',
   ).run(userId, `woord-${userId}`, 'af', 'a sentence from my reading', NOW, NOW);
+  db.prepare('INSERT INTO anki_pending (userId, vocabId, cardType, queuedAt) VALUES (?,?,?,?)').run(
+    userId,
+    `voc-${userId}`,
+    'basic',
+    NOW,
+  );
   db.prepare(
-    'INSERT INTO anki_pending (userId, vocabId, cardType, queuedAt) VALUES (?,?,?,?)',
-  ).run(userId, `voc-${userId}`, 'basic', NOW);
-  db.prepare('INSERT INTO admin_account_flags (userId, suspended, reason, updatedAt) VALUES (?,?,?,?)')
-    .run(userId, 0, 'note', NOW);
-  db.prepare('INSERT INTO billing_customers (paddleCustomerId, email, occurredAt, updatedAt) VALUES (?,lower(?),?,?)')
-    .run(customerId, email, NOW, NOW);
+    'INSERT INTO admin_account_flags (userId, suspended, reason, updatedAt) VALUES (?,?,?,?)',
+  ).run(userId, 0, 'note', NOW);
+  db.prepare(
+    'INSERT INTO billing_customers (paddleCustomerId, email, occurredAt, updatedAt) VALUES (?,lower(?),?,?)',
+  ).run(customerId, email, NOW, NOW);
   db.prepare(
     'INSERT INTO billing_subscriptions (paddleSubscriptionId, paddleCustomerId, userId, status, occurredAt, updatedAt) VALUES (?,?,?,?,?,?)',
   ).run(`sub-${userId}`, customerId, userId, 'active', NOW, NOW);
@@ -113,7 +140,9 @@ function seed(userId: string, email: string, customerId: string) {
 
 function customerCount(paddleCustomerId: string): number {
   return (
-    db.prepare('SELECT COUNT(*) AS c FROM billing_customers WHERE paddleCustomerId = ?').get(paddleCustomerId) as {
+    db
+      .prepare('SELECT COUNT(*) AS c FROM billing_customers WHERE paddleCustomerId = ?')
+      .get(paddleCustomerId) as {
       c: number;
     }
   ).c;
@@ -156,8 +185,9 @@ describe('purgeTenantData', () => {
   test('removes a billing_customers row matched by email even with no subscription link', () => {
     // A checkout made before the account existed: a customer row keyed on the
     // user's email, but no subscription tying its customer id to the userId.
-    db.prepare('INSERT INTO billing_customers (paddleCustomerId, email, occurredAt, updatedAt) VALUES (?,lower(?),?,?)')
-      .run('ctm_orphan', EMAIL_A, NOW, NOW);
+    db.prepare(
+      'INSERT INTO billing_customers (paddleCustomerId, email, occurredAt, updatedAt) VALUES (?,lower(?),?,?)',
+    ).run('ctm_orphan', EMAIL_A, NOW, NOW);
 
     purgeTenantData(USER_A, EMAIL_A);
 
@@ -181,16 +211,27 @@ describe('ERASURE_TABLES completeness ratchet', () => {
   // Auth itself; twoFactor is in ERASURE_TABLES for the real cloud DB where it
   // exists. admin_audit_log is keyed by actor/targetUserId (not `userId`), so
   // it is correctly not enumerated here and is retained on purpose.
+  // Better Auth deletes session/account rows itself on user deletion, and
+  // neither is a getDb migration — they only appear in the shared .test-data
+  // DB when a file that fabricates them (admin.test.ts) runs first. Subtract
+  // them so the ratchet is file-order-independent, same as adopt-local-data's
+  // NON_TENANT_USERID_TABLES.
+  const BETTER_AUTH_MANAGED = new Set(['session', 'account']);
+
   test('every userId-carrying table in the migrated schema is in ERASURE_TABLES', () => {
     const database = getDatabaseInstance();
     const names = (
-      database.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]
+      database.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as {
+        name: string;
+      }[]
     ).map((t) => t.name);
 
-    const withUserId = names.filter((name) =>
-      (database.prepare(`PRAGMA table_info(${name})`).all() as { name: string }[]).some(
-        (c) => c.name === 'userId',
-      ),
+    const withUserId = names.filter(
+      (name) =>
+        !BETTER_AUTH_MANAGED.has(name) &&
+        (database.prepare(`PRAGMA table_info(${name})`).all() as { name: string }[]).some(
+          (c) => c.name === 'userId',
+        ),
     );
 
     const covered = new Set<string>(ERASURE_TABLES);
