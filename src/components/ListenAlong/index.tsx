@@ -73,6 +73,7 @@ export default function ListenAlong({
   const audioRef = useRef<HTMLAudioElement>(null);
   const unitPlayerRef = useRef<UnitPlayer | null>(null);
   const segmentRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [mode, setMode] = useState<PlayerMode>('continuous');
   const [isPlaying, setIsPlaying] = useState(false);
@@ -108,11 +109,20 @@ export default function ListenAlong({
   // like the reader. Derived, not an effect — no cascading render.
   const effectiveActiveWord = wordPanelOpen ? activeWord : null;
 
-  // Keep the active sentence in view while playing.
+  // Keep the active sentence in view while playing — but never while the
+  // learner is mid-lookup (#433): tapping a word pauses playback, and that
+  // isPlaying flip must not drag the view back under the drawer. Shadow has
+  // the same wrinkle without the drawer: it pauses at every unit boundary,
+  // and a bare playing→paused flip (word tap, unit end) re-centered too, so
+  // shadow only scrolls when the drill actually moves or playback starts.
+  const lastCenteredIdx = useRef(-1);
   useEffect(() => {
-    if (activeIdx < 0 || (!isPlaying && mode === 'continuous')) return;
+    const prevIdx = lastCenteredIdx.current;
+    lastCenteredIdx.current = activeIdx;
+    if (wordPanelOpen || activeIdx < 0) return;
+    if (!isPlaying && (mode === 'continuous' || prevIdx === activeIdx)) return;
     segmentRefs.current.get(activeIdx)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [activeIdx, isPlaying, mode]);
+  }, [activeIdx, isPlaying, mode, wordPanelOpen]);
 
   const playSegment = useCallback(
     (idx: number) => {
@@ -179,6 +189,11 @@ export default function ListenAlong({
       // Interacting with a word always pauses — the whole point is to stop and
       // look it up without losing the playhead.
       unitPlayer()?.stop();
+      // A keep-in-view glide launched at a segment boundary can still be
+      // animating; a same-position programmatic scroll aborts it (#433), so
+      // the view freezes where the learner tapped instead of sailing on.
+      const scroller = scrollContainerRef.current;
+      if (scroller) scroller.scrollTo({ top: scroller.scrollTop, behavior: 'auto' });
       setActiveWord({ segmentIdx: segment.idx, wordIndex });
       onWordClick(text, segment.text);
     },
@@ -221,7 +236,7 @@ export default function ListenAlong({
       </header>
 
       {/* Segments */}
-      <div className="flex-1 overflow-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto">
         <div
           className="mx-auto max-w-[38em] px-4 py-8 sm:px-8"
           style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}

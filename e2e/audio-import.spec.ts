@@ -35,7 +35,14 @@ const SEGMENTS = [
   { idx: 1, startMs: 2000, endMs: 4000, text: 'Welkom by die potgooi.' },
   { idx: 2, startMs: 4000, endMs: 6000, text: 'Tot volgende keer.' },
 ];
-const TRANSCRIPT = SEGMENTS.map((s) => s.text).join(' ');
+// A transcript long enough that the segment list overflows and scrolls —
+// the #433 regression needs the learner to be able to scroll away.
+const LONG_SEGMENTS = Array.from({ length: 30 }, (_, i) => ({
+  idx: i,
+  startMs: i * 2000,
+  endMs: (i + 1) * 2000,
+  text: `Sin nommer ${i + 1} van die potgooi met nog n paar woorde daarby.`,
+}));
 
 async function cleanupTestCollections(page: Page) {
   const res = await page.request.get(apiUrl('/api/collections'));
@@ -62,7 +69,12 @@ async function uploadAudio(
 }
 
 /** Stub the lesson as transcribed: lesson GET, segments and audio bytes. */
-async function stubTranscribedLesson(page: Page, lessonId: string) {
+async function stubTranscribedLesson(
+  page: Page,
+  lessonId: string,
+  segments: typeof SEGMENTS = SEGMENTS,
+) {
+  const durationMs = segments[segments.length - 1].endMs;
   await page.route(`**/api/lessons/${lessonId}`, async (route) => {
     const response = await route.fetch();
     const lesson = await response.json();
@@ -70,22 +82,22 @@ async function stubTranscribedLesson(page: Page, lessonId: string) {
       response,
       json: {
         ...lesson,
-        textContent: TRANSCRIPT,
+        textContent: segments.map((s) => s.text).join(' '),
         wordCount: 10,
         transcriptionStatus: 'done',
         transcriptionError: null,
-        audioDurationMs: 6000,
+        audioDurationMs: durationMs,
       },
     });
   });
   await page.route(`**/api/lessons/${lessonId}/segments`, (route) =>
-    route.fulfill({ json: SEGMENTS }),
+    route.fulfill({ json: segments }),
   );
   await page.route(`**/api/lessons/${lessonId}/audio`, (route) =>
     route.fulfill({
       status: 200,
       contentType: 'audio/wav',
-      body: silentWav(6.5),
+      body: silentWav(durationMs / 1000 + 0.5),
       headers: { 'Accept-Ranges': 'bytes' },
     }),
   );
@@ -222,5 +234,56 @@ test.describe('Audio import (#185)', () => {
       )
       .toBe(true);
     await expect(page.getByRole('heading', { name: 'potgooi' })).toBeVisible({ timeout: 10000 });
+  });
+
+  test('word tap keeps the scroll position while the drill is playing (#433)', async ({ page }) => {
+    const { lessonId } = await uploadAudio(page, 'E2E Oudio Rol');
+    await stubTranscribedLesson(page, lessonId, LONG_SEGMENTS);
+    await page.route('**/api/translate/gloss', (route) =>
+      route.fulfill({ status: 200, contentType: 'text/plain', body: '[translated]' }),
+    );
+
+    await page.goto(`/read/${lessonId}`);
+    await page.getByTestId('listen-along-toggle').click();
+    await expect(page.getByTestId('listen-segment')).toHaveCount(LONG_SEGMENTS.length);
+
+    // Shadow drill on sentence 1 (top of the list), playing.
+    await page.getByTestId('listen-mode-shadow').click();
+    await page.getByTestId('listen-play-pause').click();
+    await expect
+      .poll(() =>
+        page.getByTestId('listen-audio').evaluate((el) => (el as HTMLAudioElement).paused),
+      )
+      .toBe(false);
+
+    // The learner scrolls away mid-unit, then taps a word to look it up.
+    const scroller = page.getByTestId('listen-along').locator('div.flex-1.overflow-auto');
+    await scroller.evaluate((el) => {
+      el.scrollTop = el.scrollHeight; // far from the drill sentence
+    });
+
+    const word = page
+      .getByTestId('listen-along')
+      .getByTestId('reader-word')
+      .filter({ hasText: 'woorde' })
+      .last();
+    await word.scrollIntoViewIfNeeded();
+    const scrollBefore = await scroller.evaluate((el) => el.scrollTop);
+    expect(scrollBefore).toBeGreaterThan(500);
+    await word.click();
+
+    // Drawer opens and audio pauses — but the pause must NOT hand the view
+    // back to the keep-in-view effect (#433: the reader yanked to the drill
+    // sentence, i.e. the top, exactly as the drawer opened).
+    await expect(page.getByTestId('translation-drawer')).toHaveAttribute('aria-hidden', 'false');
+    await expect
+      .poll(() =>
+        page.getByTestId('listen-audio').evaluate((el) => (el as HTMLAudioElement).paused),
+      )
+      .toBe(true);
+    // Give a would-be smooth glide time to move the view, then assert it hasn't.
+    await page.waitForTimeout(1200);
+    const scrollAfter = await scroller.evaluate((el) => el.scrollTop);
+    expect(Math.abs(scrollAfter - scrollBefore)).toBeLessThan(50);
   });
 });
