@@ -1,6 +1,7 @@
 import '../test-guard';
-import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, afterAll, mock } from 'bun:test';
 import { db } from '../db';
+import * as actualLlm from '../lib/llm';
 import {
   makeEntitlements,
   parsePlanLimitOverrides,
@@ -9,12 +10,28 @@ import {
 
 // Mock the provider factory so POST never reaches a real LLM. Each test swaps
 // `currentProvider` and inspects `captured` to assert what the route sent.
+//
+// bun module mocks are process-global and outlive this file, so a bare
+// `{ getProvider }` erased every other export (`completeJson`, …) for any test
+// file that happened to load after this one — CI-order-dependent breakage.
+// Restoring via a second mock.module() doesn't work either: mocking remaps the
+// `actualLlm` namespace itself, so spreading it again just reinstalls the stub
+// (and reading getProvider off it after mocking returns the wrapper — a
+// self-call loop). Hence: capture the real getProvider BEFORE mocking, install
+// the mock once with every real export plus a delegating getProvider, and flip
+// the delegate back to the real implementation in afterAll.
+const realGetProvider = actualLlm.getProvider as (...args: unknown[]) => unknown;
 let currentProvider: unknown = null;
 const captured: { messages?: { role: string; content: string }[] } = {};
 
+let getProviderImpl: (...args: unknown[]) => unknown = () => currentProvider;
 mock.module('../lib/llm', () => ({
-  getProvider: () => currentProvider,
+  ...actualLlm,
+  getProvider: (...args: unknown[]) => getProviderImpl(...args),
 }));
+afterAll(() => {
+  getProviderImpl = realGetProvider;
+});
 
 const { default: app, MAX_CHAT_MESSAGE_BYTES } = await import('../routes/chat');
 
