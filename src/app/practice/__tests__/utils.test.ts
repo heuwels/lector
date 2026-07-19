@@ -56,6 +56,11 @@ describe('normalize', () => {
     expect(normalize('Caffè!')).toBe('caffè');
     expect(normalize('«Perché?»')).toBe('perché');
   });
+
+  it('lowercases Cyrillic (including Ё) and strips guillemets', () => {
+    expect(normalize('«Привет!»')).toBe('привет');
+    expect(normalize('ЁЖИК')).toBe('ёжик');
+  });
 });
 
 describe('checkAnswer', () => {
@@ -111,6 +116,12 @@ describe('checkAnswer', () => {
     expect(checkAnswer('perché', 'Perché?')).toBe(true);
     expect(checkAnswer('caffe', 'caffè')).toBe(false);
     expect(checkAnswer('perchè', 'perché')).toBe(false);
+  });
+
+  it('matches Russian words through case and punctuation, distinguishing е vs ё', () => {
+    expect(checkAnswer('привет', 'Привет!')).toBe(true);
+    expect(checkAnswer('ёжик', 'Ёжик')).toBe(true);
+    expect(checkAnswer('еще', 'ещё')).toBe(false);
   });
 });
 

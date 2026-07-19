@@ -28,7 +28,11 @@ function legacyWords(text: string): string[] {
   return out;
 }
 
-const CORPUS: Record<LanguageCode, string[]> = {
+// Only the languages that shipped BEFORE the script-agnostic engine belong
+// here: the oracle regex above is Latin-range-only, so byte-parity with it is
+// the contract for exactly those packs. Languages added after #289 (ru — the
+// first non-Latin pack) get their own goldens below instead.
+const CORPUS: Record<Exclude<LanguageCode, 'ru'>, string[]> = {
   af: [
     'Hallo, hoe gaan dit met jou?',
     '’n Man loop in die straat. Sy sê: „Dit is ’n mooi dag!“',
@@ -83,7 +87,7 @@ const CORPUS: Record<LanguageCode, string[]> = {
 };
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
-  for (const [code, texts] of Object.entries(CORPUS) as [LanguageCode, string[]][]) {
+  for (const [code, texts] of Object.entries(CORPUS) as [Exclude<LanguageCode, 'ru'>, string[]][]) {
     const pack = LANGUAGES[code];
     it(`matches the legacy word stream for ${code}`, () => {
       for (const text of texts) {
@@ -201,7 +205,10 @@ function synth(script: Partial<ScriptConfig> & Pick<ScriptConfig, 'bcp47'>): Lan
   };
 }
 
-const ru = synth({ bcp47: 'ru' });
+// ru graduated from a synthetic pack to a real registry entry (#212) — these
+// goldens now run against the shipped manifest, proving the engine needs no
+// per-script code for it.
+const ru = LANGUAGES.ru;
 const grc = synth({ bcp47: 'grc', sentenceTerminators: '.;·' });
 const ar = synth({ bcp47: 'ar', direction: 'rtl', hasCase: false, sentenceTerminators: '؟.!' });
 const hbo = synth({ bcp47: 'he', direction: 'rtl', hasCase: false });
@@ -268,6 +275,64 @@ describe('multi-script goldens (synthetic packs — no per-language code)', () =
     // Documents the interim contract: the seam dispatches, the default engine
     // keeps the run whole (one tap target), Intl.Segmenter lands in Phase 4.
     expect(tokenizeWords('我喜欢读书。', zh).map((t) => t.text)).toEqual(['我喜欢读书']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Russian pack goldens (#212) — the first shipped non-Latin language
+// ---------------------------------------------------------------------------
+
+const RU_CORPUS = [
+  'Привет! Как дела?',
+  'Девочка купила хлеб, молоко и ещё что-то в магазине.',
+  '«Вы видели песню номер 42?» — спросил дедушка.',
+  'Он объяснил, что съезд начнётся в 1999 году.',
+];
+
+describe('Russian pack (real manifest)', () => {
+  it('reassembles Russian text byte-for-byte with correct offsets', () => {
+    for (const text of RU_CORPUS) {
+      const tokens = tokenize(text, ru);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('tokenizes ё, й, ъ and hyphenated indefinites as single words', () => {
+    expect(tokenizeWords('Ещё объём, чей-то музей когда-нибудь.', ru).map((t) => t.text)).toEqual([
+      'Ещё',
+      'объём',
+      'чей-то',
+      'музей',
+      'когда-нибудь',
+    ]);
+  });
+
+  it('treats the em dash as a boundary (Russian zero-copula punctuation)', () => {
+    expect(tokenizeWords('Москва — столица России.', ru).map((t) => t.text)).toEqual([
+      'Москва',
+      'столица',
+      'России',
+    ]);
+  });
+
+  it('folds case including Ё → ё', () => {
+    expect(foldWord('Ёжик', ru)).toBe('ёжик');
+    expect(foldWord('МОСКВА', ru)).toBe('москва');
+  });
+
+  it('keeps a combining acute (dictionary stress mark) inside the word', () => {
+    // kaikki headwords carry lexical stress as U+0301; \p{M} keeps it a word char.
+    const stressed = 'молоко́';
+    expect(tokenizeWords(stressed, ru).map((t) => t.text)).toEqual([stressed]);
+  });
+
+  it('snaps a mid-word selection to Cyrillic word boundaries', () => {
+    const text = 'Девочка читает книгу';
+    //                     ^10..12^ inside "читает" (8..14)
+    expect(snapToWordBoundaries(text, 10, 12, ru)).toEqual({ start: 8, end: 14 });
   });
 });
 

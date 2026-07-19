@@ -54,7 +54,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "adm-zip": "^0.5.17",
-    "better-sqlite3": "^12.6.2",
+    "better-sqlite3": "^12.11.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^10.1.8",
@@ -63,5 +63,8 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.4"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
   }
 }

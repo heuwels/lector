@@ -7,6 +7,7 @@ const af = LANGUAGES.af;
 const fr = LANGUAGES.fr;
 const italian = LANGUAGES.it;
 const nl = LANGUAGES.nl;
+const ru = LANGUAGES.ru;
 
 describe('splitTrailingPunctuation', () => {
   it('splits a single trailing mark', () => {
@@ -57,6 +58,12 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation("L'acqua")).toEqual(["L'acqua", '']);
     expect(splitTrailingPunctuation("un'amica.")).toEqual(["un'amica", '.']);
     expect(splitTrailingPunctuation('«Caffè!»')).toEqual(['Caffè', '!»']);
+  });
+
+  it('strips Russian guillemets and trailing marks around Cyrillic words', () => {
+    expect(splitTrailingPunctuation('«Привет!»')).toEqual(['Привет', '!»']);
+    expect(splitTrailingPunctuation('ещё.')).toEqual(['ещё', '.']);
+    expect(splitTrailingPunctuation('когда-нибудь,')).toEqual(['когда-нибудь', ',']);
   });
 });
 
@@ -130,6 +137,15 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord("Arriva un'amica.", 'amica', italian)).toBe(true);
     expect(sentenceContainsWord('Bevo il caffè.', 'caffè', italian)).toBe(true);
     expect(sentenceContainsWord("L'acqua è fresca.", 'acqu', italian)).toBe(false);
+  });
+
+  it('matches Russian tokens case-insensitively, keeping hyphenated compounds whole', () => {
+    expect(sentenceContainsWord('Девочка купила молоко.', 'молоко', ru)).toBe(true);
+    expect(sentenceContainsWord('«Привет!» — сказал он.', 'привет', ru)).toBe(true);
+    expect(sentenceContainsWord('Он придёт когда-нибудь.', 'когда-нибудь', ru)).toBe(true);
+    expect(sentenceContainsWord('Он придёт когда-нибудь.', 'нибудь', ru)).toBe(false);
+    // a genuine substring is still rejected (дела is not in сделал)
+    expect(sentenceContainsWord('Он сделал это вчера.', 'дела', ru)).toBe(false);
   });
 });
 

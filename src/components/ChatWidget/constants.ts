@@ -42,4 +42,9 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What\'s the difference between "por" and "para"?',
     'How does the personal infinitive work?',
   ],
+  ru: [
+    'How does the Russian case system work?',
+    'What\'s the difference between perfective and imperfective verbs like "сделать" vs "делать"?',
+    'When do I use "идти" vs "ходить" (verbs of motion)?',
+  ],
 };
