@@ -10,6 +10,7 @@ import {
   generateDistractors,
   shuffle,
 } from '../utils';
+import { LANGUAGES } from '@/lib/languages';
 import type { ClozeSentence } from '@/types';
 
 function makeSentence(clozeWord: string): ClozeSentence {
@@ -60,6 +61,20 @@ describe('normalize', () => {
   it('lowercases Cyrillic (including Ё) and strips guillemets', () => {
     expect(normalize('«Привет!»')).toBe('привет');
     expect(normalize('ЁЖИК')).toBe('ёжик');
+  });
+
+  it('strips the Greek ano teleia and erotimatiko as punctuation', () => {
+    expect(normalize('ὁδός·')).toBe('ὁδός');
+    expect(normalize('ἀλήθεια;')).toBe('ἀλήθεια');
+  });
+
+  it('folds polytonic marks only under the grc pack (fold-marks leniency)', () => {
+    expect(normalize('λόγος', LANGUAGES.grc)).toBe('λογοσ');
+    expect(normalize('τὸν', LANGUAGES.grc)).toBe('τον');
+    // Without the pack, marks stay significant.
+    expect(normalize('λόγος')).toBe('λόγος');
+    // A mark-sensitive pack passes through unchanged.
+    expect(normalize('café', LANGUAGES.fr)).toBe('café');
   });
 });
 
@@ -122,6 +137,19 @@ describe('checkAnswer', () => {
     expect(checkAnswer('привет', 'Привет!')).toBe(true);
     expect(checkAnswer('ёжик', 'Ёжик')).toBe(true);
     expect(checkAnswer('еще', 'ещё')).toBe(false);
+  });
+
+  it('accepts unaccented Greek under the grc pack (fold-marks), exact otherwise', () => {
+    // Typed practice without a polytonic keyboard: bare letters must match.
+    expect(checkAnswer('λογος', 'λόγος,', LANGUAGES.grc)).toBe(true);
+    expect(checkAnswer('ανθρωπος', 'ἄνθρωπος', LANGUAGES.grc)).toBe(true);
+    // Final/medial sigma fold: typing σ for ς is not an error.
+    expect(checkAnswer('λόγοσ', 'λόγος', LANGUAGES.grc)).toBe(true);
+    expect(checkAnswer('θεον', 'θεόν', LANGUAGES.grc)).toBe(true);
+    // Without the pack the comparison stays mark-exact.
+    expect(checkAnswer('λογος', 'λόγος')).toBe(false);
+    // Wrong letters still fail under leniency.
+    expect(checkAnswer('λόγον', 'λόγος', LANGUAGES.grc)).toBe(false);
   });
 });
 
@@ -252,13 +280,13 @@ describe('generateDistractors', () => {
   it('never includes the correct word, even with different punctuation or case', () => {
     const pool = ['Huis.', 'muis', 'tuis'].map(makeSentence);
     const result = generateDistractors('huis', pool);
-    expect(result.map(normalize)).not.toContain('huis');
+    expect(result.map((w) => normalize(w))).not.toContain('huis');
   });
 
   it('deduplicates words that normalize identically', () => {
     const pool = ['muis', 'Muis.', 'muis!', 'tuis'].map(makeSentence);
     const result = generateDistractors('huis', pool);
-    expect(result.map(normalize).sort()).toEqual(['muis', 'tuis']);
+    expect(result.map((w) => normalize(w)).sort()).toEqual(['muis', 'tuis']);
   });
 
   it('prefers length-similar candidates when the pool is large', () => {

@@ -17,6 +17,7 @@ const IT_TATOEBA_IDS = [4001, 4002];
 const NL_TATOEBA_IDS = [5001, 5002];
 const PT_TATOEBA_IDS = [4001, 4002];
 const RU_TATOEBA_IDS = [3001, 3002];
+const GRC_VERSE_IDS = [40010010, 40030160];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
   default: [
@@ -237,6 +238,34 @@ mock.module('../lib/sentence-bank-ru.json', () => ({
   ],
 }));
 
+// Koine Greek bank fixture (2 rows) — proves the tenth language seeds under
+// grc and stays isolated, once its bank is registered in SENTENCE_BANKS (the
+// one-line cloze.ts change). The polytonic fixture also proves the seed path
+// stores breathings/accents byte-intact, and the verse-derived numeric ids
+// coexist with Tatoeba ids.
+mock.module('../lib/sentence-bank-grc.json', () => ({
+  default: [
+    {
+      id: 40010010,
+      text: 'Ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος ἦν πρὸς τὸν θεόν.',
+      translation: 'In the beginning was the Word, and the Word was with God. (John 1:1)',
+      clozeWord: 'λόγος,',
+      clozeIndex: 4,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 40030160,
+      text: 'οὕτως γὰρ ἠγάπησεν ὁ θεὸς τὸν κόσμον.',
+      translation: 'For God so loved the world. (John 3:16)',
+      clozeWord: 'κόσμον.',
+      clozeIndex: 6,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -248,7 +277,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS].join(',')}) OR id IN (?, ?)`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
   ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -480,6 +509,35 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get() as { c: number };
     expect(afUnderRu.c).toBe(0);
+  });
+
+  test('seeds the Greek verse bank under grc, isolated from Afrikaans (tenth language)', async () => {
+    setActiveLanguage('af');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('grc');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const grc = db
+      .prepare(
+        `SELECT language, clozeWord, translation FROM clozeSentences WHERE tatoebaSentenceId IN (${GRC_VERSE_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string; translation: string }[];
+    expect(grc.length).toBe(2);
+    expect(grc.every((r) => r.language === 'grc')).toBe(true);
+    // Polytonic marks survive the seed path byte-intact, and the verse ref
+    // provenance rides in the translation.
+    expect(grc.some((r) => r.clozeWord === 'λόγος,')).toBe(true);
+    expect(grc.some((r) => r.translation.endsWith('(John 1:1)'))).toBe(true);
+
+    // Zero cross-bleed: Afrikaans content never lands under grc.
+    const afUnderGrc = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'grc' AND tatoebaSentenceId IN (${TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(afUnderGrc.c).toBe(0);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {

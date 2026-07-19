@@ -27,6 +27,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'Explain the difference between "être" and "avoir" as auxiliaries',
     "How does elision work (l', d', qu')?",
   ],
+  grc: [
+    'How does the Greek article work across cases and genders?',
+    'What does the aorist tense mean compared to the imperfect?',
+    'What\'s the difference between "οὐ" and "μή" for negation?',
+  ],
   it: [
     'When do I use "essere" vs "avere" in the passato prossimo?',
     'What\'s the difference between "sapere" and "conoscere"?',

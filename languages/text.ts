@@ -40,3 +40,24 @@ export function foldWord(text: string, pack: LanguageConfig): string {
   const normalized = normalizeText(text);
   return pack.script.hasCase ? normalized.toLowerCase() : normalized;
 }
+
+/**
+ * Strip combining marks for lenient comparison (#289 Phase 3): decompose,
+ * drop every \p{M}, recompose, and fold the Greek final sigma. For polytonic
+ * Greek this folds breathings, accents (including the grave that replaces a
+ * word-final acute in running text) and iota subscripts — λόγος ≡ λογος,
+ * τὸν ≡ τόν, ᾧ ≡ ω. Pure mark-stripping: never applied to stored text, only
+ * to both sides of a comparison or a last-resort lookup.
+ */
+export function stripMarks(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC').replace(/ς/g, 'σ');
+}
+
+/**
+ * Fold for practice-answer comparison: exact for most packs; packs that opt
+ * into `practiceLeniency: 'fold-marks'` (grc — polytonic input needs a
+ * specialist keyboard) accept mark-stripped matches.
+ */
+export function foldForComparison(text: string, pack: LanguageConfig): string {
+  return pack.script.practiceLeniency === 'fold-marks' ? stripMarks(text) : text;
+}
