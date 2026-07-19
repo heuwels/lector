@@ -16,6 +16,7 @@ const FR_TATOEBA_IDS = [6001, 6002];
 const IT_TATOEBA_IDS = [4001, 4002];
 const NL_TATOEBA_IDS = [5001, 5002];
 const PT_TATOEBA_IDS = [4001, 4002];
+const RU_TATOEBA_IDS = [3001, 3002];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
   default: [
@@ -209,6 +210,33 @@ mock.module('../lib/sentence-bank-eo.json', () => ({
   ],
 }));
 
+// Russian bank fixture (2 rows) — proves the ninth language seeds under ru and
+// stays isolated, once its bank is registered in SENTENCE_BANKS (the one-line
+// cloze.ts change); everything else about ru is registry-derived. The Cyrillic
+// fixture (with ё) also proves the seed path stores non-Latin text intact.
+mock.module('../lib/sentence-bank-ru.json', () => ({
+  default: [
+    {
+      id: 3001,
+      text: 'Кошка спит на кровати.',
+      translation: 'The cat sleeps on the bed.',
+      clozeWord: 'Кошка',
+      clozeIndex: 0,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 3002,
+      text: 'Я пью тёплое молоко.',
+      translation: 'I drink warm milk.',
+      clozeWord: 'тёплое',
+      clozeIndex: 2,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -220,7 +248,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS].join(',')}) OR id IN (?, ?)`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS].join(',')}) OR id IN (?, ?)`,
   ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -425,6 +453,33 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get() as { c: number };
     expect(afUnderEo.c).toBe(0);
+  });
+
+  test('seeds the Russian bank under ru, isolated from Afrikaans (ninth language)', async () => {
+    setActiveLanguage('af');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('ru');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const ru = db
+      .prepare(
+        `SELECT language, clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${RU_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string }[];
+    expect(ru.length).toBe(2);
+    expect(ru.every((r) => r.language === 'ru')).toBe(true);
+    // Cyrillic (including ё) survives the seed path byte-intact.
+    expect(ru.some((r) => r.clozeWord === 'тёплое')).toBe(true);
+
+    // Zero cross-bleed: Afrikaans content never lands under ru.
+    const afUnderRu = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'ru' AND tatoebaSentenceId IN (${TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(afUnderRu.c).toBe(0);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {

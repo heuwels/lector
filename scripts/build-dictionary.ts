@@ -59,6 +59,14 @@ interface LangProfile {
   /** Drop entries with no English gloss — the de→en filter, and the large,
    *  natural size lever for the 1GB German dump. Off for af (parity-preserving). */
   glossFilter: boolean;
+  /** Strip these combining marks from every dictionary key (ru: kaikki writes
+   *  the lexical-stress acute on headwords and inflected forms — молоко́ — but
+   *  runtime text is unstressed, so stressed keys would never be hit). */
+  stripFromKeys?: RegExp;
+  /** Also register the е-spelled variant of every ё key as an inflection alias
+   *  (ru: ё is routinely written е in real text). Exact entries are looked up
+   *  first, so genuine minimal pairs like все/всё keep their own entries. */
+  yoAliases?: boolean;
 }
 
 const PROFILES: Record<string, LangProfile> = {
@@ -198,6 +206,28 @@ const PROFILES: Record<string, LangProfile> = {
     rootsJsonRel: null,
     coverageCorpusRel: 'scripts/coverage-corpus-pt.txt',
     glossFilter: true,
+  },
+  ru: {
+    // Canonical /Russian/ URL (kaikki has no /downloads/ru/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Russian/kaikki.org-dictionary-Russian.jsonl'],
+    // The 33-letter Cyrillic alphabet: а-я is contiguous except ё (U+0451),
+    // which sits outside the range and is added explicitly. Hyphen stays a
+    // word char for compounds (когда-нибудь, кто-то), matching the runtime
+    // tokenizer. The apostrophe is not Russian orthography.
+    letterClass: 'а-яёА-ЯЁ-',
+    // No hand affix rules: Russian's rich inflection (6 cases × 3 genders,
+    // verb conjugation + aspect pairs) resolves via kaikki "form of <lemma>"
+    // entries + the inflections table, same strategy as de/es/fr/nl/pt.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'аеёиоуыэюя',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-ru.txt',
+    glossFilter: true,
+    // kaikki Russian marks lexical stress with a combining acute (and rare
+    // grave for secondary stress) on headwords and form-of rows.
+    stripFromKeys: /[\u0300\u0301]/g,
+    yoAliases: true,
   },
 };
 
@@ -340,8 +370,12 @@ function pickIpa(sounds: KaikkiSound[] | undefined): string | undefined {
 
 // Dictionary keys are NFC + lowercase (#289): must match the runtime foldWord
 // (languages/text.ts) or decomposed dump data would never be hit by lookups.
+// Profiles may additionally strip combining marks the dump carries but runtime
+// text doesn't (ru lexical stress) — NFC first, so precomposed letters that
+// legitimately contain a mark (ё, й) are single codepoints and survive.
 function foldKey(s: string): string {
-  return s.normalize('NFC').toLowerCase().trim();
+  const folded = s.normalize('NFC').toLowerCase().trim();
+  return PROFILE.stripFromKeys ? folded.replace(PROFILE.stripFromKeys, '') : folded;
 }
 
 function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
@@ -360,6 +394,19 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
   const inflections: Array<{ inflected: string; type: string }> = [];
   for (const f of raw.forms || []) {
     if (!f.form) continue;
+    // Non-Latin-script dumps (ru) carry a Latin transliteration per form —
+    // never a lookup key, and a table-sized bloat if kept. table-tags /
+    // inflection-template / class are kaikki's documented pseudo-forms (table
+    // metadata, e.g. form "no-table-tags" or a Zaliznyak class marker), ~18%
+    // of the raw Russian forms table.
+    const SKIP_FORM_TAGS = [
+      'romanization',
+      'transliteration',
+      'table-tags',
+      'inflection-template',
+      'class',
+    ];
+    if (f.tags?.some((t) => SKIP_FORM_TAGS.includes(t))) continue;
     const inflected = foldKey(f.form);
     if (!inflected || inflected === word) continue;
     // Skip non-Afrikaans-form rows (table headers, no-form rows)
@@ -914,6 +961,33 @@ async function main() {
   const dumpPath = await ensureDump();
   const { entries, inflectionMap } = await parseDump(dumpPath);
   mergeRanks(entries);
+
+  if (PROFILE.yoAliases) {
+    // Register the е-spelled variant of every ё key as an extra inflection row
+    // pointing at the same lemma. Runs before the gloss filter builds nothing
+    // extra: buildDatabase drops alias rows whose lemma was filtered out.
+    const addAlias = (alias: string, ref: string) => {
+      let bucket = inflectionMap.get(alias);
+      if (!bucket) {
+        bucket = new Set<string>();
+        inflectionMap.set(alias, bucket);
+      }
+      bucket.add(ref);
+    };
+    let aliased = 0;
+    for (const word of entries.keys()) {
+      if (!word.includes('ё')) continue;
+      addAlias(word.replaceAll('ё', 'е'), `${word}::ё-spelling`);
+      aliased++;
+    }
+    for (const [inflected, bucket] of [...inflectionMap]) {
+      if (!inflected.includes('ё')) continue;
+      const alias = inflected.replaceAll('ё', 'е');
+      for (const ref of bucket) addAlias(alias, ref);
+      aliased++;
+    }
+    console.log(`  ё-aliases (${LANG}): ${aliased} е-spelled variants registered`);
+  }
 
   if (PROFILE.glossFilter) {
     let dropped = 0;
