@@ -30,9 +30,9 @@ function legacyWords(text: string): string[] {
 
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
-// the contract for exactly those packs. Languages added after #289 (ru — the
-// first non-Latin pack) get their own goldens below instead.
-const CORPUS: Record<Exclude<LanguageCode, 'ru'>, string[]> = {
+// the contract for exactly those packs. Languages added after #289 (ru, grc —
+// the non-Latin packs) get their own goldens below instead.
+const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc'>, string[]> = {
   af: [
     'Hallo, hoe gaan dit met jou?',
     '’n Man loop in die straat. Sy sê: „Dit is ’n mooi dag!“',
@@ -87,7 +87,10 @@ const CORPUS: Record<Exclude<LanguageCode, 'ru'>, string[]> = {
 };
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
-  for (const [code, texts] of Object.entries(CORPUS) as [Exclude<LanguageCode, 'ru'>, string[]][]) {
+  for (const [code, texts] of Object.entries(CORPUS) as [
+    Exclude<LanguageCode, 'ru' | 'grc'>,
+    string[],
+  ][]) {
     const pack = LANGUAGES[code];
     it(`matches the legacy word stream for ${code}`, () => {
       for (const text of texts) {
@@ -205,11 +208,11 @@ function synth(script: Partial<ScriptConfig> & Pick<ScriptConfig, 'bcp47'>): Lan
   };
 }
 
-// ru graduated from a synthetic pack to a real registry entry (#212) — these
-// goldens now run against the shipped manifest, proving the engine needs no
-// per-script code for it.
+// ru (#212) and grc (#254) graduated from synthetic packs to real registry
+// entries — these goldens now run against the shipped manifests, proving the
+// engine needs no per-script code for them.
 const ru = LANGUAGES.ru;
-const grc = synth({ bcp47: 'grc', sentenceTerminators: '.;·' });
+const grc = LANGUAGES.grc;
 const ar = synth({ bcp47: 'ar', direction: 'rtl', hasCase: false, sentenceTerminators: '؟.!' });
 const hbo = synth({ bcp47: 'he', direction: 'rtl', hasCase: false });
 const ko = synth({ bcp47: 'ko', kind: 'hangul', hasCase: false });
@@ -333,6 +336,79 @@ describe('Russian pack (real manifest)', () => {
     const text = 'Девочка читает книгу';
     //                     ^10..12^ inside "читает" (8..14)
     expect(snapToWordBoundaries(text, 10, 12, ru)).toEqual({ start: 8, end: 14 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Koine Greek pack goldens (#254) — polytonic, real manifest
+// ---------------------------------------------------------------------------
+
+const GRC_CORPUS = [
+  'Ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος ἦν πρὸς τὸν θεόν.',
+  'σὺ εἶ ὁ βασιλεὺς τῶν Ἰουδαίων;',
+  'ἐγώ εἰμι ἡ ὁδὸς καὶ ἡ ἀλήθεια καὶ ἡ ζωή· οὐδεὶς ἔρχεται πρὸς τὸν πατέρα εἰ μὴ δι’ ἐμοῦ.',
+];
+
+describe('Koine Greek pack (real manifest)', () => {
+  it('reassembles polytonic text byte-for-byte with correct offsets', () => {
+    for (const text of GRC_CORPUS) {
+      const tokens = tokenize(text, grc);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps breathings, accents and iota subscripts inside word tokens', () => {
+    expect(tokenizeWords('τῷ ᾅδῃ ᾠδὴν ᾄδουσιν', grc).map((t) => t.text)).toEqual([
+      'τῷ',
+      'ᾅδῃ',
+      'ᾠδὴν',
+      'ᾄδουσιν',
+    ]);
+  });
+
+  it('splits elisions at the apostrophe like fr/it (δι’ ἐμοῦ → δι + ἐμοῦ)', () => {
+    expect(tokenizeWords('δι’ ἐμοῦ καὶ κατ’ αὐτόν', grc).map((t) => t.text)).toEqual([
+      'δι',
+      'ἐμοῦ',
+      'καὶ',
+      'κατ',
+      'αὐτόν',
+    ]);
+    // The koronis-shaped U+1FBD apostrophe (κατ᾽) is a symbol, not a word
+    // char — it splits the same way.
+    expect(tokenizeWords('κατ᾽ αὐτόν', grc).map((t) => t.text)).toEqual(['κατ', 'αὐτόν']);
+  });
+
+  it('folds case while preserving the final sigma', () => {
+    expect(foldWord('Λόγος', grc)).toBe('λόγος');
+    expect(foldWord('ΘΕΌΣ', grc)).toBe('θεός');
+  });
+
+  it('folds the oxia/tonos duplicate codepoints together at ingress (NFC)', () => {
+    // Unicode encodes \u03AC twice; editions and Wiktionary mix them. NFC maps
+    // the Greek Extended oxia form to the tonos singleton.
+    const oxia = '\u1F00\u03B3\u1F71\u03C0\u03B7'; // \u1F00\u03B3 + ALPHA WITH OXIA + \u03C0\u03B7
+    const tonos = '\u1F00\u03B3\u03AC\u03C0\u03B7'; // same word with ALPHA WITH TONOS
+    expect(oxia).not.toBe(tonos);
+    expect(normalizeText(oxia)).toBe(tonos);
+    expect(foldWord(oxia, grc)).toBe(foldWord(tonos, grc));
+  });
+
+  it('splits sentences on the erotimatiko and ano teleia', () => {
+    expect(splitSentences('τί ἐστιν ἀλήθεια; ἐγώ εἰμι ἡ ὁδός· ἀμήν.', grc)).toEqual([
+      'τί ἐστιν ἀλήθεια;',
+      'ἐγώ εἰμι ἡ ὁδός·',
+      'ἀμήν.',
+    ]);
+  });
+
+  it('snaps a mid-word selection to polytonic word boundaries', () => {
+    const text = 'ὁ λόγος ἦν';
+    //                ^3..5^ inside "λόγος" (2..7)
+    expect(snapToWordBoundaries(text, 3, 5, grc)).toEqual({ start: 2, end: 7 });
   });
 });
 

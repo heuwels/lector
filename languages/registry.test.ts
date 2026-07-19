@@ -28,6 +28,17 @@ describe('registry pronunciation conformance', () => {
     }
   });
 
+  it('koine greek is audio-none with no voice fields (first no-audio pack)', () => {
+    const grc = LANGUAGES.grc;
+    // Reconstructed/disputed pronunciation — nothing may speak it (#307 §3.2a):
+    // the speaker UI absents itself rather than mis-speaking via a wrong voice.
+    expect(grc.pronunciation.audio).toBe('none');
+    expect(grc.ttsCode).toBeUndefined();
+    expect(grc.ttsVoice).toBeUndefined();
+    expect(grc.script.practiceLeniency).toBe('fold-marks');
+    expect(grc.script.sentenceTerminators).toBe('.;·');
+  });
+
   it('esperanto is espeak-voiced with a rule-generated IPA gloss', () => {
     const eo = LANGUAGES.eo;
     expect(eo.pronunciation.audio).toEqual(['espeak']);

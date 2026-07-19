@@ -2,7 +2,13 @@ import { Database, type Statement } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
 import { db as userDb } from '../db';
-import { DEFAULT_LANGUAGE, foldWord, getLanguageConfig, isValidLanguageCode } from './languages';
+import {
+  DEFAULT_LANGUAGE,
+  foldWord,
+  getLanguageConfig,
+  isValidLanguageCode,
+  stripMarks,
+} from './languages';
 import { esperantoIpa } from '../../../languages/eo/ipa';
 import { acceptedDictionaryContentBytes } from './storage-limits';
 
@@ -359,8 +365,16 @@ function getStmts(language: string): Stmts | null {
       selectEntry: db.prepare('SELECT word, rank, ipa, etymology FROM entries WHERE word = ?'),
       selectSenses: db.prepare('SELECT pos, gloss FROM senses WHERE word = ? ORDER BY sort_order'),
       selectRelated: db.prepare('SELECT related_word, relation FROM related_forms WHERE word = ?'),
+      // Several lemmas can claim one surface form (kaikki paradigm tables
+      // attach shared cells like the bare article to unrelated lemmas — grc
+      // τὸν is claimed by ὁ AND -κτόνος). Prefer the most frequent lemma by
+      // entry rank; unranked dictionaries (rank all NULL) keep insertion
+      // order, and the JOIN also skips rows whose lemma has no entry.
       selectInflectionLemma: db.prepare(
-        'SELECT lemma, type FROM inflections WHERE inflected_form = ? LIMIT 1',
+        `SELECT i.lemma, i.type FROM inflections i
+         JOIN entries e ON e.word = i.lemma
+         WHERE i.inflected_form = ?
+         ORDER BY (e.rank IS NULL), e.rank, i.rowid LIMIT 1`,
       ),
     };
     _stmtsByLang.set(language, stmts);
@@ -868,6 +882,36 @@ function resolveWord(
     if (language === 'eo') {
       const ruled = eoLookupByRule(stmts, lower);
       if (ruled) return ruled;
+    }
+
+    // Step 3-grc: accent-insensitive fallback (#254). Running polytonic text
+    // systematically disagrees with dictionary keys on marks — most commonly
+    // the grave that replaces a word-final acute mid-sentence (τὸν vs τόν).
+    // The build registers mark-stripped alias rows in the inflections table
+    // (type 'unaccented'); retry both steps with the stripped key. Only after
+    // the exact steps missed, so genuine minimal pairs (ἡ/ἥ/ἤ) stay exact.
+    if (isValidLanguageCode(language)) {
+      const pack = getLanguageConfig(language);
+      if (pack.script.practiceLeniency === 'fold-marks') {
+        const stripped = stripMarks(lower);
+        if (stripped !== lower) {
+          const exactStripped = stmts.selectEntry.get(stripped) as EntryRow | undefined;
+          if (exactStripped) return buildEntry(exactStripped, stmts, lower);
+          const inflStripped = stmts.selectInflectionLemma.get(stripped) as
+            | { lemma: string; type: string | null }
+            | undefined;
+          if (inflStripped) {
+            const lemmaRow = stmts.selectEntry.get(inflStripped.lemma) as EntryRow | undefined;
+            if (lemmaRow) {
+              const label =
+                inflStripped.type && inflStripped.type !== 'unaccented'
+                  ? `${inflStripped.type.replace(/,/g, ' ')} form of`
+                  : 'form of';
+              return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
+            }
+          }
+        }
+      }
     }
 
     // Steps 3–4 use Afrikaans-specific affix morphology — only run for `af`.

@@ -65,6 +65,12 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation('ещё.')).toEqual(['ещё', '.']);
     expect(splitTrailingPunctuation('когда-нибудь,')).toEqual(['когда-нибудь', ',']);
   });
+
+  it('strips Greek punctuation: ano teleia, erotimatiko, and comma', () => {
+    expect(splitTrailingPunctuation('ζωή·')).toEqual(['ζωή', '·']);
+    expect(splitTrailingPunctuation('Ἰουδαίων;')).toEqual(['Ἰουδαίων', ';']);
+    expect(splitTrailingPunctuation('λόγος,')).toEqual(['λόγος', ',']);
+  });
 });
 
 describe('sentenceContainsWord', () => {
@@ -146,6 +152,16 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Он придёт когда-нибудь.', 'нибудь', ru)).toBe(false);
     // a genuine substring is still rejected (дела is not in сделал)
     expect(sentenceContainsWord('Он сделал это вчера.', 'дела', ru)).toBe(false);
+  });
+
+  it('matches polytonic Greek tokens with marks intact', () => {
+    const grc = LANGUAGES.grc;
+    expect(sentenceContainsWord('Ἐν ἀρχῇ ἦν ὁ λόγος.', 'λόγος', grc)).toBe(true);
+    expect(sentenceContainsWord('Ἐν ἀρχῇ ἦν ὁ λόγος.', 'ἀρχῇ', grc)).toBe(true);
+    // the elided κατ᾽ arrives pre-split, so the fragment is addressable
+    expect(sentenceContainsWord('καὶ κατ᾽ αὐτόν ἔρχεται.', 'αὐτόν', grc)).toBe(true);
+    // a genuine substring is still rejected
+    expect(sentenceContainsWord('Ἐν ἀρχῇ ἦν ὁ λόγος.', 'λόγ', grc)).toBe(false);
   });
 });
 

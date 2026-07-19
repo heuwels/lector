@@ -1,5 +1,10 @@
 import { splitTrailingPunctuation } from '@/lib/words';
-import { graphemeLength, normalizeText } from '@/lib/languages';
+import {
+  foldForComparison,
+  graphemeLength,
+  normalizeText,
+  type LanguageConfig,
+} from '@/lib/languages';
 import { ClozeMasteryLevel, ClozeSentence } from '@/types';
 import { DictationDiff, DictationWord, FuzzyStatus, PracticeMode } from './types';
 import { DICTATION_PASS_THRESHOLD, DICTATION_POINTS_BASE } from './constants';
@@ -14,24 +19,36 @@ export function createBlankedSentence(sentence: string, wordIndex: number): stri
 
 // Helper export function to normalize text for comparison. NFC first (#289):
 // decomposed typed input (macOS dead keys, some IMEs) must compare equal to
-// the bank's precomposed text.
-export function normalize(s: string): string {
-  return normalizeText(s)
+// the bank's precomposed text. The ano teleia · is Greek's strong colon —
+// punctuation like the rest of the class. Packs with `practiceLeniency:
+// 'fold-marks'` (grc) additionally compare mark-stripped: typed λογος matches
+// the bank's λόγος (#289 Phase 3).
+export function normalize(s: string, pack?: LanguageConfig): string {
+  const base = normalizeText(s)
     .toLowerCase()
-    .replace(/[.,!?¿¡;:'"„“”‚‘’«»‹›()[\]{}…]/gu, '')
+    .replace(/[.,!?¿¡;:·'"„“”‚‘’«»‹›()[\]{}…]/gu, '')
     .trim();
+  return pack ? foldForComparison(base, pack) : base;
 }
 
 // Helper export function to check answer (case-insensitive, ignores punctuation)
-export function checkAnswer(userAnswer: string, correctWord: string): boolean {
-  return normalize(userAnswer) === normalize(correctWord);
+export function checkAnswer(
+  userAnswer: string,
+  correctWord: string,
+  pack?: LanguageConfig,
+): boolean {
+  return normalize(userAnswer, pack) === normalize(correctWord, pack);
 }
 
-export function getFuzzyStatus(userInput: string, correctWord: string): FuzzyStatus {
+export function getFuzzyStatus(
+  userInput: string,
+  correctWord: string,
+  pack?: LanguageConfig,
+): FuzzyStatus {
   if (!userInput.trim()) return 'empty';
 
-  const input = normalize(userInput);
-  const correct = normalize(correctWord);
+  const input = normalize(userInput, pack);
+  const correct = normalize(correctWord, pack);
 
   if (input === correct) return 'match';
   if (input.length <= correct.length && correct.startsWith(input)) return 'partial';
@@ -161,8 +178,8 @@ export function buildMultipleChoiceOptions(
 export function diffDictation(typedRaw: string, actual: string): DictationDiff {
   const typedWords = typedRaw.trim().split(/\s+/).filter(Boolean);
   const actualWords = actual.trim().split(/\s+/).filter(Boolean);
-  const t = typedWords.map(normalize);
-  const a = actualWords.map(normalize);
+  const t = typedWords.map((w) => normalize(w));
+  const a = actualWords.map((w) => normalize(w));
   const n = t.length;
   const m = a.length;
 

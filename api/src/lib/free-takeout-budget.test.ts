@@ -16,7 +16,7 @@ describe('Free takeout serialization budget', () => {
     expect(proof.counts.learnerEvents).toBe(50);
     expect(proof.structureAndMetadataBytes).toBeGreaterThan(50 * 1024 * 1024);
     expect(proof.escapedLearnerTextBytes).toBeGreaterThan(35 * 1024 * 1024);
-    expect(proof.totalBytes).toBe(93_294_298);
+    expect(proof.totalBytes).toBe(93_294_764);
     expect(proof.totalBytes).toBeLessThanOrEqual(FREE_RESTORE_ENVELOPE_BYTES);
     expect(FREE_RESTORE_ENVELOPE_BYTES - proof.totalBytes).toBeGreaterThan(1 * 1024 * 1024);
   });
