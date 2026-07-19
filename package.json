@@ -53,7 +53,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "adm-zip": "^0.5.17",
+    "adm-zip": "^0.6.0",
     "better-sqlite3": "^12.11.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
