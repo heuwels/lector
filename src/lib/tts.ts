@@ -140,19 +140,24 @@ function getActiveLanguageVoice(): SpeechSynthesisVoice | undefined {
     return undefined;
   }
 
-  // Return cached voice if already selected
+  const allLangs = candidateLangs();
+  const matchesActiveLang = (v: SpeechSynthesisVoice) =>
+    allLangs.some((lang) => v.lang === lang || v.lang.startsWith(lang.split('-')[0]));
+
+  // Return the cached voice only while it still matches the active language.
+  // The cache outlives a server-side language switch (settings PUT without a
+  // reload), and a stale voice is worse than none: a Latin voice handed
+  // Cyrillic text plays silence rather than erroring.
   if (voiceInitialized && cachedVoice) {
-    return cachedVoice;
+    if (matchesActiveLang(cachedVoice)) return cachedVoice;
+    cachedVoice = undefined;
+    voiceInitialized = false;
   }
 
   const voices = window.speechSynthesis.getVoices();
   if (voices.length === 0) {
     return undefined;
   }
-
-  const allLangs = candidateLangs();
-  const matchesActiveLang = (v: SpeechSynthesisVoice) =>
-    allLangs.some((lang) => v.lang === lang || v.lang.startsWith(lang.split('-')[0]));
 
   // Check for user's saved preference — but only reuse it if it still matches
   // the active language. The saved name is global, so an Afrikaans voice must
@@ -273,6 +278,12 @@ function speakWithBrowser(text: string, rate: number): void {
     // without a Google ttsCode).
     const config = activeLangConfig();
     utterance.lang = config.ttsCode ?? config.script.bcp47;
+    // The browser will pick its default voice, which for a non-matching
+    // language often plays nothing at all (e.g. a Latin voice handed
+    // Cyrillic text) — leave a trail for that otherwise-silent failure.
+    console.warn(
+      `No ${config.name} browser voice found — install one in the OS or configure managed TTS`,
+    );
   }
 
   // Set speech parameters
