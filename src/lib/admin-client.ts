@@ -156,6 +156,39 @@ export async function getAuditLog(): Promise<AdminAuditEntry[]> {
   return (await res.json()).entries as AdminAuditEntry[];
 }
 
+export interface ImpersonationStatus {
+  active: boolean;
+  targetUserId?: string;
+  targetEmail?: string | null;
+  expiresAt?: string;
+}
+
+/** Begin a read-only "view as" session for a user (#320). Returns the grant's expiry. */
+export async function startImpersonation(
+  id: string,
+): Promise<{ targetUserId: string; targetEmail: string | null; expiresAt: string }> {
+  const res = await apiFetch(`/api/admin/users/${id}/impersonate`, { method: 'POST' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `impersonate failed (${res.status})`);
+  }
+  return res.json();
+}
+
+/** End the operator's active impersonation session. */
+export async function stopImpersonation(): Promise<void> {
+  const res = await apiFetch('/api/admin/impersonation/stop', { method: 'POST' });
+  if (!res.ok) throw new Error(`stop impersonation failed (${res.status})`);
+}
+
+/** The caller's active impersonation, or { active: false }. Un-gated: safe for
+ *  any signed-in user to call (non-admins simply have no grant). */
+export async function getImpersonationStatus(): Promise<ImpersonationStatus> {
+  const res = await apiFetch('/api/impersonation/status');
+  if (!res.ok) return { active: false };
+  return res.json();
+}
+
 /** Fetch a user's full export and trigger a JSON file download in the browser. */
 export async function exportUser(id: string, email: string): Promise<void> {
   const res = await apiFetch(`/api/admin/users/${id}/export`);
