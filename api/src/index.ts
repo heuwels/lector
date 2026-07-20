@@ -31,6 +31,7 @@ import chat from './routes/chat';
 import llmOpenai from './routes/llm-openai';
 import billing from './routes/billing';
 import admin from './routes/admin';
+import impersonation from './routes/impersonation';
 import byok from './routes/byok';
 import onboarding from './routes/onboarding';
 import learnerEvents from './routes/learner-events';
@@ -38,6 +39,7 @@ import { authMiddleware } from './lib/auth';
 import { sessionMiddleware } from './lib/session';
 import { assertBillingBootable, billingConfig, billingMiddleware } from './lib/billing';
 import { accountStatusMiddleware } from './lib/admin';
+import { impersonationMiddleware } from './lib/impersonation';
 import { getAuthEngine, runAuthMigrations, resolveTrustedOrigins } from './lib/accounts';
 import { HTTPException } from 'hono/http-exception';
 import { startClassifyWorker } from './lib/classify-worker';
@@ -151,6 +153,11 @@ app.use('/api/*', defaultRequestBodyLimit);
 app.use('*', logger());
 app.use('/api/*', sessionMiddleware);
 app.use('/api/*', authMiddleware);
+// Impersonation identity-swap (#320) — after session/PAT (real operator id
+// resolved), before the account-status/billing gates so an impersonated
+// suspended/lapsed account is experienced exactly as that user sees it. A
+// no-op unless cloud proper and an active grant exists for the operator.
+app.use('/api/*', impersonationMiddleware);
 // Account-status gate (#221) — after session/PAT (tenant resolved), before
 // billing. A no-op unless cloud proper; there it locks a manually-suspended
 // account to the same escape hatches as a billing lapse (auth/billing/admin/
@@ -204,6 +211,7 @@ app.route('/api/chat', chat);
 app.route('/api/llm/openai', llmOpenai);
 app.route('/api/billing', billing);
 app.route('/api/admin', admin);
+app.route('/api/impersonation', impersonation);
 app.route('/api/byok', byok);
 app.route('/api/onboarding', onboarding);
 app.route('/api/learner-events', learnerEvents);

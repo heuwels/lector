@@ -28,8 +28,13 @@ import { getAuthEngine, type AuthEngine } from './accounts';
 
 declare module 'hono' {
   interface ContextVariableMap {
-    /** Tenant resolved from the Better Auth session (cloud mode only). */
+    /** Tenant resolved from the Better Auth session (cloud mode only). While an
+     *  admin is impersonating (#320) this is swapped to the TARGET so every
+     *  route serves the target's data; the operator's real id moves to
+     *  `impersonatorId`. */
     userId: string;
+    /** The real operator id during impersonation (#320); absent otherwise. */
+    impersonatorId?: string;
     /** API-token identity + scopes, set by the bearer-token middleware
      *  (auth.ts). Present only on token-authenticated requests. */
     tokenId?: string;

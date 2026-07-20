@@ -33,6 +33,7 @@ import {
 } from '../lib/billing';
 import { buildUserExport } from '../lib/user-export';
 import { recordAdminAction, recentAuditLog, type AdminAction } from '../lib/admin-audit';
+import { startImpersonation, stopImpersonation, IMPERSONATION_TTL_MS } from '../lib/impersonation';
 import { getAuthEngine } from '../lib/accounts';
 import {
   makePaddleBillingOperations,
@@ -636,6 +637,40 @@ export function makeAdminRoutes(
     const revoked = db.prepare('DELETE FROM session WHERE userId = ?').run(id).changes;
     audit(c, 'revoke_sessions', id, email, `${revoked} session(s)`);
     return c.json({ id, revoked });
+  });
+
+  // POST /api/admin/users/:id/impersonate — begin a read-only "view as" session
+  // for this account (#320). Mints a short-lived grant; the identity-swap
+  // middleware (lib/impersonation.ts) then serves the target's data on ordinary
+  // routes while this operator browses. Admin/auth/impersonation control planes
+  // keep the operator's own identity, so the dashboard and Exit stay reachable.
+  app.post('/users/:id/impersonate', (c) => {
+    const id = c.req.param('id');
+    const email = targetEmail(id);
+    if (email === null) return c.json({ error: 'User not found' }, 404);
+
+    const caller = c.get('userId');
+    if (id === caller) return c.json({ error: 'You cannot impersonate yourself' }, 400);
+    // Never impersonate another operator — no reading a peer's account.
+    if (isAdmin(id, gate)) {
+      return c.json({ error: 'Cannot impersonate an admin account' }, 400);
+    }
+
+    const grant = startImpersonation(caller, { userId: id, email }, now);
+    audit(c, 'impersonate_start', id, email, `read-only, ttl ${IMPERSONATION_TTL_MS / 60000}m`);
+    return c.json({ targetUserId: id, targetEmail: email, expiresAt: grant.expiresAt });
+  });
+
+  // POST /api/admin/impersonation/stop — end the operator's active "view as"
+  // session. On a control plane, so it's reachable even while impersonating
+  // (the swap never touches /api/admin/*). No-op if nothing is active.
+  app.post('/impersonation/stop', (c) => {
+    const caller = c.get('userId');
+    const ended = stopImpersonation(caller, now);
+    if (!ended) return c.json({ active: false });
+    const minutes = Math.max(1, Math.round(ended.durationMs / 60000));
+    audit(c, 'impersonate_stop', ended.grant.targetUserId, ended.grant.targetEmail, `${minutes}m`);
+    return c.json({ active: false, stoppedTargetUserId: ended.grant.targetUserId });
   });
 
   // GET /api/admin/audit — the operator action trail, newest first.
