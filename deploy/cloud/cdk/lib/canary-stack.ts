@@ -75,7 +75,9 @@ import { Construct } from 'constructs';
  *   /lector/canary/asr-url             String        optional — ASR_URL (OpenAI-compatible transcription endpoint; hosted boxes use a hosted ASR — OpenRouter "https://openrouter.ai/api" (reuse the deployment key) or Groq "https://api.groq.com/openai". Never run Whisper on the instance.)
  *   /lector/canary/asr-api-key         SecureString  optional — ASR_API_KEY (bearer for the ASR endpoint; for OpenRouter, the same value as openrouter-api-key)
  *   /lector/canary/asr-model           String        optional — ASR_MODEL (default whisper-large-v3; OpenRouter uses "openai/whisper-large-v3")
- *   /lector/canary/asr-max-bytes       String        optional — ASR_MAX_BYTES (provider multipart cap; OpenRouter and Groq free tier: 26214400)
+ *   /lector/canary/asr-max-bytes       String        optional — ASR_MAX_BYTES (provider PER-REQUEST multipart cap; OpenRouter and Groq free tier: 26214400. Not a lesson-length limit — bigger files are split into sub-cap chunks and stitched.)
+ *   /lector/canary/asr-max-file-bytes  String        optional — ASR_MAX_FILE_BYTES (ceiling on one lesson's audio; default 104857600)
+ *   /lector/canary/asr-chunk-seconds   String        optional — ASR_CHUNK_SECONDS (max audio per chunk; default 600, lower if the provider times out mid-request)
  *   /lector/canary/ghcr-token          SecureString  optional — only if the ghcr package goes private again
  */
 
@@ -360,6 +362,8 @@ put ASR_URL               asr-url
 put ASR_API_KEY           asr-api-key
 put ASR_MODEL             asr-model
 put ASR_MAX_BYTES         asr-max-bytes
+put ASR_MAX_FILE_BYTES    asr-max-file-bytes
+put ASR_CHUNK_SECONDS     asr-chunk-seconds
 mv "$TMP" "$ENVFILE"
 if ! grep -q "^TUNNEL_TOKEN=" "$ENVFILE"; then
   echo "WARNING: __PARAM_PREFIX__/tunnel-token is missing - cloudflared will crash-loop until it exists (put the parameter, then run /srv/lector/update.sh)" >&2

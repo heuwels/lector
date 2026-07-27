@@ -18,10 +18,14 @@ import { db } from '../db';
 import { countWords } from './html-to-markdown';
 import { normalizeText } from './languages';
 import {
+  getTranscriptionLimits,
   getTranscriptionProvider,
+  transcribeChunked,
+  type SplitAudioFn,
   type TranscribeOptions,
   type TranscriptionResult,
 } from './transcription';
+import { probeAudioDurationMs } from './audio-probe';
 import { Sentry } from './sentry';
 
 /** Lesson rows a drain tick operates on. */
@@ -176,16 +180,32 @@ export type DrainOutcome =
   | { state: 'retrying'; lessonId: string; error: string }
   | { state: 'failed'; lessonId: string; error: string };
 
+export interface TranscribeLimits {
+  /**
+   * The provider's per-request multipart cap. Not a reject threshold: a file
+   * above it is split into sub-cap chunks and sent as several ordinary
+   * multipart uploads. Undefined for local servers, which have no cap — so
+   * chunking never runs on the local happy path.
+   */
+  maxBytes?: number;
+  /** Hard reject above this, whatever the backend (see DEFAULT_ASR_MAX_FILE_BYTES). */
+  maxFileBytes?: number;
+  /** Upper bound on one chunk's audio length. */
+  maxChunkSeconds?: number;
+}
+
 /**
  * One drain step: claim the oldest pending lesson, transcribe its audio, and
  * write the transcript back. `transcribe` is injectable so tests can stub the
- * ASR call; `maxBytes` mirrors the provider's upload cap.
+ * ASR call, and `split` so they can stub ffmpeg.
  */
 export async function transcribeNextPending(
   database: Database,
   transcribe: (audio: Blob, options: TranscribeOptions) => Promise<TranscriptionResult>,
-  maxBytes?: number,
+  limits: TranscribeLimits = {},
+  split?: SplitAudioFn,
 ): Promise<DrainOutcome> {
+  const { maxBytes, maxFileBytes, maxChunkSeconds } = limits;
   const row = selectNextPending(database);
   if (!row) return { state: 'idle' };
 
@@ -207,17 +227,37 @@ export async function transcribeNextPending(
     markError(database, row, 'Audio file is missing on disk');
     return { state: 'failed', lessonId: row.id, error: 'Audio file is missing on disk' };
   }
-  if (maxBytes && file.size > maxBytes) {
-    const message = `Audio file (${Math.round(file.size / 1024 / 1024)} MB) exceeds the ASR provider's ${Math.round(maxBytes / 1024 / 1024)} MB upload cap — re-encode it smaller (e.g. mono 48 kbps opus) or point ASR_URL at a local Whisper server`;
+  if (maxFileBytes && file.size > maxFileBytes) {
+    // No amount of retrying or splitting helps — this is the ceiling on how
+    // much audio one lesson may be.
+    const message = `Audio file (${Math.round(file.size / 1024 / 1024)} MB) exceeds the ${Math.round(maxFileBytes / 1024 / 1024)} MB per-lesson limit — split the recording or re-encode it smaller (e.g. mono 48 kbps opus)`;
     markError(database, row, message);
     return { state: 'failed', lessonId: row.id, error: message };
   }
 
+  const options: TranscribeOptions = {
+    language: row.language,
+    filename: row.audioPath.split('/').pop() || 'audio',
+  };
+
   try {
-    const result = await transcribe(file, {
-      language: row.language,
-      filename: row.audioPath.split('/').pop() || 'audio',
-    });
+    // Over the provider's per-request cap the file goes out as several
+    // multipart uploads instead of one, stitched back onto one timeline.
+    const result =
+      maxBytes && file.size > maxBytes
+        ? await transcribeChunked({
+            filePath: row.audioPath,
+            fileBytes: file.size,
+            // The upload-time ffprobe is usually there; re-probe when it wasn't,
+            // since chunking can't convert bytes to time without a duration.
+            durationMs: row.audioDurationMs ?? (await probeAudioDurationMs(row.audioPath)),
+            chunkBytes: maxBytes,
+            maxChunkSeconds,
+            transcribe,
+            options,
+            split,
+          })
+        : await transcribe(file, options);
     applyTranscript(database, row, result);
     return { state: 'done', lessonId: row.id, segments: result.segments.length };
   } catch (err) {
@@ -274,10 +314,11 @@ export function startTranscribeWorker(): boolean {
         // Resolved per tick, not at boot, so env-driven provider changes don't
         // require a restart mid-queue.
         const provider = getTranscriptionProvider();
+        const limits = getTranscriptionLimits();
         const outcome = await transcribeNextPending(
           db,
           (audio, options) => provider.transcribe(audio, options),
-          provider.maxBytes,
+          { ...limits, maxBytes: provider.maxBytes },
         );
         if (outcome.state === 'done') {
           console.log(

@@ -73,9 +73,14 @@ sets `SENTRY_ENVIRONMENT=staging`; production sets `production`.
 
 To enable audio transcription (podcast import, #185), set `transcribe-worker=1`,
 `asr-url=https://openrouter.ai/api`, `asr-model=openai/whisper-large-v3`,
-`asr-max-bytes=26214400` (OpenRouter's multipart cap), and `asr-api-key`
-(SecureString — for OpenRouter, the same value as `openrouter-api-key`; the
-seam stays separate so a dedicated ASR vendor is a param flip). Groq direct
+`asr-max-bytes=26214400` (OpenRouter's per-request multipart cap), and
+`asr-api-key` (SecureString — for OpenRouter, the same value as
+`openrouter-api-key`; the seam stays separate so a dedicated ASR vendor is a
+param flip). `asr-max-bytes` bounds one *request*, not one lesson: bigger files
+are split with ffmpeg into sub-cap chunks and the transcripts stitched back
+together, up to `asr-max-file-bytes` (default 100 MB). Drop
+`asr-chunk-seconds` below its 600 default if jobs start dying on OpenRouter's
+60 s upstream processing timeout. Groq direct
 (`asr-url=https://api.groq.com/openai`, bare `whisper-large-v3`) returns
 noticeably finer segment timestamps — better shadowing granularity — if a Groq
 key is available. Hosted boxes always use an external ASR endpoint — never run
