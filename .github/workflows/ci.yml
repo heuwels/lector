@@ -88,9 +88,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       # eSpeak NG backs the espeak TTS engine branch (#307 §3.2c); the tts
       # route tests synthesize through the real binary (they skip when it is
-      # absent, so installing here keeps them exercised in CI).
-      - name: Install eSpeak NG
-        run: sudo apt-get update && sudo apt-get install -y espeak-ng
+      # absent, so installing here keeps them exercised in CI). ffmpeg is the
+      # same arrangement for split-audio.test.ts, which cuts real files in
+      # every container we accept — the ffmpeg the runtime image already ships.
+      - name: Install eSpeak NG and ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y espeak-ng ffmpeg
       - run: bun install --frozen-lockfile
         working-directory: api
       - name: Typecheck API

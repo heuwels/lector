@@ -103,9 +103,20 @@ sentence shadowing). Transcription talks to any OpenAI-compatible
   idle TTL the multi-GB model loads on the first job and unloads afterwards,
   so it costs ~nothing while quiet — and because transcription is a background
   job, the cold-start latency is invisible.
-- **Hosted fallback (Groq):** `ASR_URL=https://api.groq.com/openai` +
-  `ASR_API_KEY` + `ASR_MAX_BYTES=104857600`. A ~40-minute episode is ~3–7¢ on
+- **Hosted fallback (OpenRouter, Groq):** `ASR_URL=https://openrouter.ai/api` +
+  `ASR_API_KEY` + `ASR_MAX_BYTES=26214400`. A ~40-minute episode is ~3–7¢ on
   `whisper-large-v3`.
+
+`ASR_MAX_BYTES` is the backend's **per-request** multipart cap (25 MB on
+OpenRouter and OpenAI), not a limit on lesson length. A file above it is cut
+into sub-cap pieces with ffmpeg, each sent as an ordinary multipart upload, and
+the transcripts stitched back onto one timeline — so a 100 MB recording still
+transcribes against a 25 MB endpoint. `ASR_CHUNK_SECONDS` (default 600) caps how
+much audio one request carries, which matters because OpenRouter's upstreams
+abort after 60 s of *processing*. `ASR_MAX_FILE_BYTES` (default 100 MB) is the
+ceiling on a single lesson's audio; above it the job fails with a clear message
+instead of queueing an hours-long chain of ASR calls. Leave `ASR_MAX_BYTES`
+unset for a local server — it has no cap, so nothing is ever split.
 
 `ASR_MODEL` defaults to `whisper-large-v3` (best Afrikaans accuracy; the
 language hint is always sent — Whisper mis-detects Afrikaans as Dutch on
@@ -113,7 +124,9 @@ auto-detect). Enable the worker with `TRANSCRIBE_WORKER=1`. Audio files live
 on disk under `DATA_DIR/audio/` and are **not** part of the export/restore
 backup (the transcript text is; segments and audio are a
 [#109](https://github.com/heuwels/lector/issues/109) follow-up). `ffmpeg` is
-optional but recommended — it supplies the duration estimate at upload time.
+optional but recommended — it supplies the duration estimate at upload time, and
+it is **required** to transcribe anything above `ASR_MAX_BYTES`, since that is
+what does the splitting.
 
 On billed deployments two plan limits meter the feature (selfhost is
 unaffected): `audioTranscriptionMinutesPerMonth` (ASR compute scales with

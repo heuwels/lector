@@ -13,7 +13,7 @@ import {
   startTranscribeWorker,
   type PendingTranscription,
 } from './transcribe-worker';
-import type { TranscriptionResult } from './transcription';
+import type { SplitAudioFn, TranscriptionResult } from './transcription';
 
 const TEST_AUDIO_DIR = path.join(process.env.DATA_DIR || '.test-data', 'worker-audio');
 
@@ -301,12 +301,83 @@ describe('transcribeNextPending', () => {
     expect(lessonRow(db, id).transcriptionError).toContain('missing');
   });
 
-  test('fails terminally when the file exceeds the provider upload cap', async () => {
-    const audioPath = await realAudioFile('big.mp3', 2048);
+  test('fails terminally when the file exceeds the per-lesson size limit', async () => {
+    const audioPath = await realAudioFile('huge.mp3', 2048);
     const id = insertLesson(db, { audioPath });
-    const outcome = await transcribeNextPending(db, async () => RESULT, 1024);
+    const outcome = await transcribeNextPending(db, async () => RESULT, { maxFileBytes: 1024 });
     expect(outcome.state).toBe('failed');
-    expect(lessonRow(db, id).transcriptionError).toContain('upload cap');
+    expect(lessonRow(db, id).transcriptionError).toContain('per-lesson limit');
+  });
+
+  test('splits past the provider cap and stitches the chunks onto one timeline', async () => {
+    const audioPath = await realAudioFile('long.mp3', 2048);
+    const id = insertLesson(db, { audioPath, audioDurationMs: 120_000 });
+
+    // Stub ffmpeg: two 60 s halves, each transcribed on its own 0-based clock.
+    const chunkPaths = [
+      await realAudioFile('long-part-0.mp3', 512),
+      await realAudioFile('long-part-1.mp3', 512),
+    ];
+    let cleaned = false;
+    const split: SplitAudioFn = async () => ({
+      chunks: [
+        { path: chunkPaths[0], startMs: 0, endMs: 60_000 },
+        { path: chunkPaths[1], startMs: 60_000, endMs: 120_000 },
+      ],
+      cleanup: () => {
+        cleaned = true;
+      },
+    });
+
+    const uploads: number[] = [];
+    const outcome = await transcribeNextPending(
+      db,
+      async (audio) => {
+        uploads.push(audio.size);
+        return {
+          text: `deel ${uploads.length}`,
+          segments: [{ startMs: 0, endMs: 2000, text: `Deel ${uploads.length}.` }],
+        };
+      },
+      { maxBytes: 1024, maxFileBytes: 10 * 1024 },
+      split,
+    );
+
+    expect(outcome).toEqual({ state: 'done', lessonId: id, segments: 2 });
+    // Two ordinary multipart uploads, each comfortably under the cap.
+    expect(uploads).toEqual([512, 512]);
+    expect(cleaned).toBe(true);
+
+    const segments = db
+      .prepare(
+        'SELECT startMs, endMs, text FROM transcript_segments WHERE lessonId = ? ORDER BY idx',
+      )
+      .all(id);
+    // The second chunk's 0-based stamps are shifted by its start offset.
+    expect(segments).toEqual([
+      { startMs: 0, endMs: 2000, text: 'Deel 1.' },
+      { startMs: 60_000, endMs: 62_000, text: 'Deel 2.' },
+    ]);
+    expect(lessonRow(db, id).textContent).toBe('Deel 1. Deel 2.');
+  });
+
+  test('does not split when the file fits the provider cap', async () => {
+    const audioPath = await realAudioFile('small.mp3', 256);
+    insertLesson(db, { audioPath });
+    let splitCalls = 0;
+    const split: SplitAudioFn = async () => {
+      splitCalls++;
+      throw new Error('should not be reached');
+    };
+
+    const outcome = await transcribeNextPending(
+      db,
+      async () => RESULT,
+      { maxBytes: 1024, maxFileBytes: 10 * 1024 },
+      split,
+    );
+    expect(outcome.state).toBe('done');
+    expect(splitCalls).toBe(0);
   });
 });
 

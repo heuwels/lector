@@ -14,6 +14,7 @@ import {
   saveAudioFile,
 } from '../lib/audio-files';
 import { estimateTranscriptionMinutes, probeAudioDurationMs } from '../lib/audio-probe';
+import { getTranscriptionLimits } from '../lib/transcription';
 import { normalizeText } from '../lib/languages';
 import { randomUUID } from 'crypto';
 
@@ -22,10 +23,13 @@ import { randomUUID } from 'crypto';
 // in full here).
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
 
-// Audio uploads (#185) are podcast-episode sized. A 60-minute 128 kbps MP3 is
-// ~60 MB; 500 MB comfortably covers multi-hour recordings while still bounding
-// what one request can buffer.
-const MAX_AUDIO_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
+// Audio uploads (#185) are podcast-episode sized — a 60-minute 128 kbps MP3 is
+// ~60 MB. The gate is the same ceiling the transcription worker enforces
+// (ASR_MAX_FILE_BYTES, 100 MB by default): an audio lesson exists to be
+// transcribed, so accepting a file the worker will later refuse would just
+// spend the uploader's storage and ASR-minute allowance on a lesson that can
+// never finish. Rejecting at the door also bounds what one request buffers.
+const MAX_AUDIO_UPLOAD_BYTES = getTranscriptionLimits().maxFileBytes;
 
 interface ImportRouteDeps {
   engine: EntitlementsEngine;
@@ -160,7 +164,13 @@ export function makeImportRoutes({
     '/audio',
     bodyLimit({
       maxSize: MAX_AUDIO_UPLOAD_BYTES,
-      onError: (c) => c.json({ error: 'Audio file is too large (max 500 MB).' }, 413),
+      onError: (c) =>
+        c.json(
+          {
+            error: `Audio file is too large (max ${Math.round(MAX_AUDIO_UPLOAD_BYTES / 1024 / 1024)} MB).`,
+          },
+          413,
+        ),
     }),
     async (c) => {
       try {
