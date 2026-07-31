@@ -35,10 +35,27 @@ export function normalizeText(text: string): string {
  * the old `toLowerCase()` keying for shipped languages on NFC input. Phase 3
  * extends this with per-pack mark folding (tashkeel/niqqud stripping, final
  * forms, ς→σ).
+ *
+ * Packs that set `script.caseFoldLocale` fold under that locale instead (tr:
+ * dotted/dotless i). Re-normalize after a locale fold, because Turkish `İ`
+ * lowercases through a decomposed intermediate.
  */
 export function foldWord(text: string, pack: LanguageConfig): string {
   const normalized = normalizeText(text);
-  return pack.script.hasCase ? normalized.toLowerCase() : normalized;
+  if (!pack.script.hasCase) return normalized;
+  return lowerForPack(normalized, pack);
+}
+
+/**
+ * Lowercase under the pack's fold locale when it declares one (tr), and under
+ * the default Unicode mapping otherwise. Use this anywhere a comparison
+ * lowercases target-language text but can't use the full `foldWord` — the
+ * practice answer check, which also strips punctuation. Without a pack it is
+ * plain `toLowerCase()`, so language-blind call sites keep their behavior.
+ */
+export function lowerForPack(text: string, pack?: LanguageConfig): string {
+  const locale = pack?.script.caseFoldLocale;
+  return locale ? text.toLocaleLowerCase(locale).normalize('NFC') : text.toLowerCase();
 }
 
 /**

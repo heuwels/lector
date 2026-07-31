@@ -28,6 +28,14 @@ export interface ScriptConfig {
   kind: 'alpha-spaced' | 'hangul' | 'cjk-unspaced';
   /** False for scripts with no letter case (ar, hbo, zh, ja, ko) — foldWord skips lowercasing. */
   hasCase: boolean;
+  /**
+   * Locale tag for case folding, when the default Unicode lowercasing is wrong
+   * for the language. Only Turkic packs need it: tr/az write the dotted and
+   * dotless i as separate letters, so `I` must fold to `ı` and `İ` to `i`,
+   * where the default rules give `i` and `i` + U+0307. Omit for every other
+   * pack — locale-insensitive folding keeps their keys byte-stable.
+   */
+  caseFoldLocale?: string;
   /** Sentence-ending characters; defaults to '.!?'. zh/ja '。．！？!?', ar '؟.!', grc '.;·'. */
   sentenceTerminators?: string;
   /** Extra characters allowed INSIDE a word beyond letters/marks (e.g. grc elision marks). */

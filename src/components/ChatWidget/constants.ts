@@ -52,4 +52,9 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What\'s the difference between perfective and imperfective verbs like "сделать" vs "делать"?',
     'When do I use "идти" vs "ходить" (verbs of motion)?',
   ],
+  tr: [
+    'How does vowel harmony decide which suffix I use?',
+    'In what order do suffixes stack on a word like "evlerimizden"?',
+    'What\'s the difference between the -di and -miş past tenses?',
+  ],
 };

@@ -68,6 +68,17 @@ describe('normalize', () => {
     expect(normalize('ἀλήθεια;')).toBe('ἀλήθεια');
   });
 
+  it('lowercases Turkish under the tr pack (dotted/dotless i)', () => {
+    // With the pack, İ folds to a plain i and I folds to ı.
+    expect(normalize('İyi!', LANGUAGES.tr)).toBe('iyi');
+    expect(normalize('IŞIK', LANGUAGES.tr)).toBe('ışık');
+    expect(normalize('İyi', LANGUAGES.tr)).not.toContain('̇');
+    // Without a pack the default mapping applies, which is why grading has to
+    // pass the pack: this is the leftover combining dot that fails a correct
+    // answer.
+    expect(normalize('İyi')).not.toBe('iyi');
+  });
+
   it('folds polytonic marks only under the grc pack (fold-marks leniency)', () => {
     expect(normalize('λόγος', LANGUAGES.grc)).toBe('λογοσ');
     expect(normalize('τὸν', LANGUAGES.grc)).toBe('τον');
@@ -137,6 +148,21 @@ describe('checkAnswer', () => {
     expect(checkAnswer('привет', 'Привет!')).toBe(true);
     expect(checkAnswer('ёжик', 'Ёжик')).toBe(true);
     expect(checkAnswer('еще', 'ещё')).toBe(false);
+  });
+
+  it('grades a sentence-initial Turkish İ / I answer under the tr pack', () => {
+    // The bank keeps the answer as the sentence wrote it, so grading a typed
+    // lowercase answer against "İyi" or "Işık" only works with the pack's
+    // fold locale.
+    expect(checkAnswer('iyi', 'İyi', LANGUAGES.tr)).toBe(true);
+    expect(checkAnswer('ışık', 'Işık', LANGUAGES.tr)).toBe(true);
+    expect(checkAnswer('istanbul', "İstanbul'da", LANGUAGES.tr)).toBe(false);
+    // Dotted and dotless stay different letters: ılık ("lukewarm") is not a
+    // correct answer for ilik ("marrow"), in either case.
+    expect(checkAnswer('ılık', 'İLİK', LANGUAGES.tr)).toBe(false);
+    expect(checkAnswer('ilik', 'ILIK', LANGUAGES.tr)).toBe(false);
+    // Without the pack the same correct answer is rejected.
+    expect(checkAnswer('iyi', 'İyi')).toBe(false);
   });
 
   it('accepts unaccented Greek under the grc pack (fold-marks), exact otherwise', () => {

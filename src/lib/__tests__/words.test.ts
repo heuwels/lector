@@ -154,6 +154,18 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Он сделал это вчера.', 'дела', ru)).toBe(false);
   });
 
+  it('matches Turkish tokens through the dotted/dotless i fold', () => {
+    const tr = LANGUAGES.tr;
+    expect(sentenceContainsWord('İyi akşamlar dilerim.', 'iyi', tr)).toBe(true);
+    expect(sentenceContainsWord('Işık söndü.', 'ışık', tr)).toBe(true);
+    // A suffixed proper noun splits at the apostrophe, so the noun matches.
+    expect(sentenceContainsWord("Dün İstanbul'da kaldım.", 'istanbul', tr)).toBe(true);
+    // Dotted and dotless remain different words.
+    expect(sentenceContainsWord('Işık söndü.', 'işik', tr)).toBe(false);
+    // a genuine substring is still rejected
+    expect(sentenceContainsWord('Kitabı okudum.', 'kitap', tr)).toBe(false);
+  });
+
   it('matches polytonic Greek tokens with marks intact', () => {
     const grc = LANGUAGES.grc;
     expect(sentenceContainsWord('Ἐν ἀρχῇ ἦν ὁ λόγος.', 'λόγος', grc)).toBe(true);

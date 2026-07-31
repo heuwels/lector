@@ -173,6 +173,7 @@ const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   nl: () => import('../lib/sentence-bank-nl.json'),
   pt: () => import('../lib/sentence-bank-pt.json'),
   ru: () => import('../lib/sentence-bank-ru.json'),
+  tr: () => import('../lib/sentence-bank-tr.json'),
 };
 
 async function loadSentenceBank(lang: string): Promise<BankEntry[]> {

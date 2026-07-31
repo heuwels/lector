@@ -851,6 +851,18 @@ export function lookupWord(
   return entry;
 }
 
+// kaikki tags a form it could not classify as `error-unrecognized-form`, and a
+// tagless form as `form`. Neither is a grammatical description, so neither
+// belongs in the reader's "… form of <lemma>" label. Turkish has 28k of the
+// error-tagged rows (real forms with an unparsed tag, e.g. ekip → ekmek), which
+// is what made this visible; af/de carry a few hundred between them.
+const OPAQUE_INFLECTION_TAGS = new Set(['form', 'error-unrecognized-form']);
+
+function inflectionLabel(type: string | null): string {
+  if (!type || OPAQUE_INFLECTION_TAGS.has(type)) return 'inflected form of';
+  return `${type.replace(/,/g, ' ')} form of`;
+}
+
 function resolveWord(
   userId: string,
   word: string,
@@ -871,7 +883,7 @@ function resolveWord(
     if (infl) {
       const lemmaRow = stmts.selectEntry.get(infl.lemma) as EntryRow | undefined;
       if (lemmaRow) {
-        const label = infl.type ? `${infl.type.replace(/,/g, ' ')} form of` : 'inflected form of';
+        const label = inflectionLabel(infl.type);
         return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
       }
     }

@@ -91,4 +91,41 @@ describe('foldWord', () => {
     const once = foldWord('Môre', af);
     expect(foldWord(once, af)).toBe(once);
   });
+
+  // The dotted/dotless i is the one place the default Unicode lowercasing
+  // gives a wrong key rather than an unusual one: `İyi` would fold to
+  // i + U+0307 + 'yi', which no dictionary entry matches, and `ILIK`
+  // ("lukewarm") would fold onto `ilik` ("marrow") — a different word.
+  describe('Turkish dotted/dotless i (script.caseFoldLocale)', () => {
+    const tr = LANGUAGES.tr;
+
+    it('folds the dotted capital İ to a plain i, with no leftover dot', () => {
+      expect(foldWord('İyi', tr)).toBe('iyi');
+      expect(foldWord('İSTANBUL', tr)).toBe('istanbul');
+      expect(foldWord('DİL', tr)).toBe('dil');
+      expect(foldWord('İyi', tr)).not.toContain('̇');
+    });
+
+    it('folds the dotless capital I to ı, keeping the two words apart', () => {
+      expect(foldWord('ILIK', tr)).toBe('ılık');
+      expect(foldWord('IŞIK', tr)).toBe('ışık');
+      expect(foldWord('ILIK', tr)).not.toBe(foldWord('İLİK', tr));
+    });
+
+    it('agrees with itself on mixed-case and already-lower input', () => {
+      expect(foldWord('Işık', tr)).toBe(foldWord('IŞIK', tr));
+      expect(foldWord('ışık', tr)).toBe('ışık');
+    });
+
+    it('is idempotent', () => {
+      const once = foldWord('İSTANBUL', tr);
+      expect(foldWord(once, tr)).toBe(once);
+    });
+
+    it('leaves packs without a fold locale on plain Unicode lowercasing', () => {
+      // Same input, no caseFoldLocale: German keeps the default mapping, so
+      // the Turkish rule can't leak into another pack's keys.
+      expect(foldWord('ILIK', de)).toBe('ilik');
+    });
+  });
 });
