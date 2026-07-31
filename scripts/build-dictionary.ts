@@ -61,6 +61,10 @@ interface LangProfile {
   /** Drop entries with no English gloss — the de→en filter, and the large,
    *  natural size lever for the 1GB German dump. Off for af (parity-preserving). */
   glossFilter: boolean;
+  /** Case-fold locale, mirroring the pack's `script.caseFoldLocale` (tr only).
+   *  Keys the DB the same way the runtime folds lookups, so the dotted/dotless
+   *  i can't split one word across two keys. */
+  caseFoldLocale?: string;
   /** Strip these combining marks from every dictionary key (ru: kaikki writes
    *  the lexical-stress acute on headwords and inflected forms — молоко́ — but
    *  runtime text is unstressed, so stressed keys would never be hit). */
@@ -275,6 +279,31 @@ const PROFILES: Record<string, LangProfile> = {
     stripFromKeys: /[\u0300\u0301]/g,
     yoAliases: true,
   },
+  tr: {
+    // Canonical /Turkish/ URL (kaikki has no /downloads/tr/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Turkish/kaikki.org-dictionary-Turkish.jsonl'],
+    // The 29-letter Turkish alphabet: a-z minus q/w/x (kept anyway for
+    // loanwords the dump carries) plus \u00e7 \u011f \u0131 i\u0307/\u0130 \u00f6 \u015f \u00fc. The apostrophe is a
+    // token boundary, matching the runtime tokenizer: a suffix on a proper
+    // noun is written \u0130stanbul'da, which splits to \u0130stanbul + da and leaves
+    // the lookupable noun on its own. Hyphen stays a word char.
+    letterClass: 'a-z\u00e7\u011f\u0131\u00f6\u015f\u00fcA-Z\u00c7\u011e\u0130\u00d6\u015e\u00dc-',
+    // No hand affix rules. Turkish is agglutinative, so a surface form can
+    // stack several suffixes (ev-ler-imiz-den) and no fixed suffix list would
+    // cover it; the dump's "form of <lemma>" entries plus the inflections
+    // table resolve what kaikki records, and the runtime falls through to
+    // UDPipe \u2192 AI for the rest, as for de/es/fr/nl/pt/ru.
+    prefixes: [],
+    suffixes: [],
+    // The eight vowels, in the two harmony sets: back a \u0131 o u, front e i \u00f6 \u00fc.
+    vowels: 'ae\u0131io\u00f6u\u00fc',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-tr.txt',
+    glossFilter: true,
+    // Dotted/dotless i: keys must fold I \u2192 \u0131 and \u0130 \u2192 i, matching the pack's
+    // script.caseFoldLocale, or one word would key under two spellings.
+    caseFoldLocale: 'tr',
+  },
 };
 
 function parseLangArg(): string {
@@ -422,8 +451,16 @@ function pickIpa(sounds: KaikkiSound[] | undefined): string | undefined {
 // has precomposed alpha-with-macron, ᾱ = U+1FB1); the final NFC recomposes
 // legitimate mark-bearing letters (ё, й, breathings/accents) untouched — their
 // marks aren't in any profile's strip set.
+// Lowercase the way the runtime foldWord does for this language: locale-aware
+// only for packs that ask for it (tr: I → ı, İ → i), plain Unicode otherwise.
+// A locale fold can decompose (İ → i + U+0307), so re-normalize after it.
+function lowerForLang(s: string): string {
+  const locale = PROFILE.caseFoldLocale;
+  return locale ? s.toLocaleLowerCase(locale).normalize('NFC') : s.toLowerCase();
+}
+
 function foldKey(s: string): string {
-  const folded = s.normalize('NFC').toLowerCase().trim();
+  const folded = lowerForLang(s.normalize('NFC')).trim();
   if (!PROFILE.stripFromKeys) return folded;
   return folded.normalize('NFD').replace(PROFILE.stripFromKeys, '').normalize('NFC');
 }
@@ -858,7 +895,7 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
   );
 
   return function lookup(w: string): LookupShape | undefined {
-    const lower = w.toLowerCase();
+    const lower = lowerForLang(w);
 
     const hit = exact.get(lower) as { word: string } | undefined;
     if (hit) return hit;
@@ -944,7 +981,7 @@ function gatherCorpus(): Set<string> {
         }[];
         for (const row of rows) {
           if (row.t) {
-            for (const tok of tokenize(row.t)) corpus.add(tok.toLowerCase());
+            for (const tok of tokenize(row.t)) corpus.add(lowerForLang(tok));
           }
         }
       } catch (err) {
@@ -994,7 +1031,7 @@ function coverageCheck(): { hits: number; total: number; misses: string[] } {
     for (const line of fs.readFileSync(COVERAGE_CORPUS_PATH, 'utf-8').split('\n')) {
       const w = line.trim();
       if (!w || w.startsWith('#')) continue;
-      corpus.add(w.toLowerCase());
+      corpus.add(lowerForLang(w));
     }
     console.log(
       `  (corpus was thin, added ${corpus.size - before} corpus-file tokens → ${corpus.size} tokens)`,

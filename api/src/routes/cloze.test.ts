@@ -17,6 +17,7 @@ const IT_TATOEBA_IDS = [4001, 4002];
 const NL_TATOEBA_IDS = [5001, 5002];
 const PT_TATOEBA_IDS = [4001, 4002];
 const RU_TATOEBA_IDS = [3001, 3002];
+const TR_TATOEBA_IDS = [2001, 2002];
 const GRC_VERSE_IDS = [40010010, 40030160];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
@@ -266,6 +267,35 @@ mock.module('../lib/sentence-bank-grc.json', () => ({
   ],
 }));
 
+// Turkish bank fixture (2 rows) — proves the eleventh language seeds under tr
+// and stays isolated, once its bank is registered in SENTENCE_BANKS (the
+// one-line cloze.ts change). Both rows carry a capitalized dotted İ, which is
+// where a default lowercasing would leave a combining dot behind: the seed path
+// must store the text exactly as written and let the pack fold it at grading
+// time.
+mock.module('../lib/sentence-bank-tr.json', () => ({
+  default: [
+    {
+      id: 2001,
+      text: 'İyi sağlık her şeyden daha değerlidir.',
+      translation: 'Good health is more valuable than anything else.',
+      clozeWord: 'İyi',
+      clozeIndex: 0,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 2002,
+      text: 'Işık söndü ve oda karanlık oldu.',
+      translation: 'The light went out and the room went dark.',
+      clozeWord: 'Işık',
+      clozeIndex: 0,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -277,7 +307,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
   ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -538,6 +568,35 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get() as { c: number };
     expect(afUnderGrc.c).toBe(0);
+  });
+
+  test('seeds the Turkish bank under tr, isolated from Afrikaans (eleventh language)', async () => {
+    setActiveLanguage('af');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('tr');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const tr = db
+      .prepare(
+        `SELECT language, clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${TR_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string }[];
+    expect(tr.length).toBe(2);
+    expect(tr.every((r) => r.language === 'tr')).toBe(true);
+    // The dotted İ and dotless I are stored exactly as written — one precomposed
+    // character each, with no combining dot introduced by a stray lowercasing.
+    expect(tr.some((r) => r.clozeWord === 'İyi')).toBe(true);
+    expect(tr.some((r) => r.clozeWord === 'Işık')).toBe(true);
+
+    // Zero cross-bleed: Afrikaans content never lands under tr.
+    const afUnderTr = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'tr' AND tatoebaSentenceId IN (${TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(afUnderTr.c).toBe(0);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {

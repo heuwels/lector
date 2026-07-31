@@ -39,6 +39,17 @@ describe('registry pronunciation conformance', () => {
     expect(grc.script.sentenceTerminators).toBe('.;·');
   });
 
+  // A fold locale changes how every vocab and dictionary key is written, so it
+  // must stay opt-in: one pack declares it, and the dictionary build mirrors
+  // the same value in its tr profile.
+  it('only the Turkish pack declares a case-fold locale', () => {
+    const withLocale = getAllLanguages().filter((lang) => lang.script.caseFoldLocale);
+    expect(withLocale.map((lang) => lang.code)).toEqual(['tr']);
+    expect(LANGUAGES.tr.script.caseFoldLocale).toBe('tr');
+    expect(LANGUAGES.tr.tatoebaCode).toBe('tur');
+    expect(LANGUAGES.tr.script.hasCase).toBe(true);
+  });
+
   it('esperanto is espeak-voiced with a rule-generated IPA gloss', () => {
     const eo = LANGUAGES.eo;
     expect(eo.pronunciation.audio).toEqual(['espeak']);

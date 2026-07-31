@@ -2,6 +2,7 @@ import { splitTrailingPunctuation } from '@/lib/words';
 import {
   foldForComparison,
   graphemeLength,
+  lowerForPack,
   normalizeText,
   type LanguageConfig,
 } from '@/lib/languages';
@@ -23,9 +24,13 @@ export function createBlankedSentence(sentence: string, wordIndex: number): stri
 // punctuation like the rest of the class. Packs with `practiceLeniency:
 // 'fold-marks'` (grc) additionally compare mark-stripped: typed λογος matches
 // the bank's λόγος (#289 Phase 3).
+//
+// Lowercasing goes through the pack (tr): the bank keeps a sentence-initial
+// answer as written, so grading "İyi" against typed "iyi" needs the Turkish
+// mapping. The default one leaves a combining dot behind and fails a correct
+// answer.
 export function normalize(s: string, pack?: LanguageConfig): string {
-  const base = normalizeText(s)
-    .toLowerCase()
+  const base = lowerForPack(normalizeText(s), pack)
     .replace(/[.,!?¿¡;:·'"„“”‚‘’«»‹›()[\]{}…]/gu, '')
     .trim();
   return pack ? foldForComparison(base, pack) : base;

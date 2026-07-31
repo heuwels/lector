@@ -30,9 +30,12 @@ function legacyWords(text: string): string[] {
 
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
-// the contract for exactly those packs. Languages added after #289 (ru, grc —
-// the non-Latin packs) get their own goldens below instead.
-const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc'>, string[]> = {
+// the contract for exactly those packs. Languages added after #289 get their
+// own goldens below instead — ru and grc because the oracle can't see their
+// scripts, and tr because the oracle applies the Afrikaans 'n alternative to
+// every language, which mis-splits a Turkish suffixed proper noun
+// (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to the af pack.
+const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr'>, string[]> = {
   af: [
     'Hallo, hoe gaan dit met jou?',
     '’n Man loop in die straat. Sy sê: „Dit is ’n mooi dag!“',
@@ -409,6 +412,82 @@ describe('Koine Greek pack (real manifest)', () => {
     const text = 'ὁ λόγος ἦν';
     //                ^3..5^ inside "λόγος" (2..7)
     expect(snapToWordBoundaries(text, 3, 5, grc)).toEqual({ start: 2, end: 7 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Turkish pack goldens (#209-style Latin pack, dotted/dotless i)
+// ---------------------------------------------------------------------------
+
+const tr = LANGUAGES.tr;
+
+const TR_CORPUS = [
+  'Merhaba! Nasılsın?',
+  'Çocuklar bahçede oynuyor, çünkü hava çok güzel.',
+  'Kitabı 1999 yılında İstanbul’da okudum.',
+  '“Numara 42 şarkısını duydun mu?” diye dedem sordu.',
+  'Işık söndü ve oda birdenbire karanlık oldu.',
+];
+
+describe('Turkish pack (real manifest)', () => {
+  it('reassembles Turkish text byte-for-byte with correct offsets', () => {
+    for (const text of TR_CORPUS) {
+      const tokens = tokenize(text, tr);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps ç ğ ı i İ ö ş ü inside word tokens', () => {
+    expect(tokenizeWords('Işığı gördüğüm için çok şaşırdım.', tr).map((t) => t.text)).toEqual([
+      'Işığı',
+      'gördüğüm',
+      'için',
+      'çok',
+      'şaşırdım',
+    ]);
+  });
+
+  it('splits a suffixed proper noun at the apostrophe, leaving the noun whole', () => {
+    // Turkish separates a case suffix from a proper noun with an apostrophe.
+    // Splitting there is what makes "İstanbul" independently lookupable; the
+    // stranded suffix is a stop word.
+    expect(tokenizeWords("İstanbul'da ve Ankara'nın dışında", tr).map((t) => t.text)).toEqual([
+      'İstanbul',
+      'da',
+      've',
+      'Ankara',
+      'nın',
+      'dışında',
+    ]);
+    // The typographic apostrophe (U+2019), which real Turkish text prefers.
+    expect(tokenizeWords('Türkiye’nin başkenti', tr).map((t) => t.text)).toEqual([
+      'Türkiye',
+      'nin',
+      'başkenti',
+    ]);
+  });
+
+  it('folds the dotted and dotless i to different keys', () => {
+    expect(foldWord('İSTANBUL', tr)).toBe('istanbul');
+    expect(foldWord('IŞIK', tr)).toBe('ışık');
+    expect(foldWord('Işık', tr)).toBe('ışık');
+    // ILIK "lukewarm" and İLİK "marrow" must not collapse onto one key.
+    expect(foldWord('ILIK', tr)).not.toBe(foldWord('İLİK', tr));
+  });
+
+  it('round-trips tokenize → fold with no leftover combining dot', () => {
+    const folded = tokenizeWords('İyi akşamlar! İşler nasıl?', tr).map((t) => foldWord(t.text, tr));
+    expect(folded).toEqual(['iyi', 'akşamlar', 'işler', 'nasıl']);
+    for (const word of folded) expect(word).not.toContain('̇');
+  });
+
+  it('snaps a mid-word selection to Turkish word boundaries', () => {
+    const text = 'Çocuk kitabı okuyor';
+    //                  ^7..9^ inside "kitabı" (6..12)
+    expect(snapToWordBoundaries(text, 7, 9, tr)).toEqual({ start: 6, end: 12 });
   });
 });
 
