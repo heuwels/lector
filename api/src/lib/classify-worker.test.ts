@@ -1,5 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   selectPending,
   classifyPendingBatch,
@@ -510,6 +513,38 @@ describe('purgeOrphanedBatches', () => {
     expect(purgeOrphanedBatches(db)).toBe(1);
     expect(getInflightBatch(db)).toBeNull();
     expect(purgeOrphanedBatches(db)).toBe(0); // idempotent, quiet when empty
+  });
+
+  // Idempotent is not enough — the empty call must also write no pages. This
+  // runs on every worker tick, and `DELETE FROM t` with no WHERE starts
+  // SQLite's truncate optimisation, which rewrites the table root page and the
+  // index root page even with no rows. Litestream replicated those two pages
+  // every 15s and made S3 the largest line on the AWS bill. A file-backed WAL
+  // database is the only way to see the write, so this test does not use the
+  // in-memory helper.
+  test('writes no pages when there is nothing to purge', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'classify-purge-'));
+    const path = join(dir, 'test.db');
+    try {
+      const db = new Database(path);
+      db.exec('PRAGMA journal_mode = WAL');
+      db.exec(`CREATE TABLE classify_batches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        providerBatchId TEXT NOT NULL UNIQUE,
+        provider TEXT NOT NULL,
+        submittedAt TEXT NOT NULL,
+        requests TEXT NOT NULL
+      );`);
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+      expect(statSync(`${path}-wal`).size).toBe(0);
+
+      expect(purgeOrphanedBatches(db)).toBe(0);
+
+      expect(statSync(`${path}-wal`).size).toBe(0);
+      db.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
