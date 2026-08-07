@@ -128,4 +128,37 @@ describe('foldWord', () => {
       expect(foldWord('ILIK', de)).toBe('ilik');
     });
   });
+
+  // The Ukrainian apostrophe is a letter, and text in the wild spells it with
+  // whichever variant its source produced. kaikki writes the headwords with
+  // ASCII ', so the fold has to agree on one spelling or the lookup misses.
+  describe('Ukrainian apostrophe (script.foldApostrophes)', () => {
+    const uk = LANGUAGES.uk;
+
+    it('folds every apostrophe variant to the ASCII one', () => {
+      expect(foldWord('п’ять', uk)).toBe("п'ять");
+      expect(foldWord('пʼять', uk)).toBe("п'ять");
+      expect(foldWord('пʹять', uk)).toBe("п'ять");
+      expect(foldWord('п`ять', uk)).toBe("п'ять");
+      expect(foldWord('п´ять', uk)).toBe("п'ять");
+      expect(foldWord("п'ять", uk)).toBe("п'ять");
+    });
+
+    it('folds case and apostrophe together', () => {
+      expect(foldWord("З'ЇЗД", uk)).toBe("з'їзд");
+      expect(foldWord('Здоров’я', uk)).toBe("здоров'я");
+    });
+
+    it('is idempotent', () => {
+      const once = foldWord('Ім’я', uk);
+      expect(foldWord(once, uk)).toBe(once);
+    });
+
+    it('leaves packs without the flag alone', () => {
+      // French spells l'eau with an apostrophe too, but the pack splits on it
+      // and never folds — its keys must stay byte-stable.
+      expect(foldWord('L’EAU', LANGUAGES.fr)).toBe('l’eau');
+      expect(foldWord('Türkiye’nin', LANGUAGES.tr)).toBe('türkiye’nin');
+    });
+  });
 });

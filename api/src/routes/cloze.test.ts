@@ -18,6 +18,7 @@ const NL_TATOEBA_IDS = [5001, 5002];
 const PT_TATOEBA_IDS = [4001, 4002];
 const RU_TATOEBA_IDS = [3001, 3002];
 const TR_TATOEBA_IDS = [2001, 2002];
+const UK_TATOEBA_IDS = [1001, 1002];
 const GRC_VERSE_IDS = [40010010, 40030160];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
@@ -296,6 +297,35 @@ mock.module('../lib/sentence-bank-tr.json', () => ({
   ],
 }));
 
+// Ukrainian bank fixture (2 rows) — proves the twelfth language seeds under uk
+// and stays isolated, once its bank is registered in SENTENCE_BANKS (the
+// one-line cloze.ts change). Both rows carry an apostrophe word, which is where
+// the pack's joiner matters: the seed path must store the text exactly as
+// written, apostrophe included, and let the pack fold the variant at grading
+// time.
+mock.module('../lib/sentence-bank-uk.json', () => ({
+  default: [
+    {
+      id: 1001,
+      text: "Я з'їв п'ять яблук сьогодні.",
+      translation: 'I ate five apples today.',
+      clozeWord: "п'ять",
+      clozeIndex: 2,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 1002,
+      text: 'Здоров’я важливіше за все інше.',
+      translation: 'Health is more important than everything else.',
+      clozeWord: 'Здоров’я',
+      clozeIndex: 0,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -307,7 +337,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...UK_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
   ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -597,6 +627,37 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get() as { c: number };
     expect(afUnderTr.c).toBe(0);
+  });
+
+  test('seeds the Ukrainian bank under uk, isolated from Russian (twelfth language)', async () => {
+    // Russian is the pack a Ukrainian learner reached for before this existed,
+    // so it is the isolation partner worth asserting.
+    setActiveLanguage('ru');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('uk');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const uk = db
+      .prepare(
+        `SELECT language, clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${UK_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string }[];
+    expect(uk.length).toBe(2);
+    expect(uk.every((r) => r.language === 'uk')).toBe(true);
+    // The apostrophe survives the seed path in the exact variant the bank wrote,
+    // ASCII in one row and typographic in the other.
+    expect(uk.some((r) => r.clozeWord === "п'ять")).toBe(true);
+    expect(uk.some((r) => r.clozeWord === 'Здоров’я')).toBe(true);
+
+    // Zero cross-bleed: Russian content never lands under uk.
+    const ruUnderUk = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'uk' AND tatoebaSentenceId IN (${RU_TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(ruUnderUk.c).toBe(0);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {

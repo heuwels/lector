@@ -57,4 +57,9 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'In what order do suffixes stack on a word like "evlerimizden"?',
     'What\'s the difference between the -di and -miş past tenses?',
   ],
+  uk: [
+    'How does the Ukrainian case system work, including the vocative?',
+    'When does a word take an apostrophe, as in "п\'ять" and "з\'їзд"?',
+    'What\'s the difference between perfective and imperfective verbs like "зробити" vs "робити"?',
+  ],
 };

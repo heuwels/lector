@@ -50,6 +50,30 @@ describe('registry pronunciation conformance', () => {
     expect(LANGUAGES.tr.script.hasCase).toBe(true);
   });
 
+  // The apostrophe seam is the same kind of opt-in as the fold locale: it moves
+  // a token boundary and changes how keys are written, so exactly one pack may
+  // declare it, and the dictionary build mirrors the flag in its uk profile.
+  it('only the Ukrainian pack joins and folds the apostrophe', () => {
+    const withJoiners = getAllLanguages().filter((lang) => lang.script.extraJoiners);
+    expect(withJoiners.map((lang) => lang.code)).toEqual(['uk']);
+    const withFold = getAllLanguages().filter((lang) => lang.script.foldApostrophes);
+    expect(withFold.map((lang) => lang.code)).toEqual(['uk']);
+
+    const uk = LANGUAGES.uk;
+    expect(uk.tatoebaCode).toBe('ukr');
+    expect(uk.script.bcp47).toBe('uk');
+    expect(uk.script.hasCase).toBe(true);
+    // Every variant the fold maps must also join, or a curly-apostrophe word
+    // would tokenize as two words and then key as one.
+    expect(uk.script.extraJoiners).toContain("'");
+    for (const variant of ['‘', '’', 'ʼ', 'ʹ', '`', '´']) {
+      expect(uk.script.extraJoiners, `variant ${variant} must join`).toContain(variant);
+    }
+    // Russian is the pack this was confused with — it must be unaffected.
+    expect(LANGUAGES.ru.script.extraJoiners).toBeUndefined();
+    expect(LANGUAGES.ru.script.foldApostrophes).toBeUndefined();
+  });
+
   it('esperanto is espeak-voiced with a rule-generated IPA gloss', () => {
     const eo = LANGUAGES.eo;
     expect(eo.pronunciation.audio).toEqual(['espeak']);

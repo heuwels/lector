@@ -16,7 +16,8 @@
 //   boundaries (maqaf-joined words are separate tokens, per #289 Phase 3).
 // - Apostrophes split words (l'eau → l + eau, foto's → foto + s) exactly as
 //   before; packs opt into apostrophe-bearing tokens via
-//   `script.extraTokenPatterns` (af 'n) or `script.extraWordChars`.
+//   `script.extraTokenPatterns` (af 'n), `script.extraWordChars`, or
+//   `script.extraJoiners` (uk: п'ять is one word).
 // - Combining marks (\p{M}) are word characters so decomposed sequences and
 //   pointed Arabic/Hebrew text keep words whole; NFC at ingress (text.ts)
 //   makes this a no-op for shipped languages.
@@ -63,8 +64,12 @@ function compile(script: ScriptConfig): CompiledScript {
 
   const extra = escapeForCharClass(script.extraWordChars ?? '');
   const wc = `[${WORD_CHAR}${extra}]`;
-  // A word: a run of word characters, optionally continued by hyphenated runs.
-  const core = `${wc}+(?:[${HYPHEN_JOINERS}]${wc}+)*`;
+  // Hyphens always join; packs add more (uk: the apostrophe in п'ять). A joiner
+  // is only a word character BETWEEN two runs, so a leading or trailing quote
+  // mark stays outside the token.
+  const joiners = HYPHEN_JOINERS + escapeForCharClass(script.extraJoiners ?? '');
+  // A word: a run of word characters, optionally continued by joined runs.
+  const core = `${wc}+(?:[${joiners}]${wc}+)*`;
   // Pack-specific whole-token forms (af 'n) take precedence over the engine.
   const alternatives = [...(script.extraTokenPatterns ?? []), core];
   const terminators = escapeForCharClass(script.sentenceTerminators ?? DEFAULT_SENTENCE_TERMINATORS);
