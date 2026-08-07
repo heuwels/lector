@@ -166,6 +166,21 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Kitabı okudum.', 'kitap', tr)).toBe(false);
   });
 
+  it('matches a Ukrainian apostrophe word as one token, in any variant', () => {
+    const uk = LANGUAGES.uk;
+    expect(sentenceContainsWord("Я з'їв п'ять яблук.", "п'ять", uk)).toBe(true);
+    // The sentence and the target may spell the apostrophe differently.
+    expect(sentenceContainsWord('Я з’їв п’ять яблук.', "п'ять", uk)).toBe(true);
+    expect(sentenceContainsWord("Я з'їв п'ять яблук.", 'п’ять', uk)).toBe(true);
+    // Neither half of the word is a token of its own any more.
+    expect(sentenceContainsWord("Я з'їв п'ять яблук.", 'ять', uk)).toBe(false);
+    expect(sentenceContainsWord("Я з'їв п'ять яблук.", 'п', uk)).toBe(false);
+    // Hyphenated compounds stay whole, as for ru.
+    expect(sentenceContainsWord('Це будь-який день.', 'будь-який', uk)).toBe(true);
+    // a genuine substring is still rejected
+    expect(sentenceContainsWord('Вона читала книгу.', 'книг', uk)).toBe(false);
+  });
+
   it('matches polytonic Greek tokens with marks intact', () => {
     const grc = LANGUAGES.grc;
     expect(sentenceContainsWord('Ἐν ἀρχῇ ἦν ὁ λόγος.', 'λόγος', grc)).toBe(true);

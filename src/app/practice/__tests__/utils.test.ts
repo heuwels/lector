@@ -79,6 +79,20 @@ describe('normalize', () => {
     expect(normalize('İyi')).not.toBe('iyi');
   });
 
+  it('keeps the Ukrainian apostrophe as a letter under the uk pack', () => {
+    // Every other pack treats an apostrophe as punctuation and drops it. For
+    // Ukrainian that would accept пять, which is a misspelling of п'ять — so
+    // the pack keeps it, and only folds the variant spellings together.
+    expect(normalize("П'ять!", LANGUAGES.uk)).toBe("п'ять");
+    expect(normalize('«п’ять»', LANGUAGES.uk)).toBe("п'ять");
+    expect(normalize('Здоров’я.', LANGUAGES.uk)).toBe("здоров'я");
+    // An apostrophe at an edge is a quote, not a letter, so it still drops.
+    expect(normalize("'книга'", LANGUAGES.uk)).toBe('книга');
+    expect(normalize("'книга'.", LANGUAGES.uk)).toBe('книга');
+    // Without a pack the apostrophe is stripped, as it always was.
+    expect(normalize("П'ять!")).toBe('пять');
+  });
+
   it('folds polytonic marks only under the grc pack (fold-marks leniency)', () => {
     expect(normalize('λόγος', LANGUAGES.grc)).toBe('λογοσ');
     expect(normalize('τὸν', LANGUAGES.grc)).toBe('τον');
@@ -163,6 +177,19 @@ describe('checkAnswer', () => {
     expect(checkAnswer('ilik', 'ILIK', LANGUAGES.tr)).toBe(false);
     // Without the pack the same correct answer is rejected.
     expect(checkAnswer('iyi', 'İyi')).toBe(false);
+  });
+
+  it('grades a Ukrainian apostrophe answer whichever variant was typed', () => {
+    // The three spellings of the same word all grade correct.
+    expect(checkAnswer("п'ять", "П'ять.", LANGUAGES.uk)).toBe(true);
+    expect(checkAnswer('п’ять', "п'ять", LANGUAGES.uk)).toBe(true);
+    expect(checkAnswer('пʼять', 'П’ять!', LANGUAGES.uk)).toBe(true);
+    expect(checkAnswer("здоров'я", 'Здоров’я', LANGUAGES.uk)).toBe(true);
+    // Leaving the apostrophe out is a spelling error, not a formatting one.
+    expect(checkAnswer('пять', "п'ять", LANGUAGES.uk)).toBe(false);
+    // Without the pack the missing apostrophe is accepted, which is the old
+    // (wrong for Ukrainian) behavior.
+    expect(checkAnswer('пять', "п'ять")).toBe(true);
   });
 
   it('accepts unaccented Greek under the grc pack (fold-marks), exact otherwise', () => {
