@@ -7,7 +7,8 @@ aqt-free so they can be unit-tested in isolation (../tests/).
 A sync round runs each phase on the path Anki expects (#350 review):
 
   1. network pull        — mw.taskman.run_in_background (no collection access)
-  2. note upserts        — CollectionOp with a custom undo entry, so the
+  2. note upserts        — CollectionOp with custom undo entries (one per 20
+                           undo steps, because Anki keeps only 30), so the
                            write is undoable and OpChanges drives autosave +
                            UI refresh
   3. network ack         — background again; repeat from 1 while batches keep
@@ -23,6 +24,7 @@ re-sends every owned card's state on the next sync.
 
 from __future__ import annotations
 
+from anki.collection import OpChanges
 from aqt import gui_hooks, mw
 from aqt.operations import CollectionOp, QueryOp
 from aqt.qt import QAction, QTimer
@@ -112,14 +114,31 @@ def _pull_round(api: LectorApi, deck_pattern: str, auto: bool, round_no: int, pu
     mw.taskman.run_in_background(api.get_pending, on_fetched)
 
 
+def _all_changed() -> OpChanges:
+    """Stand-in OpChanges for a batch whose undo merge was lost (#451): the
+    notes are written, so the UI must still refresh even without an undo step
+    to report."""
+    changes = OpChanges()
+    changes.note = True
+    changes.card = True
+    changes.deck = True
+    changes.notetype = True
+    changes.tag = True
+    changes.browser_table = True
+    changes.browser_sidebar = True
+    changes.study_queues = True
+    return changes
+
+
 def _apply_batch(api: LectorApi, deck_pattern: str, auto: bool, round_no: int, pulled_total: int, failed_total: int, pending: list) -> None:
-    """Phase 2: undoable collection writes via CollectionOp."""
+    """Phase 2: undoable collection writes via CollectionOp. apply_pending owns
+    the undo entries — a batch too big for Anki's 30-step queue becomes several
+    "Lector Sync" steps, never a failed merge (#451)."""
     result: dict = {}
 
     def op(col):
-        undo_pos = col.add_custom_undo_entry("Lector Sync")
-        result["acks"], result["failures"] = apply_pending(col, pending, deck_pattern)
-        return col.merge_undo_entries(undo_pos)
+        result["acks"], result["failures"], changes = apply_pending(col, pending, deck_pattern)
+        return changes if changes is not None else _all_changed()
 
     def on_applied(_changes) -> None:
         acks = result.get("acks", [])

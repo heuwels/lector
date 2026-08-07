@@ -24,7 +24,7 @@ PROTOCOL = 2
 
 # Keep in step with manifest.json's human_version (AnkiWeb installs don't
 # ship the manifest, so this constant is the runtime source of truth).
-ADDON_VERSION = "1.2.0"
+ADDON_VERSION = "1.2.1"
 
 
 class LectorApiError(Exception):
