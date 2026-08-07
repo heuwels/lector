@@ -32,8 +32,12 @@ function limitLabel(value: number | null | undefined, fallback: string): string 
   return fallback;
 }
 
+function cycleLabel(cycle: BillingPrice['cycle']): string {
+  return cycle === 'year' ? 'annual' : 'monthly';
+}
+
 function priceLabel(price: BillingPrice): string {
-  return `${PLAN_LABELS[price.plan]} — ${price.cycle === 'year' ? 'annual' : 'monthly'}`;
+  return `${PLAN_LABELS[price.plan]} — ${cycleLabel(price.cycle)}`;
 }
 
 function formatMoney(money: BillingMoney | null): string | null {
@@ -104,9 +108,14 @@ export default function CloudPlanSettings() {
       if (a.cycle !== b.cycle) return a.cycle === 'year' ? -1 : 1;
       return a.plan.localeCompare(b.plan);
     });
+  // Deliberately NOT pre-selected: the first option is whatever the sort ranks
+  // highest (the same-plan annual upsell), and a <select> showing it reads as a
+  // statement of the current plan rather than an offer. A monthly member saw
+  // "Cloud Plus — annual" here and reported their plan had changed. The
+  // placeholder keeps the control silent until the member picks a plan.
   const effectiveSelectedPriceId = changes.some((price) => price.id === selectedPriceId)
     ? selectedPriceId
-    : (changes[0]?.id ?? '');
+    : '';
   const activePreview =
     preview && changes.some((price) => price.id === preview.target.id) ? preview : null;
 
@@ -186,8 +195,12 @@ export default function CloudPlanSettings() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Lector plan</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {plan ? `${PLAN_LABELS[plan]} is active for this account.` : 'Loading your plan…'}
+          <p className="mt-1 text-sm text-muted-foreground" data-testid="cloud-plan-current">
+            {plan
+              ? currentSubscription && currentSubscription.plan === plan
+                ? `${PLAN_LABELS[plan]} (${cycleLabel(currentSubscription.cycle)} billing) is active for this account.`
+                : `${PLAN_LABELS[plan]} is active for this account.`
+              : 'Loading your plan…'}
           </p>
         </div>
         {plan && (
@@ -286,8 +299,13 @@ export default function CloudPlanSettings() {
             <div className="space-y-3 rounded-lg border border-border p-4">
               <div>
                 <h3 className="font-medium text-foreground">Change plan</h3>
-                <p className="mt-1 text-xs">
-                  Review Paddle&apos;s tax and proration calculation before confirming.
+                {/* One expression, not interleaved text and braces: JSX drops the
+                    space between an expression and the text that follows it on the
+                    next line, which rendered "monthlybilling". */}
+                <p className="mt-1 text-xs" data-testid="billing-change-intro">
+                  {`You are on ${PLAN_LABELS[currentSubscription.plan]} with ` +
+                    `${cycleLabel(currentSubscription.cycle)} billing. Select a different plan ` +
+                    `below. Review Paddle's tax and proration calculation before you confirm.`}
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -299,7 +317,9 @@ export default function CloudPlanSettings() {
                   }}
                   className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
                   data-testid="billing-change-price"
+                  aria-label="Choose a new plan"
                 >
+                  <option value="">Choose a new plan…</option>
                   {changes.map((price) => (
                     <option key={price.id} value={price.id}>
                       {priceLabel(price)}
