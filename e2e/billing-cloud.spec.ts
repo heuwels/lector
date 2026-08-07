@@ -247,4 +247,106 @@ test.describe.serial('billing gate lifecycle', () => {
     expect(requestedPriceId).toBe('pri_e2e_plus_annual');
     expect(page.url()).toContain('_ptxn=txn_e2e_redirect');
   });
+
+  test('the plan panel states the current cycle and never pre-selects a change', async ({
+    page,
+    request,
+  }) => {
+    // A Cloud Plus MONTHLY member. The "Change plan" list ranks the same-plan
+    // annual price first, so a pre-selected <select> used to read "Cloud Plus
+    // — annual" — which members read as their current plan. Both halves of the
+    // fix are asserted here: the panel states the real cycle, and the control
+    // stays on its placeholder until the member chooses.
+    //
+    // Two layers, both needed. The webhook makes the account GENUINELY entitled
+    // again after the cancellation test, so ordinary API calls stop 402ing (a
+    // stray 402 bounces the browser to /subscribe). The status stub then dresses
+    // that subscription as plus/month with all four prices — this server only
+    // configures PADDLE_PRICE_MONTHLY, so it could never report a Plus cycle.
+    const reactivate = subscriptionEvent('active');
+    const reactivateRes = await request.post(`${CLOUD_API}/api/billing/webhook`, {
+      headers: { 'Paddle-Signature': paddleSignature(reactivate) },
+      data: reactivate,
+    });
+    expect(reactivateRes.status()).toBe(200);
+
+    await useBillingEnv(page);
+    await page.route(`${CLOUD_API}/api/billing/status`, (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          enforced: true,
+          accessAllowed: true,
+          subscriptionActive: true,
+          freeTierEnabled: false,
+          suspended: false,
+          exempt: false,
+          status: 'active',
+          checkout: {
+            prices: [
+              { id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' },
+              { id: 'pri_e2e_annual', plan: 'cloud', cycle: 'year' },
+              { id: 'pri_e2e_plus_monthly', plan: 'plus', cycle: 'month' },
+              { id: 'pri_e2e_plus_annual', plan: 'plus', cycle: 'year' },
+            ],
+          },
+          management: {
+            customerPortal: true,
+            subscription: { plan: 'plus', cycle: 'month', canChange: true },
+          },
+        }),
+      }),
+    );
+    await page.route(`${CLOUD_API}/api/billing/entitlements`, (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: 'plus',
+          byok: false,
+          limits: {},
+          usage: {},
+          periods: { day: '2026-08-07', month: '2026-08' },
+        }),
+      }),
+    );
+
+    await signIn(page);
+    // This account has never onboarded — every earlier test left it locked on
+    // /subscribe. Now that the stub reports an active plan, SetupGuard claims
+    // it for /setup, so clear that before navigating (a goto mid-redirect aborts).
+    await page.waitForURL((url) => url.pathname === '/setup');
+    await page.getByTestId('setup-language-af').click();
+    await page.getByTestId('skip-guided-onboarding').click();
+    await page.waitForURL((url) => url.pathname === '/');
+    await expect(page.getByTestId('account-email')).toHaveText(EMAIL);
+    await page.goto('/settings');
+
+    const panel = page.getByTestId('cloud-plan-settings');
+    await expect(panel.getByTestId('cloud-plan-current')).toHaveText(
+      'Cloud Plus (monthly billing) is active for this account.',
+    );
+
+    // Exact text, because interleaving {expr} and JSX text silently ate the
+    // space here once already ("monthlybilling").
+    await expect(panel.getByTestId('billing-change-intro')).toHaveText(
+      'You are on Cloud Plus with monthly billing. Select a different plan below. Review ' +
+        "Paddle's tax and proration calculation before you confirm.",
+    );
+
+    // The control offers the annual upgrade but does not assert it.
+    const select = panel.getByTestId('billing-change-price');
+    await expect(select).toHaveValue('');
+    await expect(select.locator('option:checked')).toHaveText('Choose a new plan…');
+    await expect(select.locator('option')).toContainText([
+      'Choose a new plan…',
+      'Cloud Plus — annual',
+      'Cloud — annual',
+      'Cloud — monthly',
+    ]);
+    await expect(panel.getByTestId('billing-change-review')).toBeDisabled();
+
+    // Choosing a plan is what arms the review step.
+    await select.selectOption('pri_e2e_plus_annual');
+    await expect(panel.getByTestId('billing-change-review')).toBeEnabled();
+  });
 });
