@@ -19,6 +19,7 @@ const PT_TATOEBA_IDS = [4001, 4002];
 const RU_TATOEBA_IDS = [3001, 3002];
 const TR_TATOEBA_IDS = [2001, 2002];
 const UK_TATOEBA_IDS = [1001, 1002];
+const PL_TATOEBA_IDS = [1201, 1202];
 const GRC_VERSE_IDS = [40010010, 40030160];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
@@ -326,6 +327,34 @@ mock.module('../lib/sentence-bank-uk.json', () => ({
   ],
 }));
 
+// Polish bank fixture (2 rows) — proves the thirteenth language seeds under pl
+// and stays isolated, once its bank is registered in SENTENCE_BANKS (the
+// one-line cloze.ts change). One row carries a diacritic answer and one a
+// foreign stem with a Polish case ending, so the seed path is shown to store
+// both exactly as written.
+mock.module('../lib/sentence-bank-pl.json', () => ({
+  default: [
+    {
+      id: 1201,
+      text: 'Kupiłem nową książkę za pięćdziesiąt złotych.',
+      translation: 'I bought a new book for fifty zloty.',
+      clozeWord: 'książkę',
+      clozeIndex: 2,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 1202,
+      text: "Czytałem powieść Joyce'a w zeszłym roku.",
+      translation: "I read Joyce's novel last year.",
+      clozeWord: 'powieść',
+      clozeIndex: 1,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -337,7 +366,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...UK_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...UK_TATOEBA_IDS, ...PL_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
   ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -658,6 +687,34 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get() as { c: number };
     expect(ruUnderUk.c).toBe(0);
+  });
+
+  test('seeds the Polish bank under pl, isolated from Afrikaans (thirteenth language)', async () => {
+    setActiveLanguage('af');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('pl');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const pl = db
+      .prepare(
+        `SELECT language, clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${PL_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string }[];
+    expect(pl.length).toBe(2);
+    expect(pl.every((r) => r.language === 'pl')).toBe(true);
+    // Diacritics are stored precomposed, exactly as the bank wrote them.
+    expect(pl.some((r) => r.clozeWord === 'książkę')).toBe(true);
+    expect(pl.some((r) => r.clozeWord === 'powieść')).toBe(true);
+
+    // Zero cross-bleed: Afrikaans content never lands under pl.
+    const afUnderPl = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'pl' AND tatoebaSentenceId IN (${TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(afUnderPl.c).toBe(0);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {
