@@ -211,6 +211,29 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-nl.txt',
     glossFilter: true,
   },
+  pl: {
+    // Canonical /Polish/ URL (kaikki has no /downloads/pl/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Polish/kaikki.org-dictionary-Polish.jsonl'],
+    // The 32-letter Polish alphabet: a-z plus ą ć ę ł ń ó ś ź ż. q, v and x are
+    // not Polish letters but stay in the a-z range for the loanwords the dump
+    // carries. The apostrophe is a token boundary, matching the runtime
+    // tokenizer: a case ending on a foreign stem is written Kennedy'ego, which
+    // splits to Kennedy + ego and leaves the lookupable name on its own — the
+    // same shape as tr, and the opposite of uk. Hyphen stays a word char for
+    // compounds (biało-czerwony, polsko-angielski).
+    letterClass: 'a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ-',
+    // No hand affix rules: Polish's rich inflection (7 cases × 3 genders, verb
+    // conjugation + aspect pairs, consonant alternations) resolves via kaikki
+    // "form of <lemma>" entries + the inflections table, same strategy as
+    // de/es/fr/nl/pt/ru/tr/uk.
+    prefixes: [],
+    suffixes: [],
+    // Polish has no long/short vowel distinction; ą and ę are nasal vowels.
+    vowels: 'aąeęioóuy',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-pl.txt',
+    glossFilter: true,
+  },
   grc: {
     // Canonical /Ancient Greek/ URL — note the URL-encoded space and the
     // concatenated filename (verified 2026-07-19).

@@ -80,6 +80,18 @@ const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>, string[]
     "'t Is zo'n mooie dag, foto's van m'n huis.",
     "Hij zei: 'De brontosaurussen aten 's ochtends.'",
   ],
+  pl: [
+    'Cześć! Jak się masz?',
+    // All nine diacritic letters (ą ć ę ł ń ó ś ź ż) sit inside the legacy
+    // À-Ö/Ø-ö/ø-ž ranges, so pl must tokenize byte-identically with the old
+    // pattern too — the same reason eo belongs here rather than in its own
+    // goldens.
+    'Żółw i gęś zjadły pączki: ćwierć, źródło, święto, książę.',
+    'Kupiłem książkę za pięćdziesiąt złotych — była świetna!',
+    '„Czy jesteś pewien?” — zapytał dziadek w 1999 roku.',
+    'To biało-czerwona flaga i polsko-angielski słownik.',
+    "Czytałem powieść Joyce'a i wiersz Kennedy'ego.",
+  ],
   pt: [
     'Olá! Tudo bem?',
     'A menina comprou pães, açúcar e café na padaria.',
@@ -488,6 +500,73 @@ describe('Turkish pack (real manifest)', () => {
     const text = 'Çocuk kitabı okuyor';
     //                  ^7..9^ inside "kitabı" (6..12)
     expect(snapToWordBoundaries(text, 7, 9, tr)).toEqual({ start: 6, end: 12 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Polish pack goldens — inside legacy parity above, so these cover the pack's
+// own shapes rather than the engine
+// ---------------------------------------------------------------------------
+
+const pl = LANGUAGES.pl;
+
+describe('Polish pack (real manifest)', () => {
+  it('keeps ą ć ę ł ń ó ś ź ż inside word tokens', () => {
+    expect(tokenizeWords('Żółw zjadł pączek, gęś ćwiczy.', pl).map((t) => t.text)).toEqual([
+      'Żółw',
+      'zjadł',
+      'pączek',
+      'gęś',
+      'ćwiczy',
+    ]);
+  });
+
+  it('splits a foreign stem from its Polish case ending at the apostrophe', () => {
+    // Polish attaches a case ending to a foreign name with an apostrophe.
+    // Splitting there is what makes "Joyce" independently lookupable; the
+    // stranded ending is a fragment, exactly as for tr — and the opposite of
+    // uk, where the apostrophe is a letter of the word.
+    expect(tokenizeWords("powieść Joyce'a i wiersz Kennedy'ego", pl).map((t) => t.text)).toEqual([
+      'powieść',
+      'Joyce',
+      'a',
+      'i',
+      'wiersz',
+      'Kennedy',
+      'ego',
+    ]);
+    // The typographic apostrophe behaves the same way.
+    expect(tokenizeWords('film Hitchcock’a', pl).map((t) => t.text)).toEqual([
+      'film',
+      'Hitchcock',
+      'a',
+    ]);
+  });
+
+  it('joins hyphenated compounds', () => {
+    expect(tokenizeWords('biało-czerwona flaga, słownik polsko-angielski', pl).map((t) => t.text)).toEqual([
+      'biało-czerwona',
+      'flaga',
+      'słownik',
+      'polsko-angielski',
+    ]);
+  });
+
+  it('folds case with the default Unicode mapping', () => {
+    // Polish needs no fold locale, unlike tr — every letter lowercases the way
+    // the default rules say, so keys stay byte-stable with plain lowercasing.
+    expect(foldWord('KSIĄŻKA', pl)).toBe('książka');
+    expect(foldWord('Żółw', pl)).toBe('żółw');
+    expect(foldWord('ŁÓDŹ', pl)).toBe('łódź');
+    expect(foldWord('Gęś', pl)).toBe('gęś');
+    // The digraphs are letter sequences, not codepoints — nothing to fold.
+    expect(foldWord('SZCZĘŚCIE', pl)).toBe('szczęście');
+  });
+
+  it('snaps a mid-word selection to Polish word boundaries', () => {
+    const text = 'Mam nową książkę';
+    //                     ^9..12^ inside "książkę" (9..16)
+    expect(snapToWordBoundaries(text, 10, 12, pl)).toEqual({ start: 9, end: 16 });
   });
 });
 

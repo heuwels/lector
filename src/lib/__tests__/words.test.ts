@@ -166,6 +166,19 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Kitabı okudum.', 'kitap', tr)).toBe(false);
   });
 
+  it('matches Polish tokens through the default case fold', () => {
+    const pl = LANGUAGES.pl;
+    expect(sentenceContainsWord('Kupiłem nową książkę.', 'książkę', pl)).toBe(true);
+    expect(sentenceContainsWord('Żółw jadł pączek.', 'żółw', pl)).toBe(true);
+    // Hyphenated compounds stay whole.
+    expect(sentenceContainsWord('To biało-czerwona flaga.', 'biało-czerwona', pl)).toBe(true);
+    expect(sentenceContainsWord('To biało-czerwona flaga.', 'czerwona', pl)).toBe(false);
+    // A foreign stem splits from its case ending, so the name matches.
+    expect(sentenceContainsWord("Czytam Joyce'a teraz.", 'joyce', pl)).toBe(true);
+    // a genuine substring is still rejected (książ is not a token of książkę)
+    expect(sentenceContainsWord('Kupiłem nową książkę.', 'książ', pl)).toBe(false);
+  });
+
   it('matches a Ukrainian apostrophe word as one token, in any variant', () => {
     const uk = LANGUAGES.uk;
     expect(sentenceContainsWord("Я з'їв п'ять яблук.", "п'ять", uk)).toBe(true);

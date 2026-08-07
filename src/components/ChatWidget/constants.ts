@@ -42,6 +42,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'How do separable verbs work (e.g. "opbellen", "meenemen")?',
     'What\'s the difference between "kennen" and "weten"?',
   ],
+  pl: [
+    'How do the seven Polish cases work, and when do I use the instrumental?',
+    'What is consonant alternation, as in "ręka" → "ręce"?',
+    'What\'s the difference between perfective and imperfective verbs like "zrobić" vs "robić"?',
+  ],
   pt: [
     'When do I use "ser" vs "estar" (both mean "to be")?',
     'What\'s the difference between "por" and "para"?',

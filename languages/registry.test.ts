@@ -74,6 +74,21 @@ describe('registry pronunciation conformance', () => {
     expect(LANGUAGES.ru.script.foldApostrophes).toBeUndefined();
   });
 
+  // Polish is the control case for both opt-in seams: it has diacritics like
+  // tr and an apostrophe like uk, but needs neither flag. If a later change
+  // makes one of them apply by default, this fails.
+  it('polish declares no fold locale and no apostrophe seam', () => {
+    const pl = LANGUAGES.pl;
+    expect(pl.script.caseFoldLocale).toBeUndefined();
+    expect(pl.script.extraJoiners).toBeUndefined();
+    expect(pl.script.foldApostrophes).toBeUndefined();
+    expect(pl.script.extraWordChars).toBeUndefined();
+    expect(pl.script.extraTokenPatterns).toBeUndefined();
+    expect(pl.tatoebaCode).toBe('pol');
+    expect(pl.script.bcp47).toBe('pl');
+    expect(pl.script.hasCase).toBe(true);
+  });
+
   it('esperanto is espeak-voiced with a rule-generated IPA gloss', () => {
     const eo = LANGUAGES.eo;
     expect(eo.pronunciation.audio).toEqual(['espeak']);
