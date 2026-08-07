@@ -65,6 +65,12 @@ interface LangProfile {
    *  Keys the DB the same way the runtime folds lookups, so the dotted/dotless
    *  i can't split one word across two keys. */
   caseFoldLocale?: string;
+  /** Fold every apostrophe variant to ASCII ' in keys, mirroring the pack's
+   *  `script.foldApostrophes` (uk only). kaikki writes the Ukrainian headwords
+   *  with ASCII ', so this is a no-op for the dump itself — it exists so the
+   *  build and the runtime cannot disagree if a variant appears in a form-of
+   *  row. */
+  foldApostrophes?: boolean;
   /** Strip these combining marks from every dictionary key (ru: kaikki writes
    *  the lexical-stress acute on headwords and inflected forms — молоко́ — but
    *  runtime text is unstressed, so stressed keys would never be hit). */
@@ -304,6 +310,33 @@ const PROFILES: Record<string, LangProfile> = {
     // script.caseFoldLocale, or one word would key under two spellings.
     caseFoldLocale: 'tr',
   },
+  uk: {
+    // Canonical /Ukrainian/ URL (kaikki has no /downloads/uk/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Ukrainian/kaikki.org-dictionary-Ukrainian.jsonl'],
+    // The 33-letter Ukrainian alphabet. а-щ is contiguous, then ь ю я; ъ ы э sit
+    // inside that span and are Russian-only, so they are left out and a leaked
+    // Russian token fails the letter test. ґ є і ї are outside the range and
+    // are added explicitly. The apostrophe IS a word character here (зв'язку,
+    // п'ять) — unlike ru, where it is not Russian orthography, and unlike tr,
+    // where it is a suffix boundary. Hyphen stays a word char for compounds
+    // (будь-який, все-таки).
+    letterClass: "а-щьюяґєіїА-ЩЬЮЯҐЄІЇ'-",
+    // No hand affix rules: Ukrainian's inflection (7 cases × 3 genders, verb
+    // conjugation + aspect pairs) resolves via kaikki "form of <lemma>" entries
+    // + the inflections table, same strategy as de/es/fr/nl/pt/ru/tr.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'аеєиіїоуюя',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-uk.txt',
+    glossFilter: true,
+    // Ukrainian headwords carry the lexical-stress acute (молоко́) exactly as
+    // Russian ones do, but running text is unstressed — a stressed key would
+    // never be hit.
+    stripFromKeys: /[\u0300\u0301]/g,
+    // Keys carry one apostrophe spelling, matching the pack's script.foldApostrophes.
+    foldApostrophes: true,
+  },
 };
 
 function parseLangArg(): string {
@@ -459,8 +492,16 @@ function lowerForLang(s: string): string {
   return locale ? s.toLocaleLowerCase(locale).normalize('NFC') : s.toLowerCase();
 }
 
+// Mirrors languages/text.ts foldApostrophesFor — keep the two character sets
+// identical, or a Ukrainian headword written with one variant would key under a
+// spelling the runtime never produces.
+const APOSTROPHE_VARIANTS = /[‘’ʼʹ`´]/g;
+
 function foldKey(s: string): string {
-  const folded = lowerForLang(s.normalize('NFC')).trim();
+  const normalized = PROFILE.foldApostrophes
+    ? s.normalize('NFC').replace(APOSTROPHE_VARIANTS, "'")
+    : s.normalize('NFC');
+  const folded = lowerForLang(normalized).trim();
   if (!PROFILE.stripFromKeys) return folded;
   return folded.normalize('NFD').replace(PROFILE.stripFromKeys, '').normalize('NFC');
 }

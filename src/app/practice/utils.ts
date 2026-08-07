@@ -1,5 +1,6 @@
 import { splitTrailingPunctuation } from '@/lib/words';
 import {
+  foldApostrophesFor,
   foldForComparison,
   graphemeLength,
   lowerForPack,
@@ -29,10 +30,24 @@ export function createBlankedSentence(sentence: string, wordIndex: number): stri
 // answer as written, so grading "İyi" against typed "iyi" needs the Turkish
 // mapping. The default one leaves a combining dot behind and fails a correct
 // answer.
+//
+// Packs that spell words with an apostrophe (uk) keep it: it is a letter of
+// п'ять, not punctuation, and dropping it would accept the misspelling пять.
+// The variants fold to ASCII ' first, so the answer grades the same whichever
+// apostrophe the keyboard produced.
+// An apostrophe at an edge is a quote mark, never a letter — no Ukrainian word
+// starts or ends with one — so it drops even in the keep-the-apostrophe path.
+const PUNCTUATION = /[.,!?¿¡;:·'"„“”‚‘’«»‹›()[\]{}…]/gu;
+const PUNCTUATION_KEEPING_APOSTROPHE = /[.,!?¿¡;:·"„“”‚«»‹›()[\]{}…]/gu;
+const EDGE_APOSTROPHES = /^'+|'+$/g;
+
 export function normalize(s: string, pack?: LanguageConfig): string {
-  const base = lowerForPack(normalizeText(s), pack)
-    .replace(/[.,!?¿¡;:·'"„“”‚‘’«»‹›()[\]{}…]/gu, '')
-    .trim();
+  const normalized = normalizeText(s);
+  const keepApostrophe = pack?.script.foldApostrophes === true;
+  const folded = pack ? foldApostrophesFor(normalized, pack) : normalized;
+  const punctuation = keepApostrophe ? PUNCTUATION_KEEPING_APOSTROPHE : PUNCTUATION;
+  let base = lowerForPack(folded, pack).replace(punctuation, '').trim();
+  if (keepApostrophe) base = base.replace(EDGE_APOSTROPHES, '');
   return pack ? foldForComparison(base, pack) : base;
 }
 
