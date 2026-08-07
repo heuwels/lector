@@ -15,6 +15,9 @@ import TranscriptReader from './TranscriptReader';
 import YouTubePlayer, { type SeekTarget } from '@/components/YouTubePlayer';
 import type { TranscriptSegment, YouTubeSourceMeta } from '@/types';
 
+/** How long the reader's scroll pin outlives the drawer that set it. */
+const PIN_TAIL_MS = 1500;
+
 export default function MarkdownReader({
   lesson,
   onWordClick,
@@ -109,6 +112,18 @@ export default function MarkdownReader({
     }
   }, [draftContent, onSaveText, onEditingChange]);
 
+  // Hold the reading position across a word lookup. On a phone the
+  // drawer covers the whole reader, so nothing the learner does can move the
+  // text underneath it — any offset change there is the browser's, and it
+  // drops the learner back at the top of the article. Record the offset the
+  // reader had when the word was tapped and put it back until the learner
+  // scrolls the reader themselves. A null pin means "trust the container".
+  // The pin outlives the drawer by PIN_TAIL_MS, because the browser can move
+  // the reader as the drawer goes away. It is a guard, not a scroll lock, so
+  // it always expires — a stuck pin must never outlast the interaction.
+  const pinnedScroll = useRef<number | null>(null);
+  const pinExpiry = useRef(0);
+
   // Restore the last reading position from the lesson itself —
   // progress_scrollPosition is exactly what the scroll handler below saves.
   // (The old code read a `reading-position-*` settings key that nothing ever
@@ -118,6 +133,7 @@ export default function MarkdownReader({
   useEffect(() => {
     if (restoredForLesson.current === lesson.id) return;
     restoredForLesson.current = lesson.id;
+    pinnedScroll.current = null;
     if (containerRef.current && lesson.progress_scrollPosition > 0) {
       containerRef.current.scrollTop = lesson.progress_scrollPosition;
     }
@@ -135,14 +151,48 @@ export default function MarkdownReader({
   );
   useEffect(() => () => progressWriter.flush(), [progressWriter]);
 
+  const pinScroll = useCallback(() => {
+    if (!containerRef.current) return;
+    pinnedScroll.current = containerRef.current.scrollTop;
+    pinExpiry.current = Number.POSITIVE_INFINITY;
+  }, []);
+
+  // Any gesture ON the reader is the learner scrolling it, so the pin goes.
+  // A word tap also fires this, but its pin is set on the click that follows.
+  const releaseScrollPin = useCallback(() => {
+    pinnedScroll.current = null;
+    pinExpiry.current = 0;
+  }, []);
+
   // Save scroll position on scroll
   const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const container = containerRef.current;
+    if (!container) return;
+    if (pinnedScroll.current !== null && Date.now() > pinExpiry.current) {
+      pinnedScroll.current = null;
+    }
+    const pinned = pinnedScroll.current;
+    // Reject the move and keep the rejected offset out of the progress write.
+    // Re-assigning clamps when the content is shorter, which settles after one
+    // more event instead of looping.
+    if (pinned !== null && container.scrollTop !== pinned) {
+      container.scrollTop = pinned;
+      return;
+    }
+    const { scrollTop, scrollHeight, clientHeight } = container;
     const percentage = Math.round((scrollTop / (scrollHeight - clientHeight)) * 100) || 0;
     setScrollPercentage(percentage);
     progressWriter(scrollTop, percentage);
   }, [progressWriter]);
+
+  // Every lookup entry point pins first, then opens the drawer.
+  const handleWordLookup = useCallback<MarkdownReaderProps['onWordClick']>(
+    (word, sentence, source) => {
+      pinScroll();
+      onWordClick(word, sentence, source);
+    },
+    [onWordClick, pinScroll],
+  );
 
   const findSentence = useCallback(
     (element: HTMLElement): string => {
@@ -182,10 +232,14 @@ export default function MarkdownReader({
   // Only acts on close — opening/re-targeting keeps whatever was just set.
   // Clear before paint: a passive cleanup can replace a word node after a
   // keyboard user has already focused it, sending their next keypress to body.
+  // Closing also starts the scroll pin's countdown: the browser can
+  // still move the reader as the drawer slides away, so the pin holds a
+  // moment longer and then expires on its own.
   useLayoutEffect(() => {
     if (!wordPanelOpen) {
       setActiveWord(null);
       setHighlightedPhrase([]);
+      if (pinnedScroll.current !== null) pinExpiry.current = Date.now() + PIN_TAIL_MS;
     }
   }, [wordPanelOpen]);
 
@@ -209,8 +263,8 @@ export default function MarkdownReader({
     setActiveWord(null);
     highlightPhrase(snappedText);
 
-    onWordClick(snappedText, sentence);
-  }, [onWordClick, highlightPhrase, pack, findSentence]);
+    handleWordLookup(snappedText, sentence);
+  }, [handleWordLookup, highlightPhrase, pack, findSentence]);
 
   return (
     <div className="flex h-full flex-col bg-card print:block print:h-auto">
@@ -268,6 +322,10 @@ export default function MarkdownReader({
         ref={containerRef}
         onScroll={handleScroll}
         onMouseUp={handleMouseUp}
+        onPointerDown={releaseScrollPin}
+        onTouchStart={releaseScrollPin}
+        onWheel={releaseScrollPin}
+        onKeyDown={releaseScrollPin}
         className="flex-1 overflow-auto print:block print:h-auto print:overflow-visible"
       >
         {isEditing ? (
@@ -315,7 +373,7 @@ export default function MarkdownReader({
               highlightedPhrase={highlightedPhrase}
               activeWord={activeWord}
               activeSegmentIndex={activeSegmentIndex}
-              onWordClick={onWordClick}
+              onWordClick={handleWordLookup}
               onActivateWord={setActiveWord}
               onClearPhrase={clearPhraseHighlight}
               onSeek={handleSeek}
@@ -328,7 +386,7 @@ export default function MarkdownReader({
             knownWordsMap={knownWordsMap}
             highlightedPhrase={highlightedPhrase}
             activeWord={activeWord}
-            onWordClick={onWordClick}
+            onWordClick={handleWordLookup}
             onActivateWord={setActiveWord}
             onClearPhrase={clearPhraseHighlight}
           />
