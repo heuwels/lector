@@ -28,17 +28,37 @@ your devices.
 
 ## Install
 
-1. Copy the `lector/` folder into your Anki addons directory
-   (**Tools → Add-ons → View Files**, e.g.
-   `~/Library/Application Support/Anki2/addons21/` on macOS), or zip the
-   *contents* of `lector/` as `lector.ankiaddon` and double-click it.
-   Requires Anki 2.1.50+.
+On AnkiWeb: **[Lector Sync](https://ankiweb.net/shared/info/1098736891)**, add-on
+code `1098736891`. Requires Anki 2.1.50 or later.
+
+1. In Anki, open **Tools → Add-ons → Get Add-ons** and enter `1098736891`.
+   Restart Anki.
 2. In Lector, open **Settings → API Tokens** and mint a token with the
    **anki** scope.
-3. In Anki, **Tools → Add-ons → Lector Sync → Config**: set `api_url`
-   (hosted: `https://app.lector.dev`; self-hosted: your API origin, e.g.
-   `http://localhost:3457`) and paste the token into `api_token`.
-4. Restart Anki (or hit **Tools → Lector: Sync now**).
+3. In Anki, open **Tools → Add-ons → Lector Sync → Config**.
+4. Set `api_url`. Use `https://app.lector.dev` for the hosted service. For a
+   self-hosted server, use your own API origin, such as `http://localhost:3457`.
+5. Paste the token into `api_token`.
+6. Restart Anki, or select **Tools → Lector: Sync now**.
+
+### Install a build yourself
+
+For development, or to test a change before a release, build the package and
+install it from the file:
+
+```bash
+python3 scripts/build-anki-addon.py     # dist/lector-anki-addon-<version>.ankiaddon
+```
+
+In Anki, open **Tools → Add-ons → Install from file** and pick that file. You can
+also copy the `lector/` folder straight into your Anki addons directory
+(**Tools → Add-ons → View Files**, for example
+`~/Library/Application Support/Anki2/addons21/` on macOS).
+
+Your own copy sits in a folder beside the AnkiWeb copy, and two copies sync the
+same queue twice. The AnkiWeb package names the `lector` folder as a conflict, so
+an install from AnkiWeb disables your own copy. Delete the copy you do not want
+under **Tools → Add-ons**.
 
 ## Self-hosting note
 
