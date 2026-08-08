@@ -6,6 +6,7 @@ import { htmlToMarkdown, countWords } from '../lib/html-to-markdown';
 import { safeFetch, readBodyCapped, SsrfError } from '../lib/safe-fetch';
 import { config, type TrustedProxy } from '../lib/config';
 import { getCurrentUserId } from '../lib/user';
+import { getActiveLanguageConfig } from '../lib/active-language';
 import { extractionBurstLimiter, type ExtractionBurstLimiter } from '../lib/rate-limit';
 
 // Cap the fetched page so a hostile/huge response can't exhaust memory.
@@ -175,7 +176,9 @@ export function makeExtractUrlRoutes({
         content: markdownContent,
         siteName: article.siteName || hostname,
         excerpt: article.excerpt || null,
-        wordCount: countWords(markdownContent),
+        // Preview count for the import modal: the article is about to become a
+        // lesson in the user's active language, so count it as that pack.
+        wordCount: countWords(markdownContent, getActiveLanguageConfig(userId)),
       });
     } catch (error) {
       console.error('Error extracting article:', error);

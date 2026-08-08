@@ -6,6 +6,7 @@ import {
   snapToWordBoundaries,
   splitSentences,
   countWords,
+  countTypedWords,
   type Token,
 } from './index';
 import { foldWord, normalizeText } from '../text';
@@ -896,6 +897,43 @@ describe('countWords', () => {
 
   it('accepts a missing pack (legacy callers)', () => {
     expect(countWords('een twee drie')).toBe(3);
+  });
+
+  it('counts segmenter tokens for unspaced CJK, not whitespace runs (#289 4.6)', () => {
+    // The whole point: the whitespace count of this lesson is 1.
+    expect('我喜欢读书，因为读书使我快乐。'.split(/\s+/).length).toBe(1);
+    expect(countWords('我喜欢读书，因为读书使我快乐。', zh)).toBe(8);
+  });
+
+  it('strips markdown syntax before counting CJK tokens', () => {
+    expect(countWords('# 标题\n\n他*昨天*去了[北京](x)。', zh)).toBe(
+      countWords('标题 他昨天去了北京x。', zh),
+    );
+  });
+
+  it('falls back to the spaced count for a CJK text with no pack', () => {
+    expect(countWords('我喜欢读书。')).toBe(1);
+  });
+});
+
+describe('countTypedWords', () => {
+  it('keeps the exact historical journal count for spaced scripts', () => {
+    for (const text of ['een twee drie', '  padded  ', '', '*', '(a) b', 'a\nb\tc']) {
+      expect(countTypedWords(text, LANGUAGES.nl)).toBe(
+        text.trim().split(/\s+/).filter(Boolean).length,
+      );
+    }
+  });
+
+  it('does not strip markdown, unlike countWords', () => {
+    // The journal count is metered against a monthly allowance, so the lesson
+    // counter's markdown stripping must not be able to move the charge.
+    expect(countTypedWords('*', LANGUAGES.nl)).toBe(1);
+    expect(countWords('*', LANGUAGES.nl)).toBe(0);
+  });
+
+  it('counts segmenter tokens for unspaced CJK', () => {
+    expect(countTypedWords('我喜欢读书，因为读书使我快乐。', zh)).toBe(8);
   });
 });
 

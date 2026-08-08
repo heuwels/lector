@@ -1,5 +1,11 @@
 import { db } from '../db';
-import { type LanguageCode, LANGUAGES, DEFAULT_LANGUAGE, isValidLanguageCode } from './languages';
+import {
+  type LanguageCode,
+  type LanguageConfig,
+  LANGUAGES,
+  DEFAULT_LANGUAGE,
+  isValidLanguageCode,
+} from './languages';
 
 interface SettingRow {
   value: string;
@@ -9,7 +15,9 @@ interface SettingRow {
 // default to read (#220) — required params, same rationale as dates.ts.
 
 export function getActiveLanguageCode(userId: string): LanguageCode {
-  const row = db.prepare('SELECT value FROM settings WHERE userId = ? AND key = ?').get(userId, 'targetLanguage') as SettingRow | undefined;
+  const row = db
+    .prepare('SELECT value FROM settings WHERE userId = ? AND key = ?')
+    .get(userId, 'targetLanguage') as SettingRow | undefined;
   if (!row) return DEFAULT_LANGUAGE;
 
   // Value may be JSON-encoded (e.g. '"af"') or raw (e.g. 'af')
@@ -23,7 +31,19 @@ export function getActiveLanguageConfig(userId: string) {
   return LANGUAGES[getActiveLanguageCode(userId)];
 }
 
-export function resolveLanguage(requestLang: string | null | undefined, userId: string): LanguageCode {
+export function resolveLanguage(
+  requestLang: string | null | undefined,
+  userId: string,
+): LanguageCode {
   if (requestLang && isValidLanguageCode(requestLang)) return requestLang;
   return getActiveLanguageCode(userId);
+}
+
+/**
+ * The pack for a language code already stored on a row, with no user lookup.
+ * Rows carry `language` as a plain string, so an unknown or missing value falls
+ * back to the default pack rather than throwing.
+ */
+export function packForLanguage(language: string | null | undefined): LanguageConfig {
+  return LANGUAGES[language && isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE];
 }

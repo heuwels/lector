@@ -273,15 +273,31 @@ export function splitSentences(text: string, pack: LanguageConfig): string[] {
 }
 
 /**
- * Word count for lesson stats. For spaced scripts this is the historical
- * whitespace count (byte-identical wordCount values for existing lessons);
- * unspaced CJK gets a real token count in Phase 4 of #289 — until then it
- * falls through (counts are meaningless for unspaced text either way).
+ * Word count for lesson stats. Spaced scripts keep the historical whitespace
+ * count, so wordCount values for existing lessons stay byte-identical. Unspaced
+ * CJK counts segmenter tokens instead (#289 4.6) — a whitespace count of a
+ * Chinese lesson is 1, which makes lesson length, reading estimates and the
+ * "words read" statistic meaningless.
+ *
+ * Callers that can resolve the content's language MUST pass its pack. The
+ * optional parameter exists for paths that genuinely have no language in hand,
+ * and those silently get the spaced count.
  */
 export function countWords(text: string, pack?: LanguageConfig): number {
-  void pack;
-  return text
-    .replace(/[#*`\[\]()]/g, '')
-    .split(/\s+/)
-    .filter((word) => word.length > 0).length;
+  const stripped = text.replace(/[#*`\[\]()]/g, '');
+  if (pack?.script.kind === 'cjk-unspaced') return tokenizeWords(stripped, pack).length;
+  return stripped.split(/\s+/).filter((word) => word.length > 0).length;
+}
+
+/**
+ * Word count for prose the user typed rather than imported — journal entries.
+ * Deliberately separate from `countWords`: that one strips markdown syntax
+ * first, and a journal count is metered against a monthly allowance, so the
+ * stripping must not be able to move the charge. Spaced scripts keep the exact
+ * historical count; unspaced CJK counts segmenter tokens (#289 4.6), without
+ * which a Chinese journal entry of any length charges one word.
+ */
+export function countTypedWords(text: string, pack?: LanguageConfig): number {
+  if (pack?.script.kind === 'cjk-unspaced') return tokenizeWords(text, pack).length;
+  return text.trim().split(/\s+/).filter(Boolean).length;
 }

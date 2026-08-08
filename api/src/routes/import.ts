@@ -14,7 +14,7 @@ import {
   saveAudioFile,
 } from '../lib/audio-files';
 import { estimateTranscriptionMinutes, probeAudioDurationMs } from '../lib/audio-probe';
-import { normalizeText } from '../lib/languages';
+import { getLanguageConfig, normalizeText, type LanguageConfig } from '../lib/languages';
 import { validateOwnedReference } from '../lib/persisted-input';
 import { randomUUID } from 'crypto';
 
@@ -37,7 +37,7 @@ function readGroupId(value: FormDataEntryValue | null): string | null {
 
 interface ImportRouteDeps {
   engine: EntitlementsEngine;
-  parse: (buffer: Buffer) => ParsedEpub;
+  parse: (buffer: Buffer, pack?: LanguageConfig) => ParsedEpub;
   probeDurationMs?: (filePath: string) => Promise<number | null>;
 }
 
@@ -86,7 +86,7 @@ export function makeImportRoutes({
         if (groupIdError) return c.json({ error: groupIdError }, 400);
 
         const buffer = Buffer.from(await file.arrayBuffer());
-        const parsed = parse(buffer);
+        const parsed = parse(buffer, getLanguageConfig(lang));
 
         const collectionId = randomUUID();
         const now = new Date().toISOString();

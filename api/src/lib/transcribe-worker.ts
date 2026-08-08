@@ -17,6 +17,7 @@ import { Database } from 'bun:sqlite';
 import { db } from '../db';
 import { countWords } from './html-to-markdown';
 import { normalizeText } from './languages';
+import { packForLanguage } from './active-language';
 import {
   getTranscriptionProvider,
   type TranscribeOptions,
@@ -166,7 +167,13 @@ export function applyTranscript(
                 transcriptionStatus = 'done', transcriptionError = NULL
           WHERE userId = ? AND id = ?`,
       )
-      .run(text, countWords(text), result.durationMs ?? null, row.userId, row.id);
+      .run(
+        text,
+        countWords(text, packForLanguage(row.language)),
+        result.durationMs ?? null,
+        row.userId,
+        row.id,
+      );
   })();
 }
 

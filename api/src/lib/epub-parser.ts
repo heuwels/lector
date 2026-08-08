@@ -1,7 +1,7 @@
 import AdmZip from 'adm-zip';
 import path from 'path';
 import { htmlToMarkdown, countWords } from './html-to-markdown';
-import { normalizeText } from './languages';
+import { normalizeText, type LanguageConfig } from './languages';
 
 export interface EpubChapter {
   title: string;
@@ -21,7 +21,12 @@ export interface ParsedEpub {
 const MAX_ENTRIES = 5000;
 const MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024; // 100 MB
 
-export function parseEpub(buffer: Buffer): ParsedEpub {
+/**
+ * `pack` is the language the chapters will be imported as. It only affects
+ * `wordCount` (#289 4.6): an unspaced-CJK EPUB counts segmenter tokens, every
+ * other script keeps the whitespace count. Omitting it gives the spaced count.
+ */
+export function parseEpub(buffer: Buffer, pack?: LanguageConfig): ParsedEpub {
   const zip = new AdmZip(buffer);
 
   const entries = zip.getEntries();
@@ -48,11 +53,16 @@ export function parseEpub(buffer: Buffer): ParsedEpub {
 
   // Text ingress (#289): chapter markdown is normalized inside htmlToMarkdown;
   // metadata and TOC titles come straight from the XML, so normalize here.
-  const title = normalizeText(extractTag(opfXml, 'dc:title') || extractTag(opfXml, 'title') || 'Untitled');
-  const author = normalizeText(extractTag(opfXml, 'dc:creator') || extractTag(opfXml, 'creator') || 'Unknown');
+  const title = normalizeText(
+    extractTag(opfXml, 'dc:title') || extractTag(opfXml, 'title') || 'Untitled',
+  );
+  const author = normalizeText(
+    extractTag(opfXml, 'dc:creator') || extractTag(opfXml, 'creator') || 'Unknown',
+  );
 
   const manifest = new Map<string, string>();
-  const manifestRegex = /<item\s+[^>]*id="([^"]+)"[^>]*href="([^"]+)"[^>]*(?:media-type="([^"]+)")?[^>]*\/?>/g;
+  const manifestRegex =
+    /<item\s+[^>]*id="([^"]+)"[^>]*href="([^"]+)"[^>]*(?:media-type="([^"]+)")?[^>]*\/?>/g;
   let match;
   while ((match = manifestRegex.exec(opfXml)) !== null) {
     manifest.set(match[1], match[2]);
@@ -96,7 +106,7 @@ export function parseEpub(buffer: Buffer): ParsedEpub {
       tocTitle || headingMatch?.[1] || `Chapter ${chapters.length + 1}`,
     );
 
-    chapters.push({ title: chapterTitle, markdown, wordCount: countWords(markdown) });
+    chapters.push({ title: chapterTitle, markdown, wordCount: countWords(markdown, pack) });
   }
 
   return { title, author, chapters };
@@ -109,21 +119,28 @@ function extractTag(xml: string, tagName: string): string | null {
 }
 
 function parseToc(
-  zip: AdmZip, opfXml: string, manifest: Map<string, string>, opfDir: string
+  zip: AdmZip,
+  opfXml: string,
+  manifest: Map<string, string>,
+  opfDir: string,
 ): Map<string, string> {
   const titles = new Map<string, string>();
 
-  const ncxMatch = opfXml.match(/<item[^>]*id="ncx"[^>]*href="([^"]+)"[^>]*\/?>/i)
-    || opfXml.match(/<item[^>]*href="([^"]+)"[^>]*id="ncx"[^>]*\/?>/i)
-    || opfXml.match(/<item[^>]*media-type="application\/x-dtbncx\+xml"[^>]*href="([^"]+)"[^>]*\/?>/i)
-    || opfXml.match(/<item[^>]*href="([^"]+)"[^>]*media-type="application\/x-dtbncx\+xml"[^>]*\/?>/i);
+  const ncxMatch =
+    opfXml.match(/<item[^>]*id="ncx"[^>]*href="([^"]+)"[^>]*\/?>/i) ||
+    opfXml.match(/<item[^>]*href="([^"]+)"[^>]*id="ncx"[^>]*\/?>/i) ||
+    opfXml.match(
+      /<item[^>]*media-type="application\/x-dtbncx\+xml"[^>]*href="([^"]+)"[^>]*\/?>/i,
+    ) ||
+    opfXml.match(/<item[^>]*href="([^"]+)"[^>]*media-type="application\/x-dtbncx\+xml"[^>]*\/?>/i);
 
   if (ncxMatch) {
     const ncxPath = opfDir !== '.' ? `${opfDir}/${ncxMatch[1]}` : ncxMatch[1];
     const ncxEntry = zip.getEntry(ncxPath) || zip.getEntry(ncxMatch[1]);
     if (ncxEntry) {
       const ncxXml = ncxEntry.getData().toString('utf-8');
-      const navPointRegex = /<navPoint[^>]*>[\s\S]*?<text>([^<]+)<\/text>[\s\S]*?<content\s+src="([^"]+)"[\s\S]*?<\/navPoint>/g;
+      const navPointRegex =
+        /<navPoint[^>]*>[\s\S]*?<text>([^<]+)<\/text>[\s\S]*?<content\s+src="([^"]+)"[\s\S]*?<\/navPoint>/g;
       let match;
       while ((match = navPointRegex.exec(ncxXml)) !== null) {
         const src = match[2].split('#')[0];
@@ -133,8 +150,9 @@ function parseToc(
   }
 
   if (titles.size === 0) {
-    const navMatch = opfXml.match(/<item[^>]*properties="nav"[^>]*href="([^"]+)"[^>]*\/?>/i)
-      || opfXml.match(/<item[^>]*href="([^"]+)"[^>]*properties="nav"[^>]*\/?>/i);
+    const navMatch =
+      opfXml.match(/<item[^>]*properties="nav"[^>]*href="([^"]+)"[^>]*\/?>/i) ||
+      opfXml.match(/<item[^>]*href="([^"]+)"[^>]*properties="nav"[^>]*\/?>/i);
 
     if (navMatch) {
       const navPath = opfDir !== '.' ? `${opfDir}/${navMatch[1]}` : navMatch[1];
