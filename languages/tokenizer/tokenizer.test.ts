@@ -44,6 +44,17 @@ const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>, string[]
     'Die boek is in 1999 geskryf — hoofstuk 3 is die beste.',
     'Ons gaan na die Klein-Karoo toe.',
   ],
+  cs: [
+    'Ahoj! Jak se máš?',
+    // Every Czech diacritic letter sits inside the legacy À-Ö/Ø-ö/ø-ž ranges:
+    // the acutes are Latin-1, and the háček letters plus ů land in Latin
+    // Extended-A below U+017E. So cs must tokenize byte-identically with the
+    // old pattern too — the same reason pl and eo belong here.
+    'Příliš žluťoučký kůň úpěl ďábelské ódy.',
+    'Koupil jsem knihu za padesát korun — byla skvělá!',
+    '„Jsi si jistý?“ zeptal se dědeček v roce 1999.',
+    'Je to česko-slovenský slovník a modro-bílá vlajka.',
+  ],
   de: [
     'Hallo, wie geht es Ihnen?',
     'Die Häuser wurden 1999 gebaut, z.B. das E-Mail-Haus am Süd-West-Ufer.',
@@ -567,6 +578,65 @@ describe('Polish pack (real manifest)', () => {
     const text = 'Mam nową książkę';
     //                     ^9..12^ inside "książkę" (9..16)
     expect(snapToWordBoundaries(text, 10, 12, pl)).toEqual({ start: 9, end: 16 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Czech pack goldens — inside legacy parity above, so these cover the pack's
+// own shapes rather than the engine
+// ---------------------------------------------------------------------------
+
+const cs = LANGUAGES.cs;
+
+describe('Czech pack (real manifest)', () => {
+  it('keeps the háček, acute and kroužek letters inside word tokens', () => {
+    expect(tokenizeWords('Příliš žluťoučký kůň úpěl ďábelské ódy.', cs).map((t) => t.text)).toEqual(
+      ['Příliš', 'žluťoučký', 'kůň', 'úpěl', 'ďábelské', 'ódy'],
+    );
+  });
+
+  it('treats ch as two codepoints, not a single letter', () => {
+    // ch is one letter for Czech collation. It is still two codepoints in text,
+    // so the tokenizer needs no rule for it — this pins that nothing tries.
+    expect(tokenizeWords('chléb a chuť', cs).map((t) => t.text)).toEqual(['chléb', 'a', 'chuť']);
+  });
+
+  it('splits at the apostrophe, like pl and unlike uk', () => {
+    // Czech writes the apostrophe only for dialectal elision, never inside a
+    // citation form, so it is a boundary. Splitting leaves the lookupable stem
+    // on its own.
+    expect(tokenizeWords("řek' mi to", cs).map((t) => t.text)).toEqual(['řek', 'mi', 'to']);
+    // The typographic apostrophe behaves the same way.
+    expect(tokenizeWords('film Hitchcock’a', cs).map((t) => t.text)).toEqual([
+      'film',
+      'Hitchcock',
+      'a',
+    ]);
+  });
+
+  it('joins hyphenated compounds', () => {
+    expect(
+      tokenizeWords('česko-slovenský slovník, modro-bílá vlajka', cs).map((t) => t.text),
+    ).toEqual(['česko-slovenský', 'slovník', 'modro-bílá', 'vlajka']);
+  });
+
+  it('folds case with the default Unicode mapping', () => {
+    // Czech needs no fold locale, unlike tr — every letter lowercases the way
+    // the default rules say, so keys stay byte-stable with plain lowercasing.
+    expect(foldWord('KNIHA', cs)).toBe('kniha');
+    expect(foldWord('Žluťoučký', cs)).toBe('žluťoučký');
+    expect(foldWord('KŮŇ', cs)).toBe('kůň');
+    expect(foldWord('Příliš', cs)).toBe('příliš');
+    // Vowel length is contrastive, so the acute must survive folding: byt (a
+    // flat) and být (to be) are different words.
+    expect(foldWord('BÝT', cs)).toBe('být');
+    expect(foldWord('BYT', cs)).toBe('byt');
+  });
+
+  it('snaps a mid-word selection to Czech word boundaries', () => {
+    const text = 'Mám novou knihu';
+    //                       ^10..12^ inside "knihu" (10..15)
+    expect(snapToWordBoundaries(text, 11, 13, cs)).toEqual({ start: 10, end: 15 });
   });
 });
 

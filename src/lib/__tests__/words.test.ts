@@ -179,6 +179,22 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Kupiłem nową książkę.', 'książ', pl)).toBe(false);
   });
 
+  it('matches Czech tokens through the default case fold', () => {
+    const cs = LANGUAGES.cs;
+    expect(sentenceContainsWord('Koupil jsem novou knihu.', 'knihu', cs)).toBe(true);
+    expect(sentenceContainsWord('Ten kůň běžel rychle.', 'kůň', cs)).toBe(true);
+    expect(sentenceContainsWord('Příliš žluťoučký kůň.', 'žluťoučký', cs)).toBe(true);
+    // Vowel length is contrastive: být (to be) is not byt (a flat).
+    expect(sentenceContainsWord('Chci být doma.', 'byt', cs)).toBe(false);
+    // Hyphenated compounds stay whole.
+    expect(sentenceContainsWord('Je to česko-slovenský slovník.', 'česko-slovenský', cs)).toBe(
+      true,
+    );
+    expect(sentenceContainsWord('Je to česko-slovenský slovník.', 'slovenský', cs)).toBe(false);
+    // a genuine substring is still rejected (kni is not a token of knihu)
+    expect(sentenceContainsWord('Koupil jsem novou knihu.', 'kni', cs)).toBe(false);
+  });
+
   it('matches a Ukrainian apostrophe word as one token, in any variant', () => {
     const uk = LANGUAGES.uk;
     expect(sentenceContainsWord("Я з'їв п'ять яблук.", "п'ять", uk)).toBe(true);
