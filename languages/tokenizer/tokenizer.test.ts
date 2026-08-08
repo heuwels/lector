@@ -300,10 +300,97 @@ describe('multi-script goldens (synthetic packs — no per-language code)', () =
     expect(tokens).toEqual(['한국']);
   });
 
-  it('falls back to letter-runs for unspaced CJK until the Phase 4 engine lands', () => {
-    // Documents the interim contract: the seam dispatches, the default engine
-    // keeps the run whole (one tap target), Intl.Segmenter lands in Phase 4.
-    expect(tokenizeWords('我喜欢读书。', zh).map((t) => t.text)).toEqual(['我喜欢读书']);
+  it('segments unspaced Chinese into words, not one letter run', () => {
+    expect(tokenizeWords('我喜欢读书。', zh).map((t) => t.text)).toEqual(['我', '喜欢', '读书']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unspaced-CJK engine (#289 Phase 4, item 4.1)
+// ---------------------------------------------------------------------------
+
+const ZH_CORPUS = [
+  '我喜欢读书，因为读书使我快乐。',
+  '他昨天去了北京大学。',
+  '「你好。」她说。',
+  '2026年的中国有14亿人口！',
+  '他说 hello 然后走了。',
+];
+
+describe('unspaced CJK engine (#289 Phase 4)', () => {
+  it('reassembles Chinese text byte-for-byte with correct offsets', () => {
+    for (const text of ZH_CORPUS) {
+      const tokens = tokenize(text, zh);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('emits one gap token between two words, like the regex engine', () => {
+    const tokens = tokenize('他说，我走。', zh);
+    for (let i = 1; i < tokens.length; i++) {
+      expect(tokens[i - 1].isWord || tokens[i].isWord).toBe(true);
+    }
+  });
+
+  it('keeps multi-character words whole and splits compounds', () => {
+    expect(tokenizeWords('他昨天去了北京大学。', zh).map((t) => t.text)).toEqual([
+      '他',
+      '昨天',
+      '去了',
+      '北京',
+      '大学',
+    ]);
+  });
+
+  it('tokenizes Latin and digits embedded in Chinese', () => {
+    expect(tokenizeWords('他说 hello 然后走了。', zh).map((t) => t.text)).toEqual([
+      '他',
+      '说',
+      'hello',
+      '然后',
+      // ICU keeps verb + aspect particle together (走了, and 去了 above). A
+      // quality segmenter splits them; the seam swaps without touching callers.
+      '走了',
+    ]);
+    expect(tokenizeWords('2026年的中国', zh).map((t) => t.text)).toEqual([
+      '2026',
+      '年',
+      '的',
+      '中国',
+    ]);
+  });
+
+  it('splits sentences with no whitespace after the terminator', () => {
+    expect(splitSentences('我喜欢读书。他昨天去了北京！你呢？', zh)).toEqual([
+      '我喜欢读书。',
+      '他昨天去了北京！',
+      '你呢？',
+    ]);
+  });
+
+  it('keeps a closing quote with the sentence it ends', () => {
+    expect(splitSentences('「你好。」她说。', zh)).toEqual(['「你好。」', '她说。']);
+  });
+
+  it('collapses a run of terminators into one break', () => {
+    expect(splitSentences('真的！？我不信。', zh)).toEqual(['真的！？', '我不信。']);
+  });
+
+  it('snaps a selection to segmenter boundaries, not to the whole run', () => {
+    const text = '他昨天去了北京大学';
+    // A caret inside 昨天 expands to 昨天 alone — the character walk the spaced
+    // engine uses would swallow the entire unspaced run.
+    expect(snapToWordBoundaries(text, 2, 2, zh)).toEqual({ start: 1, end: 3 });
+    // A drag across two words expands to cover both whole.
+    expect(snapToWordBoundaries(text, 2, 6, zh)).toEqual({ start: 1, end: 7 });
+  });
+
+  it('leaves an empty string alone', () => {
+    expect(tokenize('', zh)).toEqual([]);
+    expect(splitSentences('', zh)).toEqual(['']);
   });
 });
 
@@ -555,12 +642,9 @@ describe('Polish pack (real manifest)', () => {
   });
 
   it('joins hyphenated compounds', () => {
-    expect(tokenizeWords('biało-czerwona flaga, słownik polsko-angielski', pl).map((t) => t.text)).toEqual([
-      'biało-czerwona',
-      'flaga',
-      'słownik',
-      'polsko-angielski',
-    ]);
+    expect(
+      tokenizeWords('biało-czerwona flaga, słownik polsko-angielski', pl).map((t) => t.text),
+    ).toEqual(['biało-czerwona', 'flaga', 'słownik', 'polsko-angielski']);
   });
 
   it('folds case with the default Unicode mapping', () => {

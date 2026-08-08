@@ -58,6 +58,109 @@ interface CompiledScript {
 
 const compiledCache = new WeakMap<ScriptConfig, CompiledScript>();
 
+// ---------------------------------------------------------------------------
+// Unspaced-CJK engine (#289 Phase 4, item 4.1)
+// ---------------------------------------------------------------------------
+// zh/ja text has no whitespace to split on, so the regex engine above sees one
+// long letter run and returns it as a single token. `cjk-unspaced` packs
+// dispatch here instead, to `Intl.Segmenter` word granularity — ICU's
+// dictionary-based segmenter, present in Bun and in every target browser, with
+// no dependency to vendor. A quality segmenter (jieba, MeCab) replaces the two
+// call sites below without touching this module's public signatures.
+//
+// Known divergence from the regex engine, and deliberate: ICU splits a Latin
+// compound inside CJK text on the hyphen ("COVID-19" → COVID | 19), where the
+// regex engine joins it. Only `cjk-unspaced` packs see this, and a Latin
+// compound embedded in Chinese prose is rare enough to leave alone until the
+// quality segmenter lands.
+
+const wordSegmenters = new Map<string, Intl.Segmenter>();
+
+function wordSegmenter(bcp47: string): Intl.Segmenter {
+  let segmenter = wordSegmenters.get(bcp47);
+  if (!segmenter) {
+    segmenter = new Intl.Segmenter(bcp47, { granularity: 'word' });
+    wordSegmenters.set(bcp47, segmenter);
+  }
+  return segmenter;
+}
+
+/**
+ * Tokenize via the segmenter, preserving the module contract: an exhaustive
+ * stream whose `text` values concatenate back to the source, with exact
+ * offsets. Adjacent non-word segments merge into one gap token, so the stream
+ * has the same shape the regex engine produces — one gap between two words.
+ */
+function tokenizeSegmented(text: string, script: ScriptConfig): Token[] {
+  const tokens: Token[] = [];
+  for (const { segment, index, isWordLike } of wordSegmenter(script.bcp47).segment(text)) {
+    const end = index + segment.length;
+    const previous = tokens[tokens.length - 1];
+    if (!isWordLike && previous && !previous.isWord) {
+      previous.text += segment;
+      previous.end = end;
+      continue;
+    }
+    tokens.push({ text: segment, start: index, end, isWord: Boolean(isWordLike) });
+  }
+  return tokens;
+}
+
+/**
+ * Expand [start, end) to segmenter token boundaries. The regex engine's
+ * character-walk cannot work here: every character of an unspaced run is a
+ * word character, so walking outward would swallow the whole paragraph.
+ */
+function snapSegmented(
+  text: string,
+  start: number,
+  end: number,
+  script: ScriptConfig,
+): { start: number; end: number } {
+  let snappedStart = start;
+  let snappedEnd = end;
+  for (const { segment, index } of wordSegmenter(script.bcp47).segment(text)) {
+    const segmentEnd = index + segment.length;
+    if (index <= start && start < segmentEnd) snappedStart = index;
+    if (index < end && end <= segmentEnd) snappedEnd = segmentEnd;
+  }
+  return { start: snappedStart, end: snappedEnd };
+}
+
+/** Closing marks that belong to the sentence they follow, not the next one. */
+const SENTENCE_CLOSERS = '」』”’〞》〉】］）"\')]';
+
+/**
+ * Sentence splitting for unspaced scripts. The spaced splitter requires
+ * whitespace after the terminator, which Chinese prose never writes — 。 ends a
+ * sentence and the next one starts at the very next character. So scan instead:
+ * break after a run of terminators plus any closing quotes or brackets, and
+ * consume whitespace at the break the way the spaced splitter does.
+ */
+function splitSentencesSegmented(text: string, script: ScriptConfig): string[] {
+  const terminators = new Set(script.sentenceTerminators ?? DEFAULT_SENTENCE_TERMINATORS);
+  const sentences: string[] = [];
+  let start = 0;
+  let i = 0;
+  while (i < text.length) {
+    if (!terminators.has(text[i])) {
+      i++;
+      continue;
+    }
+    let cut = i + 1;
+    while (cut < text.length && terminators.has(text[cut])) cut++;
+    while (cut < text.length && SENTENCE_CLOSERS.includes(text[cut])) cut++;
+    let next = cut;
+    while (next < text.length && /\s/.test(text[next])) next++;
+    sentences.push(text.slice(start, cut));
+    start = next;
+    i = next;
+  }
+  if (start < text.length) sentences.push(text.slice(start));
+  // `''.split(re)` yields [''] — match that for an empty or all-whitespace input.
+  return sentences.length > 0 ? sentences : [text];
+}
+
 function compile(script: ScriptConfig): CompiledScript {
   const cached = compiledCache.get(script);
   if (cached) return cached;
@@ -72,7 +175,9 @@ function compile(script: ScriptConfig): CompiledScript {
   const core = `${wc}+(?:[${joiners}]${wc}+)*`;
   // Pack-specific whole-token forms (af 'n) take precedence over the engine.
   const alternatives = [...(script.extraTokenPatterns ?? []), core];
-  const terminators = escapeForCharClass(script.sentenceTerminators ?? DEFAULT_SENTENCE_TERMINATORS);
+  const terminators = escapeForCharClass(
+    script.sentenceTerminators ?? DEFAULT_SENTENCE_TERMINATORS,
+  );
 
   const compiled: CompiledScript = {
     wordPattern: new RegExp(alternatives.join('|'), 'giu'),
@@ -89,12 +194,11 @@ function compile(script: ScriptConfig): CompiledScript {
  * source offsets. Concatenating `token.text` in order reproduces `text`
  * byte-for-byte.
  *
- * `cjk-unspaced` packs currently fall through to the spaced engine (an
- * unspaced run tokenizes as one letter run); the real segmentation engine
- * (Intl.Segmenter baseline, then jieba/MeCab) lands in Phase 4 of #289 behind
- * this same signature.
+ * `cjk-unspaced` packs dispatch to the segmenter engine instead of the regex
+ * engine; both satisfy the contract above.
  */
 export function tokenize(text: string, pack: LanguageConfig): Token[] {
+  if (pack.script.kind === 'cjk-unspaced') return tokenizeSegmented(text, pack.script);
   const { wordPattern } = compile(pack.script);
   const tokens: Token[] = [];
   const re = new RegExp(wordPattern.source, wordPattern.flags); // own lastIndex
@@ -102,9 +206,19 @@ export function tokenize(text: string, pack: LanguageConfig): Token[] {
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      tokens.push({ text: text.slice(lastIndex, match.index), start: lastIndex, end: match.index, isWord: false });
+      tokens.push({
+        text: text.slice(lastIndex, match.index),
+        start: lastIndex,
+        end: match.index,
+        isWord: false,
+      });
     }
-    tokens.push({ text: match[0], start: match.index, end: match.index + match[0].length, isWord: true });
+    tokens.push({
+      text: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+      isWord: true,
+    });
     lastIndex = match.index + match[0].length;
     // A zero-length match (possible with pathological extraTokenPatterns)
     // would loop forever — step past it.
@@ -138,6 +252,7 @@ export function snapToWordBoundaries(
   end: number,
   pack: LanguageConfig,
 ): { start: number; end: number } {
+  if (pack.script.kind === 'cjk-unspaced') return snapSegmented(text, start, end, pack.script);
   const { selectionChar } = compile(pack.script);
   let s = start;
   let e = end;
@@ -153,6 +268,7 @@ export function snapToWordBoundaries(
  * they used to.
  */
 export function splitSentences(text: string, pack: LanguageConfig): string[] {
+  if (pack.script.kind === 'cjk-unspaced') return splitSentencesSegmented(text, pack.script);
   return text.split(compile(pack.script).sentenceSplitter);
 }
 
