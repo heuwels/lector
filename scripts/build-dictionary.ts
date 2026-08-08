@@ -107,6 +107,32 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: null,
     glossFilter: false,
   },
+  cs: {
+    // Canonical /Czech/ URL (kaikki has no /downloads/cs/ mirror; verified 2026-08-08).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Czech/kaikki.org-dictionary-Czech.jsonl'],
+    // The Czech alphabet: a-z plus the háček letters č ď ě ň ř š ť ž, the acute
+    // letters á é í ó ú ý, and ů (kroužek). q, v, w and x are marginal but stay
+    // in the a-z range for the loanwords the dump carries. `ch` is a single
+    // letter for collation only — it is two code points and needs nothing here.
+    // The apostrophe is a token boundary, matching the runtime tokenizer: Czech
+    // writes it only for dialectal elision, never inside a citation form, so it
+    // is the pl/tr shape and the opposite of uk. Hyphen stays a word char for
+    // compounds (česko-slovenský, modro-bílý).
+    letterClass: 'a-záčďéěíňóřšťúůýžA-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ-',
+    // No hand affix rules: Czech is fusional, so its 7 cases × 4 genders, verb
+    // conjugation, aspect pairs and consonant alternations resolve via kaikki
+    // "form of <lemma>" entries + the inflections table — the same strategy as
+    // de/es/fr/nl/pt/ru/tr/uk/pl.
+    prefixes: [],
+    suffixes: [],
+    // Czech distinguishes vowel length, so the acute forms are separate vowels,
+    // not accented variants. ě is a vowel letter; ů is the long u written after
+    // a historical diphthong.
+    vowels: 'aáeéěiíoóuúůyý',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-cs.txt',
+    glossFilter: true,
+  },
   de: {
     // Canonical /German/ URL only — the /downloads/de/ fallback 404s (verified 2026-06-25).
     kaikkiUrls: ['https://kaikki.org/dictionary/German/kaikki.org-dictionary-German.jsonl'],

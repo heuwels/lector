@@ -74,19 +74,23 @@ describe('registry pronunciation conformance', () => {
     expect(LANGUAGES.ru.script.foldApostrophes).toBeUndefined();
   });
 
-  // Polish is the control case for both opt-in seams: it has diacritics like
-  // tr and an apostrophe like uk, but needs neither flag. If a later change
-  // makes one of them apply by default, this fails.
-  it('polish declares no fold locale and no apostrophe seam', () => {
-    const pl = LANGUAGES.pl;
-    expect(pl.script.caseFoldLocale).toBeUndefined();
-    expect(pl.script.extraJoiners).toBeUndefined();
-    expect(pl.script.foldApostrophes).toBeUndefined();
-    expect(pl.script.extraWordChars).toBeUndefined();
-    expect(pl.script.extraTokenPatterns).toBeUndefined();
-    expect(pl.tatoebaCode).toBe('pol');
-    expect(pl.script.bcp47).toBe('pl');
-    expect(pl.script.hasCase).toBe(true);
+  // Polish and Czech are the control cases for both opt-in seams: each has
+  // diacritics like tr and an apostrophe like uk, but needs neither flag. If a
+  // later change makes one of them apply by default, this fails.
+  it.each([
+    ['pl', 'pol'],
+    ['cs', 'ces'],
+  ] as const)('%s declares no fold locale and no apostrophe seam', (code, tatoebaCode) => {
+    const pack = LANGUAGES[code];
+    expect(pack.script.caseFoldLocale).toBeUndefined();
+    expect(pack.script.extraJoiners).toBeUndefined();
+    expect(pack.script.foldApostrophes).toBeUndefined();
+    expect(pack.script.extraWordChars).toBeUndefined();
+    expect(pack.script.extraTokenPatterns).toBeUndefined();
+    expect(pack.tatoebaCode).toBe(tatoebaCode);
+    expect(pack.script.bcp47).toBe(code);
+    expect(pack.script.hasCase).toBe(true);
+    expect(pack.script.kind).toBe('alpha-spaced');
   });
 
   it('esperanto is espeak-voiced with a rule-generated IPA gloss', () => {

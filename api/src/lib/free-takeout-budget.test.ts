@@ -18,7 +18,7 @@ describe('Free takeout serialization budget', () => {
     expect(proof.escapedLearnerTextBytes).toBeGreaterThan(35 * 1024 * 1024);
     // Grows by ~466 bytes per language pack (the witness enumerates them), so
     // this constant moves with every pack that lands.
-    expect(proof.totalBytes).toBe(93_296_162);
+    expect(proof.totalBytes).toBe(93_296_628);
     expect(proof.totalBytes).toBeLessThanOrEqual(FREE_RESTORE_ENVELOPE_BYTES);
     expect(FREE_RESTORE_ENVELOPE_BYTES - proof.totalBytes).toBeGreaterThan(1 * 1024 * 1024);
   });

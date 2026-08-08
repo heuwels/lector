@@ -7,6 +7,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'When do I use "het" vs "is" for past tense?',
     'How do diminutives work in Afrikaans?',
   ],
+  cs: [
+    'How do the seven Czech cases work, and when do I use the instrumental?',
+    'What is the difference between "být" and "byt"?',
+    'What\'s the difference between perfective and imperfective verbs like "udělat" vs "dělat"?',
+  ],
   de: [
     'How does the German case system work?',
     'When do I use "der", "die", and "das"?',
