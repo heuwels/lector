@@ -21,6 +21,7 @@ export default function ImportDropdown({
   destinations,
   destinationId = null,
   onDestinationChange,
+  minimalOnMobile,
 }: ImportDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -90,13 +91,12 @@ export default function ImportDropdown({
         {isImporting ? (
           <>
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
-            Importing...
+            <span className={minimalOnMobile ? 'hidden md:block' : ''}>Importing...</span>
           </>
         ) : (
           <>
             <Plus className="h-5 w-5" />
-            {label}
-            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            <span className={minimalOnMobile ? 'hidden items-center sm:flex' : ''}>{label}</span>
           </>
         )}
       </Button>

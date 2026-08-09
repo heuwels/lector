@@ -12,6 +12,7 @@ export interface ImportDropdownProps {
   onUrlImport: () => void;
   onYouTubeImport: () => void;
   onPasteImport: () => void;
+  minimalOnMobile?: boolean;
   disabled?: boolean;
   isImporting?: boolean;
   /** Trigger label. Defaults to "Import". */

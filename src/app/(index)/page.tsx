@@ -576,6 +576,7 @@ export default function Home() {
                         disabled={isImporting}
                         isImporting={isImporting && importGroupId === group.id}
                         testId={`group-import-${group.id}`}
+                        minimalOnMobile
                       />
                       <GroupMenu
                         onRename={() => handleRenameGroup(group.id, group.name)}
