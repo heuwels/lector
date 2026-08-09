@@ -3,7 +3,6 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   BookOpenText,
   Check,
-  ChevronRight,
   GripVertical,
   LoaderCircle,
   RotateCcw,
@@ -49,16 +48,16 @@ export default function SortableLessonRow({
   const transcriptionFailed = lesson.transcriptionStatus === 'error';
 
   const CTALabel = useMemo(() => {
-    if (lesson.progress_percentComplete === 0) {
+    if (progress === 0) {
       return 'Read';
     }
 
-    if (lesson.progress_percentComplete >= 95) {
+    if (isComplete) {
       return 'Re-read';
     }
 
     return 'Continue';
-  }, [lesson.progress_percentComplete]);
+  }, [progress, isComplete]);
 
   return (
     <div
