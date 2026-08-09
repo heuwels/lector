@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useActiveLanguage } from '@/utils/hooks';
 import { apiFetch, isBareRoute } from '@/lib/api-base';
+import { isComposing } from '@/lib/keyboard';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { EXAMPLE_PROMPTS } from './constants';
 
@@ -176,6 +177,9 @@ export default function ChatWidget() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // An IME commits its candidate with Enter (#289 4.5) — asking a question
+    // about Chinese means typing Chinese into this box.
+    if (isComposing(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -211,12 +215,8 @@ export default function ChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-3">
             <div>
-              <h3 className="text-sm font-semibold text-foreground">
-                {activeLang.name} Tutor
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Ask anything about {activeLang.name}
-              </p>
+              <h3 className="text-sm font-semibold text-foreground">{activeLang.name} Tutor</h3>
+              <p className="text-xs text-muted-foreground">Ask anything about {activeLang.name}</p>
             </div>
             <Button
               variant="ghost"
