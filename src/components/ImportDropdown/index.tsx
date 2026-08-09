@@ -14,6 +14,10 @@ export default function ImportDropdown({
   onPasteImport,
   disabled = false,
   isImporting = false,
+  label = 'Import',
+  size = 'default',
+  variant = 'default',
+  testId,
 }: ImportDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -67,7 +71,13 @@ export default function ImportDropdown({
 
   return (
     <div ref={dropdownRef} className="relative">
-      <Button onClick={() => setIsOpen(!isOpen)} disabled={disabled || isImporting}>
+      <Button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={disabled || isImporting}
+        size={size}
+        variant={variant}
+        data-testid={testId}
+      >
         {isImporting ? (
           <>
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
@@ -76,7 +86,7 @@ export default function ImportDropdown({
         ) : (
           <>
             <Plus className="h-5 w-5" />
-            Import
+            {label}
             <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </>
         )}

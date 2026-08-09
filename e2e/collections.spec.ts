@@ -172,7 +172,7 @@ test.describe("Collections & Lessons", () => {
     await page.waitForLoadState("networkidle");
 
     // Open import dropdown and click paste
-    await page.getByRole("button", { name: /import/i }).first().click();
+    await page.getByTestId("library-import").click();
     await page.getByText("Paste Text").click();
 
     // Fill the modal
@@ -314,6 +314,62 @@ test.describe("Collections & Lessons", () => {
         .locator("..")
         .getByText("5 words")
     ).toBeVisible();
+  });
+
+  test("should edit the collection title and author", async ({ page }) => {
+    const colRes = await page.request.post(apiUrl("/api/collections"), {
+      data: { title: "Toets Oorspronklike Titel", author: "Toets Ou Outeur" },
+    });
+    const { id: collectionId } = await colRes.json();
+
+    await page.goto(`/collection/${collectionId}`);
+    await page.waitForLoadState("networkidle");
+
+    await page.getByTestId("edit-collection").click();
+
+    await expect(page.locator("#collection-title")).toHaveValue(
+      "Toets Oorspronklike Titel"
+    );
+    await expect(page.locator("#collection-author")).toHaveValue(
+      "Toets Ou Outeur"
+    );
+
+    await page.locator("#collection-title").fill("Toets Nuwe Titel");
+    await page.locator("#collection-author").fill("Toets Nuwe Outeur");
+    await page.getByRole("button", { name: "Save changes" }).click();
+
+    // Header reflects the change without a reload
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Nuwe Titel" })
+    ).toBeVisible();
+    await expect(page.getByText("Toets Nuwe Outeur")).toBeVisible();
+
+    // And it survives a reload — the change was persisted, not just local state
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Nuwe Titel" })
+    ).toBeVisible();
+    await expect(page.getByText("Toets Nuwe Outeur")).toBeVisible();
+  });
+
+  test("should not allow saving a blank collection title", async ({ page }) => {
+    const colRes = await page.request.post(apiUrl("/api/collections"), {
+      data: { title: "Toets Lee Titel", author: "Toets Outeur" },
+    });
+    const { id: collectionId } = await colRes.json();
+
+    await page.goto(`/collection/${collectionId}`);
+    await page.waitForLoadState("networkidle");
+
+    await page.getByTestId("edit-collection").click();
+    await page.locator("#collection-title").fill("   ");
+
+    // Save is unavailable rather than sending a blank title
+    await expect(
+      page.getByRole("button", { name: "Save changes" })
+    ).toBeDisabled();
+    await expect(page.locator("#collection-title")).toBeVisible();
   });
 
   test("should delete a collection", async ({ page }) => {
