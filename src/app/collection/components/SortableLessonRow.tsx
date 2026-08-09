@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { LessonSummary } from '@/types';
 import Link from 'next/link';
+import { useMemo } from 'react';
 
 export default function SortableLessonRow({
   lesson,
@@ -47,6 +48,18 @@ export default function SortableLessonRow({
     lesson.transcriptionStatus === 'pending' || lesson.transcriptionStatus === 'processing';
   const transcriptionFailed = lesson.transcriptionStatus === 'error';
 
+  const CTALabel = useMemo(() => {
+    if (lesson.progress_percentComplete === 0) {
+      return 'Read';
+    }
+
+    if (lesson.progress_percentComplete >= 95) {
+      return 'Re-read';
+    }
+
+    return 'Continue';
+  }, [lesson.progress_percentComplete]);
+
   return (
     <div
       ref={setNodeRef}
@@ -67,7 +80,7 @@ export default function SortableLessonRow({
       <Link
         href={`/read/${lesson.id}`}
         title={lesson.title}
-        className="group flex min-w-0 flex-1 items-center gap-2 pr-2 md:gap-4"
+        className="group flex min-w-0 flex-1 items-center gap-2 pr-2 md:gap-4 md:pr-0"
       >
         {/* Lesson number */}
         <div
@@ -78,42 +91,47 @@ export default function SortableLessonRow({
           {isComplete ? <Check className="h-4 w-4" /> : index + 1}
         </div>
 
-        {/* Lesson info */}
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-medium text-foreground">{lesson.title}</h3>
-          {transcribing ? (
-            <p
-              className="flex items-center gap-1 text-xs text-muted-foreground"
-              data-testid={`transcribing-${lesson.id}`}
-            >
-              <LoaderCircle className="h-3 w-3 animate-spin" />
-              Transcribing…
-            </p>
-          ) : transcriptionFailed ? (
-            <p
-              className="flex items-center gap-1 text-xs text-destructive"
-              title={lesson.transcriptionError ?? undefined}
-              data-testid={`transcription-error-${lesson.id}`}
-            >
-              <TriangleAlert className="h-3 w-3" />
-              Transcription failed
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {lesson.wordCount.toLocaleString()} words
-              {progress > 0 && !isComplete && ` · ${progress}%`}
-            </p>
+          {/* Lesson info */}
+          <div className="">
+            <h3 className="truncate text-sm font-medium text-foreground">{lesson.title}</h3>
+            {transcribing ? (
+              <p
+                className="flex items-center gap-1 text-xs text-muted-foreground"
+                data-testid={`transcribing-${lesson.id}`}
+              >
+                <LoaderCircle className="h-3 w-3 animate-spin" />
+                Transcribing…
+              </p>
+            ) : transcriptionFailed ? (
+              <p
+                className="flex items-center gap-1 text-xs text-destructive"
+                title={lesson.transcriptionError ?? undefined}
+                data-testid={`transcription-error-${lesson.id}`}
+              >
+                <TriangleAlert className="h-3 w-3" />
+                Transcription failed
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {lesson.wordCount.toLocaleString()} words
+                {progress > 0 && !isComplete && ` · ${progress}%`}
+              </p>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          {progress > 0 && !isComplete && (
+            <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+            </div>
           )}
         </div>
 
-        {/* Progress bar */}
-        {progress > 0 && !isComplete && (
-          <div className="h-1.5 w-20 rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
-          </div>
-        )}
-
-        <BookOpenText className="h-4 w-4 flex-shrink-0 text-muted-foreground group-hover:text-foreground" />
+        <div className="flex flex-shrink-0 items-center gap-3 text-sm text-muted-foreground group-hover:text-foreground">
+          <span className="hidden md:block">{CTALabel}</span>
+          <BookOpenText className="h-4 w-4" />
+        </div>
       </Link>
 
       {/* Retry transcription button (failed audio lessons only) */}
