@@ -1,6 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  BookOpenText,
   Check,
   ChevronRight,
   GripVertical,
@@ -50,7 +51,7 @@ export default function SortableLessonRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-4 transition-all hover:border-border hover:shadow-sm sm:px-4 ${isDragging ? 'opacity-60 shadow-md' : ''}`}
+      className={`flex items-center gap-1 rounded-xl border border-border bg-card px-1 py-4 transition-all hover:border-border hover:shadow-sm sm:px-4 md:gap-3 ${isDragging ? 'opacity-60 shadow-md' : ''}`}
     >
       <button
         ref={setActivatorNodeRef}
@@ -63,7 +64,11 @@ export default function SortableLessonRow({
         <GripVertical className="h-5 w-5" />
       </button>
 
-      <Link href={`/read/${lesson.id}`} className="flex min-w-0 flex-1 items-center gap-4">
+      <Link
+        href={`/read/${lesson.id}`}
+        title={lesson.title}
+        className="group flex min-w-0 flex-1 items-center gap-2 pr-2 md:gap-4"
+      >
         {/* Lesson number */}
         <div
           className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-medium ${
@@ -108,14 +113,14 @@ export default function SortableLessonRow({
           </div>
         )}
 
-        <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+        <BookOpenText className="h-4 w-4 flex-shrink-0 text-muted-foreground group-hover:text-foreground" />
       </Link>
 
       {/* Retry transcription button (failed audio lessons only) */}
       {transcriptionFailed && onRetryTranscription && (
         <button
           onClick={() => onRetryTranscription(lesson.id)}
-          className="flex-shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="flex-shrink-0 cursor-pointer rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
           title="Retry transcription"
           data-testid={`retry-transcription-${lesson.id}`}
         >
@@ -126,7 +131,7 @@ export default function SortableLessonRow({
       {/* Edit button */}
       <button
         onClick={() => onEdit(lesson.id)}
-        className="flex-shrink-0 rounded-lg p-2 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-accent hover:text-foreground"
+        className="flex-shrink-0 cursor-pointer rounded-lg p-2 text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
         title="Edit lesson"
         data-testid={`edit-lesson-${lesson.id}`}
       >
@@ -136,7 +141,7 @@ export default function SortableLessonRow({
       {/* Delete button */}
       <button
         onClick={() => onDelete(lesson.id, lesson.title)}
-        className="flex-shrink-0 rounded-lg p-2 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-accent hover:text-destructive"
+        className="flex-shrink-0 cursor-pointer rounded-lg p-2 text-muted-foreground transition-all hover:bg-accent hover:text-destructive"
         title="Delete lesson"
       >
         <Trash2 className="h-4 w-4" />
