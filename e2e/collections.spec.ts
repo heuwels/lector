@@ -353,6 +353,40 @@ test.describe("Collections & Lessons", () => {
     await expect(page.getByText("Toets Nuwe Outeur")).toBeVisible();
   });
 
+  test("should save the collection edit when Enter is pressed", async ({
+    page,
+  }) => {
+    const colRes = await page.request.post(apiUrl("/api/collections"), {
+      data: { title: "Toets Enter Titel", author: "Toets Enter Outeur" },
+    });
+    const { id: collectionId } = await colRes.json();
+
+    await page.goto(`/collection/${collectionId}`);
+    await page.waitForLoadState("networkidle");
+
+    // Enter from the author field submits, same as the Save button
+    await page.getByTestId("edit-collection").click();
+    await page.locator("#collection-title").fill("Toets Enter Nuut");
+    await page.locator("#collection-author").fill("Toets Enter Nuwe Outeur");
+    await page.locator("#collection-author").press("Enter");
+
+    await expect(page.locator("#collection-title")).toBeHidden();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Enter Nuut" })
+    ).toBeVisible();
+    await expect(page.getByText("Toets Enter Nuwe Outeur")).toBeVisible();
+
+    // And from the title field
+    await page.getByTestId("edit-collection").click();
+    await page.locator("#collection-title").fill("Toets Enter Weer");
+    await page.locator("#collection-title").press("Enter");
+
+    await expect(page.locator("#collection-title")).toBeHidden();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Enter Weer" })
+    ).toBeVisible();
+  });
+
   test("should not allow saving a blank collection title", async ({ page }) => {
     const colRes = await page.request.post(apiUrl("/api/collections"), {
       data: { title: "Toets Lee Titel", author: "Toets Outeur" },
@@ -369,7 +403,17 @@ test.describe("Collections & Lessons", () => {
     await expect(
       page.getByRole("button", { name: "Save changes" })
     ).toBeDisabled();
+
+    // Enter must not submit it either — the modal stays open
+    await page.locator("#collection-title").press("Enter");
     await expect(page.locator("#collection-title")).toBeVisible();
+
+    // Close it and confirm nothing was saved
+    await page.locator("#collection-title").press("Escape");
+    await expect(page.locator("#collection-title")).toBeHidden();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Lee Titel" })
+    ).toBeVisible();
   });
 
   test("should delete a collection", async ({ page }) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, Plus } from 'lucide-react';
+import { Check, ChevronDown, Plus } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { IMPORT_OPTIONS } from './constants';
@@ -18,6 +18,9 @@ export default function ImportDropdown({
   size = 'default',
   variant = 'default',
   testId,
+  destinations,
+  destinationId = null,
+  onDestinationChange,
 }: ImportDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -69,6 +72,12 @@ export default function ImportDropdown({
     handlers[source]();
   };
 
+  // The ungrouped library is a destination like any group, so it heads the list
+  // and stays selectable after the user picks a group.
+  const destinationList: Array<{ id: string | null; name: string }> = destinations?.length
+    ? [{ id: null, name: 'Library (ungrouped)' }, ...destinations]
+    : [];
+
   return (
     <div ref={dropdownRef} className="relative">
       <Button
@@ -93,7 +102,35 @@ export default function ImportDropdown({
       </Button>
 
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-48 rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-lg">
+        <div className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-lg">
+          {destinationList.length > 0 && (
+            <div className="mb-1 border-b border-border pb-1">
+              <p className="px-4 pt-1.5 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                Add to
+              </p>
+              <div className="max-h-44 overflow-y-auto">
+                {destinationList.map((destination) => {
+                  const isSelected = destination.id === destinationId;
+                  return (
+                    <button
+                      key={destination.id ?? 'ungrouped'}
+                      type="button"
+                      onClick={() => onDestinationChange?.(destination.id)}
+                      aria-pressed={isSelected}
+                      data-testid={`import-destination-${destination.id ?? 'ungrouped'}`}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-popover-foreground transition-colors hover:bg-accent"
+                    >
+                      <Check
+                        className={`h-4 w-4 shrink-0 text-primary ${isSelected ? 'opacity-100' : 'opacity-0'}`}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{destination.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {IMPORT_OPTIONS.map(({ source, label, icon: Icon }) => (
             <button
               key={source}

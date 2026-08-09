@@ -252,6 +252,52 @@ test.describe("Collection Groups", () => {
     ).toBeVisible({ timeout: 15000 });
   });
 
+  test("should pick a group from the page-level import menu", async ({ page }) => {
+    const groupRes = await page.request.post(apiUrl("/api/groups"), {
+      data: { name: "Test Destination Group" },
+    });
+    const { id: groupId } = await groupRes.json();
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByTestId("library-import").click();
+
+    // The menu lists the ungrouped library plus every visible group
+    await expect(page.getByTestId("import-destination-ungrouped")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await page.getByTestId(`import-destination-${groupId}`).click();
+    await expect(page.getByTestId(`import-destination-${groupId}`)).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(page.getByTestId("import-destination-ungrouped")).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+
+    // Choosing a destination keeps the menu open so a source can follow
+    await page.getByText("Paste Text").click();
+    await page.locator("#paste-title").fill("Toets Bestemming Artikel");
+    await page.locator("#paste-author").fill("Toets Skrywer");
+    await page.locator("#paste-content").fill("Hierdie een kies sy eie groep.");
+    await page.getByRole("button", { name: "Save to Library" }).click();
+
+    const groupSection = page.getByTestId(`group-${groupId}`);
+    await expect(
+      groupSection.locator("h3", { hasText: "Toets Bestemming Artikel" })
+    ).toBeVisible({ timeout: 10000 });
+
+    // The choice sticks, so several imports can go to the same group
+    await page.getByTestId("library-import").click();
+    await expect(page.getByTestId(`import-destination-${groupId}`)).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
   test("the page-level import stays ungrouped", async ({ page }) => {
     const groupRes = await page.request.post(apiUrl("/api/groups"), {
       data: { name: "Test Untouched Group" },

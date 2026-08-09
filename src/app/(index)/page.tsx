@@ -64,8 +64,11 @@ export default function Home() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
   // Group that the running (or about to run) import belongs to. Null imports
-  // into Ungrouped, which is what the page-level Import button does.
+  // into Ungrouped.
   const [importGroupId, setImportGroupId] = useState<string | null>(null);
+  // Destination chosen in the page-level Import menu. It stays selected between
+  // imports, so several files can go into the same group.
+  const [libraryDestinationId, setLibraryDestinationId] = useState<string | null>(null);
   const [newCollectionTitle, setNewCollectionTitle] = useState('');
   const [starterAvailable, setStarterAvailable] = useState(false);
   const [isAddingStarter, setIsAddingStarter] = useState(false);
@@ -192,8 +195,6 @@ export default function Home() {
       },
     };
   }
-
-  const libraryImportHandlers = importHandlers(null);
 
   async function handleAudioFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -390,6 +391,13 @@ export default function Home() {
 
   const hasGroups = visibleGroups.length > 0;
 
+  // A deleted group, or one whose collections all moved to another language,
+  // must not stay selected as the import destination.
+  const libraryDestination = visibleGroups.some((g) => g.id === libraryDestinationId)
+    ? libraryDestinationId
+    : null;
+  const libraryImportHandlers = importHandlers(libraryDestination);
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <PageHeader title="Your Library">
@@ -435,8 +443,11 @@ export default function Home() {
           <ImportDropdown
             {...libraryImportHandlers}
             disabled={isImporting}
-            isImporting={isImporting && importGroupId === null}
+            isImporting={isImporting && importGroupId === libraryDestination}
             testId="library-import"
+            destinations={visibleGroups.map((g) => ({ id: g.id, name: g.name }))}
+            destinationId={libraryDestination}
+            onDestinationChange={setLibraryDestinationId}
           />
           <input
             ref={fileInputRef}
