@@ -172,7 +172,7 @@ test.describe("Collections & Lessons", () => {
     await page.waitForLoadState("networkidle");
 
     // Open import dropdown and click paste
-    await page.getByRole("button", { name: /import/i }).first().click();
+    await page.getByTestId("library-import").click();
     await page.getByText("Paste Text").click();
 
     // Fill the modal
@@ -313,6 +313,106 @@ test.describe("Collections & Lessons", () => {
         .locator("..")
         .locator("..")
         .getByText("5 words")
+    ).toBeVisible();
+  });
+
+  test("should edit the collection title and author", async ({ page }) => {
+    const colRes = await page.request.post(apiUrl("/api/collections"), {
+      data: { title: "Toets Oorspronklike Titel", author: "Toets Ou Outeur" },
+    });
+    const { id: collectionId } = await colRes.json();
+
+    await page.goto(`/collection/${collectionId}`);
+    await page.waitForLoadState("networkidle");
+
+    await page.getByTestId("edit-collection").click();
+
+    await expect(page.locator("#collection-title")).toHaveValue(
+      "Toets Oorspronklike Titel"
+    );
+    await expect(page.locator("#collection-author")).toHaveValue(
+      "Toets Ou Outeur"
+    );
+
+    await page.locator("#collection-title").fill("Toets Nuwe Titel");
+    await page.locator("#collection-author").fill("Toets Nuwe Outeur");
+    await page.getByRole("button", { name: "Save changes" }).click();
+
+    // Header reflects the change without a reload
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Nuwe Titel" })
+    ).toBeVisible();
+    await expect(page.getByText("Toets Nuwe Outeur")).toBeVisible();
+
+    // And it survives a reload — the change was persisted, not just local state
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Nuwe Titel" })
+    ).toBeVisible();
+    await expect(page.getByText("Toets Nuwe Outeur")).toBeVisible();
+  });
+
+  test("should save the collection edit when Enter is pressed", async ({
+    page,
+  }) => {
+    const colRes = await page.request.post(apiUrl("/api/collections"), {
+      data: { title: "Toets Enter Titel", author: "Toets Enter Outeur" },
+    });
+    const { id: collectionId } = await colRes.json();
+
+    await page.goto(`/collection/${collectionId}`);
+    await page.waitForLoadState("networkidle");
+
+    // Enter from the author field submits, same as the Save button
+    await page.getByTestId("edit-collection").click();
+    await page.locator("#collection-title").fill("Toets Enter Nuut");
+    await page.locator("#collection-author").fill("Toets Enter Nuwe Outeur");
+    await page.locator("#collection-author").press("Enter");
+
+    await expect(page.locator("#collection-title")).toBeHidden();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Enter Nuut" })
+    ).toBeVisible();
+    await expect(page.getByText("Toets Enter Nuwe Outeur")).toBeVisible();
+
+    // And from the title field
+    await page.getByTestId("edit-collection").click();
+    await page.locator("#collection-title").fill("Toets Enter Weer");
+    await page.locator("#collection-title").press("Enter");
+
+    await expect(page.locator("#collection-title")).toBeHidden();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Enter Weer" })
+    ).toBeVisible();
+  });
+
+  test("should not allow saving a blank collection title", async ({ page }) => {
+    const colRes = await page.request.post(apiUrl("/api/collections"), {
+      data: { title: "Toets Lee Titel", author: "Toets Outeur" },
+    });
+    const { id: collectionId } = await colRes.json();
+
+    await page.goto(`/collection/${collectionId}`);
+    await page.waitForLoadState("networkidle");
+
+    await page.getByTestId("edit-collection").click();
+    await page.locator("#collection-title").fill("   ");
+
+    // Save is unavailable rather than sending a blank title
+    await expect(
+      page.getByRole("button", { name: "Save changes" })
+    ).toBeDisabled();
+
+    // Enter must not submit it either — the modal stays open
+    await page.locator("#collection-title").press("Enter");
+    await expect(page.locator("#collection-title")).toBeVisible();
+
+    // Close it and confirm nothing was saved
+    await page.locator("#collection-title").press("Escape");
+    await expect(page.locator("#collection-title")).toBeHidden();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Toets Lee Titel" })
     ).toBeVisible();
   });
 

@@ -200,6 +200,129 @@ test.describe("Collection Groups", () => {
     await expect(page.locator("h3", { hasText: "Test From Detail" })).toBeVisible();
   });
 
+  test("should import pasted text straight into a group", async ({ page }) => {
+    const groupRes = await page.request.post(apiUrl("/api/groups"), {
+      data: { name: "Test Import Group" },
+    });
+    const { id: groupId } = await groupRes.json();
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    const groupSection = page.getByTestId(`group-${groupId}`);
+    await expect(groupSection).toBeVisible();
+
+    await page.getByTestId(`group-import-${groupId}`).click();
+    await page.getByText("Paste Text").click();
+
+    await page.locator("#paste-title").fill("Toets Groep Artikel");
+    await page.locator("#paste-author").fill("Toets Skrywer");
+    await page
+      .locator("#paste-content")
+      .fill("Dit is 'n artikel wat direk in 'n groep beland.");
+    await page.getByRole("button", { name: "Save to Library" }).click();
+
+    // The new collection lands inside the group, not in Ungrouped
+    await expect(
+      groupSection.locator("h3", { hasText: "Toets Groep Artikel" })
+    ).toBeVisible({ timeout: 10000 });
+    await expect(groupSection.getByText("1 item")).toBeVisible();
+  });
+
+  test("should import an EPUB straight into a group", async ({ page }) => {
+    const groupRes = await page.request.post(apiUrl("/api/groups"), {
+      data: { name: "Test Epub Group" },
+    });
+    const { id: groupId } = await groupRes.json();
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    // Selecting "Import File" from the group's dropdown targets that group
+    await page.getByTestId(`group-import-${groupId}`).click();
+    const [chooser] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.getByText("Import File").click(),
+    ]);
+    await chooser.setFiles(path.join(__dirname, "fixtures/test-book.epub"));
+
+    const groupSection = page.getByTestId(`group-${groupId}`);
+    await expect(
+      groupSection.locator("h3", { hasText: "Toets Boek" })
+    ).toBeVisible({ timeout: 15000 });
+  });
+
+  test("should pick a group from the page-level import menu", async ({ page }) => {
+    const groupRes = await page.request.post(apiUrl("/api/groups"), {
+      data: { name: "Test Destination Group" },
+    });
+    const { id: groupId } = await groupRes.json();
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByTestId("library-import").click();
+
+    // The menu lists the ungrouped library plus every visible group
+    await expect(page.getByTestId("import-destination-ungrouped")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await page.getByTestId(`import-destination-${groupId}`).click();
+    await expect(page.getByTestId(`import-destination-${groupId}`)).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(page.getByTestId("import-destination-ungrouped")).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+
+    // Choosing a destination keeps the menu open so a source can follow
+    await page.getByText("Paste Text").click();
+    await page.locator("#paste-title").fill("Toets Bestemming Artikel");
+    await page.locator("#paste-author").fill("Toets Skrywer");
+    await page.locator("#paste-content").fill("Hierdie een kies sy eie groep.");
+    await page.getByRole("button", { name: "Save to Library" }).click();
+
+    const groupSection = page.getByTestId(`group-${groupId}`);
+    await expect(
+      groupSection.locator("h3", { hasText: "Toets Bestemming Artikel" })
+    ).toBeVisible({ timeout: 10000 });
+
+    // The choice sticks, so several imports can go to the same group
+    await page.getByTestId("library-import").click();
+    await expect(page.getByTestId(`import-destination-${groupId}`)).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  test("the page-level import stays ungrouped", async ({ page }) => {
+    const groupRes = await page.request.post(apiUrl("/api/groups"), {
+      data: { name: "Test Untouched Group" },
+    });
+    const { id: groupId } = await groupRes.json();
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    // The page header's Import button, not the group's
+    await page.getByTestId("library-import").click();
+    await page.getByText("Paste Text").click();
+
+    await page.locator("#paste-title").fill("Toets Ongegroepeerde Artikel");
+    await page.locator("#paste-author").fill("Toets Skrywer");
+    await page.locator("#paste-content").fill("Hierdie een bly ongegroepeer.");
+    await page.getByRole("button", { name: "Save to Library" }).click();
+
+    const ungrouped = page.getByTestId("ungrouped-section");
+    await expect(
+      ungrouped.locator("h3", { hasText: "Toets Ongegroepeerde Artikel" })
+    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId(`group-${groupId}`).getByText("0 items")).toBeVisible();
+  });
+
   test("groups API CRUD works correctly", async ({ page }) => {
     // POST
     const createRes = await page.request.post(apiUrl("/api/groups"), {

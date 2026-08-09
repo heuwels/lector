@@ -15,6 +15,7 @@ export default function YouTubeImportModal({
   isOpen,
   onClose,
   onImported,
+  groupId = null,
 }: YouTubeImportModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState('');
@@ -50,6 +51,7 @@ export default function YouTubeImportModal({
           url: url.trim(),
           languageCode: track.languageCode,
           kind: track.kind,
+          groupId,
         });
         onImported({
           collectionId: imported.collectionId,
@@ -64,7 +66,7 @@ export default function YouTubeImportModal({
         });
       }
     },
-    [url, onImported, onClose],
+    [url, groupId, onImported, onClose],
   );
 
   const handleKeyPress = useCallback(

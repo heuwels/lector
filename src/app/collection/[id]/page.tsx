@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useMemo, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus } from 'lucide-react';
 import LessonFormModal from '@/components/LessonFormModal';
 import { ReadingSweep } from '@/components/Loaders';
 import {
@@ -39,6 +39,8 @@ import {
   type LessonSummary,
 } from '@/lib/data-layer';
 import SortableLessonRow from '../components/SortableLessonRow';
+import CollectionFormModal, { type CollectionFormData } from '../components/CollectionFormModal';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 export default function CollectionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -49,6 +51,7 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   const [groups, setGroups] = useState<CollectionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [editingInitial, setEditingInitial] = useState<{
     title: string;
@@ -58,6 +61,13 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // Keep the identity stable: the modal resets its fields whenever `initial`
+  // changes, so a fresh object every render would discard what the user types.
+  const editInitial = useMemo(
+    () => (collection ? { title: collection.title, author: collection.author } : null),
+    [collection],
   );
 
   useEffect(() => {
@@ -91,6 +101,17 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
       router.push('/');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not delete collection');
+    }
+  }
+
+  async function handleEditCollection(data: CollectionFormData) {
+    try {
+      await updateCollection(id, data);
+      const updated = await getCollection(id);
+      if (updated) setCollection(updated);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update collection');
+      throw error;
     }
   }
 
@@ -230,7 +251,18 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
 
       {/* Collection header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">{collection.title}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-3xl font-bold text-foreground">{collection.title}</h1>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setIsEditOpen(true)}
+            aria-label="Edit collection details"
+            data-testid="edit-collection"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+        </div>
         <p className="mt-1 text-muted-foreground">
           {collection.author} &middot; {lessons.length}{' '}
           {lessons.length === 1 ? 'lesson' : 'lessons'}
@@ -309,6 +341,12 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
         </button>
       </div>
 
+      <CollectionFormModal
+        isOpen={isEditOpen}
+        initial={editInitial}
+        onClose={() => setIsEditOpen(false)}
+        onSave={handleEditCollection}
+      />
       <LessonFormModal
         isOpen={isAddOpen}
         mode="create"
