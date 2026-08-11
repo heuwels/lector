@@ -30,9 +30,12 @@ function legacyWords(text: string): string[] {
 
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
-// the contract for exactly those packs. Languages added after #289 (ru — the
-// first non-Latin pack) get their own goldens below instead.
-const CORPUS: Record<Exclude<LanguageCode, 'ru'>, string[]> = {
+// the contract for exactly those packs. Languages added after #289 get their
+// own goldens below instead — ru, grc and uk because the oracle can't see their
+// scripts, and tr because the oracle applies the Afrikaans 'n alternative to
+// every language, which mis-splits a Turkish suffixed proper noun
+// (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to the af pack.
+const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>, string[]> = {
   af: [
     'Hallo, hoe gaan dit met jou?',
     '’n Man loop in die straat. Sy sê: „Dit is ’n mooi dag!“',
@@ -40,6 +43,17 @@ const CORPUS: Record<Exclude<LanguageCode, 'ru'>, string[]> = {
     'Woorde soos sê, môre, lêer en reën het kappies.',
     'Die boek is in 1999 geskryf — hoofstuk 3 is die beste.',
     'Ons gaan na die Klein-Karoo toe.',
+  ],
+  cs: [
+    'Ahoj! Jak se máš?',
+    // Every Czech diacritic letter sits inside the legacy À-Ö/Ø-ö/ø-ž ranges:
+    // the acutes are Latin-1, and the háček letters plus ů land in Latin
+    // Extended-A below U+017E. So cs must tokenize byte-identically with the
+    // old pattern too — the same reason pl and eo belong here.
+    'Příliš žluťoučký kůň úpěl ďábelské ódy.',
+    'Koupil jsem knihu za padesát korun — byla skvělá!',
+    '„Jsi si jistý?“ zeptal se dědeček v roce 1999.',
+    'Je to česko-slovenský slovník a modro-bílá vlajka.',
   ],
   de: [
     'Hallo, wie geht es Ihnen?',
@@ -77,6 +91,18 @@ const CORPUS: Record<Exclude<LanguageCode, 'ru'>, string[]> = {
     "'t Is zo'n mooie dag, foto's van m'n huis.",
     "Hij zei: 'De brontosaurussen aten 's ochtends.'",
   ],
+  pl: [
+    'Cześć! Jak się masz?',
+    // All nine diacritic letters (ą ć ę ł ń ó ś ź ż) sit inside the legacy
+    // À-Ö/Ø-ö/ø-ž ranges, so pl must tokenize byte-identically with the old
+    // pattern too — the same reason eo belongs here rather than in its own
+    // goldens.
+    'Żółw i gęś zjadły pączki: ćwierć, źródło, święto, książę.',
+    'Kupiłem książkę za pięćdziesiąt złotych — była świetna!',
+    '„Czy jesteś pewien?” — zapytał dziadek w 1999 roku.',
+    'To biało-czerwona flaga i polsko-angielski słownik.',
+    "Czytałem powieść Joyce'a i wiersz Kennedy'ego.",
+  ],
   pt: [
     'Olá! Tudo bem?',
     'A menina comprou pães, açúcar e café na padaria.',
@@ -87,7 +113,10 @@ const CORPUS: Record<Exclude<LanguageCode, 'ru'>, string[]> = {
 };
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
-  for (const [code, texts] of Object.entries(CORPUS) as [Exclude<LanguageCode, 'ru'>, string[]][]) {
+  for (const [code, texts] of Object.entries(CORPUS) as [
+    Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>,
+    string[],
+  ][]) {
     const pack = LANGUAGES[code];
     it(`matches the legacy word stream for ${code}`, () => {
       for (const text of texts) {
@@ -205,11 +234,11 @@ function synth(script: Partial<ScriptConfig> & Pick<ScriptConfig, 'bcp47'>): Lan
   };
 }
 
-// ru graduated from a synthetic pack to a real registry entry (#212) — these
-// goldens now run against the shipped manifest, proving the engine needs no
-// per-script code for it.
+// ru (#212) and grc (#254) graduated from synthetic packs to real registry
+// entries — these goldens now run against the shipped manifests, proving the
+// engine needs no per-script code for them.
 const ru = LANGUAGES.ru;
-const grc = synth({ bcp47: 'grc', sentenceTerminators: '.;·' });
+const grc = LANGUAGES.grc;
 const ar = synth({ bcp47: 'ar', direction: 'rtl', hasCase: false, sentenceTerminators: '؟.!' });
 const hbo = synth({ bcp47: 'he', direction: 'rtl', hasCase: false });
 const ko = synth({ bcp47: 'ko', kind: 'hangul', hasCase: false });
@@ -333,6 +362,373 @@ describe('Russian pack (real manifest)', () => {
     const text = 'Девочка читает книгу';
     //                     ^10..12^ inside "читает" (8..14)
     expect(snapToWordBoundaries(text, 10, 12, ru)).toEqual({ start: 8, end: 14 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Koine Greek pack goldens (#254) — polytonic, real manifest
+// ---------------------------------------------------------------------------
+
+const GRC_CORPUS = [
+  'Ἐν ἀρχῇ ἦν ὁ λόγος, καὶ ὁ λόγος ἦν πρὸς τὸν θεόν.',
+  'σὺ εἶ ὁ βασιλεὺς τῶν Ἰουδαίων;',
+  'ἐγώ εἰμι ἡ ὁδὸς καὶ ἡ ἀλήθεια καὶ ἡ ζωή· οὐδεὶς ἔρχεται πρὸς τὸν πατέρα εἰ μὴ δι’ ἐμοῦ.',
+];
+
+describe('Koine Greek pack (real manifest)', () => {
+  it('reassembles polytonic text byte-for-byte with correct offsets', () => {
+    for (const text of GRC_CORPUS) {
+      const tokens = tokenize(text, grc);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps breathings, accents and iota subscripts inside word tokens', () => {
+    expect(tokenizeWords('τῷ ᾅδῃ ᾠδὴν ᾄδουσιν', grc).map((t) => t.text)).toEqual([
+      'τῷ',
+      'ᾅδῃ',
+      'ᾠδὴν',
+      'ᾄδουσιν',
+    ]);
+  });
+
+  it('splits elisions at the apostrophe like fr/it (δι’ ἐμοῦ → δι + ἐμοῦ)', () => {
+    expect(tokenizeWords('δι’ ἐμοῦ καὶ κατ’ αὐτόν', grc).map((t) => t.text)).toEqual([
+      'δι',
+      'ἐμοῦ',
+      'καὶ',
+      'κατ',
+      'αὐτόν',
+    ]);
+    // The koronis-shaped U+1FBD apostrophe (κατ᾽) is a symbol, not a word
+    // char — it splits the same way.
+    expect(tokenizeWords('κατ᾽ αὐτόν', grc).map((t) => t.text)).toEqual(['κατ', 'αὐτόν']);
+  });
+
+  it('folds case while preserving the final sigma', () => {
+    expect(foldWord('Λόγος', grc)).toBe('λόγος');
+    expect(foldWord('ΘΕΌΣ', grc)).toBe('θεός');
+  });
+
+  it('folds the oxia/tonos duplicate codepoints together at ingress (NFC)', () => {
+    // Unicode encodes \u03AC twice; editions and Wiktionary mix them. NFC maps
+    // the Greek Extended oxia form to the tonos singleton.
+    const oxia = '\u1F00\u03B3\u1F71\u03C0\u03B7'; // \u1F00\u03B3 + ALPHA WITH OXIA + \u03C0\u03B7
+    const tonos = '\u1F00\u03B3\u03AC\u03C0\u03B7'; // same word with ALPHA WITH TONOS
+    expect(oxia).not.toBe(tonos);
+    expect(normalizeText(oxia)).toBe(tonos);
+    expect(foldWord(oxia, grc)).toBe(foldWord(tonos, grc));
+  });
+
+  it('splits sentences on the erotimatiko and ano teleia', () => {
+    expect(splitSentences('τί ἐστιν ἀλήθεια; ἐγώ εἰμι ἡ ὁδός· ἀμήν.', grc)).toEqual([
+      'τί ἐστιν ἀλήθεια;',
+      'ἐγώ εἰμι ἡ ὁδός·',
+      'ἀμήν.',
+    ]);
+  });
+
+  it('snaps a mid-word selection to polytonic word boundaries', () => {
+    const text = 'ὁ λόγος ἦν';
+    //                ^3..5^ inside "λόγος" (2..7)
+    expect(snapToWordBoundaries(text, 3, 5, grc)).toEqual({ start: 2, end: 7 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Turkish pack goldens (#209-style Latin pack, dotted/dotless i)
+// ---------------------------------------------------------------------------
+
+const tr = LANGUAGES.tr;
+
+const TR_CORPUS = [
+  'Merhaba! Nasılsın?',
+  'Çocuklar bahçede oynuyor, çünkü hava çok güzel.',
+  'Kitabı 1999 yılında İstanbul’da okudum.',
+  '“Numara 42 şarkısını duydun mu?” diye dedem sordu.',
+  'Işık söndü ve oda birdenbire karanlık oldu.',
+];
+
+describe('Turkish pack (real manifest)', () => {
+  it('reassembles Turkish text byte-for-byte with correct offsets', () => {
+    for (const text of TR_CORPUS) {
+      const tokens = tokenize(text, tr);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps ç ğ ı i İ ö ş ü inside word tokens', () => {
+    expect(tokenizeWords('Işığı gördüğüm için çok şaşırdım.', tr).map((t) => t.text)).toEqual([
+      'Işığı',
+      'gördüğüm',
+      'için',
+      'çok',
+      'şaşırdım',
+    ]);
+  });
+
+  it('splits a suffixed proper noun at the apostrophe, leaving the noun whole', () => {
+    // Turkish separates a case suffix from a proper noun with an apostrophe.
+    // Splitting there is what makes "İstanbul" independently lookupable; the
+    // stranded suffix is a stop word.
+    expect(tokenizeWords("İstanbul'da ve Ankara'nın dışında", tr).map((t) => t.text)).toEqual([
+      'İstanbul',
+      'da',
+      've',
+      'Ankara',
+      'nın',
+      'dışında',
+    ]);
+    // The typographic apostrophe (U+2019), which real Turkish text prefers.
+    expect(tokenizeWords('Türkiye’nin başkenti', tr).map((t) => t.text)).toEqual([
+      'Türkiye',
+      'nin',
+      'başkenti',
+    ]);
+  });
+
+  it('folds the dotted and dotless i to different keys', () => {
+    expect(foldWord('İSTANBUL', tr)).toBe('istanbul');
+    expect(foldWord('IŞIK', tr)).toBe('ışık');
+    expect(foldWord('Işık', tr)).toBe('ışık');
+    // ILIK "lukewarm" and İLİK "marrow" must not collapse onto one key.
+    expect(foldWord('ILIK', tr)).not.toBe(foldWord('İLİK', tr));
+  });
+
+  it('round-trips tokenize → fold with no leftover combining dot', () => {
+    const folded = tokenizeWords('İyi akşamlar! İşler nasıl?', tr).map((t) => foldWord(t.text, tr));
+    expect(folded).toEqual(['iyi', 'akşamlar', 'işler', 'nasıl']);
+    for (const word of folded) expect(word).not.toContain('̇');
+  });
+
+  it('snaps a mid-word selection to Turkish word boundaries', () => {
+    const text = 'Çocuk kitabı okuyor';
+    //                  ^7..9^ inside "kitabı" (6..12)
+    expect(snapToWordBoundaries(text, 7, 9, tr)).toEqual({ start: 6, end: 12 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Polish pack goldens — inside legacy parity above, so these cover the pack's
+// own shapes rather than the engine
+// ---------------------------------------------------------------------------
+
+const pl = LANGUAGES.pl;
+
+describe('Polish pack (real manifest)', () => {
+  it('keeps ą ć ę ł ń ó ś ź ż inside word tokens', () => {
+    expect(tokenizeWords('Żółw zjadł pączek, gęś ćwiczy.', pl).map((t) => t.text)).toEqual([
+      'Żółw',
+      'zjadł',
+      'pączek',
+      'gęś',
+      'ćwiczy',
+    ]);
+  });
+
+  it('splits a foreign stem from its Polish case ending at the apostrophe', () => {
+    // Polish attaches a case ending to a foreign name with an apostrophe.
+    // Splitting there is what makes "Joyce" independently lookupable; the
+    // stranded ending is a fragment, exactly as for tr — and the opposite of
+    // uk, where the apostrophe is a letter of the word.
+    expect(tokenizeWords("powieść Joyce'a i wiersz Kennedy'ego", pl).map((t) => t.text)).toEqual([
+      'powieść',
+      'Joyce',
+      'a',
+      'i',
+      'wiersz',
+      'Kennedy',
+      'ego',
+    ]);
+    // The typographic apostrophe behaves the same way.
+    expect(tokenizeWords('film Hitchcock’a', pl).map((t) => t.text)).toEqual([
+      'film',
+      'Hitchcock',
+      'a',
+    ]);
+  });
+
+  it('joins hyphenated compounds', () => {
+    expect(tokenizeWords('biało-czerwona flaga, słownik polsko-angielski', pl).map((t) => t.text)).toEqual([
+      'biało-czerwona',
+      'flaga',
+      'słownik',
+      'polsko-angielski',
+    ]);
+  });
+
+  it('folds case with the default Unicode mapping', () => {
+    // Polish needs no fold locale, unlike tr — every letter lowercases the way
+    // the default rules say, so keys stay byte-stable with plain lowercasing.
+    expect(foldWord('KSIĄŻKA', pl)).toBe('książka');
+    expect(foldWord('Żółw', pl)).toBe('żółw');
+    expect(foldWord('ŁÓDŹ', pl)).toBe('łódź');
+    expect(foldWord('Gęś', pl)).toBe('gęś');
+    // The digraphs are letter sequences, not codepoints — nothing to fold.
+    expect(foldWord('SZCZĘŚCIE', pl)).toBe('szczęście');
+  });
+
+  it('snaps a mid-word selection to Polish word boundaries', () => {
+    const text = 'Mam nową książkę';
+    //                     ^9..12^ inside "książkę" (9..16)
+    expect(snapToWordBoundaries(text, 10, 12, pl)).toEqual({ start: 9, end: 16 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Czech pack goldens — inside legacy parity above, so these cover the pack's
+// own shapes rather than the engine
+// ---------------------------------------------------------------------------
+
+const cs = LANGUAGES.cs;
+
+describe('Czech pack (real manifest)', () => {
+  it('keeps the háček, acute and kroužek letters inside word tokens', () => {
+    expect(tokenizeWords('Příliš žluťoučký kůň úpěl ďábelské ódy.', cs).map((t) => t.text)).toEqual(
+      ['Příliš', 'žluťoučký', 'kůň', 'úpěl', 'ďábelské', 'ódy'],
+    );
+  });
+
+  it('treats ch as two codepoints, not a single letter', () => {
+    // ch is one letter for Czech collation. It is still two codepoints in text,
+    // so the tokenizer needs no rule for it — this pins that nothing tries.
+    expect(tokenizeWords('chléb a chuť', cs).map((t) => t.text)).toEqual(['chléb', 'a', 'chuť']);
+  });
+
+  it('splits at the apostrophe, like pl and unlike uk', () => {
+    // Czech writes the apostrophe only for dialectal elision, never inside a
+    // citation form, so it is a boundary. Splitting leaves the lookupable stem
+    // on its own.
+    expect(tokenizeWords("řek' mi to", cs).map((t) => t.text)).toEqual(['řek', 'mi', 'to']);
+    // The typographic apostrophe behaves the same way.
+    expect(tokenizeWords('film Hitchcock’a', cs).map((t) => t.text)).toEqual([
+      'film',
+      'Hitchcock',
+      'a',
+    ]);
+  });
+
+  it('joins hyphenated compounds', () => {
+    expect(
+      tokenizeWords('česko-slovenský slovník, modro-bílá vlajka', cs).map((t) => t.text),
+    ).toEqual(['česko-slovenský', 'slovník', 'modro-bílá', 'vlajka']);
+  });
+
+  it('folds case with the default Unicode mapping', () => {
+    // Czech needs no fold locale, unlike tr — every letter lowercases the way
+    // the default rules say, so keys stay byte-stable with plain lowercasing.
+    expect(foldWord('KNIHA', cs)).toBe('kniha');
+    expect(foldWord('Žluťoučký', cs)).toBe('žluťoučký');
+    expect(foldWord('KŮŇ', cs)).toBe('kůň');
+    expect(foldWord('Příliš', cs)).toBe('příliš');
+    // Vowel length is contrastive, so the acute must survive folding: byt (a
+    // flat) and být (to be) are different words.
+    expect(foldWord('BÝT', cs)).toBe('být');
+    expect(foldWord('BYT', cs)).toBe('byt');
+  });
+
+  it('snaps a mid-word selection to Czech word boundaries', () => {
+    const text = 'Mám novou knihu';
+    //                       ^10..12^ inside "knihu" (10..15)
+    expect(snapToWordBoundaries(text, 11, 13, cs)).toEqual({ start: 10, end: 15 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ukrainian pack goldens — the apostrophe is a letter, not a boundary
+// ---------------------------------------------------------------------------
+
+const uk = LANGUAGES.uk;
+
+const UK_CORPUS = [
+  'Привіт! Як справи?',
+  "Я з'їв п'ять яблук, бо м'ясо закінчилося.",
+  'Її ім’я — Олена, і вона живе в Києві.',
+  '«Ти читав книгу номер 42?» — запитав дід.',
+  'Ґудзик на його сорочці зник у 1999 році.',
+];
+
+describe('Ukrainian pack (real manifest)', () => {
+  it('reassembles Ukrainian text byte-for-byte with correct offsets', () => {
+    for (const text of UK_CORPUS) {
+      const tokens = tokenize(text, uk);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps ґ є і ї inside word tokens', () => {
+    // The four letters Russian does not have. No per-script code covers them —
+    // they are \p{L} like the rest of Cyrillic.
+    expect(tokenizeWords('Ґудзик, їжак, єдиний, інший.', uk).map((t) => t.text)).toEqual([
+      'Ґудзик',
+      'їжак',
+      'єдиний',
+      'інший',
+    ]);
+  });
+
+  it('keeps an apostrophe word whole, in every variant spelling', () => {
+    // The user-reported bug: the apostrophe is part of the word, so п'ять must
+    // be one token. Splitting it produced п + ять, and neither half is a word.
+    for (const apostrophe of ["'", '’', 'ʼ']) {
+      const text = `Я з${apostrophe}їв п${apostrophe}ять яблук`;
+      expect(tokenizeWords(text, uk).map((t) => t.text)).toEqual([
+        'Я',
+        `з${apostrophe}їв`,
+        `п${apostrophe}ять`,
+        'яблук',
+      ]);
+    }
+  });
+
+  it('folds every apostrophe variant onto one dictionary key', () => {
+    // kaikki writes the headwords with ASCII '. A curly or U+02BC spelling from
+    // the source text must key to the same entry, or the lookup misses.
+    expect(foldWord('п’ять', uk)).toBe("п'ять");
+    expect(foldWord('Пʼять', uk)).toBe("п'ять");
+    expect(foldWord("П'ЯТЬ", uk)).toBe("п'ять");
+    expect(foldWord("зв'язку", uk)).toBe("зв'язку");
+  });
+
+  it('leaves an apostrophe used as a quote outside the token', () => {
+    // A joiner only counts between two letter runs, which is what keeps this
+    // from swallowing quote marks the way a plain word character would.
+    expect(tokenizeWords("'книга'", uk).map((t) => t.text)).toEqual(['книга']);
+    expect(tokenizeWords('«Так» — сказав він.', uk).map((t) => t.text)).toEqual([
+      'Так',
+      'сказав',
+      'він',
+    ]);
+  });
+
+  it('still joins hyphenated compounds', () => {
+    expect(tokenizeWords('будь-який день, все-таки', uk).map((t) => t.text)).toEqual([
+      'будь-який',
+      'день',
+      'все-таки',
+    ]);
+  });
+
+  it('splits the same apostrophe for packs that call it an elision (ru, fr)', () => {
+    // Deliberate per-pack behavior, the mirror of the af 'n case: only uk
+    // declares the apostrophe a joiner.
+    expect(tokenizeWords("з'їв", LANGUAGES.ru).map((t) => t.text)).toEqual(['з', 'їв']);
+    expect(tokenizeWords("l'eau", LANGUAGES.fr).map((t) => t.text)).toEqual(['l', 'eau']);
+  });
+
+  it('snaps a mid-word selection across the apostrophe', () => {
+    const text = "Він з'їв яблуко";
+    //                ^5..7^ inside "з'їв" (4..8)
+    expect(snapToWordBoundaries(text, 5, 7, uk)).toEqual({ start: 4, end: 8 });
   });
 });
 

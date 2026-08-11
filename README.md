@@ -196,7 +196,7 @@ Two integrations, by deployment shape ([#241](https://github.com/heuwels/lector/
 }
 ```
 
-**The Lector Sync add-on (cloud, and any HTTPS/remote self-host).** A hosted HTTPS page can't call your machine's `localhost:8765` (Chrome's Local Network Access blocks it), so the alternative transport is [`anki-addon/`](anki-addon/): it runs inside Anki Desktop, pulls the cards you queue in Lector onto structured `Lector` note types (upserted by `LectorId` — no duplicates), and pushes your review states back so word states upgrade automatically. Point its `api_url` at whichever Lector you use — the hosted app or your own origin. Cloud always uses this transport; self-hosters switch to it under **Settings → Anki Integration → Connection** (setup instructions appear there).
+**The Lector Sync add-on (cloud, and any HTTPS/remote self-host).** A hosted HTTPS page can't call your machine's `localhost:8765` (Chrome's Local Network Access blocks it), so the alternative transport is [`anki-addon/`](anki-addon/), published on AnkiWeb as [Lector Sync](https://ankiweb.net/shared/info/1098736891) (add-on code `1098736891`): it runs inside Anki Desktop, pulls the cards you queue in Lector onto structured `Lector` note types (upserted by `LectorId` — no duplicates), and pushes your review states back so word states upgrade automatically. Point its `api_url` at whichever Lector you use — the hosted app or your own origin. Cloud always uses this transport; self-hosters switch to it under **Settings → Anki Integration → Connection** (setup instructions appear there).
 
 ## Docker Deployment
 

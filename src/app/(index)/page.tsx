@@ -63,6 +63,12 @@ export default function Home() {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
+  // Group that the running (or about to run) import belongs to. Null imports
+  // into Ungrouped.
+  const [importGroupId, setImportGroupId] = useState<string | null>(null);
+  // Destination chosen in the page-level Import menu. It stays selected between
+  // imports, so several files can go into the same group.
+  const [libraryDestinationId, setLibraryDestinationId] = useState<string | null>(null);
   const [newCollectionTitle, setNewCollectionTitle] = useState('');
   const [starterAvailable, setStarterAvailable] = useState(false);
   const [isAddingStarter, setIsAddingStarter] = useState(false);
@@ -89,17 +95,30 @@ export default function Home() {
     }
   }, []);
 
+  function persistCollapsed(next: Set<string>) {
+    try {
+      localStorage.setItem('lector-collapsed-groups', JSON.stringify([...next]));
+    } catch {
+      // ignore storage failure
+    }
+    return next;
+  }
+
   function toggleGroup(groupId: string) {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupId)) next.delete(groupId);
       else next.add(groupId);
-      try {
-        localStorage.setItem('lector-collapsed-groups', JSON.stringify([...next]));
-      } catch {
-        // ignore storage failure
-      }
-      return next;
+      return persistCollapsed(next);
+    });
+  }
+
+  function expandGroup(groupId: string) {
+    setCollapsedGroups((prev) => {
+      if (!prev.has(groupId)) return prev;
+      const next = new Set(prev);
+      next.delete(groupId);
+      return persistCollapsed(next);
     });
   }
 
@@ -144,12 +163,37 @@ export default function Home() {
     }
   }
 
-  async function handleImportClick() {
-    fileInputRef.current?.click();
-  }
-
-  async function handleAudioImportClick() {
-    audioInputRef.current?.click();
+  // Every import entry point goes through this factory so the target group is
+  // recorded before a file picker or a modal opens. The page-level Import
+  // button passes null, which keeps the new collection ungrouped.
+  function importHandlers(groupId: string | null) {
+    const begin = () => {
+      setImportGroupId(groupId);
+      // A collapsed group would hide the item that the import adds.
+      if (groupId) expandGroup(groupId);
+    };
+    return {
+      onFileImport: () => {
+        begin();
+        fileInputRef.current?.click();
+      },
+      onAudioImport: () => {
+        begin();
+        audioInputRef.current?.click();
+      },
+      onUrlImport: () => {
+        begin();
+        setIsWebImportOpen(true);
+      },
+      onYouTubeImport: () => {
+        begin();
+        setIsYouTubeImportOpen(true);
+      },
+      onPasteImport: () => {
+        begin();
+        setIsPasteImportOpen(true);
+      },
+    };
   }
 
   async function handleAudioFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -158,7 +202,7 @@ export default function Home() {
 
     setIsImporting(true);
     try {
-      const imported = await importAudio(file);
+      const imported = await importAudio(file, undefined, importGroupId);
       setCollections(await getAllCollections());
       const minutes = imported.audioDurationMs
         ? Math.max(1, Math.round(imported.audioDurationMs / 60000))
@@ -174,6 +218,7 @@ export default function Home() {
       toast.error(error instanceof Error ? error.message : 'Failed to import audio file.');
     } finally {
       setIsImporting(false);
+      setImportGroupId(null);
       if (audioInputRef.current) {
         audioInputRef.current.value = '';
       }
@@ -191,7 +236,7 @@ export default function Home() {
     try {
       if (ext === 'epub') {
         // EPUB — parse server-side into collection of lessons
-        await importEpub(file);
+        await importEpub(file, importGroupId);
         // Reload collections to get the new one
         const updated = await getAllCollections();
         setCollections(updated);
@@ -201,7 +246,12 @@ export default function Home() {
         const titleMatch = textContent.match(/^#\s+(.+)$/m);
         const title = titleMatch ? titleMatch[1].trim() : file.name.replace(/\.[^/.]+$/, '');
 
-        await createStandaloneLesson({ title, author: 'Unknown Author', textContent });
+        await createStandaloneLesson({
+          title,
+          author: 'Unknown Author',
+          textContent,
+          groupId: importGroupId,
+        });
         const updated = await getAllCollections();
         setCollections(updated);
       } else {
@@ -212,6 +262,7 @@ export default function Home() {
       alert('Failed to import file. Please ensure it is a valid file.');
     } finally {
       setIsImporting(false);
+      setImportGroupId(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -227,6 +278,7 @@ export default function Home() {
       title: article.title,
       author: article.author,
       textContent: article.content,
+      groupId: importGroupId,
     });
     const updated = await getAllCollections();
     setCollections(updated);
@@ -237,6 +289,7 @@ export default function Home() {
       title: article.title,
       author: article.author,
       textContent: article.content,
+      groupId: importGroupId,
     });
     const updated = await getAllCollections();
     setCollections(updated);
@@ -338,6 +391,13 @@ export default function Home() {
 
   const hasGroups = visibleGroups.length > 0;
 
+  // A deleted group, or one whose collections all moved to another language,
+  // must not stay selected as the import destination.
+  const libraryDestination = visibleGroups.some((g) => g.id === libraryDestinationId)
+    ? libraryDestinationId
+    : null;
+  const libraryImportHandlers = importHandlers(libraryDestination);
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <PageHeader title="Your Library">
@@ -381,12 +441,13 @@ export default function Home() {
           )}
 
           <ImportDropdown
-            onFileImport={handleImportClick}
-            onAudioImport={handleAudioImportClick}
-            onUrlImport={() => setIsWebImportOpen(true)}
-            onYouTubeImport={() => setIsYouTubeImportOpen(true)}
-            onPasteImport={() => setIsPasteImportOpen(true)}
-            isImporting={isImporting}
+            {...libraryImportHandlers}
+            disabled={isImporting}
+            isImporting={isImporting && importGroupId === libraryDestination}
+            testId="library-import"
+            destinations={visibleGroups.map((g) => ({ id: g.id, name: g.name }))}
+            destinationId={libraryDestination}
+            onDestinationChange={setLibraryDestinationId}
           />
           <input
             ref={fileInputRef}
@@ -455,20 +516,31 @@ export default function Home() {
         <section>
           <WebImportModal
             isOpen={isWebImportOpen}
-            onClose={() => setIsWebImportOpen(false)}
+            onClose={() => {
+              setIsWebImportOpen(false);
+              setImportGroupId(null);
+            }}
             onSave={handleWebImportSave}
           />
           <YouTubeImportModal
             isOpen={isYouTubeImportOpen}
-            onClose={() => setIsYouTubeImportOpen(false)}
+            groupId={importGroupId}
+            onClose={() => {
+              setIsYouTubeImportOpen(false);
+              setImportGroupId(null);
+            }}
             onImported={({ lessonId }) => {
               setIsYouTubeImportOpen(false);
+              setImportGroupId(null);
               router.push(`/read/${lessonId}`);
             }}
           />
           <PasteImportModal
             isOpen={isPasteImportOpen}
-            onClose={() => setIsPasteImportOpen(false)}
+            onClose={() => {
+              setIsPasteImportOpen(false);
+              setImportGroupId(null);
+            }}
             onSave={handlePasteImportSave}
           />
 
@@ -497,6 +569,15 @@ export default function Home() {
                         {items.length} {items.length === 1 ? 'item' : 'items'}
                       </span>
                       <div className="flex-1" />
+                      <ImportDropdown
+                        {...importHandlers(group.id)}
+                        size="sm"
+                        variant="outline"
+                        disabled={isImporting}
+                        isImporting={isImporting && importGroupId === group.id}
+                        testId={`group-import-${group.id}`}
+                        minimalOnMobile
+                      />
                       <GroupMenu
                         onRename={() => handleRenameGroup(group.id, group.name)}
                         onDelete={() => handleDeleteGroup(group.id, group.name)}
@@ -564,7 +645,7 @@ export default function Home() {
             </div>
           ) : (
             <EmptyState
-              onImport={handleImportClick}
+              onImport={libraryImportHandlers.onFileImport}
               onAddStarter={starterAvailable ? handleAddStarter : undefined}
               isAddingStarter={isAddingStarter}
             />

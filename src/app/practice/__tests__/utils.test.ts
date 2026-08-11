@@ -10,6 +10,7 @@ import {
   generateDistractors,
   shuffle,
 } from '../utils';
+import { LANGUAGES } from '@/lib/languages';
 import type { ClozeSentence } from '@/types';
 
 function makeSentence(clozeWord: string): ClozeSentence {
@@ -60,6 +61,45 @@ describe('normalize', () => {
   it('lowercases Cyrillic (including Ё) and strips guillemets', () => {
     expect(normalize('«Привет!»')).toBe('привет');
     expect(normalize('ЁЖИК')).toBe('ёжик');
+  });
+
+  it('strips the Greek ano teleia and erotimatiko as punctuation', () => {
+    expect(normalize('ὁδός·')).toBe('ὁδός');
+    expect(normalize('ἀλήθεια;')).toBe('ἀλήθεια');
+  });
+
+  it('lowercases Turkish under the tr pack (dotted/dotless i)', () => {
+    // With the pack, İ folds to a plain i and I folds to ı.
+    expect(normalize('İyi!', LANGUAGES.tr)).toBe('iyi');
+    expect(normalize('IŞIK', LANGUAGES.tr)).toBe('ışık');
+    expect(normalize('İyi', LANGUAGES.tr)).not.toContain('̇');
+    // Without a pack the default mapping applies, which is why grading has to
+    // pass the pack: this is the leftover combining dot that fails a correct
+    // answer.
+    expect(normalize('İyi')).not.toBe('iyi');
+  });
+
+  it('keeps the Ukrainian apostrophe as a letter under the uk pack', () => {
+    // Every other pack treats an apostrophe as punctuation and drops it. For
+    // Ukrainian that would accept пять, which is a misspelling of п'ять — so
+    // the pack keeps it, and only folds the variant spellings together.
+    expect(normalize("П'ять!", LANGUAGES.uk)).toBe("п'ять");
+    expect(normalize('«п’ять»', LANGUAGES.uk)).toBe("п'ять");
+    expect(normalize('Здоров’я.', LANGUAGES.uk)).toBe("здоров'я");
+    // An apostrophe at an edge is a quote, not a letter, so it still drops.
+    expect(normalize("'книга'", LANGUAGES.uk)).toBe('книга');
+    expect(normalize("'книга'.", LANGUAGES.uk)).toBe('книга');
+    // Without a pack the apostrophe is stripped, as it always was.
+    expect(normalize("П'ять!")).toBe('пять');
+  });
+
+  it('folds polytonic marks only under the grc pack (fold-marks leniency)', () => {
+    expect(normalize('λόγος', LANGUAGES.grc)).toBe('λογοσ');
+    expect(normalize('τὸν', LANGUAGES.grc)).toBe('τον');
+    // Without the pack, marks stay significant.
+    expect(normalize('λόγος')).toBe('λόγος');
+    // A mark-sensitive pack passes through unchanged.
+    expect(normalize('café', LANGUAGES.fr)).toBe('café');
   });
 });
 
@@ -122,6 +162,47 @@ describe('checkAnswer', () => {
     expect(checkAnswer('привет', 'Привет!')).toBe(true);
     expect(checkAnswer('ёжик', 'Ёжик')).toBe(true);
     expect(checkAnswer('еще', 'ещё')).toBe(false);
+  });
+
+  it('grades a sentence-initial Turkish İ / I answer under the tr pack', () => {
+    // The bank keeps the answer as the sentence wrote it, so grading a typed
+    // lowercase answer against "İyi" or "Işık" only works with the pack's
+    // fold locale.
+    expect(checkAnswer('iyi', 'İyi', LANGUAGES.tr)).toBe(true);
+    expect(checkAnswer('ışık', 'Işık', LANGUAGES.tr)).toBe(true);
+    expect(checkAnswer('istanbul', "İstanbul'da", LANGUAGES.tr)).toBe(false);
+    // Dotted and dotless stay different letters: ılık ("lukewarm") is not a
+    // correct answer for ilik ("marrow"), in either case.
+    expect(checkAnswer('ılık', 'İLİK', LANGUAGES.tr)).toBe(false);
+    expect(checkAnswer('ilik', 'ILIK', LANGUAGES.tr)).toBe(false);
+    // Without the pack the same correct answer is rejected.
+    expect(checkAnswer('iyi', 'İyi')).toBe(false);
+  });
+
+  it('grades a Ukrainian apostrophe answer whichever variant was typed', () => {
+    // The three spellings of the same word all grade correct.
+    expect(checkAnswer("п'ять", "П'ять.", LANGUAGES.uk)).toBe(true);
+    expect(checkAnswer('п’ять', "п'ять", LANGUAGES.uk)).toBe(true);
+    expect(checkAnswer('пʼять', 'П’ять!', LANGUAGES.uk)).toBe(true);
+    expect(checkAnswer("здоров'я", 'Здоров’я', LANGUAGES.uk)).toBe(true);
+    // Leaving the apostrophe out is a spelling error, not a formatting one.
+    expect(checkAnswer('пять', "п'ять", LANGUAGES.uk)).toBe(false);
+    // Without the pack the missing apostrophe is accepted, which is the old
+    // (wrong for Ukrainian) behavior.
+    expect(checkAnswer('пять', "п'ять")).toBe(true);
+  });
+
+  it('accepts unaccented Greek under the grc pack (fold-marks), exact otherwise', () => {
+    // Typed practice without a polytonic keyboard: bare letters must match.
+    expect(checkAnswer('λογος', 'λόγος,', LANGUAGES.grc)).toBe(true);
+    expect(checkAnswer('ανθρωπος', 'ἄνθρωπος', LANGUAGES.grc)).toBe(true);
+    // Final/medial sigma fold: typing σ for ς is not an error.
+    expect(checkAnswer('λόγοσ', 'λόγος', LANGUAGES.grc)).toBe(true);
+    expect(checkAnswer('θεον', 'θεόν', LANGUAGES.grc)).toBe(true);
+    // Without the pack the comparison stays mark-exact.
+    expect(checkAnswer('λογος', 'λόγος')).toBe(false);
+    // Wrong letters still fail under leniency.
+    expect(checkAnswer('λόγον', 'λόγος', LANGUAGES.grc)).toBe(false);
   });
 });
 
@@ -252,13 +333,13 @@ describe('generateDistractors', () => {
   it('never includes the correct word, even with different punctuation or case', () => {
     const pool = ['Huis.', 'muis', 'tuis'].map(makeSentence);
     const result = generateDistractors('huis', pool);
-    expect(result.map(normalize)).not.toContain('huis');
+    expect(result.map((w) => normalize(w))).not.toContain('huis');
   });
 
   it('deduplicates words that normalize identically', () => {
     const pool = ['muis', 'Muis.', 'muis!', 'tuis'].map(makeSentence);
     const result = generateDistractors('huis', pool);
-    expect(result.map(normalize).sort()).toEqual(['muis', 'tuis']);
+    expect(result.map((w) => normalize(w)).sort()).toEqual(['muis', 'tuis']);
   });
 
   it('prefers length-similar candidates when the pool is large', () => {

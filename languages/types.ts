@@ -28,10 +28,34 @@ export interface ScriptConfig {
   kind: 'alpha-spaced' | 'hangul' | 'cjk-unspaced';
   /** False for scripts with no letter case (ar, hbo, zh, ja, ko) — foldWord skips lowercasing. */
   hasCase: boolean;
+  /**
+   * Locale tag for case folding, when the default Unicode lowercasing is wrong
+   * for the language. Only Turkic packs need it: tr/az write the dotted and
+   * dotless i as separate letters, so `I` must fold to `ı` and `İ` to `i`,
+   * where the default rules give `i` and `i` + U+0307. Omit for every other
+   * pack — locale-insensitive folding keeps their keys byte-stable.
+   */
+  caseFoldLocale?: string;
   /** Sentence-ending characters; defaults to '.!?'. zh/ja '。．！？!?', ar '؟.!', grc '.;·'. */
   sentenceTerminators?: string;
   /** Extra characters allowed INSIDE a word beyond letters/marks (e.g. grc elision marks). */
   extraWordChars?: string;
+  /**
+   * Extra characters that JOIN two letter runs into one token, on top of the
+   * built-in hyphens. A joiner differs from `extraWordChars`: it only counts
+   * between two runs, never at a token edge, so it cannot swallow a quote mark.
+   * Ukrainian needs it for the apostrophe, which is a letter-level part of the
+   * word (п'ять, м'ясо, з'їзд) and not the elision mark it is in fr/it/nl —
+   * those packs deliberately split on it and must not set this.
+   */
+  extraJoiners?: string;
+  /**
+   * Fold every apostrophe variant (’ ʼ ‘ `) to ASCII ' in word keys. Set it
+   * with `extraJoiners` whenever the apostrophe is part of the spelling: text
+   * in the wild carries whichever variant an editor produced, but a key must
+   * be one spelling, and kaikki writes Ukrainian headwords with ASCII '.
+   */
+  foldApostrophes?: boolean;
   /**
    * Regex-source alternatives matched as whole tokens BEFORE the engine's word
    * pattern — pack-level token forms the generic engine can't express (af: the

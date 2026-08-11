@@ -18,7 +18,9 @@ export type AdminAction =
   | 'force_verify'
   | 'revoke_sessions'
   | 'paddle_resync'
-  | 'export';
+  | 'export'
+  | 'impersonate_start'
+  | 'impersonate_stop';
 
 export interface AuditEntry {
   actorUserId: string;

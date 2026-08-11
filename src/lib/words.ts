@@ -15,7 +15,9 @@ import { foldWord, tokenizeWords, type LanguageConfig } from './languages';
  */
 export function splitTrailingPunctuation(word: string): [string, string] {
   const noLead = word.replace(/^[„“”"«»‹›(\[{¿¡]+/u, '');
-  const match = noLead.match(/^(.+?)([.,!?;:'"„“”«»‹›)\]}…]+)$/u);
+  // The ano teleia · is Greek's strong colon (#254); the Greek question mark
+  // is the ASCII-lookalike ; already in the class.
+  const match = noLead.match(/^(.+?)([.,!?;:·'"„“”«»‹›)\]}…]+)$/u);
   if (match) return [match[1], match[2]];
   return [noLead, ''];
 }

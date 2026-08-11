@@ -43,6 +43,21 @@ function parsed(chapters = 2): ParsedEpub {
   };
 }
 
+function seedGroup(id: string, userId = 'local'): string {
+  db.prepare(
+    'INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId) VALUES (?, ?, 0, ?, ?)',
+  ).run(id, `Group ${id}`, '2026-07-15T12:00:00Z', userId);
+  return id;
+}
+
+function groupIdOf(collectionId: string): string | null {
+  return (
+    db.prepare('SELECT groupId FROM collections WHERE id = ?').get(collectionId) as {
+      groupId: string | null;
+    }
+  ).groupId;
+}
+
 function localCount(table: 'collections' | 'lessons'): number {
   return (
     db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE userId = 'local'`).get() as {
@@ -54,6 +69,7 @@ function localCount(table: 'collections' | 'lessons'): number {
 beforeEach(() => {
   db.prepare("DELETE FROM lessons WHERE userId = 'local'").run();
   db.prepare("DELETE FROM collections WHERE userId = 'local'").run();
+  db.prepare("DELETE FROM collection_groups WHERE id LIKE 'grp-%'").run();
   db.prepare("DELETE FROM billing_subscriptions WHERE userId = 'local'").run();
   db.prepare("DELETE FROM usage_counters WHERE userId = 'local'").run();
 });
@@ -61,6 +77,7 @@ beforeEach(() => {
 afterEach(() => {
   db.prepare("DELETE FROM lessons WHERE userId = 'local'").run();
   db.prepare("DELETE FROM collections WHERE userId = 'local'").run();
+  db.prepare("DELETE FROM collection_groups WHERE id LIKE 'grp-%'").run();
 });
 
 describe('EPUB import plan limits', () => {
@@ -244,6 +261,109 @@ describe('EPUB import request and parser boundaries', () => {
     expect(response.status).toBe(400);
     expect(localCount('collections')).toBe(0);
     expect(localCount('lessons')).toBe(0);
+  });
+});
+
+describe('import into a library group', () => {
+  const engine = () =>
+    strictEngine({
+      maxCollections: 10,
+      maxLessons: 10,
+      maxLessonTextBytes: 10_000,
+      maxLessonTextBytesTotal: 100_000,
+      maxCollectionMetadataBytes: 10_000,
+      maxAudioStorageBytes: 100 * 1024 * 1024,
+      audioTranscriptionMinutesPerMonth: 1_000,
+    });
+
+  function app() {
+    return makeImportRoutes({
+      engine: engine(),
+      parse: () => parsed(1),
+      probeDurationMs: async () => 60_000,
+    });
+  }
+
+  function uploadTo(groupId?: string): FormData {
+    const form = upload();
+    if (groupId !== undefined) form.append('groupId', groupId);
+    return form;
+  }
+
+  function audioUploadTo(groupId?: string): FormData {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array([73, 68, 51, 4, 0])], 'episode.mp3'));
+    form.append('language', 'af');
+    if (groupId !== undefined) form.append('groupId', groupId);
+    return form;
+  }
+
+  afterEach(() => {
+    if (fs.existsSync(AUDIO_DIR)) {
+      for (const file of fs.readdirSync(AUDIO_DIR)) fs.unlinkSync(`${AUDIO_DIR}/${file}`);
+    }
+  });
+
+  test('puts an imported EPUB in the requested group', async () => {
+    seedGroup('grp-epub');
+    const response = await app().request('/epub', { method: 'POST', body: uploadTo('grp-epub') });
+
+    expect(response.status).toBe(200);
+    expect(groupIdOf((await response.json()).collectionId)).toBe('grp-epub');
+  });
+
+  test('leaves an EPUB ungrouped when no group is named', async () => {
+    const response = await app().request('/epub', { method: 'POST', body: uploadTo() });
+
+    expect(response.status).toBe(200);
+    expect(groupIdOf((await response.json()).collectionId)).toBeNull();
+  });
+
+  test('treats an empty groupId field as ungrouped', async () => {
+    const response = await app().request('/epub', { method: 'POST', body: uploadTo('') });
+
+    expect(response.status).toBe(200);
+    expect(groupIdOf((await response.json()).collectionId)).toBeNull();
+  });
+
+  test('rejects an EPUB import into an unknown group', async () => {
+    const response = await app().request('/epub', { method: 'POST', body: uploadTo('grp-absent') });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain('groupId');
+    expect(localCount('collections')).toBe(0);
+    expect(localCount('lessons')).toBe(0);
+  });
+
+  test("rejects an EPUB import into another user's group", async () => {
+    seedGroup('grp-other', 'someone-else');
+    const response = await app().request('/epub', { method: 'POST', body: uploadTo('grp-other') });
+
+    expect(response.status).toBe(400);
+    expect(localCount('collections')).toBe(0);
+  });
+
+  test('puts an imported audio file in the requested group', async () => {
+    seedGroup('grp-audio');
+    const response = await app().request('/audio', {
+      method: 'POST',
+      body: audioUploadTo('grp-audio'),
+    });
+
+    expect(response.status).toBe(200);
+    expect(groupIdOf((await response.json()).collectionId)).toBe('grp-audio');
+  });
+
+  test('rejects an audio import into an unknown group before storing the file', async () => {
+    const response = await app().request('/audio', {
+      method: 'POST',
+      body: audioUploadTo('grp-absent'),
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain('groupId');
+    expect(localCount('collections')).toBe(0);
+    expect(fs.existsSync(AUDIO_DIR) ? fs.readdirSync(AUDIO_DIR) : []).toEqual([]);
   });
 });
 

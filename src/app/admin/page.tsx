@@ -20,6 +20,7 @@ import {
   forceVerify,
   revokeSessions,
   resyncPaddle,
+  startImpersonation,
   type AdminSummary,
   type AdminUserRow,
   type AdminAuditEntry,
@@ -208,6 +209,29 @@ export default function AdminPage() {
     },
     [load],
   );
+
+  // Begin a read-only "view as" session (#320), then hard-navigate to the app
+  // home. The full reload is deliberate: the client's tenant-keyed caches
+  // (data-layer, language-cache) assume account switches are hard navigations,
+  // so a soft push would leave the operator's cached data over the target's.
+  const onImpersonate = useCallback(async (row: AdminUserRow) => {
+    setMenuId(null);
+    if (
+      !window.confirm(
+        `View Lector as ${row.email}? This is a read-only support session (30 min); every start and stop is audit-logged.`,
+      )
+    ) {
+      return;
+    }
+    setBusyId(row.id);
+    try {
+      await startImpersonation(row.id);
+      window.location.assign('/');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Impersonate failed');
+      setBusyId(null);
+    }
+  }, []);
 
   // Auth/support actions that just POST and reload. `confirm` gates the
   // destructive ones behind a browser confirm; the menu closes either way.
@@ -461,6 +485,9 @@ export default function AdminPage() {
                         </button>
                         {menuId === u.id && (
                           <div className="absolute right-0 z-10 mt-1 w-52 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                            <MenuItem onClick={() => onImpersonate(u)}>
+                              View as user (read-only)
+                            </MenuItem>
                             {summary?.billingResyncAvailable && (
                               <MenuItem
                                 onClick={() =>

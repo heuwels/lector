@@ -5,6 +5,8 @@ export interface YouTubeImportModalProps {
   onClose: () => void;
   /** Called after a transcript is imported so the caller can open the reader. */
   onImported: (result: { collectionId: string; lessonId: string; title: string }) => void;
+  /** Library group the new collection joins. Null keeps it ungrouped. */
+  groupId?: string | null;
 }
 
 export type YouTubeModalState =

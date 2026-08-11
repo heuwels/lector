@@ -261,6 +261,13 @@ export async function pollClassifyBatch(
  * lives forever.
  */
 export function purgeOrphanedBatches(database: Database): number {
+  // The empty case must not write. `DELETE FROM t` with no WHERE starts
+  // SQLite's truncate optimisation, which rewrites the table root page and the
+  // index root page even when the table holds no rows. This function runs on
+  // every worker tick, so those two dirty pages became a write every 15s, which
+  // Litestream then replicated to S3 (~65k requests/day on an idle canary).
+  // The existence check is a read, and reads cost nothing.
+  if (!database.prepare('SELECT 1 FROM classify_batches LIMIT 1').get()) return 0;
   const purged = database.prepare('DELETE FROM classify_batches').run().changes;
   if (purged > 0) {
     console.warn(

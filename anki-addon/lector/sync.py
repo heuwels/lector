@@ -28,6 +28,16 @@ REVIEWS_CHUNK = 5000
 # (25 rounds × 500 cards); the loop also stops whenever a round acks nothing.
 MAX_PULL_ROUNDS = 25
 
+# Anki keeps only the newest UNDO_LIMIT = 30 undo steps (rslib/src/undo/mod.rs).
+# Every write in apply_pending costs at least one step, and note type or deck
+# creation costs more, so a batch of ~27 new cards pushed the "Lector Sync"
+# entry off the back of the queue and merge_undo_entries raised "target undo op
+# not found" — which skipped the ack, so the same batch failed forever (#451).
+# Close the entry and open a new one every UNDO_STEP_BUDGET steps instead: the
+# batch becomes one undo step per group rather than one failure.
+UNDO_NAME = "Lector Sync"
+UNDO_STEP_BUDGET = 20
+
 # Deck names for the {lang} placeholder in the configured deck pattern.
 LANGUAGE_NAMES = {
     "af": "Afrikaans",
@@ -115,14 +125,44 @@ def _upsert_note(col, model, deck_id: int, card_type: str, item: dict):
     return note.id
 
 
+def _merge_undo(col, undo_pos: int):
+    """Fold the writes since `undo_pos` into one undo step; None if Anki
+    already dropped that entry. The writes are committed either way, so a lost
+    undo grouping must never fail the sync and cost the ack (#451)."""
+    try:
+        return col.merge_undo_entries(undo_pos)
+    except Exception:
+        return None
+
+
+def _steps_since(col, undo_pos: int) -> int:
+    """Undo steps Anki recorded since the entry at `undo_pos` opened. The step
+    counter is exact, so this holds however many steps one item costs."""
+    try:
+        return col.undo_status().last_step - undo_pos
+    except Exception:
+        return 0
+
+
 def apply_pending(col, pending: list, deck_pattern: str) -> tuple:
     """Collection-mutation phase: upsert one pulled batch into Anki.
-    Returns (acks, failures). Runs inside a CollectionOp op (undoable);
-    performs NO network I/O."""
+    Returns (acks, failures, changes), where changes is the OpChanges of the
+    last merged undo step (None if the merge was lost). Runs inside a
+    CollectionOp op (undoable); performs NO network I/O."""
     models = ensure_models(col)
     acks = []
     failures = 0
+    changes = None
+    undo_pos = col.add_custom_undo_entry(UNDO_NAME)
     for item in pending:
+        # Re-anchor before Anki's 30-step queue evicts the open entry. Checked
+        # ahead of the write, so the entry we merge at the end always covers
+        # one item at minimum.
+        if _steps_since(col, undo_pos) >= UNDO_STEP_BUDGET:
+            merged = _merge_undo(col, undo_pos)
+            if merged is not None:
+                changes = merged
+            undo_pos = col.add_custom_undo_entry(UNDO_NAME)
         card_type = item.get("cardType")
         model = models.get(card_type)
         if model is None or not item.get("lectorId"):
@@ -141,7 +181,8 @@ def apply_pending(col, pending: list, deck_pattern: str) -> tuple:
             })
         except Exception:
             failures += 1
-    return acks, failures
+    merged = _merge_undo(col, undo_pos)
+    return acks, failures, merged if merged is not None else changes
 
 
 def review_state_for_card(note, card) -> dict:

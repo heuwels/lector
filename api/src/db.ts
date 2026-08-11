@@ -304,6 +304,18 @@ function getDb(): Database {
     );
     CREATE INDEX IF NOT EXISTS idx_admin_audit_createdAt ON admin_audit_log(createdAt);
 
+    -- Admin impersonation grants (#320): the active "view as a user" session per
+    -- operator. Keyed by actorUserId (one active grant each), off the tenant
+    -- userId axis like admin_audit_log. Short-lived — a row past expiresAt is
+    -- treated as inactive and lazily deleted by the impersonation middleware.
+    CREATE TABLE IF NOT EXISTS admin_impersonation (
+      actorUserId  TEXT PRIMARY KEY,
+      targetUserId TEXT NOT NULL,
+      targetEmail  TEXT,
+      startedAt    TEXT NOT NULL,
+      expiresAt    TEXT NOT NULL
+    );
+
     -- Per-user usage counters for the plan-limits engine (#222). The period is
     -- an explicit metric-owned UTC window: month ('2026-07') or day
     -- ('2026-07-15'). Resets are the period key rolling over — no cron — and

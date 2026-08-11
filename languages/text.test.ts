@@ -91,4 +91,74 @@ describe('foldWord', () => {
     const once = foldWord('Môre', af);
     expect(foldWord(once, af)).toBe(once);
   });
+
+  // The dotted/dotless i is the one place the default Unicode lowercasing
+  // gives a wrong key rather than an unusual one: `İyi` would fold to
+  // i + U+0307 + 'yi', which no dictionary entry matches, and `ILIK`
+  // ("lukewarm") would fold onto `ilik` ("marrow") — a different word.
+  describe('Turkish dotted/dotless i (script.caseFoldLocale)', () => {
+    const tr = LANGUAGES.tr;
+
+    it('folds the dotted capital İ to a plain i, with no leftover dot', () => {
+      expect(foldWord('İyi', tr)).toBe('iyi');
+      expect(foldWord('İSTANBUL', tr)).toBe('istanbul');
+      expect(foldWord('DİL', tr)).toBe('dil');
+      expect(foldWord('İyi', tr)).not.toContain('̇');
+    });
+
+    it('folds the dotless capital I to ı, keeping the two words apart', () => {
+      expect(foldWord('ILIK', tr)).toBe('ılık');
+      expect(foldWord('IŞIK', tr)).toBe('ışık');
+      expect(foldWord('ILIK', tr)).not.toBe(foldWord('İLİK', tr));
+    });
+
+    it('agrees with itself on mixed-case and already-lower input', () => {
+      expect(foldWord('Işık', tr)).toBe(foldWord('IŞIK', tr));
+      expect(foldWord('ışık', tr)).toBe('ışık');
+    });
+
+    it('is idempotent', () => {
+      const once = foldWord('İSTANBUL', tr);
+      expect(foldWord(once, tr)).toBe(once);
+    });
+
+    it('leaves packs without a fold locale on plain Unicode lowercasing', () => {
+      // Same input, no caseFoldLocale: German keeps the default mapping, so
+      // the Turkish rule can't leak into another pack's keys.
+      expect(foldWord('ILIK', de)).toBe('ilik');
+    });
+  });
+
+  // The Ukrainian apostrophe is a letter, and text in the wild spells it with
+  // whichever variant its source produced. kaikki writes the headwords with
+  // ASCII ', so the fold has to agree on one spelling or the lookup misses.
+  describe('Ukrainian apostrophe (script.foldApostrophes)', () => {
+    const uk = LANGUAGES.uk;
+
+    it('folds every apostrophe variant to the ASCII one', () => {
+      expect(foldWord('п’ять', uk)).toBe("п'ять");
+      expect(foldWord('пʼять', uk)).toBe("п'ять");
+      expect(foldWord('пʹять', uk)).toBe("п'ять");
+      expect(foldWord('п`ять', uk)).toBe("п'ять");
+      expect(foldWord('п´ять', uk)).toBe("п'ять");
+      expect(foldWord("п'ять", uk)).toBe("п'ять");
+    });
+
+    it('folds case and apostrophe together', () => {
+      expect(foldWord("З'ЇЗД", uk)).toBe("з'їзд");
+      expect(foldWord('Здоров’я', uk)).toBe("здоров'я");
+    });
+
+    it('is idempotent', () => {
+      const once = foldWord('Ім’я', uk);
+      expect(foldWord(once, uk)).toBe(once);
+    });
+
+    it('leaves packs without the flag alone', () => {
+      // French spells l'eau with an apostrophe too, but the pack splits on it
+      // and never folds — its keys must stay byte-stable.
+      expect(foldWord('L’EAU', LANGUAGES.fr)).toBe('l’eau');
+      expect(foldWord('Türkiye’nin', LANGUAGES.tr)).toBe('türkiye’nin');
+    });
+  });
 });

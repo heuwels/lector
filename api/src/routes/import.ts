@@ -15,6 +15,7 @@ import {
 } from '../lib/audio-files';
 import { estimateTranscriptionMinutes, probeAudioDurationMs } from '../lib/audio-probe';
 import { normalizeText } from '../lib/languages';
+import { validateOwnedReference } from '../lib/persisted-input';
 import { randomUUID } from 'crypto';
 
 // Cap the upload before it's buffered into memory. EPUBs are small; this stops a
@@ -26,6 +27,13 @@ const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
 // ~60 MB; 500 MB comfortably covers multi-hour recordings while still bounding
 // what one request can buffer.
 const MAX_AUDIO_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
+
+// An import can be started from inside a library group, in which case the new
+// collection lands in that group instead of Ungrouped. The multipart field is
+// optional: an absent or empty value keeps the collection ungrouped.
+function readGroupId(value: FormDataEntryValue | null): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
 
 interface ImportRouteDeps {
   engine: EntitlementsEngine;
@@ -68,6 +76,15 @@ export function makeImportRoutes({
           return c.json({ error: 'File required' }, 400);
         }
 
+        const groupId = readGroupId(formData.get('groupId'));
+        const groupIdError = validateOwnedReference(
+          'collection_groups',
+          groupId,
+          userId,
+          'groupId',
+        );
+        if (groupIdError) return c.json({ error: groupIdError }, 400);
+
         const buffer = Buffer.from(await file.arrayBuffer());
         const parsed = parse(buffer);
 
@@ -75,8 +92,8 @@ export function makeImportRoutes({
         const now = new Date().toISOString();
 
         const insertCollection = db.prepare(`
-          INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt, userId)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO collections (id, title, author, coverUrl, groupId, language, createdAt, lastReadAt, userId)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const insertLesson = db.prepare(`
           INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId)
@@ -115,6 +132,7 @@ export function makeImportRoutes({
               parsed.title,
               parsed.author,
               null,
+              groupId,
               lang,
               now,
               now,
@@ -184,6 +202,15 @@ export function makeImportRoutes({
           );
         }
 
+        const groupId = readGroupId(formData.get('groupId'));
+        const groupIdError = validateOwnedReference(
+          'collection_groups',
+          groupId,
+          userId,
+          'groupId',
+        );
+        if (groupIdError) return c.json({ error: groupIdError }, 400);
+
         const rawTitle = formData.get('title');
         const fallbackTitle = path.basename(
           file.name || 'Audio lesson',
@@ -225,9 +252,9 @@ export function makeImportRoutes({
           () => {
             engine.recordUsage(userId, 'audioTranscriptionMinutesPerMonth', transcriptionMinutes);
             db.prepare(
-              `INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt, userId)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            ).run(collectionId, title, 'Audio import', null, lang, now, now, userId);
+              `INSERT INTO collections (id, title, author, coverUrl, groupId, language, createdAt, lastReadAt, userId)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ).run(collectionId, title, 'Audio import', null, groupId, lang, now, now, userId);
             db.prepare(
               `INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language,
                                     createdAt, lastReadAt, userId, audioPath, audioDurationMs, audioBytes, transcriptionStatus)

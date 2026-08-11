@@ -22,6 +22,8 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 
+import { stripMarks } from '../languages/text';
+
 // ---------------------------------------------------------------------------
 // Paths & constants
 // ---------------------------------------------------------------------------
@@ -59,6 +61,16 @@ interface LangProfile {
   /** Drop entries with no English gloss — the de→en filter, and the large,
    *  natural size lever for the 1GB German dump. Off for af (parity-preserving). */
   glossFilter: boolean;
+  /** Case-fold locale, mirroring the pack's `script.caseFoldLocale` (tr only).
+   *  Keys the DB the same way the runtime folds lookups, so the dotted/dotless
+   *  i can't split one word across two keys. */
+  caseFoldLocale?: string;
+  /** Fold every apostrophe variant to ASCII ' in keys, mirroring the pack's
+   *  `script.foldApostrophes` (uk only). kaikki writes the Ukrainian headwords
+   *  with ASCII ', so this is a no-op for the dump itself — it exists so the
+   *  build and the runtime cannot disagree if a variant appears in a form-of
+   *  row. */
+  foldApostrophes?: boolean;
   /** Strip these combining marks from every dictionary key (ru: kaikki writes
    *  the lexical-stress acute on headwords and inflected forms — молоко́ — but
    *  runtime text is unstressed, so stressed keys would never be hit). */
@@ -67,6 +79,18 @@ interface LangProfile {
    *  (ru: ё is routinely written е in real text). Exact entries are looked up
    *  first, so genuine minimal pairs like все/всё keep their own entries. */
   yoAliases?: boolean;
+  /** Register the mark-stripped variant of every key as an inflection alias
+   *  (grc: running polytonic text disagrees with dictionary keys on marks —
+   *  most commonly the grave replacing a word-final acute, τὸν vs τόν). The
+   *  runtime's accent-insensitive fallback (dictionary-db.ts step 3-grc)
+   *  retries lookups with the stripped key against these rows. Exact lookups
+   *  always win first, so minimal pairs (ἡ/ἥ/ἤ) stay exact. */
+  markStrippedAliases?: boolean;
+  /** Extra (inflected_form, lemma, type) rows merged into the inflections
+   *  table, TSV relative to PROJECT_ROOT (grc: MorphGNT surface→lemma pairs —
+   *  kaikki Ancient Greek misses many Koine forms its Classical-leaning
+   *  tables never enumerate). Rows whose lemma is not an entry are dropped. */
+  supplementalInflectionsRel?: string | null;
 }
 
 const PROFILES: Record<string, LangProfile> = {
@@ -82,6 +106,32 @@ const PROFILES: Record<string, LangProfile> = {
     rootsJsonRel: 'src/lib/dictionary-roots.json',
     coverageCorpusRel: null,
     glossFilter: false,
+  },
+  cs: {
+    // Canonical /Czech/ URL (kaikki has no /downloads/cs/ mirror; verified 2026-08-08).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Czech/kaikki.org-dictionary-Czech.jsonl'],
+    // The Czech alphabet: a-z plus the háček letters č ď ě ň ř š ť ž, the acute
+    // letters á é í ó ú ý, and ů (kroužek). q, v, w and x are marginal but stay
+    // in the a-z range for the loanwords the dump carries. `ch` is a single
+    // letter for collation only — it is two code points and needs nothing here.
+    // The apostrophe is a token boundary, matching the runtime tokenizer: Czech
+    // writes it only for dialectal elision, never inside a citation form, so it
+    // is the pl/tr shape and the opposite of uk. Hyphen stays a word char for
+    // compounds (česko-slovenský, modro-bílý).
+    letterClass: 'a-záčďéěíňóřšťúůýžA-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ-',
+    // No hand affix rules: Czech is fusional, so its 7 cases × 4 genders, verb
+    // conjugation, aspect pairs and consonant alternations resolve via kaikki
+    // "form of <lemma>" entries + the inflections table — the same strategy as
+    // de/es/fr/nl/pt/ru/tr/uk/pl.
+    prefixes: [],
+    suffixes: [],
+    // Czech distinguishes vowel length, so the acute forms are separate vowels,
+    // not accented variants. ě is a vowel letter; ů is the long u written after
+    // a historical diphthong.
+    vowels: 'aáeéěiíoóuúůyý',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-cs.txt',
+    glossFilter: true,
   },
   de: {
     // Canonical /German/ URL only — the /downloads/de/ fallback 404s (verified 2026-06-25).
@@ -187,6 +237,61 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-nl.txt',
     glossFilter: true,
   },
+  pl: {
+    // Canonical /Polish/ URL (kaikki has no /downloads/pl/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Polish/kaikki.org-dictionary-Polish.jsonl'],
+    // The 32-letter Polish alphabet: a-z plus ą ć ę ł ń ó ś ź ż. q, v and x are
+    // not Polish letters but stay in the a-z range for the loanwords the dump
+    // carries. The apostrophe is a token boundary, matching the runtime
+    // tokenizer: a case ending on a foreign stem is written Kennedy'ego, which
+    // splits to Kennedy + ego and leaves the lookupable name on its own — the
+    // same shape as tr, and the opposite of uk. Hyphen stays a word char for
+    // compounds (biało-czerwony, polsko-angielski).
+    letterClass: 'a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ-',
+    // No hand affix rules: Polish's rich inflection (7 cases × 3 genders, verb
+    // conjugation + aspect pairs, consonant alternations) resolves via kaikki
+    // "form of <lemma>" entries + the inflections table, same strategy as
+    // de/es/fr/nl/pt/ru/tr/uk.
+    prefixes: [],
+    suffixes: [],
+    // Polish has no long/short vowel distinction; ą and ę are nasal vowels.
+    vowels: 'aąeęioóuy',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-pl.txt',
+    glossFilter: true,
+  },
+  grc: {
+    // Canonical /Ancient Greek/ URL — note the URL-encoded space and the
+    // concatenated filename (verified 2026-07-19).
+    kaikkiUrls: [
+      'https://kaikki.org/dictionary/Ancient%20Greek/kaikki.org-dictionary-AncientGreek.jsonl',
+    ],
+    // Greek and Coptic (Ͱ-Ͽ) + Greek Extended (ἀ-῿): base letters, tonos
+    // forms, and the polytonic precomposed range (breathings, graves,
+    // circumflexes, iota subscripts). Hyphen kept for editorial compounds;
+    // the elision apostrophe is a token boundary (κατ᾽ → κατ), matching the
+    // runtime tokenizer. Only feeds the coverage tokenizer — corpus files are
+    // one clean word per line.
+    letterClass: 'Ͱ-Ͽἀ-῿-',
+    // No hand affix rules: kaikki Ancient Greek is form-of-rich (declensions,
+    // conjugations, dialect variants carry their own entries) and the runtime
+    // adds the accent-insensitive fallback for running-text mark variance.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'αεηιουω',
+    // NT lemma ranks (MorphGNT frequency — the curriculum for this audience)
+    // + Dodson CC0 glosses for the Koine vocabulary kaikki lacks (καθώς,
+    // πάντοτε…). Generated by gen-dictionary-roots-grc.py.
+    rootsJsonRel: 'scripts/dictionary-roots-grc.json',
+    coverageCorpusRel: 'scripts/coverage-corpus-grc.txt',
+    glossFilter: true,
+    // kaikki Ancient Greek writes vowel-length macrons/breves on headwords and
+    // form rows (ᾰ̓γᾰ́πη) — editorial apparatus, never present in running text.
+    // Breathings/accents/subscripts stay: they ARE the orthography.
+    stripFromKeys: /[\u0304\u0306]/g,
+    markStrippedAliases: true,
+    supplementalInflectionsRel: 'scripts/morphgnt-inflections-grc.tsv',
+  },
   pt: {
     // Canonical /Portuguese/ URL (kaikki has no /downloads/pt/ mirror).
     kaikkiUrls: ['https://kaikki.org/dictionary/Portuguese/kaikki.org-dictionary-Portuguese.jsonl'],
@@ -228,6 +333,58 @@ const PROFILES: Record<string, LangProfile> = {
     // grave for secondary stress) on headwords and form-of rows.
     stripFromKeys: /[\u0300\u0301]/g,
     yoAliases: true,
+  },
+  tr: {
+    // Canonical /Turkish/ URL (kaikki has no /downloads/tr/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Turkish/kaikki.org-dictionary-Turkish.jsonl'],
+    // The 29-letter Turkish alphabet: a-z minus q/w/x (kept anyway for
+    // loanwords the dump carries) plus \u00e7 \u011f \u0131 i\u0307/\u0130 \u00f6 \u015f \u00fc. The apostrophe is a
+    // token boundary, matching the runtime tokenizer: a suffix on a proper
+    // noun is written \u0130stanbul'da, which splits to \u0130stanbul + da and leaves
+    // the lookupable noun on its own. Hyphen stays a word char.
+    letterClass: 'a-z\u00e7\u011f\u0131\u00f6\u015f\u00fcA-Z\u00c7\u011e\u0130\u00d6\u015e\u00dc-',
+    // No hand affix rules. Turkish is agglutinative, so a surface form can
+    // stack several suffixes (ev-ler-imiz-den) and no fixed suffix list would
+    // cover it; the dump's "form of <lemma>" entries plus the inflections
+    // table resolve what kaikki records, and the runtime falls through to
+    // UDPipe \u2192 AI for the rest, as for de/es/fr/nl/pt/ru.
+    prefixes: [],
+    suffixes: [],
+    // The eight vowels, in the two harmony sets: back a \u0131 o u, front e i \u00f6 \u00fc.
+    vowels: 'ae\u0131io\u00f6u\u00fc',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-tr.txt',
+    glossFilter: true,
+    // Dotted/dotless i: keys must fold I \u2192 \u0131 and \u0130 \u2192 i, matching the pack's
+    // script.caseFoldLocale, or one word would key under two spellings.
+    caseFoldLocale: 'tr',
+  },
+  uk: {
+    // Canonical /Ukrainian/ URL (kaikki has no /downloads/uk/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Ukrainian/kaikki.org-dictionary-Ukrainian.jsonl'],
+    // The 33-letter Ukrainian alphabet. а-щ is contiguous, then ь ю я; ъ ы э sit
+    // inside that span and are Russian-only, so they are left out and a leaked
+    // Russian token fails the letter test. ґ є і ї are outside the range and
+    // are added explicitly. The apostrophe IS a word character here (зв'язку,
+    // п'ять) — unlike ru, where it is not Russian orthography, and unlike tr,
+    // where it is a suffix boundary. Hyphen stays a word char for compounds
+    // (будь-який, все-таки).
+    letterClass: "а-щьюяґєіїА-ЩЬЮЯҐЄІЇ'-",
+    // No hand affix rules: Ukrainian's inflection (7 cases × 3 genders, verb
+    // conjugation + aspect pairs) resolves via kaikki "form of <lemma>" entries
+    // + the inflections table, same strategy as de/es/fr/nl/pt/ru/tr.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'аеєиіїоуюя',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-uk.txt',
+    glossFilter: true,
+    // Ukrainian headwords carry the lexical-stress acute (молоко́) exactly as
+    // Russian ones do, but running text is unstressed — a stressed key would
+    // never be hit.
+    stripFromKeys: /[\u0300\u0301]/g,
+    // Keys carry one apostrophe spelling, matching the pack's script.foldApostrophes.
+    foldApostrophes: true,
   },
 };
 
@@ -371,11 +528,31 @@ function pickIpa(sounds: KaikkiSound[] | undefined): string | undefined {
 // Dictionary keys are NFC + lowercase (#289): must match the runtime foldWord
 // (languages/text.ts) or decomposed dump data would never be hit by lookups.
 // Profiles may additionally strip combining marks the dump carries but runtime
-// text doesn't (ru lexical stress) — NFC first, so precomposed letters that
-// legitimately contain a mark (ё, й) are single codepoints and survive.
+// text doesn't (ru lexical stress, grc vowel-length macrons/breves). The strip
+// runs on the NFD form so precomposed carriers are caught too (Greek Extended
+// has precomposed alpha-with-macron, ᾱ = U+1FB1); the final NFC recomposes
+// legitimate mark-bearing letters (ё, й, breathings/accents) untouched — their
+// marks aren't in any profile's strip set.
+// Lowercase the way the runtime foldWord does for this language: locale-aware
+// only for packs that ask for it (tr: I → ı, İ → i), plain Unicode otherwise.
+// A locale fold can decompose (İ → i + U+0307), so re-normalize after it.
+function lowerForLang(s: string): string {
+  const locale = PROFILE.caseFoldLocale;
+  return locale ? s.toLocaleLowerCase(locale).normalize('NFC') : s.toLowerCase();
+}
+
+// Mirrors languages/text.ts foldApostrophesFor — keep the two character sets
+// identical, or a Ukrainian headword written with one variant would key under a
+// spelling the runtime never produces.
+const APOSTROPHE_VARIANTS = /[‘’ʼʹ`´]/g;
+
 function foldKey(s: string): string {
-  const folded = s.normalize('NFC').toLowerCase().trim();
-  return PROFILE.stripFromKeys ? folded.replace(PROFILE.stripFromKeys, '') : folded;
+  const normalized = PROFILE.foldApostrophes
+    ? s.normalize('NFC').replace(APOSTROPHE_VARIANTS, "'")
+    : s.normalize('NFC');
+  const folded = lowerForLang(normalized).trim();
+  if (!PROFILE.stripFromKeys) return folded;
+  return folded.normalize('NFD').replace(PROFILE.stripFromKeys, '').normalize('NFC');
 }
 
 function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
@@ -798,10 +975,17 @@ function eoRuleLookup(exact: Database.Statement, lower: string): { word: string 
 
 function buildLookup(db: Database.Database): (w: string) => LookupShape | undefined {
   const exact = db.prepare('SELECT word FROM entries WHERE word = ?');
-  const byInflection = db.prepare('SELECT lemma FROM inflections WHERE inflected_form = ? LIMIT 1');
+  // Rank-ordered like the runtime (dictionary-db.ts selectInflectionLemma):
+  // when several lemmas claim a surface form, the most frequent entry wins.
+  const byInflection = db.prepare(
+    `SELECT i.lemma FROM inflections i
+     JOIN entries e ON e.word = i.lemma
+     WHERE i.inflected_form = ?
+     ORDER BY (e.rank IS NULL), e.rank, i.rowid LIMIT 1`,
+  );
 
   return function lookup(w: string): LookupShape | undefined {
-    const lower = w.toLowerCase();
+    const lower = lowerForLang(w);
 
     const hit = exact.get(lower) as { word: string } | undefined;
     if (hit) return hit;
@@ -815,6 +999,22 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
     if (LANG === 'eo') {
       const ruled = eoRuleLookup(exact, lower);
       if (ruled) return ruled;
+    }
+
+    // Mirror of the runtime accent-insensitive fallback (dictionary-db.ts
+    // step 3-grc): retry with the mark-stripped key against the alias rows,
+    // so the gate measures what the live lookup will actually resolve.
+    if (PROFILE.markStrippedAliases) {
+      const stripped = stripMarks(lower);
+      if (stripped !== lower) {
+        const strippedHit = exact.get(stripped) as { word: string } | undefined;
+        if (strippedHit) return strippedHit;
+        const strippedInfl = byInflection.get(stripped) as { lemma: string } | undefined;
+        if (strippedInfl) {
+          const lemma = exact.get(strippedInfl.lemma) as { word: string } | undefined;
+          if (lemma) return lemma;
+        }
+      }
     }
 
     for (const prefix of PREFIXES) {
@@ -871,7 +1071,7 @@ function gatherCorpus(): Set<string> {
         }[];
         for (const row of rows) {
           if (row.t) {
-            for (const tok of tokenize(row.t)) corpus.add(tok.toLowerCase());
+            for (const tok of tokenize(row.t)) corpus.add(lowerForLang(tok));
           }
         }
       } catch (err) {
@@ -909,10 +1109,27 @@ function coverageCheck(): { hits: number; total: number; misses: string[] } {
   const corpus = gatherCorpus();
   console.log(`  corpus size: ${corpus.size} unique tokens`);
 
-  // On a fresh checkout the live corpus (vocab + books) is often tiny or empty.
-  // The curated frequency-ranked roots in dictionary-roots.json are the next
-  // best proxy for "typical Afrikaans reading" — merge them in so the coverage
-  // gate still produces a meaningful signal.
+  // On a fresh checkout the live corpus (vocab + books) is often tiny or
+  // empty. An explicit coverage-corpus file is the best stand-in — real
+  // SURFACE forms of typical reading (frequency lists, or the GNT running
+  // text for grc), which exercises the inflection/fallback machinery the way
+  // live lookups do. Checked before the roots fallback: for a language with
+  // both (grc), lemma-keyed roots would trivially hit their own merged
+  // entries and mask form-resolution gaps.
+  if (corpus.size < 100 && COVERAGE_CORPUS_PATH) {
+    const before = corpus.size;
+    for (const line of fs.readFileSync(COVERAGE_CORPUS_PATH, 'utf-8').split('\n')) {
+      const w = line.trim();
+      if (!w || w.startsWith('#')) continue;
+      corpus.add(lowerForLang(w));
+    }
+    console.log(
+      `  (corpus was thin, added ${corpus.size - before} corpus-file tokens → ${corpus.size} tokens)`,
+    );
+  }
+
+  // The curated frequency-ranked roots are the last-resort proxy (af ships
+  // roots but no corpus file).
   if (corpus.size < 100 && ROOTS_JSON_PATH) {
     const rootJson = JSON.parse(fs.readFileSync(ROOTS_JSON_PATH, 'utf-8')) as Record<
       string,
@@ -922,18 +1139,6 @@ function coverageCheck(): { hits: number; total: number; misses: string[] } {
     for (const w of Object.keys(rootJson)) corpus.add(w.toLowerCase());
     console.log(
       `  (corpus was thin, added ${corpus.size - before} curated roots → ${corpus.size} tokens)`,
-    );
-  }
-
-  if (corpus.size < 100 && COVERAGE_CORPUS_PATH) {
-    const before = corpus.size;
-    for (const line of fs.readFileSync(COVERAGE_CORPUS_PATH, 'utf-8').split('\n')) {
-      const w = line.trim();
-      if (!w || w.startsWith('#')) continue;
-      corpus.add(w.toLowerCase());
-    }
-    console.log(
-      `  (corpus was thin, added ${corpus.size - before} wordfreq tokens → ${corpus.size} tokens)`,
     );
   }
 
@@ -987,6 +1192,60 @@ async function main() {
       aliased++;
     }
     console.log(`  ё-aliases (${LANG}): ${aliased} е-spelled variants registered`);
+  }
+
+  if (PROFILE.supplementalInflectionsRel) {
+    // Merge corpus-verified (form → lemma) pairs the dump never enumerated
+    // (grc: MorphGNT). Runs BEFORE the mark-stripped alias pass so these
+    // forms get stripped aliases too; rows with lemmas missing from entries
+    // are dropped by buildDatabase like any other orphan.
+    const tsvPath = path.join(PROJECT_ROOT, PROFILE.supplementalInflectionsRel);
+    let merged = 0;
+    for (const line of fs.readFileSync(tsvPath, 'utf-8').split('\n')) {
+      if (!line.trim() || line.startsWith('#')) continue;
+      const [inflected, lemma, type] = line.split('\t');
+      if (!inflected || !lemma) continue;
+      let bucket = inflectionMap.get(inflected);
+      if (!bucket) {
+        bucket = new Set<string>();
+        inflectionMap.set(inflected, bucket);
+      }
+      bucket.add(`${lemma}::${type || 'supplemental'}`);
+      merged++;
+    }
+    console.log(
+      `  supplemental inflections (${LANG}): ${merged} rows merged from ${PROFILE.supplementalInflectionsRel}`,
+    );
+  }
+
+  if (PROFILE.markStrippedAliases) {
+    // Register the mark-stripped variant of every key as an extra inflection
+    // row (type 'unaccented') so the runtime's accent-insensitive fallback
+    // has something to hit. Entry words alias to themselves as lemma;
+    // inflection keys copy their lemma refs. Collisions are fine: exact
+    // lookups win first, and INSERT OR IGNORE dedupes per (form, lemma).
+    const addAlias = (alias: string, ref: string) => {
+      let bucket = inflectionMap.get(alias);
+      if (!bucket) {
+        bucket = new Set<string>();
+        inflectionMap.set(alias, bucket);
+      }
+      bucket.add(ref);
+    };
+    let aliased = 0;
+    for (const word of entries.keys()) {
+      const stripped = stripMarks(word);
+      if (stripped === word || !stripped) continue;
+      addAlias(stripped, `${word}::unaccented`);
+      aliased++;
+    }
+    for (const [inflected, bucket] of [...inflectionMap]) {
+      const stripped = stripMarks(inflected);
+      if (stripped === inflected || !stripped) continue;
+      for (const ref of bucket) addAlias(stripped, ref);
+      aliased++;
+    }
+    console.log(`  mark-stripped aliases (${LANG}): ${aliased} keys registered`);
   }
 
   if (PROFILE.glossFilter) {

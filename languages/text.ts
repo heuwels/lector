@@ -35,8 +35,62 @@ export function normalizeText(text: string): string {
  * the old `toLowerCase()` keying for shipped languages on NFC input. Phase 3
  * extends this with per-pack mark folding (tashkeel/niqqud stripping, final
  * forms, ς→σ).
+ *
+ * Packs that set `script.caseFoldLocale` fold under that locale instead (tr:
+ * dotted/dotless i). Re-normalize after a locale fold, because Turkish `İ`
+ * lowercases through a decomposed intermediate.
  */
 export function foldWord(text: string, pack: LanguageConfig): string {
-  const normalized = normalizeText(text);
-  return pack.script.hasCase ? normalized.toLowerCase() : normalized;
+  const normalized = foldApostrophesFor(normalizeText(text), pack);
+  if (!pack.script.hasCase) return normalized;
+  return lowerForPack(normalized, pack);
+}
+
+/** Every apostrophe variant a keyboard, an editor or an EPUB can produce. */
+const APOSTROPHE_VARIANTS = /[‘’ʼʹ`´]/g;
+
+/**
+ * Map apostrophe variants to ASCII ' for packs that spell words with one
+ * (uk: п'ять). Running text carries whichever variant its source used —
+ * straight from a keyboard, curly from a word processor, U+02BC from a
+ * standards-minded typesetter — and all three must key to the one dictionary
+ * headword. A no-op for every pack that leaves `foldApostrophes` unset, so
+ * fr/it/nl keys stay byte-stable.
+ */
+export function foldApostrophesFor(text: string, pack: LanguageConfig): string {
+  if (!pack.script.foldApostrophes) return text;
+  return text.replace(APOSTROPHE_VARIANTS, "'");
+}
+
+/**
+ * Lowercase under the pack's fold locale when it declares one (tr), and under
+ * the default Unicode mapping otherwise. Use this anywhere a comparison
+ * lowercases target-language text but can't use the full `foldWord` — the
+ * practice answer check, which also strips punctuation. Without a pack it is
+ * plain `toLowerCase()`, so language-blind call sites keep their behavior.
+ */
+export function lowerForPack(text: string, pack?: LanguageConfig): string {
+  const locale = pack?.script.caseFoldLocale;
+  return locale ? text.toLocaleLowerCase(locale).normalize('NFC') : text.toLowerCase();
+}
+
+/**
+ * Strip combining marks for lenient comparison (#289 Phase 3): decompose,
+ * drop every \p{M}, recompose, and fold the Greek final sigma. For polytonic
+ * Greek this folds breathings, accents (including the grave that replaces a
+ * word-final acute in running text) and iota subscripts — λόγος ≡ λογος,
+ * τὸν ≡ τόν, ᾧ ≡ ω. Pure mark-stripping: never applied to stored text, only
+ * to both sides of a comparison or a last-resort lookup.
+ */
+export function stripMarks(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC').replace(/ς/g, 'σ');
+}
+
+/**
+ * Fold for practice-answer comparison: exact for most packs; packs that opt
+ * into `practiceLeniency: 'fold-marks'` (grc — polytonic input needs a
+ * specialist keyboard) accept mark-stripped matches.
+ */
+export function foldForComparison(text: string, pack: LanguageConfig): string {
+  return pack.script.practiceLeniency === 'fold-marks' ? stripMarks(text) : text;
 }

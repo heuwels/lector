@@ -9,6 +9,7 @@ import {
   ClozeSentence,
   ClozeMasteryLevel,
   ClozeCollection,
+  getActivePack,
   getClozeSentencesByCollection,
   getNewSentencesByCollection,
   getCollectionCounts,
@@ -653,7 +654,7 @@ export default function PracticePage() {
     submittingRef.current = true;
 
     const answer = userAnswer.trim();
-    const isCorrect = checkAnswer(answer, current.sentence.clozeWord);
+    const isCorrect = checkAnswer(answer, current.sentence.clozeWord, getActivePack());
     if (isCorrect) {
       playCorrectSound();
     } else {
@@ -1100,7 +1101,11 @@ export default function PracticePage() {
               current &&
               practiceFormat === 'cloze' &&
               (() => {
-                const fuzzyStatus = getFuzzyStatus(userAnswer, current.sentence.clozeWord);
+                const fuzzyStatus = getFuzzyStatus(
+                  userAnswer,
+                  current.sentence.clozeWord,
+                  getActivePack(),
+                );
                 const inputColorClass = {
                   empty: 'border-[var(--clay)] bg-[color-mix(in_srgb,var(--clay)_14%,var(--card))]',
                   match: 'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))]',

@@ -38,13 +38,13 @@ export default function CollectionCard({ collection }: CollectionCardProps) {
 
         {/* Progress overlay */}
         {progressPercent > 0 && (
-          <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/60 to-transparent p-3">
-            <div className="flex items-center justify-between text-white">
+          <div className="absolute right-0 bottom-0 left-0 border-t border-border bg-card p-3">
+            <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-xs font-medium">{progressPercent}% complete</span>
             </div>
-            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/30">
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-white transition-all"
+                className="h-full rounded-full bg-primary transition-all"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>

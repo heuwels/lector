@@ -164,14 +164,19 @@ function clozeWriteChecks(
 // so seeding can never mislabel one language's sentences as another's.
 const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   af: () => import('../lib/sentence-bank-af.json'),
+  cs: () => import('../lib/sentence-bank-cs.json'),
   de: () => import('../lib/sentence-bank-de.json'),
   eo: () => import('../lib/sentence-bank-eo.json'),
   es: () => import('../lib/sentence-bank-es.json'),
+  grc: () => import('../lib/sentence-bank-grc.json'),
   fr: () => import('../lib/sentence-bank-fr.json'),
   it: () => import('../lib/sentence-bank-it.json'),
   nl: () => import('../lib/sentence-bank-nl.json'),
+  pl: () => import('../lib/sentence-bank-pl.json'),
   pt: () => import('../lib/sentence-bank-pt.json'),
   ru: () => import('../lib/sentence-bank-ru.json'),
+  tr: () => import('../lib/sentence-bank-tr.json'),
+  uk: () => import('../lib/sentence-bank-uk.json'),
 };
 
 async function loadSentenceBank(lang: string): Promise<BankEntry[]> {

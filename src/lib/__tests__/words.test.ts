@@ -65,6 +65,12 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation('ещё.')).toEqual(['ещё', '.']);
     expect(splitTrailingPunctuation('когда-нибудь,')).toEqual(['когда-нибудь', ',']);
   });
+
+  it('strips Greek punctuation: ano teleia, erotimatiko, and comma', () => {
+    expect(splitTrailingPunctuation('ζωή·')).toEqual(['ζωή', '·']);
+    expect(splitTrailingPunctuation('Ἰουδαίων;')).toEqual(['Ἰουδαίων', ';']);
+    expect(splitTrailingPunctuation('λόγος,')).toEqual(['λόγος', ',']);
+  });
 });
 
 describe('sentenceContainsWord', () => {
@@ -146,6 +152,72 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Он придёт когда-нибудь.', 'нибудь', ru)).toBe(false);
     // a genuine substring is still rejected (дела is not in сделал)
     expect(sentenceContainsWord('Он сделал это вчера.', 'дела', ru)).toBe(false);
+  });
+
+  it('matches Turkish tokens through the dotted/dotless i fold', () => {
+    const tr = LANGUAGES.tr;
+    expect(sentenceContainsWord('İyi akşamlar dilerim.', 'iyi', tr)).toBe(true);
+    expect(sentenceContainsWord('Işık söndü.', 'ışık', tr)).toBe(true);
+    // A suffixed proper noun splits at the apostrophe, so the noun matches.
+    expect(sentenceContainsWord("Dün İstanbul'da kaldım.", 'istanbul', tr)).toBe(true);
+    // Dotted and dotless remain different words.
+    expect(sentenceContainsWord('Işık söndü.', 'işik', tr)).toBe(false);
+    // a genuine substring is still rejected
+    expect(sentenceContainsWord('Kitabı okudum.', 'kitap', tr)).toBe(false);
+  });
+
+  it('matches Polish tokens through the default case fold', () => {
+    const pl = LANGUAGES.pl;
+    expect(sentenceContainsWord('Kupiłem nową książkę.', 'książkę', pl)).toBe(true);
+    expect(sentenceContainsWord('Żółw jadł pączek.', 'żółw', pl)).toBe(true);
+    // Hyphenated compounds stay whole.
+    expect(sentenceContainsWord('To biało-czerwona flaga.', 'biało-czerwona', pl)).toBe(true);
+    expect(sentenceContainsWord('To biało-czerwona flaga.', 'czerwona', pl)).toBe(false);
+    // A foreign stem splits from its case ending, so the name matches.
+    expect(sentenceContainsWord("Czytam Joyce'a teraz.", 'joyce', pl)).toBe(true);
+    // a genuine substring is still rejected (książ is not a token of książkę)
+    expect(sentenceContainsWord('Kupiłem nową książkę.', 'książ', pl)).toBe(false);
+  });
+
+  it('matches Czech tokens through the default case fold', () => {
+    const cs = LANGUAGES.cs;
+    expect(sentenceContainsWord('Koupil jsem novou knihu.', 'knihu', cs)).toBe(true);
+    expect(sentenceContainsWord('Ten kůň běžel rychle.', 'kůň', cs)).toBe(true);
+    expect(sentenceContainsWord('Příliš žluťoučký kůň.', 'žluťoučký', cs)).toBe(true);
+    // Vowel length is contrastive: být (to be) is not byt (a flat).
+    expect(sentenceContainsWord('Chci být doma.', 'byt', cs)).toBe(false);
+    // Hyphenated compounds stay whole.
+    expect(sentenceContainsWord('Je to česko-slovenský slovník.', 'česko-slovenský', cs)).toBe(
+      true,
+    );
+    expect(sentenceContainsWord('Je to česko-slovenský slovník.', 'slovenský', cs)).toBe(false);
+    // a genuine substring is still rejected (kni is not a token of knihu)
+    expect(sentenceContainsWord('Koupil jsem novou knihu.', 'kni', cs)).toBe(false);
+  });
+
+  it('matches a Ukrainian apostrophe word as one token, in any variant', () => {
+    const uk = LANGUAGES.uk;
+    expect(sentenceContainsWord("Я з'їв п'ять яблук.", "п'ять", uk)).toBe(true);
+    // The sentence and the target may spell the apostrophe differently.
+    expect(sentenceContainsWord('Я з’їв п’ять яблук.', "п'ять", uk)).toBe(true);
+    expect(sentenceContainsWord("Я з'їв п'ять яблук.", 'п’ять', uk)).toBe(true);
+    // Neither half of the word is a token of its own any more.
+    expect(sentenceContainsWord("Я з'їв п'ять яблук.", 'ять', uk)).toBe(false);
+    expect(sentenceContainsWord("Я з'їв п'ять яблук.", 'п', uk)).toBe(false);
+    // Hyphenated compounds stay whole, as for ru.
+    expect(sentenceContainsWord('Це будь-який день.', 'будь-який', uk)).toBe(true);
+    // a genuine substring is still rejected
+    expect(sentenceContainsWord('Вона читала книгу.', 'книг', uk)).toBe(false);
+  });
+
+  it('matches polytonic Greek tokens with marks intact', () => {
+    const grc = LANGUAGES.grc;
+    expect(sentenceContainsWord('Ἐν ἀρχῇ ἦν ὁ λόγος.', 'λόγος', grc)).toBe(true);
+    expect(sentenceContainsWord('Ἐν ἀρχῇ ἦν ὁ λόγος.', 'ἀρχῇ', grc)).toBe(true);
+    // the elided κατ᾽ arrives pre-split, so the fragment is addressable
+    expect(sentenceContainsWord('καὶ κατ᾽ αὐτόν ἔρχεται.', 'αὐτόν', grc)).toBe(true);
+    // a genuine substring is still rejected
+    expect(sentenceContainsWord('Ἐν ἀρχῇ ἦν ὁ λόγος.', 'λόγ', grc)).toBe(false);
   });
 });
 

@@ -131,11 +131,13 @@ function post(app: ReturnType<typeof makeApp>, path: string, body: unknown) {
 beforeEach(() => {
   db.prepare("DELETE FROM lessons WHERE userId = 'local'").run();
   db.prepare("DELETE FROM collections WHERE userId = 'local'").run();
+  db.prepare("DELETE FROM collection_groups WHERE id LIKE 'grp-%'").run();
   db.prepare("DELETE FROM billing_subscriptions WHERE userId = 'local'").run();
 });
 afterEach(() => {
   db.prepare("DELETE FROM lessons WHERE userId = 'local'").run();
   db.prepare("DELETE FROM collections WHERE userId = 'local'").run();
+  db.prepare("DELETE FROM collection_groups WHERE id LIKE 'grp-%'").run();
 });
 
 describe('POST /resolve', () => {
@@ -273,6 +275,52 @@ describe('POST / (import)', () => {
     const res = await post(app, '/', { url: VIDEO_URL, languageCode: 'af', kind: 'standard' });
     expect(res.status).toBe(429);
     expect(await res.json()).toMatchObject({ error: 'plan_limit', metric: 'maxLessons' });
+    expect(
+      (
+        db.prepare("SELECT COUNT(*) AS n FROM collections WHERE userId = 'local'").get() as {
+          n: number;
+        }
+      ).n,
+    ).toBe(0);
+  });
+
+  test('puts the imported transcript in the requested group', async () => {
+    db.prepare(
+      'INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId) VALUES (?, ?, 0, ?, ?)',
+    ).run('grp-yt', 'Watch later', '2026-07-15T12:00:00Z', 'local');
+
+    const res = await post(makeApp(), '/', {
+      url: VIDEO_URL,
+      languageCode: 'af',
+      kind: 'standard',
+      groupId: 'grp-yt',
+    });
+
+    expect(res.status).toBe(200);
+    const { collectionId } = await res.json();
+    expect(
+      (
+        db.prepare('SELECT groupId FROM collections WHERE id = ?').get(collectionId) as {
+          groupId: string | null;
+        }
+      ).groupId,
+    ).toBe('grp-yt');
+  });
+
+  test('rejects an import into a group the user does not own', async () => {
+    db.prepare(
+      'INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId) VALUES (?, ?, 0, ?, ?)',
+    ).run('grp-theirs', 'Theirs', '2026-07-15T12:00:00Z', 'someone-else');
+
+    const res = await post(makeApp(), '/', {
+      url: VIDEO_URL,
+      languageCode: 'af',
+      kind: 'standard',
+      groupId: 'grp-theirs',
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_GROUP' });
     expect(
       (
         db.prepare("SELECT COUNT(*) AS n FROM collections WHERE userId = 'local'").get() as {

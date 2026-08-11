@@ -28,6 +28,71 @@ describe('registry pronunciation conformance', () => {
     }
   });
 
+  it('koine greek is audio-none with no voice fields (first no-audio pack)', () => {
+    const grc = LANGUAGES.grc;
+    // Reconstructed/disputed pronunciation — nothing may speak it (#307 §3.2a):
+    // the speaker UI absents itself rather than mis-speaking via a wrong voice.
+    expect(grc.pronunciation.audio).toBe('none');
+    expect(grc.ttsCode).toBeUndefined();
+    expect(grc.ttsVoice).toBeUndefined();
+    expect(grc.script.practiceLeniency).toBe('fold-marks');
+    expect(grc.script.sentenceTerminators).toBe('.;·');
+  });
+
+  // A fold locale changes how every vocab and dictionary key is written, so it
+  // must stay opt-in: one pack declares it, and the dictionary build mirrors
+  // the same value in its tr profile.
+  it('only the Turkish pack declares a case-fold locale', () => {
+    const withLocale = getAllLanguages().filter((lang) => lang.script.caseFoldLocale);
+    expect(withLocale.map((lang) => lang.code)).toEqual(['tr']);
+    expect(LANGUAGES.tr.script.caseFoldLocale).toBe('tr');
+    expect(LANGUAGES.tr.tatoebaCode).toBe('tur');
+    expect(LANGUAGES.tr.script.hasCase).toBe(true);
+  });
+
+  // The apostrophe seam is the same kind of opt-in as the fold locale: it moves
+  // a token boundary and changes how keys are written, so exactly one pack may
+  // declare it, and the dictionary build mirrors the flag in its uk profile.
+  it('only the Ukrainian pack joins and folds the apostrophe', () => {
+    const withJoiners = getAllLanguages().filter((lang) => lang.script.extraJoiners);
+    expect(withJoiners.map((lang) => lang.code)).toEqual(['uk']);
+    const withFold = getAllLanguages().filter((lang) => lang.script.foldApostrophes);
+    expect(withFold.map((lang) => lang.code)).toEqual(['uk']);
+
+    const uk = LANGUAGES.uk;
+    expect(uk.tatoebaCode).toBe('ukr');
+    expect(uk.script.bcp47).toBe('uk');
+    expect(uk.script.hasCase).toBe(true);
+    // Every variant the fold maps must also join, or a curly-apostrophe word
+    // would tokenize as two words and then key as one.
+    expect(uk.script.extraJoiners).toContain("'");
+    for (const variant of ['‘', '’', 'ʼ', 'ʹ', '`', '´']) {
+      expect(uk.script.extraJoiners, `variant ${variant} must join`).toContain(variant);
+    }
+    // Russian is the pack this was confused with — it must be unaffected.
+    expect(LANGUAGES.ru.script.extraJoiners).toBeUndefined();
+    expect(LANGUAGES.ru.script.foldApostrophes).toBeUndefined();
+  });
+
+  // Polish and Czech are the control cases for both opt-in seams: each has
+  // diacritics like tr and an apostrophe like uk, but needs neither flag. If a
+  // later change makes one of them apply by default, this fails.
+  it.each([
+    ['pl', 'pol'],
+    ['cs', 'ces'],
+  ] as const)('%s declares no fold locale and no apostrophe seam', (code, tatoebaCode) => {
+    const pack = LANGUAGES[code];
+    expect(pack.script.caseFoldLocale).toBeUndefined();
+    expect(pack.script.extraJoiners).toBeUndefined();
+    expect(pack.script.foldApostrophes).toBeUndefined();
+    expect(pack.script.extraWordChars).toBeUndefined();
+    expect(pack.script.extraTokenPatterns).toBeUndefined();
+    expect(pack.tatoebaCode).toBe(tatoebaCode);
+    expect(pack.script.bcp47).toBe(code);
+    expect(pack.script.hasCase).toBe(true);
+    expect(pack.script.kind).toBe('alpha-spaced');
+  });
+
   it('esperanto is espeak-voiced with a rule-generated IPA gloss', () => {
     const eo = LANGUAGES.eo;
     expect(eo.pronunciation.audio).toEqual(['espeak']);
