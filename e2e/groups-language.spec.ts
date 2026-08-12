@@ -114,4 +114,48 @@ test.describe("Collection Groups — language-agnostic", () => {
     await expect(page).toHaveURL(new RegExp(`/collection/${collectionId}$`));
     await expect(page.getByRole("heading", { name: "Test DE Openable" })).toBeVisible();
   });
+
+  // Two tabs, one language. A switch in the first tab reloads that tab, so it
+  // refetches under the new language. The second tab kept the library of the
+  // previous language while its own selector already named the new one. Every
+  // card in that stale list pointed outside the active language, so opening one
+  // returned the reader to the library.
+  test("a language switch in one tab moves the library in the other tab", async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const tabOne = await context.newPage();
+    const tabTwo = await context.newPage();
+
+    try {
+      const group = await makeGroup(tabOne, "Test Two Tab");
+      await makeCollection(tabOne, "Test AF Two Tab", "af", group);
+      await makeCollection(tabOne, "Test DE Two Tab", "de", group);
+
+      // Both tabs open the Afrikaans library. SetupGuard copies the account
+      // setting into this browser, so neither tab needs a seeded language.
+      for (const tab of [tabOne, tabTwo]) {
+        await tab.goto("/");
+        await tab.waitForLoadState("networkidle");
+        await expect(tab.getByRole("heading", { name: "Test AF Two Tab" })).toBeVisible();
+      }
+
+      // Switch to German in the first tab only.
+      await tabOne.locator("aside").getByTestId("language-selector").click();
+      await tabOne.getByTestId("language-option-de").first().click();
+      await expect(tabOne.getByRole("heading", { name: "Test DE Two Tab" })).toBeVisible({ timeout: 15000 });
+
+      // The second tab must follow. It used to hold the Afrikaans book, and
+      // opening that book returned it to the library.
+      await expect(tabTwo.getByRole("heading", { name: "Test DE Two Tab" })).toBeVisible({ timeout: 15000 });
+      await expect(tabTwo.getByText("Test AF Two Tab")).toHaveCount(0);
+
+      // The book the second tab now lists opens and stays open.
+      await tabTwo.getByRole("heading", { name: "Test DE Two Tab" }).click();
+      await expect(tabTwo).toHaveURL(/\/collection\//);
+      await expect(tabTwo.getByRole("heading", { name: "Test DE Two Tab" })).toBeVisible();
+    } finally {
+      // Other specs expect the account setting to stay Afrikaans.
+      await tabOne.request.put(apiUrl("/api/settings/targetLanguage"), { data: { value: "af" } });
+      await context.close();
+    }
+  });
 });
