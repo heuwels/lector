@@ -97,4 +97,21 @@ test.describe("Collection Groups — language-agnostic", () => {
     // Empty group still visible.
     await expect(page.getByTestId(`group-${empty}`)).toBeVisible();
   });
+
+  // The library lists collections under the language this browser holds, while
+  // the account's `targetLanguage` setting stays 'af' (global-setup writes it).
+  // A by-id read that omits the `language` param resolves it from that setting
+  // instead, so it used to 404 every German collection: the page opened, the
+  // read failed, and the collection page sent the reader back to the library.
+  test("opens a collection in a language the account setting does not name", async ({ page }) => {
+    const group = await makeGroup(page, "Test Open DE");
+    const collectionId = await makeCollection(page, "Test DE Openable", "de", group);
+
+    await viewLibraryAs(page, "de");
+    await page.getByRole("heading", { name: "Test DE Openable" }).click();
+
+    // The collection page stays open. Before the fix this bounced back to "/".
+    await expect(page).toHaveURL(new RegExp(`/collection/${collectionId}$`));
+    await expect(page.getByRole("heading", { name: "Test DE Openable" })).toBeVisible();
+  });
 });

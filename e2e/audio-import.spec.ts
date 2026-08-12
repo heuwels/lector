@@ -69,13 +69,16 @@ async function uploadAudio(
 }
 
 /** Stub the lesson as transcribed: lesson GET, segments and audio bytes. */
+// Each pattern ends in `*` so it still matches once the client appends its
+// `?language=` param. A glob `*` stops at `/`, so the bare-lesson pattern
+// cannot swallow the /segments and /audio calls.
 async function stubTranscribedLesson(
   page: Page,
   lessonId: string,
   segments: typeof SEGMENTS = SEGMENTS,
 ) {
   const durationMs = segments[segments.length - 1].endMs;
-  await page.route(`**/api/lessons/${lessonId}`, async (route) => {
+  await page.route(`**/api/lessons/${lessonId}*`, async (route) => {
     const response = await route.fetch();
     const lesson = await response.json();
     await route.fulfill({
@@ -90,10 +93,10 @@ async function stubTranscribedLesson(
       },
     });
   });
-  await page.route(`**/api/lessons/${lessonId}/segments`, (route) =>
+  await page.route(`**/api/lessons/${lessonId}/segments*`, (route) =>
     route.fulfill({ json: segments }),
   );
-  await page.route(`**/api/lessons/${lessonId}/audio`, (route) =>
+  await page.route(`**/api/lessons/${lessonId}/audio*`, (route) =>
     route.fulfill({
       status: 200,
       contentType: 'audio/wav',
@@ -148,7 +151,7 @@ test.describe('Audio import (#185)', () => {
   test('reader shows a retryable error screen for a failed transcription', async ({ page }) => {
     const { lessonId } = await uploadAudio(page, 'E2E Oudio Error');
 
-    await page.route(`**/api/lessons/${lessonId}`, async (route) => {
+    await page.route(`**/api/lessons/${lessonId}*`, async (route) => {
       const response = await route.fetch();
       const lesson = await response.json();
       await route.fulfill({
