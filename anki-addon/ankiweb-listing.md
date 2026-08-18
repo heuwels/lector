@@ -16,8 +16,9 @@ Lector Sync
 
 ## Add-on file
 
-`dist/lector-anki-addon-1.3.0.ankiaddon`. Build it with
-`python3 scripts/build-anki-addon.py`.
+`dist/lector-anki-addon-1.3.0-ankiweb.ankiaddon`. Build it with the `--ankiweb`
+flag above. The plain `scripts/build-anki-addon.py` makes the sideload file,
+which has no `conflicts` key. Do not upload that one.
 
 ## Branches (supported Anki versions)
 
@@ -55,6 +56,12 @@ sync, because AnkiDroid and AnkiMobile cannot run add-ons.
 **Hand-made cards.** Add the `lector` tag to your own cards on the Lector note
 types. Tagged cards join the sync, and Lector imports them with their sentence
 and translation. Untagged cards stay private to Anki.
+
+**Deleted cards.** When you delete a Lector card in Anki, Lector marks the word
+as no longer synced. You can then export the word again from the vocab page.
+Lector never makes the card again on its own, so a card that you delete on
+purpose stays deleted. A deletion takes two syncs to register. The first sync
+records your collection and the second reports what is gone.
 
 ### Setup
 
