@@ -30,6 +30,8 @@ from lector.sync import (  # noqa: E402
     ACK_CHUNK,
     REVIEWS_CHUNK,
     chunked,
+    collect_sync_state,
+    collection_crt,
     deck_name_for,
     lector_owned,
     post_acks,
@@ -53,6 +55,9 @@ class FakeNote:
     def note_type(self):
         return self._model
 
+    def cards(self):
+        return [FakeCard(card_id=self.id)]
+
     def __getitem__(self, name):
         if name in self.fields:
             return self.fields[name]
@@ -66,6 +71,31 @@ class FakeCard:
         self.id = card_id
 
 
+class FakeCollection:
+    """Enough of Anki's Collection for the owned-note walk: model lookup, a
+    note search per model name, and the creation timestamp."""
+
+    def __init__(self, notes, crt=1400000000):
+        self.crt = crt
+        self._notes = {note.id: note for note in notes}
+        self.models = types.SimpleNamespace(by_name=self._by_name)
+
+    def _by_name(self, name):
+        present = {note.note_type()["name"] for note in self._notes.values()}
+        return {"name": name} if name in present else None
+
+    def find_notes(self, query):
+        name = query.strip('"').removeprefix("note:")
+        return [
+            note_id
+            for note_id, note in sorted(self._notes.items())
+            if note.note_type()["name"] == name
+        ]
+
+    def get_note(self, note_id):
+        return self._notes[note_id]
+
+
 class FakeApi:
     def __init__(self):
         self.ack_calls = []
@@ -75,9 +105,9 @@ class FakeApi:
         self.ack_calls.append(list(results))
         return {"acked": len(results)}
 
-    def post_reviews(self, reviews, reviews_by_day=None):
-        self.review_calls.append((list(reviews), reviews_by_day))
-        return {"updated": len(reviews), "created": 0}
+    def post_reviews(self, reviews, reviews_by_day=None, inventory=None):
+        self.review_calls.append((list(reviews), reviews_by_day, inventory))
+        return {"updated": len(reviews), "created": 0, "unsynced": 0}
 
 
 class ChunkContract(unittest.TestCase):
@@ -102,10 +132,10 @@ class ChunkContract(unittest.TestCase):
         by_day = [["2026-07-10", 3]]
         totals = post_reviews(api, [{"word": str(i)} for i in range(REVIEWS_CHUNK * 2 + 5)], by_day)
         self.assertEqual(
-            [len(reviews) for reviews, _ in api.review_calls],
+            [len(reviews) for reviews, _, _ in api.review_calls],
             [REVIEWS_CHUNK, REVIEWS_CHUNK, 5],
         )
-        self.assertEqual([day for _, day in api.review_calls], [by_day, None, None])
+        self.assertEqual([day for _, day, _ in api.review_calls], [by_day, None, None])
         self.assertEqual(totals["updated"], REVIEWS_CHUNK * 2 + 5)
 
     def test_post_reviews_with_only_day_counts_posts_once(self):
@@ -113,6 +143,60 @@ class ChunkContract(unittest.TestCase):
         post_reviews(api, [], [["2026-07-10", 3]])
         self.assertEqual(len(api.review_calls), 1)
         self.assertEqual(api.review_calls[0][0], [])
+
+
+class InventoryContract(unittest.TestCase):
+    """The deleted-note reconcile's client half: the server only reconciles when
+    it receives an inventory, so WHEN the addon sends one is the contract."""
+
+    def test_inventory_rides_the_last_chunk_only(self):
+        api = FakeApi()
+        inventory = {"crt": 1400000000, "lectorIds": ["a"], "noteIds": [1]}
+        post_reviews(
+            api,
+            [{"word": str(i)} for i in range(REVIEWS_CHUNK * 2 + 5)],
+            None,
+            inventory,
+        )
+        # Anything earlier would let the server treat a fragment of a chunked
+        # push as the whole collection and unsync the rest.
+        self.assertEqual([inv for _, _, inv in api.review_calls], [None, None, inventory])
+
+    def test_empty_collection_still_reports_its_inventory(self):
+        # The deleted-deck case: nothing left to review, but the server must
+        # still hear that the collection is empty.
+        api = FakeApi()
+        inventory = {"crt": 1400000000, "lectorIds": [], "noteIds": []}
+        post_reviews(api, [], None, inventory)
+        self.assertEqual(len(api.review_calls), 1)
+        self.assertEqual(api.review_calls[0][2], inventory)
+
+    def test_no_inventory_is_sent_when_none_is_given(self):
+        # flush_reviews' path: a partial batch must never carry an inventory.
+        api = FakeApi()
+        post_reviews(api, [{"word": "huis"}], None)
+        self.assertEqual([inv for _, _, inv in api.review_calls], [None])
+
+    def test_collect_sync_state_lists_both_id_kinds_once(self):
+        exported = FakeNote("Lector", {"LectorId": "uuid-1", "Word": "huis"}, note_id=11)
+        hand_made = FakeNote("Lector", {"LectorId": "", "Word": "berge"}, tags=["lector"], note_id=12)
+        foreign = FakeNote("Basic", {"Word": "nope"}, note_id=13)
+        col = FakeCollection([exported, hand_made, foreign])
+
+        reviews, inventory = collect_sync_state(col)
+
+        # Two cards each for the two owned notes; the foreign note is excluded.
+        self.assertEqual(len(reviews), 2)
+        self.assertEqual(inventory["lectorIds"], ["uuid-1"])
+        # The hand-made note has no LectorId, so its note id is what keeps the
+        # entry Lector imported from it out of the deleted set.
+        self.assertEqual(inventory["noteIds"], [11, 12])
+
+    def test_collection_crt_falls_back_to_zero(self):
+        # A zero fingerprint makes the caller send no inventory at all, rather
+        # than one the server cannot tie to a known collection.
+        self.assertEqual(collection_crt(FakeCollection([], crt=1400000000)), 1400000000)
+        self.assertEqual(collection_crt(FakeCollection([], crt=None)), 0)
 
 
 class ReviewPayloadContract(unittest.TestCase):

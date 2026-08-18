@@ -20,11 +20,11 @@ TIMEOUT_SECONDS = 15
 # api/src/lib/anki-protocol.ts; bump the pair together when request/response
 # shapes change. The server bridges older protocols with transformers and
 # refuses ones below its minimum with a 426 whose message we show verbatim.
-PROTOCOL = 2
+PROTOCOL = 3
 
 # Keep in step with manifest.json's human_version (AnkiWeb installs don't
 # ship the manifest, so this constant is the runtime source of truth).
-ADDON_VERSION = "1.2.1"
+ADDON_VERSION = "1.3.0"
 
 
 class LectorApiError(Exception):
@@ -105,8 +105,19 @@ class LectorApi:
     def post_ack(self, results: list) -> dict:
         return self._request("POST", "/api/anki/ack", {"results": results}) or {}
 
-    def post_reviews(self, reviews: list, reviews_by_day: Optional[list] = None) -> dict:
+    def post_reviews(
+        self,
+        reviews: list,
+        reviews_by_day: Optional[list] = None,
+        inventory: Optional[dict] = None,
+    ) -> dict:
+        """Push review states. `inventory` is {crt, lectorIds} and marks this
+        request as the complete picture of the collection, which lets the
+        server mark entries whose Anki note is gone as no longer synced. Send
+        it on the last chunk of a full sync only (protocol 3)."""
         payload: dict = {"reviews": reviews}
         if reviews_by_day is not None:
             payload["reviewsByDay"] = reviews_by_day
+        if inventory is not None:
+            payload["inventory"] = inventory
         return self._request("POST", "/api/anki/reviews", payload) or {}

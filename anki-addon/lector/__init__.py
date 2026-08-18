@@ -13,8 +13,11 @@ A sync round runs each phase on the path Anki expects (#350 review):
                            UI refresh
   3. network ack         — background again; repeat from 1 while batches keep
                            coming (the server pages the queue)
-  4. review-state read   — QueryOp (read-only collection access)
-  5. network push        — background; tooltip on the main thread
+  4. review-state read   — QueryOp (read-only collection access), which also
+                           takes the LectorId inventory of the collection
+  5. network push        — background; tooltip on the main thread. The last
+                           chunk carries the inventory, so the server can mark
+                           entries whose note the user deleted as unsynced.
 
 Answered cards are buffered by the reviewer hook and flushed on a debounced
 background timer — never synchronously in profile_will_close, which must not
@@ -34,7 +37,8 @@ from .api import LectorApi, LectorApiError
 from .sync import (
     MAX_PULL_ROUNDS,
     apply_pending,
-    collect_review_states,
+    collect_sync_state,
+    collection_crt,
     flush_reviews,
     lector_owned,
     post_acks,
@@ -168,14 +172,28 @@ def _apply_batch(api: LectorApi, deck_pattern: str, auto: bool, round_no: int, p
     ).run_in_background()
 
 
+def _read_sync_state(col) -> tuple:
+    """One collection read for phases 4+5: card states, the id inventory, the
+    per-day counts, and the collection fingerprint the inventory is valid for."""
+    reviews, inventory = collect_sync_state(col)
+    return reviews, inventory, reviews_by_day(col), collection_crt(col)
+
+
 def _review_phase(api: LectorApi, auto: bool, pulled_total: int, failed_total: int) -> None:
-    """Phases 4+5: read every owned card's state, then push it."""
+    """Phases 4+5: read every owned card's state, then push it.
+
+    This is a full sync, so the push also carries the inventory that lets the
+    server mark entries whose Anki note is gone as no longer synced. A
+    collection with no readable creation timestamp sends no inventory at all —
+    the server refuses to reconcile against an unidentified collection, and
+    sending one anyway would just be rejected."""
 
     def push(states) -> None:
-        reviews, by_day = states
+        reviews, ids, by_day, crt = states
+        inventory = dict(ids, crt=crt) if crt else None
 
         def send():
-            return post_reviews(api, reviews, by_day)
+            return post_reviews(api, reviews, by_day, inventory)
 
         def on_pushed(future) -> None:
             try:
@@ -187,6 +205,8 @@ def _review_phase(api: LectorApi, auto: bool, pulled_total: int, failed_total: i
             if failed_total:
                 parts.append(f"{failed_total} failed")
             parts.append(f"reviews: {summary['updated']} upgraded, {summary['created']} imported")
+            if summary.get("unsynced"):
+                parts.append(f"{summary['unsynced']} deleted in Anki — re-export in Lector to restore")
             if api.update_available:
                 parts.append("add-on update available")
             _finish("Lector sync — " + ", ".join(parts))
@@ -195,7 +215,7 @@ def _review_phase(api: LectorApi, auto: bool, pulled_total: int, failed_total: i
 
     QueryOp(
         parent=mw,
-        op=lambda col: (collect_review_states(col), reviews_by_day(col)),
+        op=_read_sync_state,
         success=push,
     ).failure(lambda err: _fail(f"Lector sync failed: {err}", auto)).with_progress(
         "Syncing with Lector…"
