@@ -29,6 +29,11 @@ A positive maximum tells Anki the version you tested and Anki then ignores it,
 so a later Anki release still installs the add-on. Only a negative value sets a
 hard maximum. See `compatible()` in `aqt/addons.py`.
 
+For a new release, edit the branch that is already there. Replace its file and
+change its maximum. Do not add a second branch. AnkiWeb refuses an upload with
+the message `overlapping versions` when two branches cover the same Anki
+version, and both branches start at `2.1.50` here.
+
 ## Tags
 
 `vocabulary` `language-learning` `sync` `reading` `cloze`
