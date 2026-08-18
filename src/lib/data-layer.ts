@@ -306,7 +306,10 @@ export async function updateLessonProgress(
   return res.ok;
 }
 
-export async function importEpub(file: File): Promise<{
+export async function importEpub(
+  file: File,
+  groupId?: string | null,
+): Promise<{
   collectionId: string;
   title: string;
   author: string;
@@ -315,6 +318,7 @@ export async function importEpub(file: File): Promise<{
   const formData = new FormData();
   formData.append('file', file);
   formData.append('language', getActiveLanguage());
+  if (groupId) formData.append('groupId', groupId);
   const res = await apiFetch('/api/import/epub', {
     method: 'POST',
     body: formData,
@@ -332,6 +336,7 @@ export async function importEpub(file: File): Promise<{
 export async function importAudio(
   file: File,
   title?: string,
+  groupId?: string | null,
 ): Promise<{
   collectionId: string;
   lessonId: string;
@@ -343,6 +348,7 @@ export async function importAudio(
   formData.append('file', file);
   formData.append('language', getActiveLanguage());
   if (title) formData.append('title', title);
+  if (groupId) formData.append('groupId', groupId);
   const res = await apiFetch('/api/import/audio', {
     method: 'POST',
     body: formData,
@@ -379,9 +385,14 @@ export async function createStandaloneLesson(data: {
   title: string;
   author: string;
   textContent: string;
+  groupId?: string | null;
 }): Promise<{ collectionId: string; lessonId: string }> {
   // Create a collection with a single lesson
-  const collectionId = await createCollection({ title: data.title, author: data.author });
+  const collectionId = await createCollection({
+    title: data.title,
+    author: data.author,
+    groupId: data.groupId ?? null,
+  });
   const res = await apiFetch(`/api/collections/${collectionId}/lessons`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -447,6 +458,7 @@ export async function importYouTubeTranscript(input: {
   url: string;
   languageCode: string;
   kind: 'standard' | 'asr';
+  groupId?: string | null;
 }): Promise<{ collectionId: string; lessonId: string; title: string; segmentCount: number }> {
   const res = await apiFetch('/api/import/youtube', {
     method: 'POST',

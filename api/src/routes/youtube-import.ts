@@ -9,6 +9,7 @@ import { config } from '../lib/config';
 import { extractionBurstLimiter, type ExtractionBurstLimiter } from '../lib/rate-limit';
 import { entitlements, planLimitResponse, type EntitlementsEngine } from '../lib/entitlements';
 import { collectionMetadataBytes, lessonTextBytes } from '../lib/storage-limits';
+import { validateOwnedReference } from '../lib/persisted-input';
 import {
   buildInnerTubePlayerRequest,
   extractCaptionTracks,
@@ -328,6 +329,7 @@ export function makeYoutubeImportRoutes({
       languageCode?: unknown;
       kind?: unknown;
       language?: unknown;
+      groupId?: unknown;
     } | null;
     const url = body?.url;
     const wantLanguageCode = body?.languageCode;
@@ -338,6 +340,19 @@ export function makeYoutubeImportRoutes({
     if (typeof wantLanguageCode !== 'string' || !wantLanguageCode) {
       return c.json({ error: 'languageCode is required', code: 'INVALID_URL' }, 400);
     }
+
+    // A library group can start the import, in which case the new collection
+    // lands in that group instead of Ungrouped.
+    const requestedGroupId = body?.groupId ?? null;
+    const groupIdError = validateOwnedReference(
+      'collection_groups',
+      requestedGroupId,
+      userId,
+      'groupId',
+    );
+    if (groupIdError) return c.json({ error: groupIdError, code: 'INVALID_GROUP' }, 400);
+    // Validation above leaves only an owned id string or null.
+    const groupId = typeof requestedGroupId === 'string' ? requestedGroupId : null;
 
     const outcome = await resolveVideo(fetchPlayer, url.trim());
     if (!outcome.ok) {
@@ -406,8 +421,8 @@ export function makeYoutubeImportRoutes({
     const lessonId = randomUUID();
 
     const insertCollection = db.prepare(`
-      INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO collections (id, title, author, coverUrl, groupId, language, createdAt, lastReadAt, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertLesson = db.prepare(`
       INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, sourceType, sourceMeta, segments, language, createdAt, lastReadAt, userId)
@@ -430,7 +445,7 @@ export function makeYoutubeImportRoutes({
         },
       ],
       () => {
-        insertCollection.run(collectionId, title, author, null, lang, now, now, userId);
+        insertCollection.run(collectionId, title, author, null, groupId, lang, now, now, userId);
         insertLesson.run(
           lessonId,
           collectionId,
