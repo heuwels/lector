@@ -1,0 +1,12 @@
+name: Fetch on-device dictionaries
+description: Restore or download the dictionaries pinned in dict.env
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: data/dictionary-*.db
+        key: dicts-${{ hashFiles('dict.env') }}
+    - name: Fetch on-device dictionaries
+      shell: bash
+      run: bash scripts/ci/fetch-dicts.sh

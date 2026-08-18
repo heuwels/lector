@@ -1,0 +1,156 @@
+name: Build Lector image
+description: Build the production image and tag it by git tree SHA
+inputs:
+  platform:
+    description: linux/amd64 or linux/arm64
+    required: true
+  push:
+    description: Push tree (and optional PR) tags to ghcr
+    required: false
+    default: 'false'
+  load:
+    description: Load the image into the local docker engine
+    required: false
+    default: 'false'
+  local_tag:
+    description: Extra local tag when load is true, or after a push
+    required: false
+    default: ''
+  pr_number:
+    description: If set, also tag ghcr.io/heuwels/lector:pr-<n>-<arch>
+    required: false
+    default: ''
+  git_commit:
+    description: GIT_COMMIT build-arg. Defaults to HEAD.
+    required: false
+    default: ''
+  git_branch:
+    description: GIT_BRANCH build-arg. Defaults to the current branch.
+    required: false
+    default: ''
+  write_registry_cache:
+    description: Also write the registry BuildKit cache
+    required: false
+    default: 'false'
+outputs:
+  tree:
+    description: Git tree SHA of HEAD
+    value: ${{ steps.meta.outputs.tree }}
+  image:
+    description: tree-tagged image reference
+    value: ${{ steps.meta.outputs.image }}
+runs:
+  using: composite
+  steps:
+    - name: Compute image metadata
+      id: meta
+      shell: bash
+      env:
+        PLATFORM: ${{ inputs.platform }}
+        INPUT_COMMIT: ${{ inputs.git_commit }}
+        INPUT_BRANCH: ${{ inputs.git_branch }}
+        PR_NUMBER: ${{ inputs.pr_number }}
+        LOCAL_TAG: ${{ inputs.local_tag }}
+        DO_LOAD: ${{ inputs.load }}
+      run: |
+        set -euo pipefail
+        tree=$(git rev-parse 'HEAD^{tree}')
+        arch="${PLATFORM#linux/}"
+        repo="ghcr.io/heuwels/lector"
+        image="${repo}:tree-${tree}-${arch}"
+        version=$(git describe --tags --always --dirty)
+        commit="${INPUT_COMMIT:-$(git rev-parse HEAD)}"
+        branch="${INPUT_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
+
+        {
+          echo "tree=$tree"
+          echo "arch=$arch"
+          echo "image=$image"
+          echo "version=$version"
+          echo "commit=$commit"
+          echo "branch=$branch"
+        } >>"$GITHUB_OUTPUT"
+
+        {
+          echo "tags<<EOF"
+          echo "$image"
+          if [ -n "$PR_NUMBER" ]; then
+            echo "${repo}:pr-${PR_NUMBER}-${arch}"
+          fi
+          if [ "$DO_LOAD" = "true" ] && [ -n "$LOCAL_TAG" ]; then
+            echo "$LOCAL_TAG"
+          fi
+          echo "EOF"
+        } >>"$GITHUB_OUTPUT"
+
+    - uses: docker/setup-buildx-action@v4
+
+    - name: Log in to ghcr
+      if: ${{ inputs.push == 'true' }}
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
+    - name: Reuse existing tree image
+      id: existing
+      if: ${{ inputs.push == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        if docker buildx imagetools inspect "${{ steps.meta.outputs.image }}" >/dev/null 2>&1; then
+          echo "exists=true" >>"$GITHUB_OUTPUT"
+        else
+          echo "exists=false" >>"$GITHUB_OUTPUT"
+        fi
+
+    - name: Build production image
+      if: ${{ steps.existing.outputs.exists != 'true' && inputs.write_registry_cache != 'true' }}
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        push: ${{ inputs.push == 'true' }}
+        load: ${{ inputs.load == 'true' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        platforms: ${{ inputs.platform }}
+        provenance: false
+        build-args: |
+          APP_VERSION=${{ steps.meta.outputs.version }}
+          GIT_COMMIT=${{ steps.meta.outputs.commit }}
+          GIT_BRANCH=${{ steps.meta.outputs.branch }}
+        cache-from: |
+          type=gha,scope=lector-${{ steps.meta.outputs.arch }}
+          type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }}
+          type=registry,ref=ghcr.io/heuwels/lector:master
+        cache-to: type=gha,scope=lector-${{ steps.meta.outputs.arch }},mode=max,ignore-error=true
+
+    - name: Build production image with registry cache
+      if: ${{ steps.existing.outputs.exists != 'true' && inputs.write_registry_cache == 'true' }}
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        push: ${{ inputs.push == 'true' }}
+        load: ${{ inputs.load == 'true' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        platforms: ${{ inputs.platform }}
+        provenance: false
+        build-args: |
+          APP_VERSION=${{ steps.meta.outputs.version }}
+          GIT_COMMIT=${{ steps.meta.outputs.commit }}
+          GIT_BRANCH=${{ steps.meta.outputs.branch }}
+        cache-from: |
+          type=gha,scope=lector-${{ steps.meta.outputs.arch }}
+          type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }}
+          type=registry,ref=ghcr.io/heuwels/lector:master
+        cache-to: |
+          type=gha,scope=lector-${{ steps.meta.outputs.arch }},mode=max,ignore-error=true
+          type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }},mode=max,ignore-error=true
+
+    - name: Pull image for local use
+      if: ${{ inputs.local_tag != '' && inputs.push == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker pull "${{ steps.meta.outputs.image }}"
+        docker tag "${{ steps.meta.outputs.image }}" "${{ inputs.local_tag }}"

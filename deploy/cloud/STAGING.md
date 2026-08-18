@@ -1,16 +1,24 @@
 # Staging and production promotion
 
-Lector uses trunk-based deployment. A merge to `master` runs CI; only a successful
-CI run builds an immutable `ghcr.io/heuwels/lector:sha-<commit>` image. That exact
-image deploys automatically to staging. Production then waits for Luke's approval
-through the protected GitHub `production` Environment—there is no rebuild between
-staging and production.
+Lector uses trunk-based deployment. A `pull request` must pass every required
+CI check. The e2e-docker job builds the amd64 image and tests it. The
+docker-arm64 job builds the arm64 image. Each image has a tag that names
+its git tree.
+
+When you merge the `pull request` to master, the publish workflow does not
+build those images again. The workflow applies the tag `sha-<commit>` to
+the images. Staging receives that tag. Production waits for approval in
+the GitHub `production` Environment. Production then receives the same
+image.
 
 ```text
+pull request
+  → required CI
+  → e2e-docker pushes tree-<tree>-amd64
+  → docker-arm64 pushes tree-<tree>-arm64
 merge to master
-  → CI
-  → build one immutable multi-arch image
-  → deploy + health-check staging.lector.dev
+  → retag those images as sha-<commit>
+  → deploy and health-check staging.lector.dev
   → manual GitHub production approval
   → promote the same image to app.lector.dev
 ```
