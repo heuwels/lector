@@ -19,6 +19,12 @@ Desktop on your machine and talks **out** to the Lector API:
   any card you hand-make on the Lector note types **and tag `lector`** —
   those are imported into your vocab (with their sentence and translation).
   Untagged notes on a same-named note type are left strictly alone.
+- **Deleted notes**: a full sync reports which notes are still in the
+  collection. When a note is no longer there, Lector marks its entry as not
+  synced. You can then export that entry again from the vocab page. Lector
+  never makes the note again on its own, so a card that you delete on purpose
+  stays deleted. A first sync from a new Anki profile records the profile and
+  changes nothing.
 - **When**: on profile open (configurable), via **Tools → Lector: Sync now**,
   and answered-card states are flushed when the profile closes.
 
@@ -73,7 +79,7 @@ flow back without pressing "Sync with Anki".
 |---|---|
 | `GET /api/anki/pending` | queued cards, render-ready fields |
 | `POST /api/anki/ack` | confirm created/updated notes (flips `pushedToAnki`) |
-| `POST /api/anki/reviews` | structured review states + per-day counts |
+| `POST /api/anki/reviews` | structured review states, per-day counts, and the note inventory of a full sync |
 
 All requests carry `Authorization: Bearer <token>` and are scoped to the
 token's account.

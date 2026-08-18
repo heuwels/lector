@@ -16,7 +16,7 @@ Lector Sync
 
 ## Add-on file
 
-`dist/lector-anki-addon-1.2.1.ankiaddon`. Build it with
+`dist/lector-anki-addon-1.3.0.ankiaddon`. Build it with
 `python3 scripts/build-anki-addon.py`.
 
 ## Branches (supported Anki versions)

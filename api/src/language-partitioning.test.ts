@@ -88,6 +88,15 @@ const ALLOWLIST: { file: string; match: string; why: string; transient?: boolean
     match: 'id IN (${placeholders})',
     why: 'storage preflight for per-tenant ids before the matching composite-key upsert',
   },
+  // One Anki collection holds every language's deck, so the addon's inventory
+  // reports them all in one push. Scoping the deleted-note reconcile to the
+  // active language would leave every other language's entries marked as synced
+  // to notes that no longer exist.
+  {
+    file: 'routes/anki.ts',
+    match: 'v.pushedToAnki = 1 AND v.ankiNoteId IS NOT NULL',
+    why: 'addon inventory spans every language in the collection',
+  },
 ];
 
 const SRC = import.meta.dir; // api/src

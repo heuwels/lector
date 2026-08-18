@@ -411,6 +411,20 @@ function getDb(): Database {
       PRIMARY KEY (userId, vocabId, cardType)
     );
 
+    -- The Anki collection this account's addon last reported from. crt is
+    -- Anki's collection creation timestamp: stable for the life of a profile,
+    -- different in every other profile. The deleted-note reconcile on POST
+    -- /api/anki/reviews only trusts an inventory whose crt matches the stored
+    -- one, so the first sync from a NEW profile (a second profile, a reinstall
+    -- before the AnkiWeb restore has run) records the fingerprint and skips the
+    -- reconcile instead of marking the whole library unsynced on the spot.
+    CREATE TABLE IF NOT EXISTS anki_collections (
+      userId TEXT PRIMARY KEY,
+      crt INTEGER NOT NULL,
+      firstSeenAt TEXT NOT NULL,
+      lastSeenAt TEXT NOT NULL
+    );
+
     -- In-flight classify-worker batch job (#226): when classification runs
     -- through a provider Batch API (50% off), the submitted batch is recorded
     -- here so a restart resumes POLLING instead of resubmitting (and paying
