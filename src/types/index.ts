@@ -144,6 +144,12 @@ export interface ClozeSentence {
   sentence: string;
   clozeWord: string;
   clozeIndex: number;
+  /**
+   * Display tokens `clozeIndex` points into (#289 4.3). Null on every row
+   * seeded from a spaced bank — derive them with `resolveClozeTokens`, never by
+   * re-tokenizing, or a stored index past an apostrophe moves.
+   */
+  tokens?: string[] | null;
   translation: string;
   source: ClozeSource;
   collection: ClozeCollection;

@@ -7,6 +7,9 @@ import {
   splitSentences,
   countWords,
   countTypedWords,
+  clozeTokens,
+  clozeTokenSeparator,
+  resolveClozeTokens,
   type Token,
 } from './index';
 import { foldWord, normalizeText } from '../text';
@@ -245,6 +248,15 @@ const hbo = synth({ bcp47: 'he', direction: 'rtl', hasCase: false });
 const ko = synth({ bcp47: 'ko', kind: 'hangul', hasCase: false });
 const zh = synth({
   bcp47: 'zh-Hans',
+  kind: 'cjk-unspaced',
+  hasCase: false,
+  sentenceTerminators: '。．！？!?',
+});
+// The second `cjk-unspaced` language (#214). It exists here to pin that the
+// engine is script-class generic: the only difference from zh is the bcp47 tag
+// handed to Intl.Segmenter.
+const ja = synth({
+  bcp47: 'ja',
   kind: 'cjk-unspaced',
   hasCase: false,
   sentenceTerminators: '。．！？!?',
@@ -980,5 +992,126 @@ describe('Token invariants', () => {
 
   it('returns [] for the empty string', () => {
     expect(tokenize('', LANGUAGES.af)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cloze display tokens (#289 4.3)
+// ---------------------------------------------------------------------------
+
+describe('clozeTokens', () => {
+  // THE migration guarantee. `clozeIndex` is stored in every user's
+  // clozeSentences table as a whitespace-token index, so a spaced pack must
+  // keep splitting on whitespace forever. Re-deriving through the tokenizer
+  // would move every index past an apostrophe or a hyphen.
+  it.each([
+    ['fr', "L'eau est belle."],
+    ['fr', "Aujourd'hui j'ai vu l'homme."],
+    ['af', "Dit is 'n groot hond."],
+    ['uk', "П'ять котів сплять."],
+    ['grc', 'ἐν ἀρχῇ ἦν ὁ λόγος.'],
+    ['ru', 'Привет, как дела?'],
+    ['tr', 'İyi günler dostum.'],
+  ] as Array<[LanguageCode, string]>)(
+    'keeps the whitespace split for %s so stored indices cannot move',
+    (code, sentence) => {
+      expect(clozeTokens(sentence, LANGUAGES[code])).toEqual(sentence.split(/\s+/));
+    },
+  );
+
+  it('proves the apostrophe case would break under the tokenizer', () => {
+    // Not a behaviour assertion — a guard on the reason the rule exists. If
+    // these two ever agree, the comment above is stale, not the code.
+    const sentence = "L'eau est belle.";
+    expect(clozeTokens(sentence, LANGUAGES.fr)).toHaveLength(3);
+    expect(tokenizeWords(sentence, LANGUAGES.fr)).toHaveLength(4);
+  });
+
+  it('falls back to the whitespace split with no pack', () => {
+    expect(clozeTokens('Die hond is groot.', undefined)).toEqual(['Die', 'hond', 'is', 'groot.']);
+  });
+
+  it('segments unspaced CJK, which has no whitespace to split on', () => {
+    expect(clozeTokens('我喜欢读书。', zh)).toEqual(['我', '喜欢', '读书', '。']);
+  });
+
+  it('segments Japanese through the same generic engine', () => {
+    // The engine dispatches on script.kind and passes script.bcp47 straight to
+    // Intl.Segmenter, so ja needs no code of its own (#214 rides on this).
+    expect(clozeTokens('私は日本語を勉強しています。', ja)).toEqual([
+      '私',
+      'は',
+      '日本語',
+      'を',
+      '勉強',
+      'し',
+      'てい',
+      'ます',
+      '。',
+    ]);
+  });
+
+  it.each([
+    ['fr', "L'eau est belle.", LANGUAGES.fr],
+    ['af', 'Die hond is groot.', LANGUAGES.af],
+    ['zh', '我喜欢读书。', zh],
+    ['ja', '私は日本語を勉強しています。', ja],
+  ] as Array<[string, string, LanguageConfig]>)(
+    'round-trips %s: tokens rejoin to the exact sentence',
+    (_label, sentence, pack) => {
+      const tokens = clozeTokens(sentence, pack);
+      expect(tokens.join(clozeTokenSeparator(sentence, tokens, pack))).toBe(sentence);
+    },
+  );
+});
+
+describe('clozeTokenSeparator', () => {
+  it('infers the empty separator for an unspaced sentence', () => {
+    expect(clozeTokenSeparator('我喜欢读书。', ['我', '喜欢', '读书', '。'])).toBe('');
+  });
+
+  it('infers a space for a spaced sentence', () => {
+    expect(clozeTokenSeparator('Die hond is groot.', ['Die', 'hond', 'is', 'groot.'])).toBe(' ');
+  });
+
+  it('needs no pack to tell the two apart', () => {
+    // The practice reducer has no pack in hand; this is why inference beats a
+    // pack lookup there.
+    expect(clozeTokenSeparator('私は本を読む。', ['私', 'は', '本', 'を', '読む', '。'])).toBe('');
+  });
+
+  it('falls back to the pack when the tokens no longer rebuild the sentence', () => {
+    // The blanked sentence has an edited token, so neither join matches.
+    expect(clozeTokenSeparator('我喜欢读书。', ['我', '_____', '读书', '。'], zh)).toBe('');
+    expect(clozeTokenSeparator('Die hond is groot.', ['Die', '_____'], LANGUAGES.af)).toBe(' ');
+  });
+
+  it('falls back to a space for a single-token array with no pack', () => {
+    expect(clozeTokenSeparator('Hallo', ['Hallo'])).toBe(' ');
+  });
+});
+
+describe('resolveClozeTokens', () => {
+  it('prefers the stored array over any derivation', () => {
+    // A bank that segmented 喜欢读书 as one word stays authoritative, so the
+    // index the builder wrote keeps pointing at the same token.
+    expect(resolveClozeTokens('我喜欢读书。', ['我', '喜欢读书', '。'], zh)).toEqual([
+      '我',
+      '喜欢读书',
+      '。',
+    ]);
+  });
+
+  it('derives when the row stores nothing', () => {
+    expect(resolveClozeTokens('Die hond is groot.', null, LANGUAGES.af)).toEqual([
+      'Die',
+      'hond',
+      'is',
+      'groot.',
+    ]);
+  });
+
+  it('treats an empty stored array as absent', () => {
+    expect(resolveClozeTokens('Die hond.', [], LANGUAGES.af)).toEqual(['Die', 'hond.']);
   });
 });

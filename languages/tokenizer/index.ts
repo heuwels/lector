@@ -301,3 +301,64 @@ export function countTypedWords(text: string, pack?: LanguageConfig): number {
   if (pack?.script.kind === 'cjk-unspaced') return tokenizeWords(text, pack).length;
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
+
+/**
+ * The string that rejoins a cloze token array into its sentence (#289 4.3).
+ *
+ * Inferred from the data, not from a pack: whichever separator reproduces the
+ * sentence is the one the array was split on. That keeps every caller — the
+ * practice reducer especially — free of a pack it has no way to resolve, and it
+ * stays right even for a row whose stored array disagrees with the pack's
+ * current segmenter. `pack` is only a last resort when neither candidate
+ * rebuilds the sentence, which happens when the tokens have been edited (the
+ * blanked sentence) rather than read straight from the row.
+ */
+export function clozeTokenSeparator(
+  sentence: string,
+  tokens: readonly string[],
+  pack?: LanguageConfig,
+): string {
+  if (tokens.length < 2) return pack?.script.kind === 'cjk-unspaced' ? '' : ' ';
+  if (tokens.join('') === sentence) return '';
+  if (tokens.join(' ') === sentence) return ' ';
+  return pack?.script.kind === 'cjk-unspaced' ? '' : ' ';
+}
+
+/**
+ * The display tokens a cloze row's `clozeIndex` points into (#289 4.3).
+ *
+ * This is the FALLBACK for a row that carries no stored `tokens` array, which
+ * is every row seeded before 4.3. It is deliberately NOT `tokenize`:
+ *
+ *   `clozeIndex` was written as a WHITESPACE-token index, and the tokenizer
+ *   does not agree with whitespace on spaced scripts. French `L'eau est belle`
+ *   is 3 whitespace tokens but 4 tokenizer tokens, so re-deriving through the
+ *   tokenizer would move every stored index past an apostrophe onto the wrong
+ *   word. Spaced packs therefore keep `split(/\s+/)` forever — the index is
+ *   preserved by construction, and shipped banks stay byte-identical.
+ *
+ * Only `cjk-unspaced` packs, which have no legacy rows and no whitespace to
+ * split on, derive their tokens from the segmenter.
+ */
+export function clozeTokens(sentence: string, pack?: LanguageConfig): string[] {
+  if (pack?.script.kind === 'cjk-unspaced') {
+    return tokenizeSegmented(sentence, pack.script)
+      .map((token) => token.text)
+      .filter((text) => text.length > 0);
+  }
+  return sentence.split(/\s+/);
+}
+
+/**
+ * The display tokens for a cloze row, preferring the array the bank stored.
+ * A stored array is authoritative: it is what the builder indexed against, so
+ * display and index cannot drift even if the segmenter later changes its mind.
+ */
+export function resolveClozeTokens(
+  sentence: string,
+  stored: string[] | null | undefined,
+  pack?: LanguageConfig,
+): string[] {
+  if (stored && stored.length > 0) return stored;
+  return clozeTokens(sentence, pack);
+}

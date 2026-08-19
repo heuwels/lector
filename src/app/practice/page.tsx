@@ -25,10 +25,12 @@ import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary
 import { splitTrailingPunctuation } from '@/lib/words';
 import { isComposing } from '@/lib/keyboard';
 import {
+  clozeTokenSeparator,
   getLanguageConfig,
   graphemeLength,
   graphemeSplit,
   isValidLanguageCode,
+  resolveClozeTokens,
   tokenizeWords,
 } from '@/lib/languages';
 import {
@@ -1117,7 +1119,13 @@ export default function PracticePage() {
                     'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))]',
                 }[fuzzyStatus];
 
-                const words = current.sentence.sentence.split(/\s+/);
+                // Tokens, not a whitespace split (#289 4.3): unspaced CJK has
+                // no whitespace, and `clozeIndex` indexes this array.
+                const words = resolveClozeTokens(
+                  current.sentence.sentence,
+                  current.sentence.tokens,
+                );
+                const wordGap = clozeTokenSeparator(current.sentence.sentence, words);
                 // The cloze token can carry trailing punctuation (e.g. "huis.") —
                 // render it after the input/blank so it stays visible.
                 const [clozeBase, clozePunct] = splitTrailingPunctuation(
@@ -1155,7 +1163,7 @@ export default function PracticePage() {
                       <p className="text-xl leading-loose font-medium text-foreground">
                         {words.map((word, i) => (
                           <span key={i}>
-                            {i > 0 && ' '}
+                            {i > 0 && wordGap}
                             {i === current.sentence.clozeIndex ? (
                               <>
                                 {practiceMode === 'type' && !mcFallback ? (

@@ -833,3 +833,78 @@ describe('GET /api/cloze/stats — server-side totals (#240)', () => {
     expect(await res.json()).toEqual({ timesCorrect: 0, timesIncorrect: 0 });
   });
 });
+
+describe('cloze display tokens (#289 4.3)', () => {
+  const IDS = ['tok-legacy', 'tok-stored', 'tok-apostrophe'];
+  const clear = () =>
+    db
+      .prepare(`DELETE FROM clozeSentences WHERE id IN (${IDS.map(() => '?').join(',')})`)
+      .run(...IDS);
+  beforeEach(clear);
+  afterEach(clear);
+
+  const insert = (
+    id: string,
+    sentence: string,
+    clozeIndex: number,
+    language: string,
+    tokens: string | null,
+  ) =>
+    db
+      .prepare(
+        `INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, tokens, translation, source, collection, nextReview, language, userId)
+         VALUES (?, ?, 'w', ?, ?, 't', 'tatoeba', 'random', '2026-01-01', ?, 'local')`,
+      )
+      .run(id, sentence, clozeIndex, tokens, language);
+
+  test('a row with no stored tokens resolves to the whitespace split', async () => {
+    // Every row seeded before 4.3 is this case. The array must be exactly what
+    // `clozeIndex` was written against, or the blank moves.
+    insert('tok-legacy', 'Die hond is groot.', 1, 'af', null);
+
+    const res = await app.request('/tok-legacy?language=af');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { tokens: string[]; clozeIndex: number };
+    expect(body.tokens).toEqual(['Die', 'hond', 'is', 'groot.']);
+    expect(body.tokens[body.clozeIndex]).toBe('hond');
+  });
+
+  test('a French apostrophe row keeps its stored index pointing at the same word', async () => {
+    // The regression this design exists to prevent: `L'eau` is 3 whitespace
+    // tokens but 4 tokenizer tokens, so re-deriving would shift index 2.
+    insert('tok-apostrophe', "L'eau est belle.", 2, 'fr', null);
+
+    const res = await app.request('/tok-apostrophe?language=fr');
+    const body = (await res.json()) as { tokens: string[]; clozeIndex: number };
+    expect(body.tokens).toEqual(["L'eau", 'est', 'belle.']);
+    expect(body.tokens[body.clozeIndex]).toBe('belle.');
+  });
+
+  test('a stored array is served verbatim and survives a JSON round trip', async () => {
+    insert('tok-stored', '我喜欢读书。', 1, 'af', JSON.stringify(['我', '喜欢', '读书', '。']));
+
+    const res = await app.request('/tok-stored?language=af');
+    const body = (await res.json()) as { tokens: string[]; clozeIndex: number };
+    expect(body.tokens).toEqual(['我', '喜欢', '读书', '。']);
+    expect(body.tokens[body.clozeIndex]).toBe('喜欢');
+    // Unspaced: the tokens rejoin with no separator.
+    expect(body.tokens.join('')).toBe('我喜欢读书。');
+  });
+
+  test('a malformed stored array degrades to derivation instead of throwing', async () => {
+    insert('tok-stored', 'Die hond is groot.', 0, 'af', '{not json');
+
+    const res = await app.request('/tok-stored?language=af');
+    expect(res.status).toBe(200);
+    expect((await res.json()).tokens).toEqual(['Die', 'hond', 'is', 'groot.']);
+  });
+
+  test('the list route resolves tokens too, not just the by-id route', async () => {
+    insert('tok-legacy', 'Die hond is groot.', 1, 'af', null);
+
+    const res = await app.request('/?language=af');
+    const rows = (await res.json()) as Array<{ id: string; tokens: string[] }>;
+    const row = rows.find((r) => r.id === 'tok-legacy');
+    expect(row?.tokens).toEqual(['Die', 'hond', 'is', 'groot.']);
+  });
+});

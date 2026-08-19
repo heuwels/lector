@@ -599,6 +599,18 @@ function getDb(): Database {
     _db.exec('ALTER TABLE lessons ADD COLUMN transcriptionAttempts INTEGER NOT NULL DEFAULT 0');
   }
 
+  // Cloze display tokens (#289 4.3). `clozeIndex` indexes into this array. A
+  // NULL means "derive it", which for every spaced pack is the whitespace split
+  // the index was written against, so legacy rows keep their exact behaviour;
+  // only unspaced CJK banks ship an explicit array. Guarded ALTER, because
+  // clozeSentences already went through its composite-PK rebuild.
+  const clozeTokenCols = _db.prepare('PRAGMA table_info(clozeSentences)').all() as {
+    name: string;
+  }[];
+  if (clozeTokenCols.length > 0 && !clozeTokenCols.some((c) => c.name === 'tokens')) {
+    _db.exec('ALTER TABLE clozeSentences ADD COLUMN tokens TEXT');
+  }
+
   // Dead table from a long-removed translation-comparison experiment (DEBT-03).
   _db.exec('DROP TABLE IF EXISTS translation_evaluations');
 
@@ -1737,6 +1749,11 @@ export interface ClozeSentenceRow {
   sentence: string;
   clozeWord: string;
   clozeIndex: number;
+  /**
+   * JSON array of the display tokens `clozeIndex` points into (#289 4.3), or
+   * NULL to derive them. Only unspaced CJK banks store one.
+   */
+  tokens: string | null;
   translation: string;
   source: ClozeSource;
   collection: ClozeCollection;
@@ -1750,6 +1767,7 @@ export interface ClozeSentenceRow {
   timesCorrect: number;
   timesIncorrect: number;
   blacklisted: number;
+  language: LanguageCode;
 }
 
 export interface DailyStatsRow {
