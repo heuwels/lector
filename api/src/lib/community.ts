@@ -8,6 +8,9 @@ export const MAX_PENDING_SUBMISSIONS = 3;
 export const MAX_SUBMIT_LESSONS = 1_000;
 export const MAX_SUBMIT_LESSON_BYTES = 1024 * 1024;
 export const MAX_DESCRIPTION_BYTES = 2_000;
+export const MAX_DISPLAY_NAME_BYTES = 80;
+export const CATALOG_LIST_LIMIT = 100;
+export const VOTE_MIN_INTERVAL_MS = 1_000;
 
 export type CommunityStatus = 'pending' | 'published' | 'rejected';
 
@@ -19,6 +22,7 @@ export interface CommunityItemRow {
   description: string | null;
   coverUrl: string | null;
   submitterUserId: string;
+  submitterLabel: string;
   sourceCollectionId: string;
   contentHash: string;
   lessonCount: number;

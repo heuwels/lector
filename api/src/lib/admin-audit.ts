@@ -22,7 +22,8 @@ export type AdminAction =
   | 'impersonate_start'
   | 'impersonate_stop'
   | 'community_approve'
-  | 'community_reject';
+  | 'community_reject'
+  | 'community_clear_votes';
 
 export interface AuditEntry {
   actorUserId: string;

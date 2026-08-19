@@ -8,13 +8,20 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ReadingSweep } from '@/components/Loaders';
 import { useLectorMode } from '@/lib/use-env';
-import { getActiveLanguage, getAllGroups, type CollectionGroup } from '@/lib/data-layer';
+import {
+  getActiveLanguage,
+  getAllGroups,
+  invalidateLibraryCaches,
+  type CollectionGroup,
+} from '@/lib/data-layer';
 import {
   cloneCommunityItem,
+  getCommunityItem,
   listCommunityItems,
   listMyCommunityItems,
   voteCommunityItem,
   type CommunityItem,
+  type CommunityItemDetail,
 } from '@/lib/community';
 import { toast } from 'sonner';
 
@@ -40,31 +47,30 @@ function CommunityInner() {
   const [tab, setTab] = useState<'catalog' | 'mine'>(mineFirst ? 'mine' : 'catalog');
   const [items, setItems] = useState<CommunityItem[]>([]);
   const [mine, setMine] = useState<CommunityItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fetchedSort, setFetchedSort] = useState<string | null>(null);
   const [sort, setSort] = useState<'score' | 'new'>('score');
   const [cloneItem, setCloneItem] = useState<CommunityItem | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const loading = fetchedSort !== sort;
 
   useEffect(() => {
     if (mode !== 'cloud') {
-      setLoading(false);
       return;
     }
     let cancelled = false;
-    setLoading(true);
     const language = getActiveLanguage();
     void Promise.all([listCommunityItems(language, sort), listMyCommunityItems()])
       .then(([catalog, submissions]) => {
         if (cancelled) return;
         setItems(catalog);
         setMine(submissions);
+        setFetchedSort(sort);
       })
       .catch((error) => {
         if (!cancelled && error instanceof Error) {
           toast.error(error.message);
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setFetchedSort(sort);
       });
     return () => {
       cancelled = true;
@@ -160,6 +166,9 @@ function CommunityInner() {
                   <p className="text-sm text-muted-foreground">
                     {item.author} · {item.lessonCount} lessons · {item.submitterLabel}
                   </p>
+                  {item.description && (
+                    <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+                  )}
                   {tab === 'mine' && (
                     <p
                       className="mt-1 text-xs text-muted-foreground"
@@ -169,79 +178,105 @@ function CommunityInner() {
                       {item.rejectReason ? ` · ${item.rejectReason}` : ''}
                     </p>
                   )}
+                  {tab === 'mine' && item.status === 'published' && (
+                    <Button
+                      size="sm"
+                      variant="link"
+                      className="mt-1 h-auto px-0"
+                      onClick={() => setPreviewId(item.id)}
+                      data-testid={`community-open-${item.id}`}
+                    >
+                      Open published item
+                    </Button>
+                  )}
                 </div>
               </div>
               {tab === 'catalog' && (
                 <div className="mt-4 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="icon-sm"
-                      variant={item.viewerVote === 1 ? 'default' : 'outline'}
-                      aria-label="Up-vote"
-                      data-testid={`community-up-${item.id}`}
-                      onClick={async () => {
-                        try {
-                          const next = await voteCommunityItem(
-                            item.id,
-                            item.viewerVote === 1 ? 0 : 1,
-                          );
-                          setItems((prev) =>
-                            prev.map((row) =>
-                              row.id === item.id
-                                ? { ...row, score: next.score, viewerVote: next.viewerVote }
-                                : row,
-                            ),
-                          );
-                        } catch (error) {
-                          if (error instanceof Error && error.message !== 'plan_limit') {
-                            toast.error(error.message);
+                  {item.owned ? (
+                    <span className="text-xs text-muted-foreground">Your submission</span>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon-sm"
+                        variant={item.viewerVote === 1 ? 'default' : 'outline'}
+                        aria-label="Up-vote"
+                        data-testid={`community-up-${item.id}`}
+                        onClick={async () => {
+                          try {
+                            const next = await voteCommunityItem(
+                              item.id,
+                              item.viewerVote === 1 ? 0 : 1,
+                            );
+                            setItems((prev) =>
+                              prev.map((row) =>
+                                row.id === item.id
+                                  ? { ...row, score: next.score, viewerVote: next.viewerVote }
+                                  : row,
+                              ),
+                            );
+                          } catch (error) {
+                            if (error instanceof Error && error.message !== 'plan_limit') {
+                              toast.error(error.message);
+                            }
                           }
-                        }
-                      }}
+                        }}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <span
+                        className="min-w-6 text-center text-sm"
+                        data-testid={`community-score-${item.id}`}
+                      >
+                        {item.score}
+                      </span>
+                      <Button
+                        size="icon-sm"
+                        variant={item.viewerVote === -1 ? 'default' : 'outline'}
+                        aria-label="Down-vote"
+                        data-testid={`community-down-${item.id}`}
+                        onClick={async () => {
+                          try {
+                            const next = await voteCommunityItem(
+                              item.id,
+                              item.viewerVote === -1 ? 0 : -1,
+                            );
+                            setItems((prev) =>
+                              prev.map((row) =>
+                                row.id === item.id
+                                  ? { ...row, score: next.score, viewerVote: next.viewerVote }
+                                  : row,
+                              ),
+                            );
+                          } catch (error) {
+                            if (error instanceof Error && error.message !== 'plan_limit') {
+                              toast.error(error.message);
+                            }
+                          }
+                        }}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPreviewId(item.id)}
+                      data-testid={`community-preview-${item.id}`}
                     >
-                      <ArrowUp className="h-4 w-4" />
+                      Read
                     </Button>
-                    <span
-                      className="min-w-6 text-center text-sm"
-                      data-testid={`community-score-${item.id}`}
-                    >
-                      {item.score}
-                    </span>
                     <Button
-                      size="icon-sm"
-                      variant={item.viewerVote === -1 ? 'default' : 'outline'}
-                      aria-label="Down-vote"
-                      data-testid={`community-down-${item.id}`}
-                      onClick={async () => {
-                        try {
-                          const next = await voteCommunityItem(
-                            item.id,
-                            item.viewerVote === -1 ? 0 : -1,
-                          );
-                          setItems((prev) =>
-                            prev.map((row) =>
-                              row.id === item.id
-                                ? { ...row, score: next.score, viewerVote: next.viewerVote }
-                                : row,
-                            ),
-                          );
-                        } catch (error) {
-                          if (error instanceof Error && error.message !== 'plan_limit') {
-                            toast.error(error.message);
-                          }
-                        }
-                      }}
+                      size="sm"
+                      disabled={item.cloned}
+                      onClick={() => setCloneItem(item)}
+                      data-testid={`community-clone-${item.id}`}
                     >
-                      <ArrowDown className="h-4 w-4" />
+                      {item.cloned ? 'In library' : 'Add to library'}
                     </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => setCloneItem(item)}
-                    data-testid={`community-clone-${item.id}`}
-                  >
-                    {item.cloned ? 'In library' : 'Add to library'}
-                  </Button>
                 </div>
               )}
             </li>
@@ -254,6 +289,7 @@ function CommunityInner() {
           item={cloneItem}
           onClose={() => setCloneItem(null)}
           onCloned={(collectionId) => {
+            invalidateLibraryCaches();
             setItems((prev) =>
               prev.map((row) => (row.id === cloneItem.id ? { ...row, cloned: true } : row)),
             );
@@ -262,6 +298,8 @@ function CommunityInner() {
           }}
         />
       )}
+
+      {previewId && <PreviewDialog id={previewId} onClose={() => setPreviewId(null)} />}
     </main>
   );
 }
@@ -296,6 +334,11 @@ function CloneDialog({
         mode === 'new'
           ? await cloneCommunityItem(item.id, { groupName: newName.trim() || 'Community' })
           : await cloneCommunityItem(item.id, { groupId });
+      if (!result.cloned) {
+        toast.message('This item is already in your library.');
+        onCloned(result.collectionId);
+        return;
+      }
       onCloned(result.collectionId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not clone';
@@ -309,6 +352,9 @@ function CloneDialog({
       <DialogContent className="max-w-md p-6" data-testid="community-clone-dialog">
         <DialogTitle>Add to library</DialogTitle>
         <p className="mt-1 text-sm text-muted-foreground">{item.title}</p>
+        {item.description && (
+          <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>
+        )}
         {groups.length > 0 && (
           <label className="mt-4 block text-sm">
             Group
@@ -350,6 +396,50 @@ function CloneDialog({
           >
             {pending ? 'Add…' : 'Add'}
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PreviewDialog({ id, onClose }: { id: string; onClose: () => void }) {
+  const [detail, setDetail] = useState<CommunityItemDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getCommunityItem(id)
+      .then((next) => {
+        if (!cancelled) setDetail(next);
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(caught instanceof Error ? caught.message : 'Could not load this item');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  return (
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent
+        className="max-h-[80vh] max-w-lg overflow-auto p-6"
+        data-testid="community-preview-dialog"
+      >
+        <DialogTitle>{detail?.title ?? 'Item'}</DialogTitle>
+        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+        {detail?.description && (
+          <p className="mt-2 text-sm text-muted-foreground">{detail.description}</p>
+        )}
+        <div className="mt-4 space-y-3 text-sm">
+          {detail?.lessons.map((lesson) => (
+            <article key={`${id}-${lesson.sortOrder}`}>
+              <h3 className="font-medium">{lesson.title}</h3>
+              <p className="whitespace-pre-wrap text-muted-foreground">{lesson.textContent}</p>
+            </article>
+          ))}
         </div>
       </DialogContent>
     </Dialog>

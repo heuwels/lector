@@ -42,9 +42,10 @@ app.get('/', (c) => {
     groupName: string | null;
     lessonCount: number;
     avgProgress: number;
+    hasAudio: number | null;
   })[];
 
-  return c.json(collections);
+  return c.json(collections.map((row) => ({ ...row, hasAudio: row.hasAudio === 1 })));
 });
 
 // POST /api/collections
@@ -140,14 +141,14 @@ app.get('/:id', (c) => {
   `,
     )
     .get(id, userId, lang) as
-    | (CollectionRow & { lessonCount: number; avgProgress: number })
+    | (CollectionRow & { lessonCount: number; avgProgress: number; hasAudio: number | null })
     | undefined;
 
   if (!collection) {
     return c.json({ error: 'Collection not found' }, 404);
   }
 
-  return c.json(collection);
+  return c.json({ ...collection, hasAudio: collection.hasAudio === 1 });
 });
 
 // PUT /api/collections/:id

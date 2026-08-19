@@ -613,6 +613,7 @@ function getDb(): Database {
       description TEXT,
       coverUrl TEXT,
       submitterUserId TEXT NOT NULL,
+      submitterLabel TEXT NOT NULL DEFAULT 'A learner',
       sourceCollectionId TEXT NOT NULL,
       contentHash TEXT NOT NULL,
       lessonCount INTEGER NOT NULL,
@@ -662,6 +663,21 @@ function getDb(): Database {
   }[];
   if (!collectionColsAfterCommunity.some((col) => col.name === 'sourceCommunityItemId')) {
     _db.exec('ALTER TABLE collections ADD COLUMN sourceCommunityItemId TEXT');
+  }
+  _db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_collections_community_clone ON collections(userId, sourceCommunityItemId, language)',
+  );
+
+  const communityItemCols = _db.prepare('PRAGMA table_info(community_items)').all() as {
+    name: string;
+  }[];
+  if (
+    communityItemCols.length > 0 &&
+    !communityItemCols.some((col) => col.name === 'submitterLabel')
+  ) {
+    _db.exec(
+      "ALTER TABLE community_items ADD COLUMN submitterLabel TEXT NOT NULL DEFAULT 'A learner'",
+    );
   }
 
   ensurePartitionIndexes(_db);

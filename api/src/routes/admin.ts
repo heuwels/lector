@@ -33,7 +33,13 @@ import {
 } from '../lib/billing';
 import { buildUserExport } from '../lib/user-export';
 import { recordAdminAction, recentAuditLog, type AdminAction } from '../lib/admin-audit';
-import { loadCommunityItem, loadCommunityLessons, type CommunityItemRow } from '../lib/community';
+import {
+  CATALOG_LIST_LIMIT,
+  loadCommunityItem,
+  loadCommunityLessons,
+  recalcCommunityScore,
+  type CommunityItemRow,
+} from '../lib/community';
 import { startImpersonation, stopImpersonation, IMPERSONATION_TTL_MS } from '../lib/impersonation';
 import { getAuthEngine } from '../lib/accounts';
 import {
@@ -161,6 +167,18 @@ function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {
   const list = map.get(key);
   if (list) list.push(value);
   else map.set(key, [value]);
+}
+
+/** Empty after erasure. Missing user-table rows mean the account is gone. */
+function submitterPresent(userId: string): boolean {
+  if (!userId) return false;
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = 'user'")
+    .get();
+  if (!table) return true;
+  const any = db.prepare('SELECT 1 AS ok FROM user LIMIT 1').get() as { ok: number } | undefined;
+  if (!any) return true;
+  return !!db.prepare('SELECT 1 AS ok FROM user WHERE id = ?').get(userId);
 }
 
 export function makeAdminRoutes(
@@ -685,11 +703,13 @@ export function makeAdminRoutes(
     const rows =
       status === 'all'
         ? (db
-            .prepare('SELECT * FROM community_items ORDER BY createdAt DESC')
-            .all() as CommunityItemRow[])
+            .prepare('SELECT * FROM community_items ORDER BY createdAt DESC LIMIT ?')
+            .all(CATALOG_LIST_LIMIT) as CommunityItemRow[])
         : (db
-            .prepare('SELECT * FROM community_items WHERE status = ? ORDER BY createdAt DESC')
-            .all(status) as CommunityItemRow[]);
+            .prepare(
+              'SELECT * FROM community_items WHERE status = ? ORDER BY createdAt DESC LIMIT ?',
+            )
+            .all(status, CATALOG_LIST_LIMIT) as CommunityItemRow[]);
     return c.json(rows);
   });
 
@@ -705,9 +725,19 @@ export function makeAdminRoutes(
     const id = c.req.param('id');
     const item = loadCommunityItem(id);
     if (!item) return c.json({ error: 'Not found' }, 404);
-    if (item.status !== 'pending') {
+    if (item.status !== 'pending' && item.status !== 'rejected') {
       return c.json({ error: 'not_pending' }, 400);
     }
+    if (!submitterPresent(item.submitterUserId)) {
+      return c.json({ error: 'submitter_gone' }, 400);
+    }
+    const duplicate = db
+      .prepare(
+        `SELECT id FROM community_items
+         WHERE contentHash = ? AND status = 'published' AND id != ?`,
+      )
+      .get(item.contentHash, id) as { id: string } | undefined;
+    if (duplicate) return c.json({ error: 'duplicate' }, 400);
     const stamp = now().toISOString();
     const reviewer = c.get('userId') as string;
     db.prepare(
@@ -738,6 +768,18 @@ export function makeAdminRoutes(
     const email = resolveEmail(item.submitterUserId);
     audit(c, 'community_reject', item.submitterUserId, email, id);
     return c.json({ id, status: 'rejected', rejectReason: reason });
+  });
+
+  // POST /api/admin/community/:id/clear-votes
+  app.post('/community/:id/clear-votes', (c) => {
+    const id = c.req.param('id');
+    const item = loadCommunityItem(id);
+    if (!item) return c.json({ error: 'Not found' }, 404);
+    db.prepare('DELETE FROM community_votes WHERE itemId = ?').run(id);
+    const score = recalcCommunityScore(id);
+    const email = resolveEmail(item.submitterUserId);
+    audit(c, 'community_clear_votes', item.submitterUserId, email, id);
+    return c.json({ id, score: score.score });
   });
 
   return app;

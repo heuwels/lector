@@ -203,7 +203,7 @@ Return `400` with a stable `error` string.
 |---|---|
 | Not cloud, or no session | same 404 or 401 as admin |
 | Collection is not owned by the caller | `not_found` |
-| Collection id starts with `starter-` | `starter_not_allowed` |
+| Collection id starts with `starter-`, or any lesson id starts with `starter-` | `starter_not_allowed` |
 | Any lesson has stored audio | `audio_not_allowed` |
 | No lessons, or every lesson body is empty | `empty_collection` |
 | A pending item already exists for this source collection | `already_pending` |
@@ -220,15 +220,16 @@ Mount at `/api/community`. Session required. Personal access tokens must not rea
 
 | Method | Path | Who | Result |
 |---|---|---|---|
-| `POST` | `/api/community/items` | owner | Body: `{ collectionId, description?, attested: true }`. Creates a pending item. |
+| `POST` | `/api/community/items` | owner | Body: `{ collectionId, description?, displayName?, attested: true }`. Creates a pending item. |
 | `GET` | `/api/community/items` | session | Query: `language`, `sort=new\|score`. Published items with `score > -5`. |
 | `GET` | `/api/community/items/:id` | session | One published item plus lessons. `404` if pending, rejected, or buried, unless the caller is the submitter or an admin. |
 | `GET` | `/api/community/mine` | owner | The caller submissions, all statuses. |
 | `POST` | `/api/community/items/:id/vote` | session except submitter | Body: `{ value: 1 \| -1 \| 0 }`. `0` deletes the vote. Recalculates score in one transaction. |
 | `POST` | `/api/community/items/:id/clone` | session | Body: `{ groupId }` or `{ groupName }`. Creates a collection and its lessons. Writes `sourceCommunityItemId`. |
 | `GET` | `/api/admin/community` | admin | Query: `status=pending\|published\|rejected\|all`. Default `pending`. |
-| `POST` | `/api/admin/community/:id/approve` | admin | Sets `published`, `publishedAt`, `reviewedAt`, `reviewedByUserId`. |
+| `POST` | `/api/admin/community/:id/approve` | admin | Sets `published` on a pending or rejected item. Refuses a duplicate hash and a missing submitter. |
 | `POST` | `/api/admin/community/:id/reject` | admin | Body: `{ reason }`. Sets `rejected` and `rejectReason`. |
+| `POST` | `/api/admin/community/:id/clear-votes` | admin | Deletes votes for the item and recalculates `score`. |
 
 ### Clone body
 
@@ -245,13 +246,14 @@ New collection ids and lesson ids are `randomUUID()`, same as `POST /api/collect
 
 Do not send lesson bodies on the list. Send:
 
-- `id`, `language`, `title`, `author`, `description`, `coverUrl`
+- `id`, `language`, `title`, `author`, `description`
+- `coverUrl` is always `null`. The catalog does not keep a remote cover URL.
 - `lessonCount`, `wordCount`, `score`, `publishedAt`
 - `submitterLabel`
 - `viewerVote` (`1`, `-1`, or `null`)
 - `cloned`. True if the caller already holds a clone.
 
-When Better Auth has a `name`, `submitterLabel` is that name. If the name is empty, use `A learner`. Never send the email.
+The submit dialog collects a display name. The server freezes that string on the item as `submitterLabel`. The default is `A learner`. Never send the email. Never copy the account name.
 
 ## UI
 
@@ -262,9 +264,10 @@ On the collection menu, add **Submit to community**. Hide the control in self-ho
 The submit dialog has:
 
 1. The title and the lesson count.
-2. An optional description field.
-3. The attestation tick box.
-4. Submit.
+2. A display name. Default: `A learner`.
+3. An optional description field.
+4. The attestation tick box.
+5. Submit.
 
 After submit, show the status `pending`. Link to My submissions on `/community?mine=1`.
 
@@ -275,7 +278,7 @@ Add a nav link **Community** at `/community`, between Library and Practice. Hide
 The page has two views:
 
 - **Catalog.** Filter by the active language. Sort by score or by new. Each card shows title, author, lesson count, score, and vote controls. The primary action is **Add to library**.
-- **My submissions.** Status and reject reason. If the admin published the item, show a link to it.
+- **My submissions.** Status and reject reason. If the admin published the item, show a control that opens the frozen text.
 
 **Add to library** opens a small dialog. The user picks a group they already have, or they type a new group name. Default the new name to `Community`. Confirm clones the item. Then route to `/collection/:id`.
 
@@ -285,7 +288,7 @@ Buried items are absent from the catalog. They remain on My submissions for the 
 
 Add a Community tab on `/admin`. The queue lists items with status `pending` first. The admin can open the full lesson text. Actions are Approve and Reject. Reject asks for a reason.
 
-The same tab can list published and rejected items. The admin can reject a published item. That is the take-down path.
+The same tab can list published and rejected items. The admin can reject a published item. That is the take-down path. Approve also accepts a rejected item, so a bad reject is reversible. The admin can clear votes on a published item.
 
 Do not add a new admin email list. Reuse `LECTOR_ADMIN_EMAILS`.
 
@@ -296,6 +299,20 @@ Do not put catalog tables in a user takeout. The catalog is service data.
 A clone is an ordinary collection. It already rides `collections` in `user-export.ts`. Add `sourceCommunityItemId` to the export row so a restore keeps provenance.
 
 Votes and submissions stay on the server. They are not portable across hosts. Do not add them to `USER_EXPORT_VERSION`.
+
+When an id names a catalog item, keep `sourceCommunityItemId` on restore. Drop any other value. Count the bytes of the column in collection metadata.
+
+## Right to erasure
+
+When a user deletes their account, `purgeTenantData` does this:
+
+- Delete every `community_votes` row for that user. Then recalculate `score` for each affected item.
+- Delete each pending or rejected item for that user, and the `community_lessons` rows for those items.
+- Keep each published snapshot. The submitter attested to share it. Clear `submitterUserId`. Set `submitterLabel` to `A learner`.
+
+The admin must not approve an item whose submitter no longer exists.
+
+`community_votes` is in `ERASURE_TABLES`. `community_items` is not. The function handles that table by status, not by a `userId` column.
 
 ## Tests
 
@@ -313,7 +330,7 @@ Votes and submissions stay on the server. They are not portable across hosts. Do
 - Clone at the collection cap returns `plan_limit`.
 - Self-host: every route returns 404.
 - A Cloud Free-tier account can submit.
-- A token cannot submit, vote, or review.
+- A token cannot submit, vote, or review. The PAT middleware default-deny covers this. The test lives in `api/src/lib/auth.test.ts`.
 
 ### E2E (`e2e/community.spec.ts`)
 
@@ -340,7 +357,7 @@ Run in cloud mode only, same as the admin specs. User A and User B are signed-in
 | Nav | `src/components/NavHeader/constants.ts` |
 | Submit control | collection menu on `src/app/(index)/` and `src/app/collection/[id]/` |
 | Admin tab | `src/app/admin/page.tsx` |
-| Terms | `lector-site` legal page |
+| Terms | `lector-site` legal page. Update it before ship. State that Lector can remove an item at any time. |
 
 ## Risks
 

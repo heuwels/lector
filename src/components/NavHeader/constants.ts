@@ -1,4 +1,4 @@
-import { Clipboard, Pencil, List, Library, ChartBar, Settings } from 'lucide-react';
+import { Clipboard, Pencil, List, Library, ChartBar, Settings, Users } from 'lucide-react';
 
 export const navLinks = [
   { href: '/', label: 'Library' },
@@ -9,6 +9,9 @@ export const navLinks = [
   { href: '/settings', label: 'Settings' },
 ];
 
+/** Cloud-only. Inserted after Library by CommunityNavLink, not this list. */
+export const communityNav = { href: '/community', label: 'Community' };
+
 export const iconMap: Record<string, React.FC<{ size?: number | string }>> = {
   '/': Library,
   '/practice': Clipboard,
@@ -16,4 +19,5 @@ export const iconMap: Record<string, React.FC<{ size?: number | string }>> = {
   '/vocab': List,
   '/stats': ChartBar,
   '/settings': Settings,
+  '/community': Users,
 };

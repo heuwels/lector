@@ -74,6 +74,9 @@ function buildApp(): Hono {
   app.post('/api/dictionary/cache', (c) => c.json({ ok: true }));
   app.post('/api/llm/openai/v1/chat/completions', (c) => c.json({ ok: true }));
   app.get('/api/some-future-route', (c) => c.json({ ok: true }));
+  app.post('/api/community/items', (c) => c.json({ ok: true }));
+  app.post('/api/community/items/x/vote', (c) => c.json({ ok: true }));
+  app.post('/api/admin/community/x/approve', (c) => c.json({ ok: true }));
   return app;
 }
 
@@ -352,6 +355,21 @@ describe('Auth middleware', () => {
       headers: { Authorization: `Bearer ${chatToken}` },
     });
     expect(res.status).toBe(200);
+  });
+
+  test('a token cannot submit, vote, or review community items', async () => {
+    const god = createTestToken(['*']);
+    for (const path of [
+      '/api/community/items',
+      '/api/community/items/x/vote',
+      '/api/admin/community/x/approve',
+    ]) {
+      const res = await app.request(path, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${god}` },
+      });
+      expect({ path, status: res.status }).toEqual({ path, status: 403 });
+    }
   });
 
   test('unmapped resources are default-deny for tokens, untouched for local access (SECURITY-07)', async () => {

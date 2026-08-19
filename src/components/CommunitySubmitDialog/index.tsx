@@ -22,6 +22,7 @@ export default function CommunitySubmitDialog({
 }) {
   const router = useRouter();
   const [description, setDescription] = useState('');
+  const [displayName, setDisplayName] = useState('A learner');
   const [attested, setAttested] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -29,7 +30,10 @@ export default function CommunitySubmitDialog({
     if (!attested) return;
     setPending(true);
     try {
-      await submitCommunityItem(collectionId, true, description);
+      await submitCommunityItem(collectionId, true, {
+        description,
+        displayName,
+      });
       toast.success('Submitted for review.');
       onClose();
       router.push('/community?mine=1');
@@ -48,6 +52,15 @@ export default function CommunitySubmitDialog({
           {title} · {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}
         </DialogDescription>
         <label className="mt-4 block text-sm text-foreground">
+          Display name
+          <input
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            className="mt-1 w-full rounded-md border border-border bg-background p-2 text-sm"
+            data-testid="community-submit-display-name"
+          />
+        </label>
+        <label className="mt-4 block text-sm text-foreground">
           Description (optional)
           <textarea
             value={description}
@@ -65,7 +78,8 @@ export default function CommunitySubmitDialog({
             className="mt-1"
           />
           <span>
-            I have the right to share this text. I did not copy it from a source that forbids share.
+            I have the right to share this text. I did not copy it from a source that forbids a
+            share.
           </span>
         </label>
         <div className="mt-5 flex justify-end gap-2">

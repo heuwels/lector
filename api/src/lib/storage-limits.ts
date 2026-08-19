@@ -28,8 +28,14 @@ export function collectionMetadataBytes(input: {
   title?: unknown;
   author?: unknown;
   coverUrl?: unknown;
+  sourceCommunityItemId?: unknown;
 }): number {
-  return utf8Bytes(input.title) + utf8Bytes(input.author) + utf8Bytes(input.coverUrl);
+  return (
+    utf8Bytes(input.title) +
+    utf8Bytes(input.author) +
+    utf8Bytes(input.coverUrl) +
+    utf8Bytes(input.sourceCommunityItemId)
+  );
 }
 
 export function vocabContentBytes(input: {

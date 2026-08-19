@@ -10,6 +10,7 @@ import {
   parsePlanLimitOverrides,
   setEntitlementsEngineForTests,
 } from '../lib/entitlements';
+import { MAX_DESCRIPTION_BYTES } from '../lib/community';
 import communityDefault from './community';
 
 const ALICE = 'alice-community';
@@ -24,7 +25,7 @@ afterEach(() => {
   restoreEngine = null;
 });
 
-function usePaidEngine(overrides: Record<string, number | null> = {}) {
+function applyPaidEngine(overrides: Record<string, number | null> = {}) {
   restoreEngine?.();
   const defaults = parsePlanLimitOverrides(undefined);
   restoreEngine = setEntitlementsEngineForTests(
@@ -52,7 +53,7 @@ function reset() {
   db.prepare('DELETE FROM lessons').run();
   db.prepare('DELETE FROM collections').run();
   db.prepare('DELETE FROM collection_groups').run();
-  usePaidEngine();
+  applyPaidEngine();
 }
 
 function seedCollection(
@@ -110,7 +111,6 @@ function communityApp(userId: string) {
     makeCommunityRoutes({
       authRequired: true,
       isAdminUser: (id) => id === ADMIN,
-      submitterLabel: (id) => (id === ALICE ? 'Alice' : 'A learner'),
     }),
   );
   return app;
@@ -215,7 +215,9 @@ describe('community library (paid cloud)', () => {
 
   test('approve then list shows the item; reject hides it', async () => {
     seedCollection(ALICE, 'col-1');
-    const created = (await (await submit(ALICE, 'col-1')).json()) as { id: string };
+    const created = (await (await submit(ALICE, 'col-1', { displayName: 'Alice' })).json()) as {
+      id: string;
+    };
     expect((await communityApp(BOB).request('/items?language=es')).status).toBe(200);
     expect(await (await communityApp(BOB).request('/items?language=es')).json()).toEqual([]);
 
@@ -223,10 +225,14 @@ describe('community library (paid cloud)', () => {
     const listed = (await (await communityApp(BOB).request('/items?language=es')).json()) as Array<{
       id: string;
       submitterLabel: string;
+      coverUrl: string | null;
+      owned: boolean;
     }>;
     expect(listed).toHaveLength(1);
     expect(listed[0].id).toBe(created.id);
     expect(listed[0].submitterLabel).toBe('Alice');
+    expect(listed[0].coverUrl).toBeNull();
+    expect(listed[0].owned).toBe(false);
 
     seedCollection(ALICE, 'col-2', { text: 'otro' });
     const second = (await (await submit(ALICE, 'col-2')).json()) as { id: string };
@@ -364,7 +370,7 @@ describe('community library (paid cloud)', () => {
   });
 
   test('clone at the collection cap returns plan_limit', async () => {
-    usePaidEngine({ maxCollections: 0 });
+    applyPaidEngine({ maxCollections: 0 });
     seedCollection(ALICE, 'col-1');
     const { id } = (await (await submit(ALICE, 'col-1')).json()) as { id: string };
     await approve(id);
@@ -397,5 +403,124 @@ describe('community library (cloud accounts, any plan)', () => {
     );
     seedCollection(ALICE, 'col-1');
     expect((await submit(ALICE, 'col-1')).status).toBe(201);
+  });
+});
+
+describe('community library (review coverage)', () => {
+  test('GET /items/:id returns frozen lessons; source edits do not change them', async () => {
+    seedCollection(ALICE, 'col-1');
+    const { id } = (await (await submit(ALICE, 'col-1')).json()) as { id: string };
+    expect((await communityApp(BOB).request(`/items/${id}`)).status).toBe(404);
+    await approve(id);
+    const detail = (await (await communityApp(BOB).request(`/items/${id}`)).json()) as {
+      title: string;
+      lessons: Array<{ textContent: string }>;
+    };
+    expect(detail.title).toBe('Casa');
+    expect(detail.lessons[0].textContent).toBe('Hola casa.');
+    db.prepare('UPDATE lessons SET textContent = ? WHERE id = ?').run('changed', 'col-1-l1');
+    const again = (await (await communityApp(BOB).request(`/items/${id}`)).json()) as {
+      lessons: Array<{ textContent: string }>;
+    };
+    expect(again.lessons[0].textContent).toBe('Hola casa.');
+  });
+
+  test('submit refuses a moved starter lesson and a description above the byte cap', async () => {
+    seedCollection(ALICE, 'mine-1');
+    db.prepare("UPDATE lessons SET id = 'starter-es-l1' WHERE id = 'mine-1-l1'").run();
+    expect((await (await submit(ALICE, 'mine-1')).json()) as { error: string }).toEqual({
+      error: 'starter_not_allowed',
+    });
+    seedCollection(ALICE, 'col-big', { text: 'otro texto' });
+    const huge = await submit(ALICE, 'col-big', {
+      description: 'x'.repeat(MAX_DESCRIPTION_BYTES + 1),
+    });
+    expect(huge.status).toBe(400);
+    expect(await huge.json()).toEqual({ error: 'too_large' });
+  });
+
+  test('clone into an existing group; both group fields returns 400', async () => {
+    seedCollection(ALICE, 'col-1');
+    const { id } = (await (await submit(ALICE, 'col-1')).json()) as { id: string };
+    await approve(id);
+    db.prepare(
+      `INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId)
+       VALUES ('g-bob', 'Shelf', 0, ?, ?)`,
+    ).run(TS, BOB);
+    const both = await communityApp(BOB).request(`/items/${id}/clone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId: 'g-bob', groupName: 'Other' }),
+    });
+    expect(both.status).toBe(400);
+    const ok = await communityApp(BOB).request(`/items/${id}/clone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId: 'g-bob' }),
+    });
+    expect(ok.status).toBe(200);
+    const col = db
+      .prepare('SELECT groupId FROM collections WHERE userId = ? AND sourceCommunityItemId = ?')
+      .get(BOB, id) as { groupId: string };
+    expect(col.groupId).toBe('g-bob');
+  });
+
+  test('approve restores a rejected item and refuses a second copy of the same hash', async () => {
+    seedCollection(ALICE, 'col-1');
+    const first = (await (await submit(ALICE, 'col-1')).json()) as { id: string };
+    expect((await approve(first.id)).status).toBe(200);
+    const publishedApprove = await approve(first.id);
+    expect(publishedApprove.status).toBe(400);
+    expect(await publishedApprove.json()).toEqual({ error: 'not_pending' });
+
+    await adminApp().request(`/community/${first.id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'take down' }),
+    });
+    seedCollection(BOB, 'col-bob', { text: 'Hola casa.' });
+    const second = (await (await submit(BOB, 'col-bob')).json()) as { id: string };
+    expect((await approve(first.id)).status).toBe(200);
+    const dup = await approve(second.id);
+    expect(dup.status).toBe(400);
+    expect(await dup.json()).toEqual({ error: 'duplicate' });
+  });
+
+  test('reject without a reason fails; clear-votes resets score', async () => {
+    seedCollection(ALICE, 'col-1');
+    const { id } = (await (await submit(ALICE, 'col-1')).json()) as { id: string };
+    await approve(id);
+    const noReason = await adminApp().request(`/community/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(noReason.status).toBe(400);
+    await communityApp(BOB).request(`/items/${id}/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: -1 }),
+    });
+    const cleared = await adminApp().request(`/community/${id}/clear-votes`, { method: 'POST' });
+    expect(cleared.status).toBe(200);
+    expect(await cleared.json()).toMatchObject({ id, score: 0 });
+  });
+
+  test('default display name is A learner; coverUrl is not stored', async () => {
+    db.prepare(
+      `INSERT INTO collections (id, title, author, coverUrl, language, createdAt, lastReadAt, userId)
+       VALUES ('col-cover', 'Casa', 'Ada', 'https://evil.example/pixel.png', 'es', ?, ?, ?)`,
+    ).run(TS, TS, ALICE);
+    db.prepare(
+      `INSERT INTO lessons (
+         id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId
+       ) VALUES ('col-cover-l1', 'col-cover', 'Uno', 0, 'Hola casa.', 3, 'es', ?, ?, ?)`,
+    ).run(TS, TS, ALICE);
+    const { id } = (await (await submit(ALICE, 'col-cover')).json()) as { id: string };
+    const row = db
+      .prepare('SELECT submitterLabel, coverUrl FROM community_items WHERE id = ?')
+      .get(id) as { submitterLabel: string; coverUrl: string | null };
+    expect(row.submitterLabel).toBe('A learner');
+    expect(row.coverUrl).toBeNull();
   });
 });

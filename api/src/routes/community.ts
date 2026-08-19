@@ -13,25 +13,29 @@ import {
 } from '../lib/storage-limits';
 import { validateOwnedReference } from '../lib/persisted-input';
 import {
+  BURIED_SCORE,
+  CATALOG_LIST_LIMIT,
   catalogVisible,
   communityContentHash,
   loadCommunityItem,
   loadCommunityLessons,
   MAX_DESCRIPTION_BYTES,
+  MAX_DISPLAY_NAME_BYTES,
   MAX_PENDING_SUBMISSIONS,
   cloudCommunityUserId,
   recalcCommunityScore,
   submissionTooLarge,
+  VOTE_MIN_INTERVAL_MS,
   type CommunityItemRow,
 } from '../lib/community';
 
 export interface CommunityRouteOptions {
   authRequired: boolean;
   isAdminUser: (userId: string) => boolean;
-  submitterLabel: (userId: string) => string;
 }
 
 interface SourceLesson {
+  id: string;
   title: string;
   textContent: string;
   wordCount: number;
@@ -40,19 +44,6 @@ interface SourceLesson {
   sourceMeta: string | null;
   segments: string | null;
   audioPath: string | null;
-}
-
-function defaultSubmitterLabel(userId: string): string {
-  try {
-    const row = db.prepare('SELECT name FROM user WHERE id = ?').get(userId) as
-      | { name: string | null }
-      | undefined;
-    const name = row?.name?.trim();
-    if (name) return name;
-  } catch {
-    // Self-host and unit tests have no Better Auth user table.
-  }
-  return 'A learner';
 }
 
 function viewerVote(userId: string, itemId: string): 1 | -1 | null {
@@ -85,7 +76,7 @@ function cloneId(userId: string, itemId: string, language: string): string | und
 function listPayload(
   item: CommunityItemRow,
   userId: string,
-  label: string,
+  extras: { viewerVote?: 1 | -1 | null; cloned?: boolean } = {},
 ): Record<string, unknown> {
   return {
     id: item.id,
@@ -93,16 +84,17 @@ function listPayload(
     title: item.title,
     author: item.author,
     description: item.description,
-    coverUrl: item.coverUrl,
+    coverUrl: null,
     lessonCount: item.lessonCount,
     wordCount: item.wordCount,
     score: item.score,
     publishedAt: item.publishedAt,
     status: item.status,
     rejectReason: item.rejectReason,
-    submitterLabel: label,
-    viewerVote: viewerVote(userId, item.id),
-    cloned: hasClone(userId, item.id, item.language),
+    submitterLabel: item.submitterLabel || 'A learner',
+    owned: item.submitterUserId === userId,
+    viewerVote: extras.viewerVote ?? null,
+    cloned: extras.cloned ?? false,
   };
 }
 
@@ -131,6 +123,14 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
     }
     if (collectionId.startsWith('starter-')) {
       return c.json({ error: 'starter_not_allowed' }, 400);
+    }
+    let displayName = 'A learner';
+    if (typeof body.displayName === 'string' && body.displayName.trim()) {
+      const trimmed = body.displayName.trim();
+      if (utf8Bytes(trimmed) > MAX_DISPLAY_NAME_BYTES) {
+        return c.json({ error: 'too_large' }, 400);
+      }
+      displayName = trimmed;
     }
     let description: string | null = null;
     if (body.description !== undefined && body.description !== null) {
@@ -162,12 +162,15 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
 
     const lessons = db
       .prepare(
-        `SELECT title, textContent, wordCount, sortOrder, sourceType, sourceMeta, segments, audioPath
+        `SELECT id, title, textContent, wordCount, sortOrder, sourceType, sourceMeta, segments, audioPath
          FROM lessons WHERE userId = ? AND collectionId = ?
          ORDER BY sortOrder, createdAt`,
       )
       .all(userId, collectionId) as SourceLesson[];
 
+    if (lessons.some((lesson) => lesson.id.startsWith('starter-'))) {
+      return c.json({ error: 'starter_not_allowed' }, 400);
+    }
     if (lessons.some((lesson) => lesson.audioPath)) {
       return c.json({ error: 'audio_not_allowed' }, 400);
     }
@@ -215,17 +218,17 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
       db.prepare(
         `INSERT INTO community_items (
            id, language, title, author, description, coverUrl, submitterUserId,
-           sourceCollectionId, contentHash, lessonCount, wordCount, status,
+           submitterLabel, sourceCollectionId, contentHash, lessonCount, wordCount, status,
            attestationAt, createdAt
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
       ).run(
         itemId,
         collection.language,
         collection.title,
         collection.author,
         description,
-        collection.coverUrl,
         userId,
+        displayName,
         collectionId,
         contentHash,
         lessons.length,
@@ -271,11 +274,40 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
       .prepare(
         `SELECT * FROM community_items
          WHERE language = ? AND status = 'published' AND score > ?
-         ORDER BY ${orderSql}`,
+         ORDER BY ${orderSql}
+         LIMIT ?`,
       )
-      .all(language, -5) as CommunityItemRow[];
+      .all(language, BURIED_SCORE, CATALOG_LIST_LIMIT) as CommunityItemRow[];
+    const ids = rows.map((item) => item.id);
+    const clonedIds = new Set(
+      (
+        db
+          .prepare(
+            `SELECT sourceCommunityItemId AS id FROM collections
+             WHERE userId = ? AND language = ? AND sourceCommunityItemId IS NOT NULL`,
+          )
+          .all(userId, language) as { id: string }[]
+      ).map((row) => row.id),
+    );
+    const votes = new Map(
+      ids.length === 0
+        ? []
+        : (
+            db
+              .prepare(
+                `SELECT itemId, value FROM community_votes
+                 WHERE userId = ? AND itemId IN (${ids.map(() => '?').join(',')})`,
+              )
+              .all(userId, ...ids) as { itemId: string; value: number }[]
+          ).map((row) => [row.itemId, row.value as 1 | -1]),
+    );
     return c.json(
-      rows.map((item) => listPayload(item, userId, opts.submitterLabel(item.submitterUserId))),
+      rows.map((item) =>
+        listPayload(item, userId, {
+          viewerVote: votes.get(item.id) ?? null,
+          cloned: clonedIds.has(item.id),
+        }),
+      ),
     );
   });
 
@@ -283,11 +315,11 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
   app.get('/mine', (c) => {
     const userId = caller(c);
     const rows = db
-      .prepare(`SELECT * FROM community_items WHERE submitterUserId = ? ORDER BY createdAt DESC`)
-      .all(userId) as CommunityItemRow[];
-    return c.json(
-      rows.map((item) => listPayload(item, userId, opts.submitterLabel(item.submitterUserId))),
-    );
+      .prepare(
+        `SELECT * FROM community_items WHERE submitterUserId = ? ORDER BY createdAt DESC LIMIT ?`,
+      )
+      .all(userId, CATALOG_LIST_LIMIT) as CommunityItemRow[];
+    return c.json(rows.map((item) => listPayload(item, userId)));
   });
 
   // GET /api/community/items/:id
@@ -301,7 +333,10 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
     }
     const lessons = loadCommunityLessons(item.id);
     return c.json({
-      ...listPayload(item, userId, opts.submitterLabel(item.submitterUserId)),
+      ...listPayload(item, userId, {
+        viewerVote: viewerVote(userId, item.id),
+        cloned: hasClone(userId, item.id, item.language),
+      }),
       lessons: lessons.map((lesson) => ({
         sortOrder: lesson.sortOrder,
         title: lesson.title,
@@ -329,6 +364,17 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
       return c.json({ error: 'value must be 1, -1, or 0' }, 400);
     }
     const now = new Date().toISOString();
+    const existingVote = db
+      .prepare('SELECT 1 AS ok FROM community_votes WHERE userId = ? AND itemId = ?')
+      .get(userId, item.id) as { ok: number } | undefined;
+    if (!existingVote && value !== 0) {
+      const last = db
+        .prepare('SELECT MAX(updatedAt) AS ts FROM community_votes WHERE userId = ?')
+        .get(userId) as { ts: string | null };
+      if (last.ts && Date.now() - Date.parse(last.ts) < VOTE_MIN_INTERVAL_MS) {
+        return c.json({ error: 'vote_rate' }, 429);
+      }
+    }
     db.transaction(() => {
       if (value === 0) {
         db.prepare('DELETE FROM community_votes WHERE userId = ? AND itemId = ?').run(
@@ -356,10 +402,6 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
     const userId = caller(c);
     const item = loadCommunityItem(c.req.param('id'));
     if (!item || !catalogVisible(item)) return c.json({ error: 'Not found' }, 404);
-    const existing = cloneId(userId, item.id, item.language);
-    if (existing) {
-      return c.json({ cloned: false, reason: 'already-cloned', collectionId: existing });
-    }
 
     const body = await c.req.json().catch(() => null);
     const groupId = body?.groupId;
@@ -386,13 +428,17 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
         metric: 'maxLessonTextBytes' as const,
         requested: Math.max(
           0,
-          ...lessons.map((lesson) => lessonTextBytes(lesson.textContent, lesson.title)),
+          ...lessons.map(
+            (lesson) =>
+              lessonTextBytes(lesson.textContent, lesson.title) + utf8Bytes(lesson.segments),
+          ),
         ),
       },
       {
         metric: 'maxLessonTextBytesTotal' as const,
         requested: lessons.reduce(
-          (sum, lesson) => sum + lessonTextBytes(lesson.textContent, lesson.title),
+          (sum, lesson) =>
+            sum + lessonTextBytes(lesson.textContent, lesson.title) + utf8Bytes(lesson.segments),
           0,
         ),
       },
@@ -408,59 +454,77 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
         : []),
     ];
 
-    const verdict = entitlements.reserveCount(userId, checks, () => {
-      let resolvedGroupId = hasGroupId ? groupId : null;
-      if (hasGroupName) {
-        resolvedGroupId = randomUUID();
-        const maxOrder = db
-          .prepare(
-            'SELECT COALESCE(MAX(sortOrder), -1) as maxOrder FROM collection_groups WHERE userId = ?',
-          )
-          .get(userId) as { maxOrder: number };
+    let alreadyClonedId: string | undefined;
+    let verdict: ReturnType<typeof entitlements.reserveCount>;
+    try {
+      verdict = entitlements.reserveCount(userId, checks, () => {
+        const existing = cloneId(userId, item.id, item.language);
+        if (existing) {
+          alreadyClonedId = existing;
+          throw new Error('already-cloned');
+        }
+        let resolvedGroupId = hasGroupId ? groupId : null;
+        if (hasGroupName) {
+          resolvedGroupId = randomUUID();
+          const maxOrder = db
+            .prepare(
+              'SELECT COALESCE(MAX(sortOrder), -1) as maxOrder FROM collection_groups WHERE userId = ?',
+            )
+            .get(userId) as { maxOrder: number };
+          db.prepare(
+            'INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId) VALUES (?, ?, ?, ?, ?)',
+          ).run(resolvedGroupId, groupName.trim(), maxOrder.maxOrder + 1, now, userId);
+        }
         db.prepare(
-          'INSERT INTO collection_groups (id, name, sortOrder, createdAt, userId) VALUES (?, ?, ?, ?, ?)',
-        ).run(resolvedGroupId, groupName.trim(), maxOrder.maxOrder + 1, now, userId);
-      }
-      db.prepare(
-        `INSERT INTO collections (
-           id, title, author, coverUrl, groupId, language, createdAt, lastReadAt, userId, sourceCommunityItemId
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        collectionId,
-        item.title,
-        item.author,
-        item.coverUrl,
-        resolvedGroupId,
-        item.language,
-        now,
-        now,
-        userId,
-        item.id,
-      );
-      const insertLesson = db.prepare(
-        `INSERT INTO lessons (
-           id, collectionId, title, sortOrder, textContent, wordCount, language,
-           sourceType, sourceMeta, segments, createdAt, lastReadAt, userId
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      );
-      lessons.forEach((lesson, index) => {
-        insertLesson.run(
-          lessonIds[index],
+          `INSERT INTO collections (
+             id, title, author, coverUrl, groupId, language, createdAt, lastReadAt, userId, sourceCommunityItemId
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
           collectionId,
-          lesson.title,
-          lesson.sortOrder,
-          lesson.textContent,
-          lesson.wordCount,
+          item.title,
+          item.author,
+          null,
+          resolvedGroupId,
           item.language,
-          lesson.sourceType,
-          lesson.sourceMeta,
-          lesson.segments,
           now,
           now,
           userId,
+          item.id,
         );
+        const insertLesson = db.prepare(
+          `INSERT INTO lessons (
+             id, collectionId, title, sortOrder, textContent, wordCount, language,
+             sourceType, sourceMeta, segments, createdAt, lastReadAt, userId
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        );
+        lessons.forEach((lesson, index) => {
+          insertLesson.run(
+            lessonIds[index],
+            collectionId,
+            lesson.title,
+            lesson.sortOrder,
+            lesson.textContent,
+            lesson.wordCount,
+            item.language,
+            lesson.sourceType,
+            lesson.sourceMeta,
+            lesson.segments,
+            now,
+            now,
+            userId,
+          );
+        });
       });
-    });
+    } catch (error) {
+      if (alreadyClonedId) {
+        return c.json({
+          cloned: false,
+          reason: 'already-cloned',
+          collectionId: alreadyClonedId,
+        });
+      }
+      throw error;
+    }
     if (!verdict.allowed) return planLimitResponse(c, verdict);
 
     return c.json({ cloned: true, collectionId, lessonCount: lessons.length });
@@ -472,5 +536,4 @@ export function makeCommunityRoutes(opts: CommunityRouteOptions) {
 export default makeCommunityRoutes({
   authRequired: config.authRequired,
   isAdminUser: (userId) => isAdmin(userId, adminConfig),
-  submitterLabel: defaultSubmitterLabel,
 });

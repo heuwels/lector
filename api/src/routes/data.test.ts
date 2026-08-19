@@ -1033,3 +1033,52 @@ describe('export/restore — learner profile and onboarding history (#331)', () 
     ).toEqual({ idempotencyKey: 'lookup-1' });
   });
 });
+
+describe('export/restore — community clone provenance', () => {
+  beforeEach(reset);
+  afterEach(reset);
+
+  test('keeps sourceCommunityItemId when the item exists and drops a crafted id', async () => {
+    db.prepare('DELETE FROM community_items').run();
+    db.prepare(
+      `INSERT INTO community_items (
+         id, language, title, author, submitterUserId, submitterLabel, sourceCollectionId,
+         contentHash, lessonCount, wordCount, status, attestationAt, createdAt
+       ) VALUES ('item-real', 'af', 'Casa', 'Ada', 'alice', 'A learner', 'src', 'hash', 1, 3, 'published', ?, ?)`,
+    ).run(TS, TS);
+
+    const keep = await importData({
+      collections: [
+        {
+          id: 'c-clone',
+          title: 'Casa',
+          language: 'af',
+          createdAt: TS,
+          lastReadAt: TS,
+          sourceCommunityItemId: 'item-real',
+        },
+      ],
+    });
+    expect(keep.status).toBe(200);
+    expect(
+      db.prepare("SELECT sourceCommunityItemId FROM collections WHERE id = 'c-clone'").get(),
+    ).toEqual({ sourceCommunityItemId: 'item-real' });
+
+    const drop = await importData({
+      collections: [
+        {
+          id: 'c-fake',
+          title: 'Other',
+          language: 'af',
+          createdAt: TS,
+          lastReadAt: TS,
+          sourceCommunityItemId: 'item-missing',
+        },
+      ],
+    });
+    expect(drop.status).toBe(200);
+    expect(
+      db.prepare("SELECT sourceCommunityItemId FROM collections WHERE id = 'c-fake'").get(),
+    ).toEqual({ sourceCommunityItemId: null });
+  });
+});

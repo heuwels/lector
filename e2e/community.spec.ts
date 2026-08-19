@@ -7,6 +7,8 @@ const EMAILS_FILE = path.join(__dirname, '..', 'tmp', 'e2e-admin-data', 'emails.
 
 test.skip(!!process.env.E2E_EXTERNAL_SERVER, 'no cloud-mode API in the external-server run');
 
+// Shares tmp/e2e-admin-data and operator@e2e.test with admin-cloud.spec.ts.
+// Keep this operator password equal to that file's PASSWORD.
 const ADMIN_EMAIL = 'operator@e2e.test';
 const USER_A = `share-a+${Date.now()}@e2e.test`;
 const USER_B = `share-b+${Date.now()}@e2e.test`;
@@ -63,17 +65,9 @@ async function registerAndSetup(
   await page.getByTestId('register-email').fill(email);
   await page.getByTestId('register-password').fill(password);
   await page.getByTestId('register-submit').click();
-  const checkEmail = page.getByTestId('register-check-email');
-  if (await checkEmail.isVisible().catch(() => false)) {
-    await page.goto(await lastVerifyLink(email));
-    await page.waitForLoadState('networkidle');
-  } else {
-    await page.goto('/login');
-    await page.getByTestId('login-email').fill(email);
-    await page.getByTestId('login-password').fill(password);
-    await page.getByTestId('login-submit').click();
-    await page.waitForURL((url) => url.pathname === '/' || url.pathname === '/setup');
-  }
+  await expect(page.getByTestId('register-check-email')).toBeVisible();
+  await page.goto(await lastVerifyLink(email));
+  await page.waitForLoadState('networkidle');
   const res = await page.request.put(`${ADMIN_API}/api/settings`, {
     data: { targetLanguage: 'es' },
   });
@@ -92,7 +86,7 @@ test.describe.serial('cloud community library', () => {
     const alice = await registerAndSetup(browser, 'Alice', USER_A, PASSWORD);
     const bob = await registerAndSetup(browser, 'Bob', USER_B, PASSWORD);
 
-    await expect(alice.getByTestId('nav-community')).toBeVisible();
+    await expect(alice.getByTestId('nav-community').first()).toBeVisible();
 
     const created = await alice.request.post(`${ADMIN_API}/api/collections`, {
       data: { title: 'La casa', author: 'Ada', language: 'es' },
@@ -117,7 +111,8 @@ test.describe.serial('cloud community library', () => {
     await adminPage.getByTestId('admin-tab-community').click();
     await expect(adminPage.getByTestId('admin-community-queue')).toBeVisible();
     await adminPage.getByRole('button', { name: 'Approve' }).click();
-    await expect(adminPage.getByText('Published')).toBeVisible();
+    await adminPage.getByTestId('admin-community-filter-published').click();
+    await expect(adminPage.getByRole('heading', { name: 'La casa' })).toBeVisible();
 
     await bob.goto('/community');
     await expect(bob.getByText('La casa')).toBeVisible();

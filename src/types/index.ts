@@ -24,8 +24,8 @@ export interface Collection {
   createdAt: string;
   lastReadAt: string;
   sourceCommunityItemId?: string | null;
-  /** 1 when any lesson has stored audio. */
-  hasAudio?: number | boolean;
+  /** True when any lesson has stored audio. */
+  hasAudio?: boolean;
 }
 
 export interface CollectionGroup {

@@ -30,6 +30,11 @@
  *   - classify_batches — a singleton in-flight job row with no userId column;
  *     any (userId, word) tuples inside its `requests` JSON are transient (≤1
  *     row, cleared when the batch completes).
+ *   - community_items / community_lessons — pending and rejected submissions
+ *     are deleted (they are unpublished personal text). A published snapshot
+ *     stays on the instance catalog: the submitter attested to share it. The
+ *     submitterUserId is cleared and the frozen label becomes "A learner".
+ *     Votes from the deleted account are removed and scores are recalculated.
  *
  * A ratchet test (account-deletion.test.ts) asserts every userId-carrying table
  * in a freshly migrated DB is covered here, so a future tenant table cannot
@@ -38,12 +43,14 @@
 import { db } from '../db';
 import { TENANT_TABLES } from './adopt-local-data';
 import { deleteAudioFile } from './audio-files';
+import { recalcCommunityScore } from './community';
 
 export const ERASURE_TABLES = [
   ...TENANT_TABLES,
   'billing_subscriptions',
   'admin_account_flags',
   'twoFactor',
+  'community_votes',
 ] as const;
 
 /**
@@ -93,10 +100,43 @@ export function purgeTenantData(userId: string, email?: string): void {
         ).map((r) => r.paddleCustomerId)
       : [];
 
+    const votedItemIds = present.has('community_votes')
+      ? (
+          db
+            .prepare('SELECT DISTINCT itemId FROM community_votes WHERE userId = ?')
+            .all(userId) as { itemId: string }[]
+        ).map((row) => row.itemId)
+      : [];
+
     for (const table of ERASURE_TABLES) {
       if (!present.has(table)) continue;
       db.prepare(`DELETE FROM ${table} WHERE userId = ?`).run(userId);
     }
+
+    if (present.has('community_items')) {
+      const unpublished = db
+        .prepare(
+          `SELECT id FROM community_items
+           WHERE submitterUserId = ? AND status IN ('pending', 'rejected')`,
+        )
+        .all(userId) as { id: string }[];
+      for (const row of unpublished) {
+        if (present.has('community_lessons')) {
+          db.prepare('DELETE FROM community_lessons WHERE itemId = ?').run(row.id);
+        }
+        if (present.has('community_votes')) {
+          db.prepare('DELETE FROM community_votes WHERE itemId = ?').run(row.id);
+        }
+        db.prepare('DELETE FROM community_items WHERE id = ?').run(row.id);
+      }
+      db.prepare(
+        `UPDATE community_items
+         SET submitterUserId = '', submitterLabel = 'A learner'
+         WHERE submitterUserId = ? AND status = 'published'`,
+      ).run(userId);
+    }
+
+    for (const itemId of votedItemIds) recalcCommunityScore(itemId);
 
     if (present.has('billing_customers')) {
       for (const customerId of customerIds) {
