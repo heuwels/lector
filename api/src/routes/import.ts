@@ -5,6 +5,7 @@ import { db } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { parseEpub, type ParsedEpub } from '../lib/epub-parser';
+import { buildSegmentWords } from '../lib/html-to-markdown';
 import { entitlements, planLimitResponse, type EntitlementsEngine } from '../lib/entitlements';
 import { collectionMetadataBytes, lessonTextBytes } from '../lib/storage-limits';
 import {
@@ -96,8 +97,8 @@ export function makeImportRoutes({
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const insertLesson = db.prepare(`
-          INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, segmentWords, language, createdAt, lastReadAt, userId)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         // Library size (#222): an EPUB adds one collection + all its chapters at
@@ -148,6 +149,7 @@ export function makeImportRoutes({
                 i,
                 chapter.markdown,
                 chapter.wordCount,
+                buildSegmentWords(chapter.markdown, getLanguageConfig(lang)),
                 lang,
                 now,
                 now,

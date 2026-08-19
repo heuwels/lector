@@ -15,7 +15,7 @@
 
 import { Database } from 'bun:sqlite';
 import { db } from '../db';
-import { countWords } from './html-to-markdown';
+import { buildSegmentWords, countWords } from './html-to-markdown';
 import { normalizeText } from './languages';
 import { packForLanguage } from './active-language';
 import {
@@ -162,7 +162,7 @@ export function applyTranscript(
     database
       .prepare(
         `UPDATE lessons
-            SET textContent = ?, wordCount = ?,
+            SET textContent = ?, wordCount = ?, segmentWords = ?,
                 audioDurationMs = COALESCE(audioDurationMs, ?),
                 transcriptionStatus = 'done', transcriptionError = NULL
           WHERE userId = ? AND id = ?`,
@@ -170,6 +170,9 @@ export function applyTranscript(
       .run(
         text,
         countWords(text, packForLanguage(row.language)),
+        // The audio row was inserted with empty textContent, so this is the
+        // first point a transcribed lesson has text to segment (#289 4.2).
+        buildSegmentWords(text, packForLanguage(row.language)),
         result.durationMs ?? null,
         row.userId,
         row.id,

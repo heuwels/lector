@@ -68,6 +68,9 @@ function createOldSchema(db: Database) {
       sourceType TEXT,
       sourceMeta TEXT,
       segments TEXT,
+      -- #289 4.2 segmentation vocabulary, ALTERed on in the same pre-rebuild
+      -- block as the three above, for the same reason.
+      segmentWords TEXT,
       FOREIGN KEY (collectionId) REFERENCES collections(id) ON DELETE CASCADE
     );
     CREATE INDEX idx_lessons_collectionId ON lessons(collectionId);

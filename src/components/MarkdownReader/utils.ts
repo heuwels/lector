@@ -5,25 +5,59 @@ import {
   foldWord,
   type LanguageConfig,
   type Token,
+  type WordSegmentation,
 } from '@/lib/languages';
+
+/**
+ * Read `lessons.segmentWords` (#289 4.2). A malformed value degrades to null
+ * rather than throwing: the reader can always fall back to `Intl.Segmenter`, so
+ * one bad row must not blank the page.
+ */
+export function parseSegmentWords(value: string | null | undefined): string[] | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const words = parsed.filter((item): item is string => typeof item === 'string');
+    return words.length > 0 ? words : null;
+  } catch {
+    return null;
+  }
+}
 
 // Expand a selection to full word boundaries. DOM wrapper around the pure
 // offset-based snapper in languages/tokenizer — per-pack so it follows the
 // active script instead of hardcoded Latin ranges (#289).
-export function snapToWordBoundaries(selection: Selection, pack: LanguageConfig): string {
+export function snapToWordBoundaries(
+  selection: Selection,
+  pack: LanguageConfig,
+  words?: WordSegmentation | null,
+): string {
   const range = selection.getRangeAt(0);
 
   const startContainer = range.startContainer;
   if (startContainer.nodeType === Node.TEXT_NODE) {
     const text = startContainer.textContent || '';
-    const { start } = snapOffsetsToWordBoundaries(text, range.startOffset, range.startOffset, pack);
+    const { start } = snapOffsetsToWordBoundaries(
+      text,
+      range.startOffset,
+      range.startOffset,
+      pack,
+      words,
+    );
     range.setStart(startContainer, start);
   }
 
   const endContainer = range.endContainer;
   if (endContainer.nodeType === Node.TEXT_NODE) {
     const text = endContainer.textContent || '';
-    const { end } = snapOffsetsToWordBoundaries(text, range.endOffset, range.endOffset, pack);
+    const { end } = snapOffsetsToWordBoundaries(
+      text,
+      range.endOffset,
+      range.endOffset,
+      pack,
+      words,
+    );
     range.setEnd(endContainer, end);
   }
 
@@ -40,8 +74,12 @@ export interface TextPart {
  * over the shared per-pack tokenizer (#289) — the word shape lives in
  * languages/tokenizer, not here.
  */
-export function splitWords(text: string, pack: LanguageConfig): TextPart[] {
-  return tokenize(text, pack).map((t: Token) => ({ text: t.text, isWord: t.isWord }));
+export function splitWords(
+  text: string,
+  pack: LanguageConfig,
+  words?: WordSegmentation | null,
+): TextPart[] {
+  return tokenize(text, pack, words).map((t: Token) => ({ text: t.text, isWord: t.isWord }));
 }
 
 /**
@@ -49,20 +87,29 @@ export function splitWords(text: string, pack: LanguageConfig): TextPart[] {
  * string leaf exactly the way the renderer does — including words nested inside
  * inline elements (<strong>/<em>/<a>/…). The resulting order matches the spans
  * produced during rendering, so phrase-highlight indices line up.
+ *
+ * `words` must be the same segmentation the renderer uses, or the collected
+ * order stops matching the rendered spans and phrase highlighting lands on the
+ * wrong words.
  */
-export function collectWords(children: ReactNode, pack: LanguageConfig): string[] {
+export function collectWords(
+  children: ReactNode,
+  pack: LanguageConfig,
+  words?: WordSegmentation | null,
+): string[] {
   if (typeof children === 'string') {
-    return splitWords(children, pack)
+    return splitWords(children, pack, words)
       .filter((p) => p.isWord)
       .map((p) => p.text);
   }
   if (Array.isArray(children)) {
-    return children.flatMap((child) => collectWords(child, pack));
+    return children.flatMap((child) => collectWords(child, pack, words));
   }
   if (isValidElement(children)) {
     return collectWords(
       (children as ReactElement<{ children?: ReactNode }>).props.children,
       pack,
+      words,
     );
   }
   return [];

@@ -10,6 +10,7 @@ import {
   clozeTokens,
   clozeTokenSeparator,
   resolveClozeTokens,
+  makeWordSegmentation,
   type Token,
 } from './index';
 import { foldWord, normalizeText } from '../text';
@@ -1113,5 +1114,112 @@ describe('resolveClozeTokens', () => {
 
   it('treats an empty stored array as absent', () => {
     expect(resolveClozeTokens('Die hond.', [], LANGUAGES.af)).toEqual(['Die', 'hond.']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Word-list segmentation (#289 4.2)
+// ---------------------------------------------------------------------------
+
+describe('makeWordSegmentation', () => {
+  it('returns null for an absent or empty list, so callers get one falsy check', () => {
+    expect(makeWordSegmentation(null)).toBeNull();
+    expect(makeWordSegmentation(undefined)).toBeNull();
+    expect(makeWordSegmentation([])).toBeNull();
+    expect(makeWordSegmentation([''])).toBeNull();
+  });
+
+  it('reports the longest entry, which bounds the match window', () => {
+    const seg = makeWordSegmentation(['我', '喜欢', '读书'])!;
+    expect(seg.maxLength).toBe(2);
+    expect(seg.size).toBe(3);
+    expect(seg.has('喜欢')).toBe(true);
+    expect(seg.has('喜')).toBe(false);
+  });
+
+  it('de-duplicates repeated forms', () => {
+    expect(makeWordSegmentation(['我', '我', '喜欢'])!.size).toBe(2);
+  });
+});
+
+describe('tokenize with a word list', () => {
+  it('prefers the list over Intl.Segmenter, so a server segmenter wins', () => {
+    // ICU splits 读书 as one word; this list deliberately says otherwise, which
+    // is how a jieba/MeCab result overrides the browser's opinion.
+    const seg = makeWordSegmentation(['我', '喜欢读书'])!;
+    expect(tokenizeWords('我喜欢读书。', zh, seg).map((t) => t.text)).toEqual(['我', '喜欢读书']);
+    expect(tokenizeWords('我喜欢读书。', zh).map((t) => t.text)).toEqual(['我', '喜欢', '读书']);
+  });
+
+  it('matches longest-first, not first-fit', () => {
+    const seg = makeWordSegmentation(['日', '日本', '日本語'])!;
+    expect(tokenizeWords('日本語', ja, seg).map((t) => t.text)).toEqual(['日本語']);
+  });
+
+  it('keeps an uncovered character as its own word token, so it stays tappable', () => {
+    const seg = makeWordSegmentation(['喜欢'])!;
+    expect(tokenizeWords('我喜欢書', zh, seg).map((t) => t.text)).toEqual(['我', '喜欢', '書']);
+  });
+
+  it('classifies uncovered punctuation as a gap and merges runs', () => {
+    const seg = makeWordSegmentation(['我', '喜欢'])!;
+    const tokens = tokenize('我喜欢！？', zh, seg);
+    expect(tokens.map((t) => [t.text, t.isWord])).toEqual([
+      ['我', true],
+      ['喜欢', true],
+      ['！？', false],
+    ]);
+  });
+
+  it('never splits an astral character into lone surrogates', () => {
+    // 𠮷 (U+20BB7) is two UTF-16 units. Splitting it would render tofu.
+    const seg = makeWordSegmentation(['喜欢'])!;
+    const tokens = tokenizeWords('𠮷喜欢', zh, seg);
+    expect(tokens.map((t) => t.text)).toEqual(['𠮷', '喜欢']);
+    expect(tokens[0].end - tokens[0].start).toBe(2);
+  });
+
+  it.each([
+    ['我喜欢读书。这本书很好。', ['我', '喜欢读书', '这本书', '很好']],
+    ['私は日本語を勉強します。', ['私', 'は', '日本語', 'を', '勉強']],
+    ['我喜欢COVID-19的论文。', ['我', '喜欢']],
+  ] as Array<[string, string[]]>)(
+    'satisfies the exhaustive-stream contract for %s',
+    (text, words) => {
+      const seg = makeWordSegmentation(words)!;
+      const tokens = tokenize(text, text.includes('私') ? ja : zh, seg);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const token of tokens) {
+        expect(text.slice(token.start, token.end)).toBe(token.text);
+      }
+      let position = 0;
+      for (const token of tokens) {
+        expect(token.start).toBe(position);
+        position = token.end;
+      }
+      expect(position).toBe(text.length);
+    },
+  );
+
+  it('ignores the list for spaced packs, which already have an exact answer', () => {
+    // A stray list must never change a shipped Latin pack's output.
+    const seg = makeWordSegmentation(['Die hond'])!;
+    expect(tokenizeWords('Die hond is groot.', LANGUAGES.af, seg).map((t) => t.text)).toEqual([
+      'Die',
+      'hond',
+      'is',
+      'groot',
+    ]);
+  });
+});
+
+describe('snapToWordBoundaries with a word list', () => {
+  it('snaps to the list boundaries the render used, not ICU boundaries', () => {
+    const text = '我喜欢读书。';
+    const seg = makeWordSegmentation(['我', '喜欢读书'])!;
+    // Tap inside 读 — the list says it belongs to 喜欢读书, ICU would say 读书.
+    const tapAt = text.indexOf('读');
+    expect(snapToWordBoundaries(text, tapAt, tapAt + 1, zh, seg)).toEqual({ start: 1, end: 5 });
+    expect(snapToWordBoundaries(text, tapAt, tapAt + 1, zh)).toEqual({ start: 3, end: 5 });
   });
 });

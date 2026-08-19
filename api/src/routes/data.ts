@@ -5,7 +5,7 @@ import { db } from '../db';
 import { getCurrentUserId } from '../lib/user';
 import { REDACTION_SENTINEL, validateSettingWrite } from '../lib/settings-keys';
 import { buildUserExport, USER_EXPORT_FORMAT, USER_EXPORT_VERSION } from '../lib/user-export';
-import { countWords } from '../lib/html-to-markdown';
+import { buildSegmentWords, countWords } from '../lib/html-to-markdown';
 import { countTypedWords, foldWord, isValidLanguageCode, normalizeText } from '../lib/languages';
 import { packForLanguage } from '../lib/active-language';
 import { createHash, randomUUID } from 'crypto';
@@ -1226,12 +1226,13 @@ app.post(
 
       if (data.lessons?.length) {
         const stmt = db.prepare(`
-      INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, language, createdAt, lastReadAt, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, segmentWords, language, createdAt, lastReadAt, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(userId, id) DO UPDATE SET
         collectionId = excluded.collectionId, title = excluded.title, sortOrder = excluded.sortOrder,
         textContent = excluded.textContent, progress_scrollPosition = excluded.progress_scrollPosition,
         progress_percentComplete = excluded.progress_percentComplete, wordCount = excluded.wordCount,
+        segmentWords = excluded.segmentWords,
         language = excluded.language, createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt
     `);
         for (const l of data.lessons) {
@@ -1245,6 +1246,10 @@ app.post(
             l.progress_scrollPosition || 0,
             l.progress_percentComplete || 0,
             l.wordCount || countWords(textContent, packFor(l.language)),
+            // Derived here, never taken from the envelope: the restoring
+            // instance's segmenter is the authority, and an uploaded list is
+            // unvalidated client input.
+            buildSegmentWords(textContent, packFor(l.language)),
             l.language || 'af',
             l.createdAt || new Date().toISOString(),
             l.lastReadAt || new Date().toISOString(),

@@ -91,7 +91,12 @@ function wordSegmenter(bcp47: string): Intl.Segmenter {
  * offsets. Adjacent non-word segments merge into one gap token, so the stream
  * has the same shape the regex engine produces — one gap between two words.
  */
-function tokenizeSegmented(text: string, script: ScriptConfig): Token[] {
+function tokenizeSegmented(
+  text: string,
+  script: ScriptConfig,
+  words?: WordSegmentation | null,
+): Token[] {
+  if (words) return tokenizeByWordList(text, words);
   const tokens: Token[] = [];
   for (const { segment, index, isWordLike } of wordSegmenter(script.bcp47).segment(text)) {
     const end = index + segment.length;
@@ -106,6 +111,111 @@ function tokenizeSegmented(text: string, script: ScriptConfig): Token[] {
   return tokens;
 }
 
+// ---------------------------------------------------------------------------
+// Word-list segmentation (#289 Phase 4, item 4.2)
+// ---------------------------------------------------------------------------
+// A quality segmenter (jieba, MeCab/UniDic) cannot run in the browser, so its
+// output has to travel with the lesson. It travels as a WORD LIST rather than
+// as token offsets, because the reader never sees the stored text: it renders
+// markdown, and `ReaderArticle.renderChildren` tokenizes each string leaf of
+// the parsed AST. Markdown syntax is consumed by the parser and inline emphasis
+// splits a sentence mid-clause, so offsets into `lessons.textContent` cannot
+// address rendered spans — measured on 我**喜欢**读书。, whose leaves are
+// ["我", "喜欢", "读书。这是", …] and do not rejoin to the source.
+//
+// A word list survives that fragmentation, because longest-match is positional
+// only within the leaf it is given. It is also far smaller: one entry per
+// DISTINCT form rather than one pair per token occurrence.
+
+/** A lesson's segmentation vocabulary, prepared for longest-match. */
+export interface WordSegmentation {
+  has(word: string): boolean;
+  /** Longest entry, in UTF-16 code units — bounds the match window. */
+  maxLength: number;
+  size: number;
+}
+
+/**
+ * Build a segmentation from a stored word list. Returns null for an empty or
+ * absent list so callers can treat "no segmentation" as one falsy check and
+ * fall back to `Intl.Segmenter`.
+ */
+export function makeWordSegmentation(
+  words: readonly string[] | null | undefined,
+): WordSegmentation | null {
+  if (!words || words.length === 0) return null;
+  const set = new Set<string>();
+  let maxLength = 0;
+  for (const word of words) {
+    if (typeof word !== 'string' || word.length === 0) continue;
+    set.add(word);
+    if (word.length > maxLength) maxLength = word.length;
+  }
+  if (set.size === 0) return null;
+  return { has: (word) => set.has(word), maxLength, size: set.size };
+}
+
+/** A character that is part of a word when no list entry covers it. */
+const WORD_CODEPOINT = /[\p{L}\p{N}\p{M}]/u;
+
+/**
+ * Greedy longest-match against the lesson's vocabulary.
+ *
+ * Satisfies the same contract as every other engine here: the stream is
+ * exhaustive, `text` values concatenate back to the source byte-for-byte, and
+ * offsets are exact. A character no entry covers becomes its own single-
+ * character token, word or gap by Unicode category, so an unknown character
+ * stays tappable instead of vanishing.
+ */
+function tokenizeByWordList(text: string, words: WordSegmentation): Token[] {
+  const tokens: Token[] = [];
+
+  const pushWord = (value: string, start: number) => {
+    tokens.push({ text: value, start, end: start + value.length, isWord: true });
+  };
+  const pushGap = (value: string, start: number) => {
+    const previous = tokens[tokens.length - 1];
+    if (previous && !previous.isWord) {
+      previous.text += value;
+      previous.end = start + value.length;
+      return;
+    }
+    tokens.push({ text: value, start, end: start + value.length, isWord: false });
+  };
+
+  let i = 0;
+  while (i < text.length) {
+    // Longest first. The window is bounded by the longest stored entry, so a
+    // pathological list cannot make this quadratic in the text length.
+    const window = Math.min(words.maxLength, text.length - i);
+    let matched = '';
+    for (let length = window; length >= 1; length--) {
+      const candidate = text.slice(i, i + length);
+      if (words.has(candidate)) {
+        matched = candidate;
+        break;
+      }
+    }
+    if (matched) {
+      pushWord(matched, i);
+      i += matched.length;
+      continue;
+    }
+
+    // No entry covers this position. Advance one CODE POINT, not one code
+    // unit, or an astral CJK character (𠮷, U+20BB7) would be split into two
+    // lone surrogates and rendered as tofu.
+    const codePoint = text.codePointAt(i);
+    const width = codePoint !== undefined && codePoint > 0xffff ? 2 : 1;
+    const char = text.slice(i, i + width);
+    if (WORD_CODEPOINT.test(char)) pushWord(char, i);
+    else pushGap(char, i);
+    i += width;
+  }
+
+  return tokens;
+}
+
 /**
  * Expand [start, end) to segmenter token boundaries. The regex engine's
  * character-walk cannot work here: every character of an unspaced run is a
@@ -116,13 +226,22 @@ function snapSegmented(
   start: number,
   end: number,
   script: ScriptConfig,
+  words?: WordSegmentation | null,
 ): { start: number; end: number } {
   let snappedStart = start;
   let snappedEnd = end;
-  for (const { segment, index } of wordSegmenter(script.bcp47).segment(text)) {
-    const segmentEnd = index + segment.length;
-    if (index <= start && start < segmentEnd) snappedStart = index;
-    if (index < end && end <= segmentEnd) snappedEnd = segmentEnd;
+  // Must walk the SAME boundaries the render used, or a tap resolves to a word
+  // the reader never drew: the list and Intl.Segmenter disagree by design.
+  const spans: Iterable<{ index: number; length: number }> = words
+    ? tokenizeByWordList(text, words).map((t) => ({ index: t.start, length: t.text.length }))
+    : [...wordSegmenter(script.bcp47).segment(text)].map((s) => ({
+        index: s.index,
+        length: s.segment.length,
+      }));
+  for (const { index, length } of spans) {
+    const spanEnd = index + length;
+    if (index <= start && start < spanEnd) snappedStart = index;
+    if (index < end && end <= spanEnd) snappedEnd = spanEnd;
   }
   return { start: snappedStart, end: snappedEnd };
 }
@@ -196,9 +315,18 @@ function compile(script: ScriptConfig): CompiledScript {
  *
  * `cjk-unspaced` packs dispatch to the segmenter engine instead of the regex
  * engine; both satisfy the contract above.
+ *
+ * `words` is the lesson's stored segmentation (#289 4.2). When present, an
+ * unspaced pack matches against it instead of calling `Intl.Segmenter`, which
+ * is how a server-side quality segmenter reaches the browser. Spaced packs
+ * ignore it: whitespace is already an exact answer.
  */
-export function tokenize(text: string, pack: LanguageConfig): Token[] {
-  if (pack.script.kind === 'cjk-unspaced') return tokenizeSegmented(text, pack.script);
+export function tokenize(
+  text: string,
+  pack: LanguageConfig,
+  words?: WordSegmentation | null,
+): Token[] {
+  if (pack.script.kind === 'cjk-unspaced') return tokenizeSegmented(text, pack.script, words);
   const { wordPattern } = compile(pack.script);
   const tokens: Token[] = [];
   const re = new RegExp(wordPattern.source, wordPattern.flags); // own lastIndex
@@ -231,8 +359,12 @@ export function tokenize(text: string, pack: LanguageConfig): Token[] {
 }
 
 /** Just the word tokens of `tokenize` (order preserved). */
-export function tokenizeWords(text: string, pack: LanguageConfig): Token[] {
-  return tokenize(text, pack).filter((t) => t.isWord);
+export function tokenizeWords(
+  text: string,
+  pack: LanguageConfig,
+  words?: WordSegmentation | null,
+): Token[] {
+  return tokenize(text, pack, words).filter((t) => t.isWord);
 }
 
 /** Can `ch` (a single character) appear inside a word token for this pack? */
@@ -251,8 +383,11 @@ export function snapToWordBoundaries(
   start: number,
   end: number,
   pack: LanguageConfig,
+  words?: WordSegmentation | null,
 ): { start: number; end: number } {
-  if (pack.script.kind === 'cjk-unspaced') return snapSegmented(text, start, end, pack.script);
+  if (pack.script.kind === 'cjk-unspaced') {
+    return snapSegmented(text, start, end, pack.script, words);
+  }
   const { selectionChar } = compile(pack.script);
   let s = start;
   let e = end;

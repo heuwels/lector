@@ -4,7 +4,7 @@ import { db, CollectionRow, LessonRow } from '../db';
 import { packForLanguage, resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { randomUUID } from 'crypto';
-import { countWords } from '../lib/html-to-markdown';
+import { buildSegmentWords, countWords } from '../lib/html-to-markdown';
 import { normalizeText } from '../lib/languages';
 import { entitlements, planLimitResponse } from '../lib/entitlements';
 import {
@@ -366,8 +366,8 @@ app.post('/:id/lessons', async (c) => {
     () => {
       db.prepare(
         `
-      INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, segmentWords, language, createdAt, lastReadAt, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       ).run(
         id,
@@ -376,6 +376,7 @@ app.post('/:id/lessons', async (c) => {
         nextOrder,
         textContent,
         countWords(textContent, packForLanguage(language)),
+        buildSegmentWords(textContent, packForLanguage(language)),
         language,
         now,
         now,
