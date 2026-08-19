@@ -1208,12 +1208,13 @@ app.post(
 
       if (data.collections?.length) {
         const stmt = db.prepare(`
-      INSERT INTO collections (id, title, author, coverUrl, sortOrder, groupId, language, createdAt, lastReadAt, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO collections (id, title, author, coverUrl, sortOrder, groupId, language, createdAt, lastReadAt, userId, sourceCommunityItemId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(userId, id) DO UPDATE SET
         title = excluded.title, author = excluded.author, coverUrl = excluded.coverUrl,
         sortOrder = excluded.sortOrder, groupId = excluded.groupId, language = excluded.language,
-        createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt
+        createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt,
+        sourceCommunityItemId = excluded.sourceCommunityItemId
     `);
         for (const col of data.collections) {
           stmt.run(
@@ -1227,6 +1228,7 @@ app.post(
             col.createdAt || new Date().toISOString(),
             col.lastReadAt || new Date().toISOString(),
             userId,
+            col.sourceCommunityItemId || null,
           );
           results.collections++;
         }

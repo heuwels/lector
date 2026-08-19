@@ -602,6 +602,68 @@ function getDb(): Database {
   // Dead table from a long-removed translation-comparison experiment (DEBT-03).
   _db.exec('DROP TABLE IF EXISTS translation_evaluations');
 
+  // Community library catalog. Service data, not a tenant table — no userId
+  // on items. Votes are the only per-user rows.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS community_items (
+      id TEXT PRIMARY KEY,
+      language TEXT NOT NULL,
+      title TEXT NOT NULL,
+      author TEXT NOT NULL,
+      description TEXT,
+      coverUrl TEXT,
+      submitterUserId TEXT NOT NULL,
+      sourceCollectionId TEXT NOT NULL,
+      contentHash TEXT NOT NULL,
+      lessonCount INTEGER NOT NULL,
+      wordCount INTEGER NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('pending', 'published', 'rejected')),
+      attestationAt TEXT NOT NULL,
+      rejectReason TEXT,
+      reviewedAt TEXT,
+      reviewedByUserId TEXT,
+      upVoteCount INTEGER NOT NULL DEFAULT 0,
+      downVoteCount INTEGER NOT NULL DEFAULT 0,
+      score INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      publishedAt TEXT
+    );
+    CREATE TABLE IF NOT EXISTS community_lessons (
+      itemId TEXT NOT NULL,
+      sortOrder INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      textContent TEXT NOT NULL,
+      wordCount INTEGER NOT NULL,
+      sourceType TEXT,
+      sourceMeta TEXT,
+      segments TEXT,
+      PRIMARY KEY (itemId, sortOrder),
+      FOREIGN KEY (itemId) REFERENCES community_items(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS community_votes (
+      userId TEXT NOT NULL,
+      itemId TEXT NOT NULL,
+      value INTEGER NOT NULL CHECK (value IN (-1, 1)),
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      PRIMARY KEY (userId, itemId),
+      FOREIGN KEY (itemId) REFERENCES community_items(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_community_items_catalog
+      ON community_items(language, status, score, publishedAt);
+    CREATE INDEX IF NOT EXISTS idx_community_items_queue
+      ON community_items(status, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_community_items_submitter
+      ON community_items(submitterUserId, createdAt);
+  `);
+
+  const collectionColsAfterCommunity = _db.prepare('PRAGMA table_info(collections)').all() as {
+    name: string;
+  }[];
+  if (!collectionColsAfterCommunity.some((col) => col.name === 'sourceCommunityItemId')) {
+    _db.exec('ALTER TABLE collections ADD COLUMN sourceCommunityItemId TEXT');
+  }
+
   ensurePartitionIndexes(_db);
 
   // Runs every boot (idempotent, write-free when clean); after the schema
@@ -1624,6 +1686,7 @@ export interface CollectionRow {
   sortOrder: number;
   createdAt: string;
   lastReadAt: string;
+  sourceCommunityItemId: string | null;
 }
 
 export interface CollectionGroupRow {

@@ -33,6 +33,7 @@ import {
 } from '../lib/billing';
 import { buildUserExport } from '../lib/user-export';
 import { recordAdminAction, recentAuditLog, type AdminAction } from '../lib/admin-audit';
+import { loadCommunityItem, loadCommunityLessons, type CommunityItemRow } from '../lib/community';
 import { startImpersonation, stopImpersonation, IMPERSONATION_TTL_MS } from '../lib/impersonation';
 import { getAuthEngine } from '../lib/accounts';
 import {
@@ -675,6 +676,69 @@ export function makeAdminRoutes(
 
   // GET /api/admin/audit — the operator action trail, newest first.
   app.get('/audit', (c) => c.json({ entries: recentAuditLog(100) }));
+
+  // GET /api/admin/community — moderation queue.
+  app.get('/community', (c) => {
+    const status = c.req.query('status') || 'pending';
+    const allowed = new Set(['pending', 'published', 'rejected', 'all']);
+    if (!allowed.has(status)) return c.json({ error: 'Invalid status' }, 400);
+    const rows =
+      status === 'all'
+        ? (db
+            .prepare('SELECT * FROM community_items ORDER BY createdAt DESC')
+            .all() as CommunityItemRow[])
+        : (db
+            .prepare('SELECT * FROM community_items WHERE status = ? ORDER BY createdAt DESC')
+            .all(status) as CommunityItemRow[]);
+    return c.json(rows);
+  });
+
+  // GET /api/admin/community/:id — snapshot with lessons.
+  app.get('/community/:id', (c) => {
+    const item = loadCommunityItem(c.req.param('id'));
+    if (!item) return c.json({ error: 'Not found' }, 404);
+    return c.json({ ...item, lessons: loadCommunityLessons(item.id) });
+  });
+
+  // POST /api/admin/community/:id/approve
+  app.post('/community/:id/approve', (c) => {
+    const id = c.req.param('id');
+    const item = loadCommunityItem(id);
+    if (!item) return c.json({ error: 'Not found' }, 404);
+    if (item.status !== 'pending') {
+      return c.json({ error: 'not_pending' }, 400);
+    }
+    const stamp = now().toISOString();
+    const reviewer = c.get('userId') as string;
+    db.prepare(
+      `UPDATE community_items
+       SET status = 'published', publishedAt = ?, reviewedAt = ?, reviewedByUserId = ?, rejectReason = NULL
+       WHERE id = ?`,
+    ).run(stamp, stamp, reviewer, id);
+    const email = resolveEmail(item.submitterUserId);
+    audit(c, 'community_approve', item.submitterUserId, email, id);
+    return c.json({ id, status: 'published' });
+  });
+
+  // POST /api/admin/community/:id/reject
+  app.post('/community/:id/reject', async (c) => {
+    const id = c.req.param('id');
+    const item = loadCommunityItem(id);
+    if (!item) return c.json({ error: 'Not found' }, 404);
+    const body = await c.req.json().catch(() => null);
+    const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
+    if (!reason) return c.json({ error: 'reason is required' }, 400);
+    const stamp = now().toISOString();
+    const reviewer = c.get('userId') as string;
+    db.prepare(
+      `UPDATE community_items
+       SET status = 'rejected', reviewedAt = ?, reviewedByUserId = ?, rejectReason = ?
+       WHERE id = ?`,
+    ).run(stamp, reviewer, reason, id);
+    const email = resolveEmail(item.submitterUserId);
+    audit(c, 'community_reject', item.submitterUserId, email, id);
+    return c.json({ id, status: 'rejected', rejectReason: reason });
+  });
 
   return app;
 }

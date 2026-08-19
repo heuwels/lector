@@ -20,7 +20,9 @@ export type AdminAction =
   | 'paddle_resync'
   | 'export'
   | 'impersonate_start'
-  | 'impersonate_stop';
+  | 'impersonate_stop'
+  | 'community_approve'
+  | 'community_reject';
 
 export interface AuditEntry {
   actorUserId: string;

@@ -35,6 +35,7 @@ import impersonation from './routes/impersonation';
 import byok from './routes/byok';
 import onboarding from './routes/onboarding';
 import learnerEvents from './routes/learner-events';
+import community from './routes/community';
 import { authMiddleware } from './lib/auth';
 import { sessionMiddleware } from './lib/session';
 import { assertBillingBootable, billingConfig, billingMiddleware } from './lib/billing';
@@ -215,6 +216,7 @@ app.route('/api/impersonation', impersonation);
 app.route('/api/byok', byok);
 app.route('/api/onboarding', onboarding);
 app.route('/api/learner-events', learnerEvents);
+app.route('/api/community', community);
 
 // Capture unhandled errors to Sentry/GlitchTip. Deliberate HTTP errors
 // (e.g. the identity seam's fail-closed 401, lib/user.ts) pass through with

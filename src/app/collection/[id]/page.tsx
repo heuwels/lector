@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Share2 } from 'lucide-react';
 import LessonFormModal from '@/components/LessonFormModal';
 import { ReadingSweep } from '@/components/Loaders';
 import {
@@ -42,10 +42,14 @@ import SortableLessonRow from '../components/SortableLessonRow';
 import CollectionFormModal, { type CollectionFormData } from '../components/CollectionFormModal';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import CommunitySubmitDialog from '@/components/CommunitySubmitDialog';
+import { useLectorMode } from '@/lib/use-env';
 
 export default function CollectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const mode = useLectorMode();
+  const [submitOpen, setSubmitOpen] = useState(false);
   const [collection, setCollection] = useState<Collection | null>(null);
   const [lessons, setLessons] = useState<LessonSummary[]>([]);
   const [groups, setGroups] = useState<CollectionGroup[]>([]);
@@ -262,6 +266,17 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
           >
             <Pencil className="h-4 w-4" />
           </Button>
+          {mode === 'cloud' && !id.startsWith('starter-') && !collection.hasAudio && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSubmitOpen(true)}
+              data-testid="community-submit"
+            >
+              <Share2 className="h-4 w-4" />
+              Submit to community
+            </Button>
+          )}
         </div>
         <p className="mt-1 text-muted-foreground">
           {collection.author} &middot; {lessons.length}{' '}
@@ -362,6 +377,13 @@ export default function CollectionPage({ params }: { params: Promise<{ id: strin
           setEditingInitial(null);
         }}
         onSave={handleEditLesson}
+      />
+      <CommunitySubmitDialog
+        open={submitOpen}
+        onClose={() => setSubmitOpen(false)}
+        collectionId={id}
+        title={collection.title}
+        lessonCount={lessons.length}
       />
     </main>
   );

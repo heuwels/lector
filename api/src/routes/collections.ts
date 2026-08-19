@@ -28,7 +28,8 @@ app.get('/', (c) => {
     .prepare(
       `
     SELECT c.*, g.name as groupName, COUNT(l.id) as lessonCount,
-      COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
+      COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress,
+      MAX(CASE WHEN l.audioPath IS NOT NULL AND l.audioPath != '' THEN 1 ELSE 0 END) as hasAudio
     FROM collections c
     LEFT JOIN collection_groups g ON g.id = c.groupId AND g.userId = c.userId
     LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language AND l.userId = c.userId
@@ -130,7 +131,8 @@ app.get('/:id', (c) => {
     .prepare(
       `
     SELECT c.*, COUNT(l.id) as lessonCount,
-      COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
+      COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress,
+      MAX(CASE WHEN l.audioPath IS NOT NULL AND l.audioPath != '' THEN 1 ELSE 0 END) as hasAudio
     FROM collections c
     LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language AND l.userId = c.userId
     WHERE c.id = ? AND c.userId = ? AND c.language = ?

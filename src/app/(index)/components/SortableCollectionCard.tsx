@@ -3,6 +3,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import CollectionCard from '@/components/CollectionCard';
 import { type Collection } from '@/lib/data-layer';
+import LibraryCommunitySubmit from './LibraryCommunitySubmit';
 
 export default function SortableCollectionCard({ collection }: { collection: Collection }) {
   const {
@@ -28,6 +29,7 @@ export default function SortableCollectionCard({ collection }: { collection: Col
       className={`group relative ${isDragging ? 'opacity-60' : ''}`}
     >
       <CollectionCard collection={collection} />
+      <LibraryCommunitySubmit collection={collection} />
       <button
         ref={setActivatorNodeRef}
         {...attributes}

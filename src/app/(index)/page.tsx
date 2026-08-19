@@ -8,6 +8,7 @@ import AddCollectionTile from './components/AddCollectionTile';
 import EmptyState from './components/EmptyState';
 import GroupMenu from './components/GroupMenu';
 import SortableCollectionCard from './components/SortableCollectionCard';
+import LibraryCommunitySubmit from './components/LibraryCommunitySubmit';
 import CollectionCard from '@/components/CollectionCard';
 import ImportDropdown from '@/components/ImportDropdown';
 import WebImportModal from '@/components/WebImportModal';
@@ -637,7 +638,10 @@ export default function Home() {
                   )}
                   <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                     {ungrouped.map((collection) => (
-                      <CollectionCard key={collection.id} collection={collection} />
+                      <div key={collection.id} className="relative">
+                        <CollectionCard collection={collection} />
+                        <LibraryCommunitySubmit collection={collection} />
+                      </div>
                     ))}
                   </div>
                 </div>
