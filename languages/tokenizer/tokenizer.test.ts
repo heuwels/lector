@@ -36,11 +36,12 @@ function legacyWords(text: string): string[] {
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
 // the contract for exactly those packs. Languages added after #289 get their
-// own goldens below instead — ru, grc and uk because the oracle can't see their
-// scripts, and tr because the oracle applies the Afrikaans 'n alternative to
-// every language, which mis-splits a Turkish suffixed proper noun
-// (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to the af pack.
-const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>, string[]> = {
+// own goldens below instead — ru, grc, uk and zh because the oracle can't see
+// their scripts (zh doubly so: it has no whitespace, so the oracle returns the
+// whole paragraph), and tr because the oracle applies the Afrikaans 'n
+// alternative to every language, which mis-splits a Turkish suffixed proper
+// noun (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to the af pack.
+const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh'>, string[]> = {
   af: [
     'Hallo, hoe gaan dit met jou?',
     '’n Man loop in die straat. Sy sê: „Dit is ’n mooi dag!“',
@@ -119,7 +120,7 @@ const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>, string[]
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
   for (const [code, texts] of Object.entries(CORPUS) as [
-    Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>,
+    Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh'>,
     string[],
   ][]) {
     const pack = LANGUAGES[code];

@@ -65,11 +65,16 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
   tr: [
     'How does vowel harmony decide which suffix I use?',
     'In what order do suffixes stack on a word like "evlerimizden"?',
-    'What\'s the difference between the -di and -miş past tenses?',
+    "What's the difference between the -di and -miş past tenses?",
   ],
   uk: [
     'How does the Ukrainian case system work, including the vocative?',
     'When does a word take an apostrophe, as in "п\'ять" and "з\'їзд"?',
     'What\'s the difference between perfective and imperfective verbs like "зробити" vs "робити"?',
+  ],
+  zh: [
+    'How do measure words work, and when do I use 个 vs a specific one?',
+    'What is the difference between 了 as an aspect marker and as a sentence-final particle?',
+    'When do I use 的, 得 and 地?',
   ],
 };
