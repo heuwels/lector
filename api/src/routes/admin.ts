@@ -33,6 +33,13 @@ import {
 } from '../lib/billing';
 import { buildUserExport } from '../lib/user-export';
 import { recordAdminAction, recentAuditLog, type AdminAction } from '../lib/admin-audit';
+import {
+  CATALOG_LIST_LIMIT,
+  loadCommunityItem,
+  loadCommunityLessons,
+  recalcCommunityScore,
+  type CommunityItemRow,
+} from '../lib/community';
 import { startImpersonation, stopImpersonation, IMPERSONATION_TTL_MS } from '../lib/impersonation';
 import { getAuthEngine } from '../lib/accounts';
 import {
@@ -160,6 +167,18 @@ function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {
   const list = map.get(key);
   if (list) list.push(value);
   else map.set(key, [value]);
+}
+
+/** Empty after erasure. Missing user-table rows mean the account is gone. */
+function submitterPresent(userId: string): boolean {
+  if (!userId) return false;
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = 'user'")
+    .get();
+  if (!table) return true;
+  const any = db.prepare('SELECT 1 AS ok FROM user LIMIT 1').get() as { ok: number } | undefined;
+  if (!any) return true;
+  return !!db.prepare('SELECT 1 AS ok FROM user WHERE id = ?').get(userId);
 }
 
 export function makeAdminRoutes(
@@ -675,6 +694,93 @@ export function makeAdminRoutes(
 
   // GET /api/admin/audit — the operator action trail, newest first.
   app.get('/audit', (c) => c.json({ entries: recentAuditLog(100) }));
+
+  // GET /api/admin/community — moderation queue.
+  app.get('/community', (c) => {
+    const status = c.req.query('status') || 'pending';
+    const allowed = new Set(['pending', 'published', 'rejected', 'all']);
+    if (!allowed.has(status)) return c.json({ error: 'Invalid status' }, 400);
+    const rows =
+      status === 'all'
+        ? (db
+            .prepare('SELECT * FROM community_items ORDER BY createdAt DESC LIMIT ?')
+            .all(CATALOG_LIST_LIMIT) as CommunityItemRow[])
+        : (db
+            .prepare(
+              'SELECT * FROM community_items WHERE status = ? ORDER BY createdAt DESC LIMIT ?',
+            )
+            .all(status, CATALOG_LIST_LIMIT) as CommunityItemRow[]);
+    return c.json(rows);
+  });
+
+  // GET /api/admin/community/:id — snapshot with lessons.
+  app.get('/community/:id', (c) => {
+    const item = loadCommunityItem(c.req.param('id'));
+    if (!item) return c.json({ error: 'Not found' }, 404);
+    return c.json({ ...item, lessons: loadCommunityLessons(item.id) });
+  });
+
+  // POST /api/admin/community/:id/approve
+  app.post('/community/:id/approve', (c) => {
+    const id = c.req.param('id');
+    const item = loadCommunityItem(id);
+    if (!item) return c.json({ error: 'Not found' }, 404);
+    if (item.status !== 'pending' && item.status !== 'rejected') {
+      return c.json({ error: 'not_pending' }, 400);
+    }
+    if (!submitterPresent(item.submitterUserId)) {
+      return c.json({ error: 'submitter_gone' }, 400);
+    }
+    const duplicate = db
+      .prepare(
+        `SELECT id FROM community_items
+         WHERE contentHash = ? AND status = 'published' AND id != ?`,
+      )
+      .get(item.contentHash, id) as { id: string } | undefined;
+    if (duplicate) return c.json({ error: 'duplicate' }, 400);
+    const stamp = now().toISOString();
+    const reviewer = c.get('userId') as string;
+    db.prepare(
+      `UPDATE community_items
+       SET status = 'published', publishedAt = ?, reviewedAt = ?, reviewedByUserId = ?, rejectReason = NULL
+       WHERE id = ?`,
+    ).run(stamp, stamp, reviewer, id);
+    const email = resolveEmail(item.submitterUserId);
+    audit(c, 'community_approve', item.submitterUserId, email, id);
+    return c.json({ id, status: 'published' });
+  });
+
+  // POST /api/admin/community/:id/reject
+  app.post('/community/:id/reject', async (c) => {
+    const id = c.req.param('id');
+    const item = loadCommunityItem(id);
+    if (!item) return c.json({ error: 'Not found' }, 404);
+    const body = await c.req.json().catch(() => null);
+    const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
+    if (!reason) return c.json({ error: 'reason is required' }, 400);
+    const stamp = now().toISOString();
+    const reviewer = c.get('userId') as string;
+    db.prepare(
+      `UPDATE community_items
+       SET status = 'rejected', reviewedAt = ?, reviewedByUserId = ?, rejectReason = ?
+       WHERE id = ?`,
+    ).run(stamp, reviewer, reason, id);
+    const email = resolveEmail(item.submitterUserId);
+    audit(c, 'community_reject', item.submitterUserId, email, id);
+    return c.json({ id, status: 'rejected', rejectReason: reason });
+  });
+
+  // POST /api/admin/community/:id/clear-votes
+  app.post('/community/:id/clear-votes', (c) => {
+    const id = c.req.param('id');
+    const item = loadCommunityItem(id);
+    if (!item) return c.json({ error: 'Not found' }, 404);
+    db.prepare('DELETE FROM community_votes WHERE itemId = ?').run(id);
+    const score = recalcCommunityScore(id);
+    const email = resolveEmail(item.submitterUserId);
+    audit(c, 'community_clear_votes', item.submitterUserId, email, id);
+    return c.json({ id, score: score.score });
+  });
 
   return app;
 }

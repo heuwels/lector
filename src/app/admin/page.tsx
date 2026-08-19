@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
 import { useLectorMode } from '@/lib/use-env';
+import CommunityQueue from './CommunityQueue';
+import { Button } from '@/components/ui/button';
 import {
   getAdminSummary,
   getAdminUsers,
@@ -95,6 +97,7 @@ export default function AdminPage() {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [audit, setAudit] = useState<AdminAuditEntry[]>([]);
+  const [tab, setTab] = useState<'accounts' | 'community'>('accounts');
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -311,7 +314,28 @@ export default function AdminPage() {
         </span>
       </PageHeader>
 
-      {summary && (
+      <div className="mb-6 flex gap-2">
+        <Button
+          size="sm"
+          variant={tab === 'accounts' ? 'default' : 'outline'}
+          onClick={() => setTab('accounts')}
+          data-testid="admin-tab-accounts"
+        >
+          Accounts
+        </Button>
+        <Button
+          size="sm"
+          variant={tab === 'community' ? 'default' : 'outline'}
+          onClick={() => setTab('community')}
+          data-testid="admin-tab-community"
+        >
+          Community
+        </Button>
+      </div>
+
+      {tab === 'community' ? <CommunityQueue /> : null}
+
+      {tab === 'accounts' && summary && (
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           <StatCard
             label="Accounts"
@@ -361,222 +385,237 @@ export default function AdminPage() {
         </div>
       )}
 
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search email, name, plan, status…"
-          className="w-72 max-w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring"
-        />
-        <span className="text-xs text-muted-foreground">
-          {filtered.length} of {users.length}
-        </span>
-      </div>
+      {tab === 'accounts' && (
+        <>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search email, name, plan, status…"
+              className="w-72 max-w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+            />
+            <span className="text-xs text-muted-foreground">
+              {filtered.length} of {users.length}
+            </span>
+          </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[820px] text-sm">
-          <thead>
-            <tr className="border-b border-border bg-card text-left text-xs tracking-wide text-muted-foreground uppercase">
-              <th className="px-4 py-3 font-medium">Account</th>
-              <th className="px-4 py-3 font-medium">Plan</th>
-              <th className="px-4 py-3 font-medium">Signed up</th>
-              <th className="px-4 py-3 font-medium">Last active</th>
-              <th className="px-4 py-3 font-medium">Library</th>
-              <th className="px-4 py-3 font-medium">Managed usage</th>
-              <th className="px-4 py-3 font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((u) => {
-              const badge = planBadge(u);
-              const busy = busyId === u.id;
-              return (
-                <tr key={u.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-foreground">{u.email}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {u.emailVerified ? u.name || u.id : 'unverified'}
-                    </div>
-                    {u.suspended && u.suspendedReason && (
-                      <div className="text-xs text-destructive">{u.suspendedReason}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
-                    >
-                      {badge.label}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {formatDate(u.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {formatDate(u.lastActiveAt)}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {u.library.lessons} lessons · {u.library.vocab} vocab
-                    <div className="text-xs">{formatBytes(u.library.storageBytes)}</div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {u.usage.tracked ? (
-                      <>
-                        <div>
-                          {u.usage.wordGlossesPerMonth.toLocaleString()} gloss/mo ·{' '}
-                          {u.usage.phraseTranslationsPerDay.toLocaleString()} phrase/day ·{' '}
-                          {u.usage.contextTranslationsPerDay.toLocaleString()} context/day
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[820px] text-sm">
+              <thead>
+                <tr className="border-b border-border bg-card text-left text-xs tracking-wide text-muted-foreground uppercase">
+                  <th className="px-4 py-3 font-medium">Account</th>
+                  <th className="px-4 py-3 font-medium">Plan</th>
+                  <th className="px-4 py-3 font-medium">Signed up</th>
+                  <th className="px-4 py-3 font-medium">Last active</th>
+                  <th className="px-4 py-3 font-medium">Library</th>
+                  <th className="px-4 py-3 font-medium">Managed usage</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((u) => {
+                  const badge = planBadge(u);
+                  const busy = busyId === u.id;
+                  return (
+                    <tr key={u.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-foreground">{u.email}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {u.emailVerified ? u.name || u.id : 'unverified'}
                         </div>
-                        <div className="text-xs">
-                          {u.usage.llmRequests.toLocaleString()} rich AI/mo ·{' '}
-                          {u.usage.ttsChars.toLocaleString()} TTS chars/mo
-                        </div>
-                      </>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => onExport(u)}
-                        disabled={busy}
-                        className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
-                      >
-                        Export
-                      </button>
-                      <button
-                        onClick={() => onToggleComp(u)}
-                        disabled={busy}
-                        className={`rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-50 ${
-                          u.compedPlan
-                            ? 'border-border text-muted-foreground hover:bg-accent'
-                            : 'border-primary/40 text-primary hover:bg-primary/10'
-                        }`}
-                        title="Comp a Cloud/Plus membership (bypasses billing)"
-                      >
-                        {u.compedPlan ? 'Un-comp' : 'Comp'}
-                      </button>
-                      {u.suspended ? (
-                        <button
-                          onClick={() => onRestore(u)}
-                          disabled={busy}
-                          className="rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+                        {u.suspended && u.suspendedReason && (
+                          <div className="text-xs text-destructive">{u.suspendedReason}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
                         >
-                          Restore
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => onSuspend(u)}
-                          disabled={busy}
-                          className="rounded-md border border-destructive/40 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                        >
-                          Suspend
-                        </button>
-                      )}
-                      <div className="relative">
-                        <button
-                          onClick={() => setMenuId(menuId === u.id ? null : u.id)}
-                          disabled={busy}
-                          aria-label="More actions"
-                          className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
-                        >
-                          ⋯
-                        </button>
-                        {menuId === u.id && (
-                          <div className="absolute right-0 z-10 mt-1 w-52 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-                            <MenuItem onClick={() => onImpersonate(u)}>
-                              View as user (read-only)
-                            </MenuItem>
-                            {summary?.billingResyncAvailable && (
-                              <MenuItem
-                                onClick={() =>
-                                  runAction(u, resyncPaddle, 'Billing resynced from Paddle')
-                                }
-                              >
-                                Resync from Paddle
-                              </MenuItem>
-                            )}
-                            <MenuItem
-                              onClick={() =>
-                                runAction(
-                                  u,
-                                  resetMfa,
-                                  'MFA reset',
-                                  `Reset 2FA for ${u.email}? They'll sign in without it and can re-enrol.`,
-                                )
-                              }
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                        {formatDate(u.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                        {formatDate(u.lastActiveAt)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                        {u.library.lessons} lessons · {u.library.vocab} vocab
+                        <div className="text-xs">{formatBytes(u.library.storageBytes)}</div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                        {u.usage.tracked ? (
+                          <>
+                            <div>
+                              {u.usage.wordGlossesPerMonth.toLocaleString()} gloss/mo ·{' '}
+                              {u.usage.phraseTranslationsPerDay.toLocaleString()} phrase/day ·{' '}
+                              {u.usage.contextTranslationsPerDay.toLocaleString()} context/day
+                            </div>
+                            <div className="text-xs">
+                              {u.usage.llmRequests.toLocaleString()} rich AI/mo ·{' '}
+                              {u.usage.ttsChars.toLocaleString()} TTS chars/mo
+                            </div>
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => onExport(u)}
+                            disabled={busy}
+                            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
+                          >
+                            Export
+                          </button>
+                          <button
+                            onClick={() => onToggleComp(u)}
+                            disabled={busy}
+                            className={`rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-50 ${
+                              u.compedPlan
+                                ? 'border-border text-muted-foreground hover:bg-accent'
+                                : 'border-primary/40 text-primary hover:bg-primary/10'
+                            }`}
+                            title="Comp a Cloud/Plus membership (bypasses billing)"
+                          >
+                            {u.compedPlan ? 'Un-comp' : 'Comp'}
+                          </button>
+                          {u.suspended ? (
+                            <button
+                              onClick={() => onRestore(u)}
+                              disabled={busy}
+                              className="rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
                             >
-                              Reset MFA
-                            </MenuItem>
-                            <MenuItem
-                              onClick={() => runAction(u, sendPasswordReset, 'Password reset sent')}
+                              Restore
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => onSuspend(u)}
+                              disabled={busy}
+                              className="rounded-md border border-destructive/40 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
                             >
-                              Send password reset
-                            </MenuItem>
-                            {!u.emailVerified && (
-                              <>
+                              Suspend
+                            </button>
+                          )}
+                          <div className="relative">
+                            <button
+                              onClick={() => setMenuId(menuId === u.id ? null : u.id)}
+                              disabled={busy}
+                              aria-label="More actions"
+                              className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
+                            >
+                              ⋯
+                            </button>
+                            {menuId === u.id && (
+                              <div className="absolute right-0 z-10 mt-1 w-52 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                                <MenuItem onClick={() => onImpersonate(u)}>
+                                  View as user (read-only)
+                                </MenuItem>
+                                {summary?.billingResyncAvailable && (
+                                  <MenuItem
+                                    onClick={() =>
+                                      runAction(u, resyncPaddle, 'Billing resynced from Paddle')
+                                    }
+                                  >
+                                    Resync from Paddle
+                                  </MenuItem>
+                                )}
                                 <MenuItem
                                   onClick={() =>
-                                    runAction(u, resendVerification, 'Verification sent')
+                                    runAction(
+                                      u,
+                                      resetMfa,
+                                      'MFA reset',
+                                      `Reset 2FA for ${u.email}? They'll sign in without it and can re-enrol.`,
+                                    )
                                   }
                                 >
-                                  Resend verification
+                                  Reset MFA
                                 </MenuItem>
                                 <MenuItem
-                                  onClick={() => runAction(u, forceVerify, 'Marked verified')}
+                                  onClick={() =>
+                                    runAction(u, sendPasswordReset, 'Password reset sent')
+                                  }
                                 >
-                                  Mark verified
+                                  Send password reset
                                 </MenuItem>
-                              </>
+                                {!u.emailVerified && (
+                                  <>
+                                    <MenuItem
+                                      onClick={() =>
+                                        runAction(u, resendVerification, 'Verification sent')
+                                      }
+                                    >
+                                      Resend verification
+                                    </MenuItem>
+                                    <MenuItem
+                                      onClick={() => runAction(u, forceVerify, 'Marked verified')}
+                                    >
+                                      Mark verified
+                                    </MenuItem>
+                                  </>
+                                )}
+                                <MenuItem
+                                  destructive
+                                  onClick={() =>
+                                    runAction(
+                                      u,
+                                      revokeSessions,
+                                      'Sessions revoked',
+                                      `Sign ${u.email} out of all sessions?`,
+                                    )
+                                  }
+                                >
+                                  Revoke sessions
+                                </MenuItem>
+                              </div>
                             )}
-                            <MenuItem
-                              destructive
-                              onClick={() =>
-                                runAction(
-                                  u,
-                                  revokeSessions,
-                                  'Sessions revoked',
-                                  `Sign ${u.email} out of all sessions?`,
-                                )
-                              }
-                            >
-                              Revoke sessions
-                            </MenuItem>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-      <section className="mt-8">
-        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-          Recent admin activity
-        </h2>
-        {audit.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No admin actions yet.</p>
-        ) : (
-          <ul className="divide-y divide-border rounded-xl border border-border">
-            {audit.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-baseline gap-x-2 px-4 py-2 text-sm">
-                <span className="text-muted-foreground">{formatDateTime(e.createdAt)}</span>
-                <span className="font-medium text-foreground">{e.actorEmail ?? 'operator'}</span>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                  {e.action}
-                </span>
-                {e.targetEmail && <span className="text-muted-foreground">→ {e.targetEmail}</span>}
-                {e.detail && <span className="text-xs text-muted-foreground">({e.detail})</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          <section className="mt-8">
+            <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+              Recent admin activity
+            </h2>
+            {audit.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No admin actions yet.</p>
+            ) : (
+              <ul className="divide-y divide-border rounded-xl border border-border">
+                {audit.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex flex-wrap items-baseline gap-x-2 px-4 py-2 text-sm"
+                  >
+                    <span className="text-muted-foreground">{formatDateTime(e.createdAt)}</span>
+                    <span className="font-medium text-foreground">
+                      {e.actorEmail ?? 'operator'}
+                    </span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                      {e.action}
+                    </span>
+                    {e.targetEmail && (
+                      <span className="text-muted-foreground">→ {e.targetEmail}</span>
+                    )}
+                    {e.detail && (
+                      <span className="text-xs text-muted-foreground">({e.detail})</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
     </main>
   );
 }

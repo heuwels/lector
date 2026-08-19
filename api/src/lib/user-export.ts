@@ -125,7 +125,7 @@ export function buildUserExport(userId: string): UserExport {
     collections: portableRows(
       db
         .prepare(
-          `SELECT id, title, author, coverUrl, groupId, sortOrder, language, createdAt, lastReadAt
+          `SELECT id, title, author, coverUrl, groupId, sortOrder, language, createdAt, lastReadAt, sourceCommunityItemId
            FROM collections WHERE userId = ?`,
         )
         .all(userId),

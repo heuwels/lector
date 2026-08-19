@@ -23,6 +23,9 @@ export interface Collection {
   avgProgress: number;
   createdAt: string;
   lastReadAt: string;
+  sourceCommunityItemId?: string | null;
+  /** True when any lesson has stored audio. */
+  hasAudio?: boolean;
 }
 
 export interface CollectionGroup {

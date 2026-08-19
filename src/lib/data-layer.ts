@@ -58,6 +58,10 @@ function invalidateCollections(): void {
   invalidateActiveScope(COLLECTIONS_QUERY_SCOPE);
 }
 
+export function invalidateLibraryCaches(): void {
+  invalidateCollections();
+}
+
 function invalidateVocab(): void {
   invalidateActiveScope(VOCAB_QUERY_SCOPE);
 }

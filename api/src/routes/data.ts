@@ -233,6 +233,7 @@ function validateRestoreEnvelope(value: unknown): string | null {
 
   for (const [key, field] of [
     ['collections', 'groupId'],
+    ['collections', 'sourceCommunityItemId'],
     ['lessons', 'collectionId'],
     ['vocab', 'bookId'],
     ['clozeSentences', 'vocabEntryId'],
@@ -1083,6 +1084,7 @@ app.post(
         title: row.title,
         author: row.author || 'Unknown',
         coverUrl: row.coverUrl || null,
+        sourceCommunityItemId: row.sourceCommunityItemId || null,
       }),
     );
     const lessonGrowth = byteGrowthStats(finalLessons, lessonBefore, (row) =>
@@ -1208,14 +1210,22 @@ app.post(
 
       if (data.collections?.length) {
         const stmt = db.prepare(`
-      INSERT INTO collections (id, title, author, coverUrl, sortOrder, groupId, language, createdAt, lastReadAt, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO collections (id, title, author, coverUrl, sortOrder, groupId, language, createdAt, lastReadAt, userId, sourceCommunityItemId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(userId, id) DO UPDATE SET
         title = excluded.title, author = excluded.author, coverUrl = excluded.coverUrl,
         sortOrder = excluded.sortOrder, groupId = excluded.groupId, language = excluded.language,
-        createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt
+        createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt,
+        sourceCommunityItemId = excluded.sourceCommunityItemId
     `);
         for (const col of data.collections) {
+          const rawSource =
+            typeof col.sourceCommunityItemId === 'string' ? col.sourceCommunityItemId : null;
+          const sourceCommunityItemId =
+            rawSource &&
+            db.prepare('SELECT 1 AS ok FROM community_items WHERE id = ?').get(rawSource)
+              ? rawSource
+              : null;
           stmt.run(
             col.id,
             col.title,
@@ -1227,6 +1237,7 @@ app.post(
             col.createdAt || new Date().toISOString(),
             col.lastReadAt || new Date().toISOString(),
             userId,
+            sourceCommunityItemId,
           );
           results.collections++;
         }

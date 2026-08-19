@@ -199,6 +199,45 @@ describe('purgeTenantData', () => {
     // and nothing was touched
     expect(rowsFor('collections', USER_A)).toBe(1);
   });
+
+  test('deletes pending community items and anonymizes published ones', () => {
+    db.prepare('DELETE FROM community_votes').run();
+    db.prepare('DELETE FROM community_lessons').run();
+    db.prepare('DELETE FROM community_items').run();
+    db.prepare(
+      `INSERT INTO community_items (
+         id, language, title, author, description, coverUrl, submitterUserId, submitterLabel,
+         sourceCollectionId, contentHash, lessonCount, wordCount, status, attestationAt, createdAt
+       ) VALUES
+         ('pend-a', 'es', 'Diary', 'A', null, null, ?, 'Alice', 'src-p', 'h1', 1, 3, 'pending', ?, ?),
+         ('pub-a', 'es', 'Shared', 'A', null, null, ?, 'Alice', 'src-u', 'h2', 1, 3, 'published', ?, ?)`,
+    ).run(USER_A, NOW, NOW, USER_A, NOW, NOW);
+    db.prepare(
+      `INSERT INTO community_lessons (itemId, sortOrder, title, textContent, wordCount)
+       VALUES ('pend-a', 0, 'Secret', 'private notes', 2),
+              ('pub-a', 0, 'Open', 'shared text', 2)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO community_votes (userId, itemId, value, createdAt, updatedAt)
+       VALUES (?, 'pub-a', -1, ?, ?)`,
+    ).run(USER_A, NOW, NOW);
+
+    purgeTenantData(USER_A, EMAIL_A);
+
+    const pending = db.prepare('SELECT id FROM community_items WHERE id = ?').get('pend-a');
+    expect(pending).toBeNull();
+    const pendingLessons = db
+      .prepare('SELECT COUNT(*) AS n FROM community_lessons WHERE itemId = ?')
+      .get('pend-a') as { n: number };
+    expect(pendingLessons.n).toBe(0);
+    const published = db
+      .prepare('SELECT submitterUserId, submitterLabel, score FROM community_items WHERE id = ?')
+      .get('pub-a') as { submitterUserId: string; submitterLabel: string; score: number };
+    expect(published.submitterUserId).toBe('');
+    expect(published.submitterLabel).toBe('A learner');
+    expect(published.score).toBe(0);
+    expect(rowsFor('community_votes', USER_A)).toBe(0);
+  });
 });
 
 describe('ERASURE_TABLES completeness ratchet', () => {
@@ -226,11 +265,23 @@ describe('ERASURE_TABLES completeness ratchet', () => {
       }[]
     ).map((t) => t.name);
 
+    // Named *UserId columns (submitterUserId, actorUserId) are also tenant
+    // pointers. The literal `userId` match is blind to them.
+    const HANDLED_OUTSIDE = new Set([
+      // Status-based sweep in purgeTenantData, not DELETE WHERE userId.
+      'community_items',
+      // Retained operator trail. Keyed by actor/target, off the tenant axis.
+      'admin_audit_log',
+      // Short-lived support grant. Keyed by actor/target, off the tenant axis.
+      'admin_impersonation',
+    ]);
+
     const withUserId = names.filter(
       (name) =>
         !BETTER_AUTH_MANAGED.has(name) &&
+        !HANDLED_OUTSIDE.has(name) &&
         (database.prepare(`PRAGMA table_info(${name})`).all() as { name: string }[]).some(
-          (c) => c.name === 'userId',
+          (c) => c.name === 'userId' || /UserId$/.test(c.name),
         ),
     );
 

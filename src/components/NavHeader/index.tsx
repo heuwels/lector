@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import { usePathname } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import LanguageSelector from '@/components/LanguageSelector';
@@ -9,6 +10,7 @@ import NavLink from './components/NavLink';
 import AppName from './components/AppName';
 import AccountMenu from './components/AccountMenu';
 import AdminNavLink from './components/AdminNavLink';
+import CommunityNavLink from '@/components/CommunityNavLink';
 import {
   advancePostOnboardingTour,
   finishPostOnboardingTour,
@@ -69,16 +71,12 @@ export default function NavHeader() {
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-2">
-          {navLinks.map((link) => {
-            return (
-              <NavLink
-                key={link.href}
-                link={link}
-                isMobile={false}
-                tourTip={tourTipFor(link.href)}
-              />
-            );
-          })}
+          {navLinks.map((link, index) => (
+            <Fragment key={link.href}>
+              <NavLink link={link} isMobile={false} tourTip={tourTipFor(link.href)} />
+              {index === 0 && <CommunityNavLink isMobile={false} />}
+            </Fragment>
+          ))}
           <AdminNavLink isMobile={false} />
         </nav>
 
@@ -92,9 +90,12 @@ export default function NavHeader() {
       {/* Mobile bottom nav — hidden on sm+ */}
       <nav className="fixed right-0 bottom-0 left-0 z-50 border-t border-border bg-card sm:hidden print:hidden">
         <div className="flex items-stretch">
-          {navLinks.map((link) => {
-            return <NavLink key={link.href} link={link} isMobile tourTip={tourTipFor(link.href)} />;
-          })}
+          {navLinks.map((link, index) => (
+            <Fragment key={link.href}>
+              <NavLink link={link} isMobile tourTip={tourTipFor(link.href)} />
+              {index === 0 && <CommunityNavLink isMobile />}
+            </Fragment>
+          ))}
           <AdminNavLink isMobile />
         </div>
       </nav>

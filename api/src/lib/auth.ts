@@ -69,6 +69,8 @@ const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   // not be able to spend LLM credits (SECURITY-07).
   chat: { read: 'chat:read', write: 'chat:write' },
   llm: { read: 'chat:read', write: 'chat:write' },
+  // `community` and `admin` stay unmapped on purpose. Default-deny means a
+  // PAT cannot submit, vote, clone, or review.
 };
 
 function getResourceFromPath(path: string): string | null {

@@ -256,6 +256,9 @@ describe('TENANT_TABLES ratchet', () => {
     'billing_subscriptions',
     'admin_account_flags',
     'twoFactor',
+    // Cloud-only votes. Self-host returns 404 from the catalog, so the
+    // implicit 'local' tenant never holds a row. Erasure still deletes them.
+    'community_votes',
   ]);
 
   test('every table with a userId column is covered by adoption', () => {

@@ -28,7 +28,8 @@ app.get('/', (c) => {
     .prepare(
       `
     SELECT c.*, g.name as groupName, COUNT(l.id) as lessonCount,
-      COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
+      COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress,
+      MAX(CASE WHEN l.audioPath IS NOT NULL AND l.audioPath != '' THEN 1 ELSE 0 END) as hasAudio
     FROM collections c
     LEFT JOIN collection_groups g ON g.id = c.groupId AND g.userId = c.userId
     LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language AND l.userId = c.userId
@@ -41,9 +42,10 @@ app.get('/', (c) => {
     groupName: string | null;
     lessonCount: number;
     avgProgress: number;
+    hasAudio: number | null;
   })[];
 
-  return c.json(collections);
+  return c.json(collections.map((row) => ({ ...row, hasAudio: row.hasAudio === 1 })));
 });
 
 // POST /api/collections
@@ -130,7 +132,8 @@ app.get('/:id', (c) => {
     .prepare(
       `
     SELECT c.*, COUNT(l.id) as lessonCount,
-      COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress
+      COALESCE(AVG(l.progress_percentComplete), 0) as avgProgress,
+      MAX(CASE WHEN l.audioPath IS NOT NULL AND l.audioPath != '' THEN 1 ELSE 0 END) as hasAudio
     FROM collections c
     LEFT JOIN lessons l ON l.collectionId = c.id AND l.language = c.language AND l.userId = c.userId
     WHERE c.id = ? AND c.userId = ? AND c.language = ?
@@ -138,14 +141,14 @@ app.get('/:id', (c) => {
   `,
     )
     .get(id, userId, lang) as
-    | (CollectionRow & { lessonCount: number; avgProgress: number })
+    | (CollectionRow & { lessonCount: number; avgProgress: number; hasAudio: number | null })
     | undefined;
 
   if (!collection) {
     return c.json({ error: 'Collection not found' }, 404);
   }
 
-  return c.json(collection);
+  return c.json({ ...collection, hasAudio: collection.hasAudio === 1 });
 });
 
 // PUT /api/collections/:id
