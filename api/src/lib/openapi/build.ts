@@ -47,8 +47,12 @@ const SECURITY_SCHEMES: Record<string, JsonSchema> = {
   SessionCookie: {
     type: 'apiKey',
     in: 'cookie',
-    name: 'better-auth.session_token',
-    description: 'The session cookie of the browser client. Lector Cloud only.',
+    // Better Auth prefixes the name with `__Secure-` when its baseURL is
+    // https, which is every cloud deployment. A plain http self-host keeps the
+    // bare name. Document the cloud name here, and both in the description.
+    name: '__Secure-better-auth.session_token',
+    description:
+      'The session cookie of the browser client. Lector Cloud only. The name is `__Secure-better-auth.session_token` over https, and `better-auth.session_token` on a plain http deployment.',
   },
 };
 
@@ -142,9 +146,16 @@ function buildOperation(endpoint: Endpoint, doc: OperationDoc): JsonSchema {
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
-  if (endpoint.pathParams.length > 0 && !responses['404']) {
+  // A 404 is never inferred from the presence of a path parameter. Plenty of
+  // handlers answer 200 for an id they hold no row for: the settings and groups
+  // writes upsert or delete unconditionally, and `GET /api/settings/{key}`
+  // answers 200 with null. Each annotation states its own 404 instead.
+  if (doc.notFound && !responses['404']) {
     responses['404'] = {
-      description: 'No such record, in this account and language.',
+      description:
+        typeof doc.notFound === 'string'
+          ? doc.notFound
+          : 'No such record, in this account and language.',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }

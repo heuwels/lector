@@ -59,6 +59,12 @@ export interface OperationDoc {
   visibility?: 'public' | 'internal';
   /** `none` documents an endpoint that needs no credential. Default is `token`. */
   auth?: 'token' | 'none';
+  /**
+   * Declare a `404`. Set it only when the handler really answers one: a path
+   * parameter is no proof, because several handlers upsert or delete an absent
+   * row and still answer `200`. A string replaces the default description.
+   */
+  notFound?: boolean | string;
   deprecated?: boolean;
 }
 
@@ -159,7 +165,8 @@ export const schemas: Record<string, JsonSchema> = {
 
   Collection: {
     type: 'object',
-    description: 'A book, course or folder of lessons in one language.',
+    description:
+      'A book, course or folder of lessons in one language. These are the stored fields, and the data takeout carries exactly these.',
     properties: {
       id: { type: 'string' },
       title: { type: 'string' },
@@ -168,15 +175,45 @@ export const schemas: Record<string, JsonSchema> = {
       groupId: { ...NULLABLE_STRING, description: 'Group that holds the collection.' },
       language: { type: 'string' },
       sortOrder: { type: 'integer' },
-      hasAudio: { type: 'boolean', description: 'True when a lesson carries audio.' },
-      sourceCommunityItemId: {
-        ...NULLABLE_STRING,
-        description: 'Set when the account cloned the collection from the community library.',
-      },
       createdAt: ISO_DATE_TIME,
       lastReadAt: ISO_DATE_TIME,
     },
     required: ['id', 'title', 'author', 'sortOrder', 'createdAt', 'lastReadAt'],
+  },
+
+  CollectionListItem: {
+    allOf: [
+      { $ref: '#/components/schemas/Collection' },
+      {
+        type: 'object',
+        description: 'The list adds the group name and the lesson totals.',
+        properties: {
+          groupName: { ...NULLABLE_STRING, description: 'Name of the group that holds it.' },
+          lessonCount: { type: 'integer' },
+          avgProgress: {
+            type: 'number',
+            description: 'Mean reading progress over its lessons, from 0 to 100.',
+          },
+        },
+      },
+    ],
+  },
+
+  CollectionDetail: {
+    allOf: [
+      { $ref: '#/components/schemas/Collection' },
+      {
+        type: 'object',
+        description: 'The single-collection read adds the lesson totals.',
+        properties: {
+          lessonCount: { type: 'integer' },
+          avgProgress: {
+            type: 'number',
+            description: 'Mean reading progress over its lessons, from 0 to 100.',
+          },
+        },
+      },
+    ],
   },
 
   CollectionGroup: {
@@ -213,6 +250,11 @@ export const schemas: Record<string, JsonSchema> = {
         description: 'Origin of the text, for example `youtube`. Null for plain Markdown.',
       },
       sourceMeta: { ...NULLABLE_STRING, description: 'Origin metadata, as a JSON string.' },
+      segmentWords: {
+        ...NULLABLE_STRING,
+        description:
+          'The distinct word forms a segmenter found, as a JSON string array. Null for every spaced language.',
+      },
       audioDurationMs: { type: ['integer', 'null'] },
       audioBytes: { type: ['integer', 'null'] },
       transcriptionStatus: {
@@ -226,6 +268,30 @@ export const schemas: Record<string, JsonSchema> = {
       lastReadAt: ISO_DATE_TIME,
     },
     required: ['id', 'title', 'sortOrder', 'textContent', 'wordCount', 'createdAt'],
+  },
+
+  LessonListItem: {
+    type: 'object',
+    description:
+      'A lesson as the collection listing returns it. The text stays out, so fetch the lesson itself to read it.',
+    properties: {
+      id: { type: 'string' },
+      collectionId: NULLABLE_STRING,
+      title: { type: 'string' },
+      sortOrder: { type: 'integer' },
+      wordCount: { type: 'integer' },
+      progress_scrollPosition: { type: 'number' },
+      progress_percentComplete: { type: 'number', minimum: 0, maximum: 100 },
+      audioDurationMs: { type: ['integer', 'null'] },
+      transcriptionStatus: {
+        type: ['string', 'null'],
+        enum: ['pending', 'processing', 'done', 'error', null],
+      },
+      transcriptionError: NULLABLE_STRING,
+      createdAt: ISO_DATE_TIME,
+      lastReadAt: ISO_DATE_TIME,
+    },
+    required: ['id', 'title', 'sortOrder', 'wordCount', 'createdAt'],
   },
 
   TranscriptSegment: {
@@ -455,6 +521,48 @@ export const schemas: Record<string, JsonSchema> = {
     },
   },
 
+  LessonExport: {
+    type: 'object',
+    description:
+      'A lesson as the data takeout carries it. The text travels, and the audio and transcription state stay behind.',
+    properties: {
+      id: { type: 'string' },
+      collectionId: NULLABLE_STRING,
+      title: { type: 'string' },
+      sortOrder: { type: 'integer' },
+      textContent: { type: 'string', description: 'The lesson text, as Markdown.' },
+      wordCount: { type: 'integer' },
+      language: { type: 'string' },
+      progress_scrollPosition: { type: 'number' },
+      progress_percentComplete: { type: 'number', minimum: 0, maximum: 100 },
+      createdAt: ISO_DATE_TIME,
+      lastReadAt: ISO_DATE_TIME,
+    },
+    required: ['id', 'title', 'sortOrder', 'textContent', 'wordCount', 'createdAt'],
+  },
+
+  JournalEntryExport: {
+    type: 'object',
+    description:
+      'A journal entry as the data takeout carries it. `corrections` stays a JSON string here, while the journal endpoints parse it.',
+    properties: {
+      id: { type: 'string' },
+      body: { type: 'string' },
+      correctedBody: NULLABLE_STRING,
+      corrections: {
+        ...NULLABLE_STRING,
+        description: 'The corrections, as a JSON string.',
+      },
+      status: { type: 'string', enum: ['draft', 'submitted'] },
+      wordCount: { type: 'integer' },
+      language: { type: 'string' },
+      entryDate: ISO_DATE,
+      createdAt: ISO_DATE_TIME,
+      updatedAt: ISO_DATE_TIME,
+    },
+    required: ['id', 'body', 'status', 'wordCount', 'language', 'entryDate'],
+  },
+
   UserExport: {
     type: 'object',
     description: 'Every portable learning record for the account.',
@@ -464,11 +572,25 @@ export const schemas: Record<string, JsonSchema> = {
       exportedAt: ISO_DATE_TIME,
       collections: { type: 'array', items: { $ref: '#/components/schemas/Collection' } },
       collectionGroups: { type: 'array', items: { $ref: '#/components/schemas/CollectionGroup' } },
-      lessons: { type: 'array', items: { $ref: '#/components/schemas/Lesson' } },
+      lessons: { type: 'array', items: { $ref: '#/components/schemas/LessonExport' } },
       vocab: { type: 'array', items: { $ref: '#/components/schemas/VocabEntry' } },
-      knownWords: { type: 'array', items: { type: 'object' } },
+      knownWords: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            word: { type: 'string' },
+            language: { type: 'string' },
+            state: WORD_STATE,
+            domain: { ...NULLABLE_STRING, description: 'Topic the classifier assigned.' },
+          },
+        },
+      },
       clozeSentences: { type: 'array', items: { $ref: '#/components/schemas/ClozeCard' } },
-      journalEntries: { type: 'array', items: { $ref: '#/components/schemas/JournalEntry' } },
+      journalEntries: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/JournalEntryExport' },
+      },
       dailyStats: { type: 'array', items: { $ref: '#/components/schemas/DailyStats' } },
       acceptedDictionaryEntries: { type: 'array', items: { type: 'object' } },
       learnerProfiles: { type: 'array', items: { type: 'object' } },
@@ -505,7 +627,10 @@ const libraryOps: Record<string, OperationDoc> = {
     tag: 'Library',
     sharedParams: LANG,
     responses: {
-      '200': { description: 'The account’s collections.', schema: arrayOf('Collection') },
+      '200': {
+        description: 'The account’s collections.',
+        schema: arrayOf('CollectionListItem'),
+      },
     },
   },
   'POST /api/collections': {
@@ -536,11 +661,12 @@ const libraryOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The new order is stored.', schema: ref('Success') } },
   },
   'GET /api/collections/{id}': {
+    notFound: true,
     summary: 'Get a collection',
     tag: 'Library',
     sharedParams: LANG,
     pathParams: { id: 'Collection identifier.' },
-    responses: { '200': { description: 'The collection.', schema: ref('Collection') } },
+    responses: { '200': { description: 'The collection.', schema: ref('CollectionDetail') } },
   },
   'PUT /api/collections/{id}': {
     summary: 'Update a collection',
@@ -575,9 +701,12 @@ const libraryOps: Record<string, OperationDoc> = {
     tag: 'Library',
     sharedParams: LANG,
     pathParams: { id: 'Collection identifier.' },
-    responses: { '200': { description: 'Lessons in sort order.', schema: arrayOf('Lesson') } },
+    responses: {
+      '200': { description: 'Lessons in sort order.', schema: arrayOf('LessonListItem') },
+    },
   },
   'POST /api/collections/{id}/lessons': {
+    notFound: 'No such collection, in this account and language.',
     summary: 'Add a lesson to a collection',
     tag: 'Library',
     sharedParams: LANG,
@@ -646,6 +775,7 @@ const libraryOps: Record<string, OperationDoc> = {
 
   // ── Library: lessons ──────────────────────────────────────────────────────
   'GET /api/lessons/{id}': {
+    notFound: true,
     summary: 'Get a lesson',
     tag: 'Library',
     sharedParams: LANG,
@@ -680,6 +810,7 @@ const libraryOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The lesson is deleted.', schema: ref('Success') } },
   },
   'PUT /api/lessons/{id}/progress': {
+    notFound: true,
     summary: 'Store reading progress',
     tag: 'Library',
     sharedParams: LANG,
@@ -697,6 +828,7 @@ const libraryOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The progress is stored.', schema: ref('Success') } },
   },
   'GET /api/lessons/{id}/segments': {
+    notFound: true,
     summary: 'Get the timed transcript of a lesson',
     description:
       'Returns the audio-timed lines for listen-along. The array is empty until transcription finishes, and for text lessons.',
@@ -708,6 +840,7 @@ const libraryOps: Record<string, OperationDoc> = {
     },
   },
   'GET /api/lessons/{id}/audio': {
+    notFound: 'The lesson has no audio, or the stored file is gone.',
     summary: 'Stream the audio of a lesson',
     description:
       'Serves the audio file. The endpoint honours the `Range` header and answers `206` with `Content-Range`, so a player can seek.',
@@ -728,6 +861,7 @@ const libraryOps: Record<string, OperationDoc> = {
     },
   },
   'POST /api/lessons/{id}/retry-transcription': {
+    notFound: 'No such lesson, or its transcription did not fail.',
     summary: 'Retry a failed transcription',
     description: 'Puts a failed audio lesson back in the transcription queue.',
     tag: 'Library',
@@ -932,6 +1066,7 @@ const vocabOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The new entry.', schema: ref('CreatedId') } },
   },
   'GET /api/vocab/{id}': {
+    notFound: true,
     summary: 'Get one saved entry',
     tag: 'Vocabulary',
     sharedParams: LANG,
@@ -939,6 +1074,7 @@ const vocabOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The entry.', schema: ref('VocabEntry') } },
   },
   'PUT /api/vocab/{id}': {
+    notFound: true,
     summary: 'Update a saved entry',
     tag: 'Vocabulary',
     sharedParams: LANG,
@@ -962,6 +1098,7 @@ const vocabOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The entry is updated.', schema: ref('Success') } },
   },
   'DELETE /api/vocab/{id}': {
+    notFound: true,
     summary: 'Delete a saved entry',
     tag: 'Vocabulary',
     sharedParams: LANG,
@@ -1226,6 +1363,7 @@ const practiceOps: Record<string, OperationDoc> = {
     },
   },
   'GET /api/cloze/{id}': {
+    notFound: true,
     summary: 'Get one practice card',
     tag: 'Practice',
     sharedParams: LANG,
@@ -1233,6 +1371,7 @@ const practiceOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The card.', schema: ref('ClozeCard') } },
   },
   'PUT /api/cloze/{id}': {
+    notFound: true,
     summary: 'Update a practice card',
     tag: 'Practice',
     sharedParams: LANG,
@@ -1267,6 +1406,7 @@ const practiceOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The card is deleted.', schema: ref('Success') } },
   },
   'POST /api/cloze/{id}/review': {
+    notFound: true,
     summary: 'Record a practice answer',
     description:
       'The client owns the schedule. Send the new mastery level and the next review time with the answer.',
@@ -1624,6 +1764,7 @@ const journalOps: Record<string, OperationDoc> = {
     },
   },
   'GET /api/journal/{id}': {
+    notFound: true,
     summary: 'Get a journal entry',
     tag: 'Journal',
     sharedParams: LANG,
@@ -1631,6 +1772,7 @@ const journalOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The entry.', schema: ref('JournalEntry') } },
   },
   'PUT /api/journal/{id}': {
+    notFound: true,
     summary: 'Update a journal entry',
     tag: 'Journal',
     sharedParams: LANG,
@@ -1648,6 +1790,7 @@ const journalOps: Record<string, OperationDoc> = {
     },
   },
   'DELETE /api/journal/{id}': {
+    notFound: true,
     summary: 'Delete a journal entry',
     tag: 'Journal',
     sharedParams: LANG,
@@ -1655,6 +1798,7 @@ const journalOps: Record<string, OperationDoc> = {
     responses: { '200': { description: 'The entry is deleted.', schema: ref('Success') } },
   },
   'POST /api/journal/{id}/correct': {
+    notFound: true,
     summary: 'Correct a journal entry',
     description:
       'Runs the language model over the entry, stores the corrected text, and sets the status to `submitted`.',

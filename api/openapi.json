@@ -1957,16 +1957,6 @@
               }
             }
           },
-          "404": {
-            "description": "No such record, in this account and language.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
             "description": "A plan limit or a rate limit stopped the call.",
             "content": {
@@ -3101,7 +3091,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Collection"
+                    "$ref": "#/components/schemas/CollectionListItem"
                   }
                 }
               }
@@ -3330,16 +3320,6 @@
               }
             }
           },
-          "404": {
-            "description": "No such record, in this account and language.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
             "description": "A plan limit or a rate limit stopped the call.",
             "content": {
@@ -3397,7 +3377,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Collection"
+                  "$ref": "#/components/schemas/CollectionDetail"
                 }
               }
             }
@@ -3555,16 +3535,6 @@
               }
             }
           },
-          "404": {
-            "description": "No such record, in this account and language.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
             "description": "A plan limit or a rate limit stopped the call.",
             "content": {
@@ -3626,7 +3596,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Lesson"
+                    "$ref": "#/components/schemas/LessonListItem"
                   }
                 }
               }
@@ -3644,16 +3614,6 @@
           },
           "403": {
             "description": "The token does not carry the scope this endpoint needs.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such record, in this account and language.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3785,7 +3745,7 @@
             }
           },
           "404": {
-            "description": "No such record, in this account and language.",
+            "description": "No such collection, in this account and language.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3887,16 +3847,6 @@
           },
           "403": {
             "description": "The token does not carry the scope this endpoint needs.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such record, in this account and language.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4926,16 +4876,6 @@
               }
             }
           },
-          "404": {
-            "description": "No such record, in this account and language.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
             "description": "A plan limit or a rate limit stopped the call.",
             "content": {
@@ -5035,16 +4975,6 @@
           },
           "403": {
             "description": "The token does not carry the scope this endpoint needs.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such record, in this account and language.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6704,16 +6634,6 @@
               }
             }
           },
-          "404": {
-            "description": "No such record, in this account and language.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
             "description": "A plan limit or a rate limit stopped the call.",
             "content": {
@@ -6926,16 +6846,6 @@
               }
             }
           },
-          "404": {
-            "description": "No such record, in this account and language.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
             "description": "A plan limit or a rate limit stopped the call.",
             "content": {
@@ -7034,7 +6944,7 @@
             }
           },
           "404": {
-            "description": "No such record, in this account and language.",
+            "description": "The lesson has no audio, or the stored file is gone.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7253,7 +7163,7 @@
             }
           },
           "404": {
-            "description": "No such record, in this account and language.",
+            "description": "No such lesson, or its transcription did not fail.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8517,16 +8427,6 @@
               }
             }
           },
-          "404": {
-            "description": "No such record, in this account and language.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
             "description": "A plan limit or a rate limit stopped the call.",
             "content": {
@@ -8599,16 +8499,6 @@
           },
           "403": {
             "description": "The token does not carry the scope this endpoint needs.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such record, in this account and language.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8716,16 +8606,6 @@
           },
           "403": {
             "description": "The token does not carry the scope this endpoint needs.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such record, in this account and language.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11036,8 +10916,8 @@
       "SessionCookie": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "better-auth.session_token",
-        "description": "The session cookie of the browser client. Lector Cloud only."
+        "name": "__Secure-better-auth.session_token",
+        "description": "The session cookie of the browser client. Lector Cloud only. The name is `__Secure-better-auth.session_token` over https, and `better-auth.session_token` on a plain http deployment."
       }
     },
     "parameters": {
@@ -11131,7 +11011,7 @@
       },
       "Collection": {
         "type": "object",
-        "description": "A book, course or folder of lessons in one language.",
+        "description": "A book, course or folder of lessons in one language. These are the stored fields, and the data takeout carries exactly these.",
         "properties": {
           "id": {
             "type": "string"
@@ -11161,17 +11041,6 @@
           "sortOrder": {
             "type": "integer"
           },
-          "hasAudio": {
-            "type": "boolean",
-            "description": "True when a lesson carries audio."
-          },
-          "sourceCommunityItemId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Set when the account cloned the collection from the community library."
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -11188,6 +11057,53 @@
           "sortOrder",
           "createdAt",
           "lastReadAt"
+        ]
+      },
+      "CollectionListItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Collection"
+          },
+          {
+            "type": "object",
+            "description": "The list adds the group name and the lesson totals.",
+            "properties": {
+              "groupName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Name of the group that holds it."
+              },
+              "lessonCount": {
+                "type": "integer"
+              },
+              "avgProgress": {
+                "type": "number",
+                "description": "Mean reading progress over its lessons, from 0 to 100."
+              }
+            }
+          }
+        ]
+      },
+      "CollectionDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Collection"
+          },
+          {
+            "type": "object",
+            "description": "The single-collection read adds the lesson totals.",
+            "properties": {
+              "lessonCount": {
+                "type": "integer"
+              },
+              "avgProgress": {
+                "type": "number",
+                "description": "Mean reading progress over its lessons, from 0 to 100."
+              }
+            }
+          }
         ]
       },
       "CollectionGroup": {
@@ -11270,6 +11186,13 @@
             ],
             "description": "Origin metadata, as a JSON string."
           },
+          "segmentWords": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The distinct word forms a segmenter found, as a JSON string array. Null for every spaced language."
+          },
           "audioDurationMs": {
             "type": [
               "integer",
@@ -11319,6 +11242,78 @@
           "title",
           "sortOrder",
           "textContent",
+          "wordCount",
+          "createdAt"
+        ]
+      },
+      "LessonListItem": {
+        "type": "object",
+        "description": "A lesson as the collection listing returns it. The text stays out, so fetch the lesson itself to read it.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "collectionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "wordCount": {
+            "type": "integer"
+          },
+          "progress_scrollPosition": {
+            "type": "number"
+          },
+          "progress_percentComplete": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "audioDurationMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "transcriptionStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pending",
+              "processing",
+              "done",
+              "error",
+              null
+            ]
+          },
+          "transcriptionError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastReadAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "sortOrder",
           "wordCount",
           "createdAt"
         ]
@@ -11943,6 +11938,119 @@
           }
         }
       },
+      "LessonExport": {
+        "type": "object",
+        "description": "A lesson as the data takeout carries it. The text travels, and the audio and transcription state stay behind.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "collectionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "textContent": {
+            "type": "string",
+            "description": "The lesson text, as Markdown."
+          },
+          "wordCount": {
+            "type": "integer"
+          },
+          "language": {
+            "type": "string"
+          },
+          "progress_scrollPosition": {
+            "type": "number"
+          },
+          "progress_percentComplete": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastReadAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "sortOrder",
+          "textContent",
+          "wordCount",
+          "createdAt"
+        ]
+      },
+      "JournalEntryExport": {
+        "type": "object",
+        "description": "A journal entry as the data takeout carries it. `corrections` stays a JSON string here, while the journal endpoints parse it.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "correctedBody": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "corrections": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The corrections, as a JSON string."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "submitted"
+            ]
+          },
+          "wordCount": {
+            "type": "integer"
+          },
+          "language": {
+            "type": "string"
+          },
+          "entryDate": {
+            "type": "string",
+            "description": "Calendar date, `YYYY-MM-DD`."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "status",
+          "wordCount",
+          "language",
+          "entryDate"
+        ]
+      },
       "UserExport": {
         "type": "object",
         "description": "Every portable learning record for the account.",
@@ -11978,7 +12086,7 @@
           "lessons": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Lesson"
+              "$ref": "#/components/schemas/LessonExport"
             }
           },
           "vocab": {
@@ -11990,7 +12098,35 @@
           "knownWords": {
             "type": "array",
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "word": {
+                  "type": "string"
+                },
+                "language": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "new",
+                    "level1",
+                    "level2",
+                    "level3",
+                    "level4",
+                    "known",
+                    "ignored"
+                  ],
+                  "description": "How well the account knows a word. `level1` to `level4` are the learning steps between `new` and `known`. `ignored` hides the word."
+                },
+                "domain": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Topic the classifier assigned."
+                }
+              }
             }
           },
           "clozeSentences": {
@@ -12002,7 +12138,7 @@
           "journalEntries": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/JournalEntry"
+              "$ref": "#/components/schemas/JournalEntryExport"
             }
           },
           "dailyStats": {

@@ -48,9 +48,17 @@ export type RouteMount = {
  * One table means the published OpenAPI document cannot drift from the routes
  * the app actually serves. Add a new module here, never in `index.ts`.
  *
- * Two endpoints stay outside this table because they are not route modules:
- * `/api/auth/*` (Better Auth's own handler, cloud mode only) and `/health`.
- * `api/openapi/annotations.ts` documents both by hand.
+ * Two things `index.ts` serves stay outside this table, because neither is a
+ * route module:
+ *
+ * - `/health`. `extraEndpoints` in `lib/openapi/annotations.ts` carries it, so
+ *   the document holds it.
+ * - `/api/auth/*`, which is Better Auth's own handler, in cloud mode only.
+ *   Better Auth owns that contract and documents it, so our document leaves it
+ *   out on purpose. See `lib/openapi/description.md`.
+ *
+ * The drift gate reads this table plus `extraEndpoints`. It therefore cannot
+ * see a route that `index.ts` registers directly, so register routes here.
  */
 export const routeMounts: readonly RouteMount[] = [
   { prefix: '/api/collections', app: collections },

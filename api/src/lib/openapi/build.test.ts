@@ -20,6 +20,12 @@ type Operation = {
 };
 
 const paths = document.paths as Record<string, Record<string, Operation>>;
+type JsonRecord = Record<string, unknown>;
+
+/** A 200 response whose schema the assertions below reach into. */
+type ResponseWithSchema = {
+  content: Record<string, { schema: { $ref?: string; items?: { $ref?: string } } }>;
+};
 
 function everyOperation(doc: Record<string, unknown>): Operation[] {
   const table = doc.paths as Record<string, Record<string, Operation>>;
@@ -154,10 +160,52 @@ describe('the generated document', () => {
     expect(health.responses['401']).toBeUndefined();
   });
 
-  test('gives a body-carrying operation a 400, and an id-carrying one a 404', () => {
+  test('gives a body-carrying operation a 400', () => {
     expect(paths['/api/collections'].post.responses['400']).toBeDefined();
+    expect(paths['/api/collections'].get.responses['400']).toBeUndefined();
+  });
+
+  test('declares a 404 only where the annotation asks for one', () => {
+    // A path parameter is no proof of a 404. These handlers upsert or delete
+    // an absent row and still answer 200, so the document must not promise a
+    // 404 they never send.
     expect(paths['/api/collections/{id}'].get.responses['404']).toBeDefined();
-    expect(paths['/api/collections'].get.responses['404']).toBeUndefined();
+    expect(paths['/api/vocab/{id}'].delete.responses['404']).toBeDefined();
+    expect(paths['/api/settings/{key}'].get.responses['404']).toBeUndefined();
+    expect(paths['/api/settings/{key}'].put.responses['404']).toBeUndefined();
+    expect(paths['/api/settings/{key}'].delete.responses['404']).toBeUndefined();
+    expect(paths['/api/groups/{id}'].put.responses['404']).toBeUndefined();
+    expect(paths['/api/groups/{id}'].delete.responses['404']).toBeUndefined();
+    expect(paths['/api/cloze/{id}'].delete.responses['404']).toBeUndefined();
+    expect(paths['/api/lessons/{id}'].put.responses['404']).toBeUndefined();
+    expect(paths['/api/lessons/{id}'].delete.responses['404']).toBeUndefined();
+    expect(paths['/api/collections/{id}'].put.responses['404']).toBeUndefined();
+    expect(paths['/api/collections/{id}'].delete.responses['404']).toBeUndefined();
+    expect(paths['/api/collections/{id}/lessons'].get.responses['404']).toBeUndefined();
+  });
+
+  test('names the list, detail and takeout shapes of a collection apart', () => {
+    // The three differ: the list adds groupName and the lesson totals, the
+    // detail adds the totals, and the takeout carries the stored fields only.
+    const list = paths['/api/collections'].get.responses['200'] as ResponseWithSchema;
+    const detail = paths['/api/collections/{id}'].get.responses['200'] as ResponseWithSchema;
+    expect(list.content['application/json'].schema.items?.$ref).toBe(
+      '#/components/schemas/CollectionListItem',
+    );
+    expect(detail.content['application/json'].schema.$ref).toBe(
+      '#/components/schemas/CollectionDetail',
+    );
+
+    const schemas = (full.document.components as { schemas: Record<string, JsonRecord> }).schemas;
+    // A published schema must not invent a field the table does not hold.
+    expect(Object.keys(schemas.Collection.properties as JsonRecord)).not.toContain('hasAudio');
+    expect(Object.keys(schemas.Collection.properties as JsonRecord)).not.toContain(
+      'sourceCommunityItemId',
+    );
+    // The lessons of a collection arrive without their text.
+    expect(Object.keys(schemas.LessonListItem.properties as JsonRecord)).not.toContain(
+      'textContent',
+    );
   });
 
   test('uses a unique operationId', () => {
