@@ -6,9 +6,8 @@ used by the builder's >=85% coverage gate as the "typical Chinese reading" proxy
 
 wordfreq supports Chinese natively and segments it internally (it does not need
 a space-delimited corpus), so this is the whole frequency story for zh. Its zh
-list is SIMPLIFIED, which is what the build keys on — see `keyOnFormTag:
-'Simplified-Chinese'` in the zh profile — so the gate tests the keys the runtime
-will actually look up.
+list is SIMPLIFIED, which is what the build keys on. See `t2sMapRel` in the zh
+profile. The gate therefore tests the keys the runtime will actually look up.
 
 The filter keeps Han characters only. wordfreq's zh list carries a tail of Latin
 tokens (brand names, loan abbreviations); they are not Chinese vocabulary, and
@@ -37,7 +36,7 @@ with open(OUT, "w") as f:
     f.write("# Build-time coverage corpus for build-dictionary.ts --lang zh.\n")
     f.write(
         f"# Top-{N} wordfreq-zh tokens, filtered to Han characters (Latin tokens "
-        "excluded). Simplified, matching the build's keyOnFormTag. One per line; "
+        "excluded). Simplified, matching the build's t2sMapRel keying. One per line; "
         "'#' = comment.\n"
     )
     f.write(f"# Regenerate: pip install wordfreq && python scripts/gen-coverage-corpus-zh.py {N}\n")
