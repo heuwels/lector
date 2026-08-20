@@ -17,8 +17,14 @@ optional: the client would otherwise re-segment with `Intl.Segmenter`, which
 disagrees with jieba — jieba reads 这本书 as 这|本书 where ICU gives 这|本|书 —
 and every stored index past the first disagreement would blank the wrong word.
 
+Tatoeba's `cmn` corpus mixes Simplified and Traditional, about one row in five. The
+pack declares `bcp47: 'zh-Hans'` and the dictionary keys on Simplified, so a
+Traditional sentence is inconsistent with the rest of the pack even though it
+resolves on tap through the headword alias. Those rows are dropped, detected with
+OpenCC rather than a hand-written character list, so nothing leaks through.
+
 Prerequisites:
-    pip install wordfreq jieba
+    pip install wordfreq jieba opencc-python-reimplemented
     npx tsx scripts/build-dictionary.ts --lang zh
 
 Usage:
@@ -46,6 +52,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import jieba
+import opencc
 from wordfreq import top_n_list
 
 
@@ -137,6 +144,23 @@ def parse_args() -> argparse.Namespace:
 
 def normalize(text: str) -> str:
     return unicodedata.normalize('NFC', text)
+
+
+# Traditional -> Simplified. Used only to DETECT, never to convert: converting
+# would invent sentences no human wrote, and the one-to-many mappings
+# (乾/幹/干 -> 干) make round-tripping lossy.
+_TO_SIMPLIFIED = opencc.OpenCC('t2s')
+
+
+def is_simplified(text: str) -> bool:
+    """True when the text already carries no Traditional-only form.
+
+    OpenCC rather than a character list, because a hand-written list is
+    necessarily incomplete and the rows it misses are exactly the ones a reader
+    would notice. If converting to Simplified changes nothing, there was nothing
+    Traditional to change.
+    """
+    return _TO_SIMPLIFIED.convert(text) == text
 
 
 def segment(text: str) -> list[str]:
@@ -245,13 +269,18 @@ def build_candidates(dictionary_path: Path, max_words: int) -> list[Candidate]:
     return candidates
 
 
-def load_sentences(path: Path) -> dict[int, tuple[str, tuple[str, ...]]]:
-    """Length-filtered Mandarin sentences, each with its jieba segmentation.
+def load_sentences(path: Path) -> tuple[dict[int, tuple[str, tuple[str, ...]]], int]:
+    """Length-filtered SIMPLIFIED Mandarin sentences, each with its segmentation.
 
     Segmenting here rather than later means jieba runs once per sentence instead
-    of once per candidate match.
+    of once per candidate match. Traditional rows are dropped before segmentation,
+    so jieba never runs on text that cannot ship.
+
+    Returns the sentences and the number of Traditional rows dropped, so the
+    build reports the cost of the filter rather than hiding it.
     """
     sentences: dict[int, tuple[str, tuple[str, ...]]] = {}
+    dropped_traditional = 0
     with path.open(encoding='utf-8') as source:
         for line in source:
             parts = line.rstrip('\n').split('\t', 2)
@@ -261,13 +290,16 @@ def load_sentences(path: Path) -> dict[int, tuple[str, tuple[str, ...]]]:
             text = normalize(parts[2].strip())
             if not text:
                 continue
+            if not is_simplified(text):
+                dropped_traditional += 1
+                continue
             tokens = segment(text)
             # Count only word-like tokens: punctuation should not push a short
             # sentence over the length floor.
             word_count = sum(1 for token in tokens if HAN_WORD.fullmatch(token))
             if MIN_SENTENCE_WORDS <= word_count <= MAX_SENTENCE_WORDS:
                 sentences[sentence_id] = (text, tuple(tokens))
-    return sentences
+    return sentences, dropped_traditional
 
 
 def load_links(path: Path, sentence_ids: set[int]) -> tuple[dict[int, list[int]], set[int]]:
@@ -420,13 +452,20 @@ def select_bank(
 def verify(bank: list[dict[str, object]]) -> None:
     """Fail the build rather than ship a bank the runtime cannot render.
 
-    Two invariants, both specific to shipping `tokens`:
+    Three invariants:
       1. `tokens` rejoins to `text`. The reader renders the sentence by joining
          them, so a lossy segmentation changes what the learner sees.
       2. `tokens[clozeIndex]` is `clozeWord`. This is the whole point of the
          token index, and an off-by-one blanks the wrong word.
+      3. Every row is Simplified. Checked again here rather than trusted from
+         the load step, so a future change to the filter cannot let Traditional
+         rows ship unnoticed.
     """
     for row in bank:
+        text_value = row['text']
+        assert isinstance(text_value, str)
+        if not is_simplified(text_value):
+            raise RuntimeError(f'row {row["id"]}: carries a Traditional form')
         tokens = row['tokens']
         assert isinstance(tokens, list)
         text = row['text']
@@ -441,7 +480,10 @@ def verify(bank: list[dict[str, object]]) -> None:
                 f'row {row["id"]}: tokens[{index}]={tokens[index]!r} '
                 f'is not clozeWord={row["clozeWord"]!r}'
             )
-    print(f'Verified {len(bank)} rows: tokens rejoin, and every blank lands on its clozeWord')
+    print(
+        f'Verified {len(bank)} rows: all Simplified, tokens rejoin, '
+        'and every blank lands on its clozeWord'
+    )
 
 
 def main() -> int:
@@ -453,13 +495,14 @@ def main() -> int:
     candidates = build_candidates(args.dictionary, args.max_words)
     mandarin_path, links_path, english_path = ensure_tatoeba_files(args.cache_dir)
 
-    mandarin = load_sentences(mandarin_path)
+    mandarin, dropped_traditional = load_sentences(mandarin_path)
     links, needed_english = load_links(links_path, set(mandarin))
     english = load_english(english_path, needed_english)
     print(
-        f'Tatoeba: {len(mandarin)} length-filtered Mandarin sentences; '
+        f'Tatoeba: {len(mandarin)} length-filtered Simplified sentences; '
         f'{len(links)} linked; {len(english)} English translations'
     )
+    print(f'  dropped {dropped_traditional} sentences carrying Traditional forms')
 
     options = collect_options(mandarin, links, english, candidates)
     bank = select_bank(candidates, options, args.sentences_per_word)
