@@ -91,6 +91,45 @@ interface LangProfile {
    *  kaikki Ancient Greek misses many Koine forms its Classical-leaning
    *  tables never enumerate). Rows whose lemma is not an entry are dropped. */
   supplementalInflectionsRel?: string | null;
+
+  // --- Unspaced-CJK levers (#213). Every one of these is measured against the
+  // --- kaikki Chinese dump; see the comments on the `zh` profile.
+
+  /** Shortest form allowed into the inflections table. Defaults to 2, which
+   *  drops kaikki's table-header junk. zh must set 1: 1,603 of its Simplified
+   *  forms are a single character, and a single Han character is a real word. */
+  minInflectionLength?: number;
+  /** Skip a form whose `raw_tags` contain any of these (zh: 'nonstandard simp.'
+   *  marks a junk variant that must never become a key). */
+  skipFormRawTags?: string[];
+  /** Skip a form matching this pattern (zh: Ideographic Description Characters
+   *  U+2FF0–U+2FFB, which kaikki uses to *describe* a glyph it cannot encode —
+   *  ⿵門𠯮 is a picture of a character, not a word). */
+  skipFormPattern?: RegExp;
+  /** Extra `tags` values that disqualify a form, on top of the shared list
+   *  (zh: 'Second-Round-Simplified-Chinese', a defunct 1977 scheme, 821 rows). */
+  extraSkipFormTags?: string[];
+  /** Re-key the entry onto the form carrying this tag, and register the
+   *  headword as an alias (zh: 'Simplified-Chinese'). The Chinese headword is
+   *  NOT reliably Traditional — 煙草 carries both a Traditional-Chinese form
+   *  (菸草) and a Simplified one (烟草) — so keying on the tagged form and
+   *  aliasing the headword is what makes both scripts resolve. */
+  keyOnFormTag?: string;
+  /** Prefer a `sounds[]` romanisation over `ipa` for the entry's pronunciation
+   *  string. An ORDERED list of tag-sets: the first set with a match wins, and
+   *  every tag in a set must be present on the element. Ordering is load-bearing
+   *  for zh — see the profile — because a bare ['Mandarin','Pinyin'] match also
+   *  catches regional readings. */
+  pronunciationSoundTags?: string[][];
+  /** Reject a romanisation candidate matching this (zh: tone-NUMBER systems.
+   *  Standard pinyin writes tone as a diacritic, so a digit means the candidate
+   *  is Wade-Giles, Sichuanese or another numbered scheme). */
+  rejectPronunciationPattern?: RegExp;
+  /** Drop an entry that HAS sounds[] but none carrying this tag (zh:
+   *  'Mandarin'). 8,145 entries are Cantonese-or-other-variety only — English
+   *  loanwords like `book` and `van` — and they are not Mandarin words. An
+   *  entry with no sounds at all is kept, since absence proves nothing. */
+  requireSoundTag?: string;
 }
 
 const PROFILES: Record<string, LangProfile> = {
@@ -386,6 +425,71 @@ const PROFILES: Record<string, LangProfile> = {
     // Keys carry one apostrophe spelling, matching the pack's script.foldApostrophes.
     foldApostrophes: true,
   },
+  zh: {
+    // The /Chinese/ dump, NOT /Mandarin/ (#213). The Mandarin dump is 92 MB
+    // against Chinese's 1.1 GB and looks like the obvious pick, but every one
+    // of its pages is `pos: "romanization"` \u2014 bare pinyin syllables with zero
+    // Han headwords. The real data is only here. Measured 2026-08-09: 325,507
+    // entries, 313,289 with a Han headword.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Chinese/kaikki.org-dictionary-Chinese.jsonl'],
+    // CJK Unified Ideographs + Extension A + the compatibility block, plus the
+    // Latin range for the loanwords and letter entries the dump carries with
+    // real Mandarin readings (A \u2192 \u0113i). Astral extensions are deliberately out:
+    // they are rare enough in learner text to not justify the surrogate
+    // handling, and the tokenizer keeps them whole regardless.
+    letterClass: 'a-zA-Z\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF',
+    // No affix morphology: Chinese does not inflect. Aspect and mood are
+    // separate particles (\u4e86, \u7740, \u8fc7), which the tokenizer keeps as their own
+    // tokens, so there is nothing to strip.
+    prefixes: [],
+    suffixes: [],
+    // Pinyin vowels, for the coverage tokenizer's syllable heuristics. Han
+    // characters carry no vowel letters, so this only ever sees romanised text.
+    vowels:
+      'aeiou\u00fc\u0101\u00e1\u01ce\u00e0\u0113\u00e9\u011b\u00e8\u012b\u00ed\u01d0\u00ec\u014d\u00f3\u01d2\u00f2\u016b\u00fa\u01d4\u00f9\u01d6\u01d8\u01da\u01dc',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-zh.txt',
+    // 123,743 soft-redirects and 132,405 gloss-less entries \u2014 about 40% of the
+    // dump. The filter is what makes the 1.1 GB tractable.
+    glossFilter: true,
+
+    // --- Unspaced-CJK levers, each measured against the dump.
+    // 1,603 Simplified forms are a single character, and a single Han character
+    // is a real word. The default floor of 2 would drop every one of them.
+    minInflectionLength: 1,
+    // \u95c6's Traditional form is the junk \u2ff5\u9580\ud842\udfee, tagged `nonstandard simp.`. Naive
+    // tag matching picks it over the real form.
+    skipFormRawTags: ['nonstandard simp.'],
+    // Ideographic Description Characters U+2FF0\u2013U+2FFB. kaikki uses them to
+    // DESCRIBE a glyph it cannot encode, so \u2ff5\u9580\ud842\udfee is a picture of a character
+    // rather than a word, and it must never become a key.
+    skipFormPattern: /[\u2ff0-\u2ffb]/u,
+    // A defunct 1977 simplification scheme, 821 rows. Nobody reads it.
+    extraSkipFormTags: ['Second-Round-Simplified-Chinese'],
+    // Key on Simplified, alias the headword. The headword is NOT reliably
+    // Traditional: \u7159\u8349 carries a Traditional-Chinese form (\u83f8\u8349) AND a
+    // Simplified one (\u70df\u8349), so the script has to be read off the tag.
+    keyOnFormTag: 'Simplified-Chinese',
+    // Pinyin, not Sinological IPA. It is what a learner reads, and the ruby
+    // layer (#289 4.4) renders it. 166,940 entries carry it.
+    //
+    // The ORDER matters. A bare ['Mandarin','Pinyin'] match also catches
+    // regional readings: 板 offers Chengdu 'ban³', Xi'an 'bàn' and Nanjing
+    // 'bǎn' under exactly those two tags, alongside the standard 'bǎn'. Asking
+    // for Standard-Chinese first is what keeps a dialect out of the entry.
+    pronunciationSoundTags: [
+      ['Mandarin', 'Standard-Chinese', 'Pinyin'],
+      ['Mandarin', 'Standard', 'Pinyin'],
+      ['Mandarin', 'Pinyin'],
+    ],
+    // Standard pinyin writes tone as a diacritic, so a digit means a numbered
+    // scheme (Wade-Giles 'pan³', Sichuanese 'ban³'). Belt to the ordering's
+    // braces: it stops such a form winning the last tier by looking clean.
+    rejectPronunciationPattern: /[0-9¹²³⁴⁵]/u,
+    // 8,145 entries have sounds but no Mandarin one \u2014 other-variety words,
+    // mostly Cantonese English loans (`book`, `van`). Not Mandarin vocabulary.
+    requireSoundTag: 'Mandarin',
+  },
 };
 
 function parseLangArg(): string {
@@ -495,6 +599,11 @@ interface ExtractedEntry {
 
 interface KaikkiSound {
   ipa?: string;
+  /** The CJK dumps carry romanisations here rather than in `ipa` (zh: Pinyin,
+   *  Bopomofo, Wade-Giles… each as its own sounds[] element, distinguished by
+   *  `tags`). */
+  zh_pron?: string;
+  tags?: string[];
 }
 interface KaikkiSense {
   glosses?: string[];
@@ -502,6 +611,9 @@ interface KaikkiSense {
 interface KaikkiForm {
   form?: string;
   tags?: string[];
+  /** Free-text qualifiers kaikki could not map onto a tag. zh uses it for
+   *  'nonstandard simp.', which marks a form that must never become a key. */
+  raw_tags?: string[];
 }
 interface KaikkiRel {
   word?: string;
@@ -519,10 +631,50 @@ interface KaikkiLine {
 
 function pickIpa(sounds: KaikkiSound[] | undefined): string | undefined {
   if (!sounds) return undefined;
+  // A romanisation beats the IPA where the profile asks for one (zh: pinyin is
+  // what a learner reads, and the ruby layer needs it). Tag-sets are tried in
+  // order, so the standard reading wins over a regional one.
+  for (const wanted of PROFILE.pronunciationSoundTags || []) {
+    const romanised = pickRomanisation(sounds, wanted);
+    if (romanised) return romanised;
+  }
   for (const s of sounds) {
     if (s.ipa) return s.ipa;
   }
   return undefined;
+}
+
+/**
+ * The cleanest romanisation carrying every `wanted` tag.
+ *
+ * kaikki's Mandarin pinyin needs two rounds of cleaning, and 板 shows both. Its
+ * ['Mandarin','Pinyin'] elements are:
+ *
+ *   'bǎn (ban³)'  Standard, Pinyin          ← standard reading, dirty
+ *   'ban³'        Chengdu, Sichuanese       ← a DIALECT, and it looks clean
+ *   'bàn'         Xi'an                     ← a dialect
+ *   'bǎn'         Nanjing                   ← a dialect
+ *   'bǎn'         Standard-Chinese, Pinyin  ← what we want
+ *
+ * So a bare tag match is not enough: the caller tries `Standard-Chinese` first.
+ * Within a tier, a value with no parentheses is the clean one, and the
+ * parenthesised tone gloss is stripped only when every candidate carries it.
+ * `rejectPronunciationPattern` then drops tone-NUMBER schemes outright, so a
+ * dialect or Wade-Giles form cannot win the last tier by looking clean.
+ */
+function pickRomanisation(sounds: KaikkiSound[], wanted: string[]): string | undefined {
+  const reject = PROFILE.rejectPronunciationPattern;
+  const candidates = sounds
+    .filter((s) => s.zh_pron && wanted.every((tag) => s.tags?.includes(tag)))
+    .map((s) => s.zh_pron!.trim())
+    .filter(Boolean)
+    .filter((value) => !reject?.test(value));
+  if (candidates.length === 0) return undefined;
+  const clean = candidates.find((value) => !value.includes('('));
+  if (clean) return clean;
+  const stripped = candidates[0].replace(/\s*\([^)]*\)\s*$/, '').trim();
+  if (!stripped || reject?.test(stripped)) return undefined;
+  return stripped;
 }
 
 // Dictionary keys are NFC + lowercase (#289): must match the runtime foldWord
@@ -557,8 +709,41 @@ function foldKey(s: string): string {
 
 function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
   if (!raw.word) return null;
-  const word = foldKey(raw.word);
-  if (!word) return null;
+
+  // Variety filter (zh). An entry with sounds[] but none tagged Mandarin is a
+  // word of another Chinese variety, not a Mandarin one — 8,145 of them, mostly
+  // Cantonese English loans (`book`, `van`). An entry with NO sounds at all is
+  // kept: absence proves nothing.
+  const required = PROFILE.requireSoundTag;
+  if (required && raw.sounds && raw.sounds.length > 0) {
+    if (!raw.sounds.some((s) => s.tags?.includes(required))) return null;
+  }
+
+  // The pattern that disqualifies a form disqualifies a HEADWORD too: an
+  // Ideographic Description Character means the dump is drawing a glyph it
+  // cannot encode, so the string is a picture and never a lookup key. 10 such
+  // entries reach this point in the Chinese dump.
+  if (PROFILE.skipFormPattern?.test(raw.word)) return null;
+
+  const headword = foldKey(raw.word);
+  if (!headword) return null;
+
+  // Script re-keying (zh). Key on the Simplified form where the dump gives one,
+  // and alias the headword below, so text in either script resolves. The
+  // headword is not reliably Traditional, so this cannot be inferred — it has
+  // to come off the tagged form.
+  let word = headword;
+  if (PROFILE.keyOnFormTag) {
+    const preferred = (raw.forms || []).find(
+      (f) =>
+        f.form &&
+        f.tags?.includes(PROFILE.keyOnFormTag!) &&
+        !f.raw_tags?.some((t) => PROFILE.skipFormRawTags?.includes(t)) &&
+        !PROFILE.skipFormPattern?.test(f.form),
+    );
+    const folded = preferred?.form ? foldKey(preferred.form) : '';
+    if (folded) word = folded;
+  }
 
   const senses: Array<{ pos: string; gloss: string }> = [];
   for (const s of raw.senses || []) {
@@ -584,12 +769,24 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
       'class',
     ];
     if (f.tags?.some((t) => SKIP_FORM_TAGS.includes(t))) continue;
+    if (f.tags?.some((t) => PROFILE.extraSkipFormTags?.includes(t))) continue;
+    if (f.raw_tags?.some((t) => PROFILE.skipFormRawTags?.includes(t))) continue;
+    if (PROFILE.skipFormPattern?.test(f.form)) continue;
     const inflected = foldKey(f.form);
     if (!inflected || inflected === word) continue;
-    // Skip non-Afrikaans-form rows (table headers, no-form rows)
-    if (inflected.includes(' ') || inflected.length < 2) continue;
+    // Skip non-Afrikaans-form rows (table headers, no-form rows). zh lowers the
+    // floor to 1: a single Han character is a real word, and 1,603 of its
+    // Simplified forms are one character long.
+    const minLength = PROFILE.minInflectionLength ?? 2;
+    if (inflected.includes(' ') || inflected.length < minLength) continue;
     const type = (f.tags || []).join(',') || 'form';
     inflections.push({ inflected, type });
+  }
+
+  // The headword becomes an alias when the entry was re-keyed onto a form, so
+  // Traditional text still resolves to the Simplified-keyed entry.
+  if (word !== headword && !headword.includes(' ')) {
+    inflections.push({ inflected: headword, type: 'headword' });
   }
 
   const relatedForms: Array<{ form: string; relation: string }> = [];
