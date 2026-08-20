@@ -1,8 +1,8 @@
 import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, LessonRow, TranscriptSegmentRow } from '../db';
-import { countWords } from '../lib/html-to-markdown';
-import { normalizeText } from '../lib/languages';
+import { buildSegmentWords, countWords } from '../lib/html-to-markdown';
+import { getLanguageConfig, normalizeText } from '../lib/languages';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { audioContentType, deleteAudioFile } from '../lib/audio-files';
@@ -171,7 +171,11 @@ app.put('/:id', async (c) => {
     updates.push('textContent = ?');
     values.push(textContent);
     updates.push('wordCount = ?');
-    values.push(countWords(textContent));
+    values.push(countWords(textContent, getLanguageConfig(language)));
+    // Re-segment with the text (#289 4.2). A stale list would keep matching
+    // words the edit removed and miss the ones it added.
+    updates.push('segmentWords = ?');
+    values.push(buildSegmentWords(textContent, getLanguageConfig(language)));
   }
   if (body.sortOrder !== undefined) {
     updates.push('sortOrder = ?');

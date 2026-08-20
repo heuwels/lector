@@ -59,8 +59,22 @@ function vocabRow(
 function clear() {
   db.prepare('DELETE FROM vocab').run();
   db.prepare('DELETE FROM anki_pending').run();
+  db.prepare('DELETE FROM anki_collections').run();
   db.prepare("DELETE FROM knownWords WHERE userId = 'local'").run();
   db.prepare("DELETE FROM dailyStats WHERE userId = 'local'").run();
+}
+
+/** POST as a protocol-aware addon (the bare `post` helper is pre-handshake). */
+function postAs(protocol: number, path: string, body: unknown) {
+  return app.request(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Lector-Anki-Protocol': String(protocol) },
+    body: JSON.stringify(body),
+  });
+}
+
+function markPushed(id: string, noteId: number | null) {
+  db.prepare('UPDATE vocab SET pushedToAnki = 1, ankiNoteId = ? WHERE id = ?').run(noteId, id);
 }
 
 describe('POST /api/anki proxy allowlist (SECURITY-04)', () => {
@@ -693,6 +707,183 @@ describe('POST /api/anki/reviews', () => {
 
   test('rejects bodies with neither reviews nor reviewsByDay', async () => {
     expect((await post('/reviews', {})).status).toBe(400);
+  });
+});
+
+describe('deleted-note reconcile (POST /api/anki/reviews inventory)', () => {
+  beforeEach(clear);
+  afterEach(clear);
+
+  const CRT = 1_400_000_000;
+
+  /** A full-sync push whose inventory says only `lectorIds`/`noteIds` survive. */
+  function fullSync(
+    inventory: { crt?: number; lectorIds?: string[]; noteIds?: number[] },
+    reviews: unknown[] = [],
+  ) {
+    return postAs(3, '/reviews', {
+      reviews,
+      inventory: {
+        crt: inventory.crt ?? CRT,
+        lectorIds: inventory.lectorIds ?? [],
+        noteIds: inventory.noteIds ?? [],
+      },
+    });
+  }
+
+  async function unsyncedCount(res: Response) {
+    return ((await res.json()) as { unsynced: number }).unsynced;
+  }
+
+  test('the first inventory only fingerprints the collection', async () => {
+    seedVocab('v1', 'huis');
+    markPushed('v1', 111);
+
+    // Nothing survives in this inventory, but we have never seen this
+    // collection: recording it must come before trusting it.
+    expect(await unsyncedCount(await fullSync({}))).toBe(0);
+    expect(vocabRow('v1')).toMatchObject({ pushedToAnki: 1, ankiNoteId: 111 });
+
+    const stored = db.prepare('SELECT crt FROM anki_collections WHERE userId = ?').get('local');
+    expect(stored).toEqual({ crt: CRT });
+  });
+
+  test('a known collection reporting a missing note marks the entry unsynced', async () => {
+    seedVocab('gone', 'huis');
+    seedVocab('kept', 'boom');
+    markPushed('gone', 111);
+    markPushed('kept', 222);
+
+    await fullSync({ lectorIds: ['gone', 'kept'], noteIds: [111, 222] }); // fingerprint
+    const res = await fullSync({ lectorIds: ['kept'], noteIds: [222] }); // 'gone' deleted in Anki
+
+    expect(await unsyncedCount(res)).toBe(1);
+    expect(vocabRow('gone')).toMatchObject({ pushedToAnki: 0, ankiNoteId: null });
+    expect(vocabRow('kept')).toMatchObject({ pushedToAnki: 1, ankiNoteId: 222 });
+    // The entry itself survives untouched — only its Anki link is cleared.
+    expect(vocabRow('gone')!.state).toBe('new');
+  });
+
+  test('a whole deleted deck comes back as re-exportable', async () => {
+    // The reported bug: every card gone, sync brings nothing back.
+    seedVocab('v1', 'huis');
+    seedVocab('v2', 'boom');
+    markPushed('v1', 111);
+    markPushed('v2', 222);
+
+    await fullSync({ lectorIds: ['v1', 'v2'], noteIds: [111, 222] });
+    expect(await unsyncedCount(await fullSync({}))).toBe(2);
+
+    expect(vocabRow('v1')!.pushedToAnki).toBe(0);
+    expect(vocabRow('v2')!.pushedToAnki).toBe(0);
+  });
+
+  test('a different collection re-fingerprints instead of unsyncing', async () => {
+    seedVocab('v1', 'huis');
+    markPushed('v1', 111);
+
+    await fullSync({ lectorIds: ['v1'], noteIds: [111] });
+    // A second Anki profile (or a reinstall before the AnkiWeb restore) reports
+    // an empty collection under the same token. One shot must not wipe it.
+    const res = await fullSync({ crt: CRT + 5000 });
+
+    expect(await unsyncedCount(res)).toBe(0);
+    expect(vocabRow('v1')!.pushedToAnki).toBe(1);
+    expect(db.prepare('SELECT crt FROM anki_collections WHERE userId = ?').get('local')).toEqual({
+      crt: CRT + 5000,
+    });
+  });
+
+  test('an entry matched only by note id survives (imported hand-made note)', async () => {
+    // The import path stores an Anki note whose LectorId field is empty, so the
+    // inventory can only vouch for it by note id.
+    seedVocab('imported', 'berge');
+    markPushed('imported', 999);
+
+    await fullSync({ noteIds: [999] });
+    const res = await fullSync({ noteIds: [999] });
+
+    expect(await unsyncedCount(res)).toBe(0);
+    expect(vocabRow('imported')!.pushedToAnki).toBe(1);
+  });
+
+  test('an entry queued for re-export is left alone', async () => {
+    seedVocab('v1', 'huis');
+    markPushed('v1', 111);
+    await fullSync({ lectorIds: ['v1'], noteIds: [111] });
+
+    // Re-queued but not yet acked: the note legitimately is not in Anki yet.
+    await post('/queue', { items: [{ id: 'v1', cardType: 'basic' }] });
+    const res = await fullSync({});
+
+    expect(await unsyncedCount(res)).toBe(0);
+    expect(vocabRow('v1')!.pushedToAnki).toBe(1);
+    expect(pendingRows()).toEqual([{ vocabId: 'v1', cardType: 'basic' }]);
+  });
+
+  test('an entry pushed without a note id is never reconciled', async () => {
+    seedVocab('v1', 'huis');
+    markPushed('v1', null);
+
+    await fullSync({});
+    const res = await fullSync({});
+
+    expect(await unsyncedCount(res)).toBe(0);
+    expect(vocabRow('v1')!.pushedToAnki).toBe(1);
+  });
+
+  test('a push without an inventory never reconciles', async () => {
+    seedVocab('v1', 'huis');
+    markPushed('v1', 111);
+    await fullSync({ lectorIds: ['v1'], noteIds: [111] });
+
+    // What the reviewer-hook buffer sends mid-session: a partial batch. It must
+    // not read as "everything else is gone".
+    const res = await postAs(3, '/reviews', {
+      reviews: [{ lectorId: 'other', type: 2, interval: 5 }],
+    });
+
+    expect((await res.json()) as { unsynced: number }).toMatchObject({ unsynced: 0 });
+    expect(vocabRow('v1')!.pushedToAnki).toBe(1);
+  });
+
+  test('an inventory alone is a valid body', async () => {
+    const res = await fullSync({});
+    expect(res.status).toBe(200);
+  });
+
+  test('rejects a malformed inventory instead of reconciling against it', async () => {
+    seedVocab('v1', 'huis');
+    markPushed('v1', 111);
+
+    const cases: unknown[] = [
+      { crt: 0, lectorIds: [], noteIds: [] }, // no usable fingerprint
+      { crt: CRT, lectorIds: 'nope', noteIds: [] },
+      { crt: CRT, lectorIds: [''], noteIds: [] },
+      { crt: CRT, lectorIds: [], noteIds: ['1'] },
+      [],
+    ];
+    for (const inventory of cases) {
+      const res = await postAs(3, '/reviews', { reviews: [], inventory });
+      expect(res.status).toBe(400);
+    }
+    expect(vocabRow('v1')!.pushedToAnki).toBe(1);
+  });
+
+  test('the unsynced count is hidden from addons that predate it', async () => {
+    seedVocab('v1', 'huis');
+    markPushed('v1', 111);
+    await fullSync({ lectorIds: ['v1'], noteIds: [111] });
+
+    // A protocol-2 addon has no place to show the count; it still gets the
+    // reconcile, just not the field.
+    const res = await postAs(2, '/reviews', {
+      reviews: [],
+      inventory: { crt: CRT, lectorIds: [], noteIds: [] },
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('unsynced');
+    expect(vocabRow('v1')!.pushedToAnki).toBe(0);
   });
 });
 

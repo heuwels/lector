@@ -6,7 +6,7 @@
 // raise ANKI_PROTOCOL_MIN and old addons get a 426 whose message they surface
 // verbatim. Mirrored by PROTOCOL in anki-addon/lector/api.py — bump together.
 
-export const ANKI_PROTOCOL_CURRENT = 2;
+export const ANKI_PROTOCOL_CURRENT = 3;
 export const ANKI_PROTOCOL_MIN = 1;
 export const ANKI_PROTOCOL_HEADER = 'x-lector-anki-protocol';
 export const ANKI_PROTOCOL_CURRENT_HEADER = 'x-lector-anki-protocol-current';
@@ -46,6 +46,23 @@ export const ANKI_PROTOCOL_STEPS: Record<number, AnkiProtocolStep> = {
           return item;
         }),
       };
+    },
+  },
+  // 2 → 3: protocol 3 adds the deleted-note reconcile. The addon sends an
+  // `inventory` on /reviews and the response gains `unsynced` (how many
+  // entries were marked no longer in Anki). Nothing to lift on the request
+  // side — a protocol-2 addon simply never sends an inventory, and the server
+  // reads its absence as "not a full picture, do not reconcile", which is why
+  // ANKI_PROTOCOL_MIN does not move and shipped addons keep working. Lower the
+  // response by dropping the field they have no place to show.
+  2: {
+    response(path, body) {
+      if (path !== '/reviews') return body;
+      if (!body || typeof body !== 'object') return body;
+      if (!('unsynced' in (body as Record<string, unknown>))) return body;
+      const rest = { ...(body as Record<string, unknown>) };
+      delete rest.unsynced;
+      return rest;
     },
   },
 };

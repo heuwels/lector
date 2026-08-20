@@ -23,7 +23,9 @@ export interface ScriptConfig {
    * - 'alpha-spaced': whitespace-separated alphabetic scripts (Latin, Cyrillic,
    *   Greek, Arabic, Hebrew) — one Unicode-property engine covers all of them.
    * - 'hangul': spaced Korean (eojeol tokens; same engine, keep-all wrapping).
-   * - 'cjk-unspaced': zh/ja — segmentation engine lands in Phase 4 of #289.
+   * - 'cjk-unspaced': zh/ja — segmented by Intl.Segmenter word granularity
+   *   (#289 Phase 4). Sentence splitting does not require whitespace after the
+   *   terminator here, so set `sentenceTerminators` to the fullwidth set.
    */
   kind: 'alpha-spaced' | 'hangul' | 'cjk-unspaced';
   /** False for scripts with no letter case (ar, hbo, zh, ja, ko) — foldWord skips lowercasing. */

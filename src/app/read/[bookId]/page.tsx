@@ -40,7 +40,8 @@ import {
   type ExpandedDictionaryEntry,
 } from '@/lib/dictionary-client';
 import { speak } from '@/lib/tts';
-import { foldWord } from '@/lib/languages';
+import { isComposing } from '@/lib/keyboard';
+import { foldWord, getLanguageConfig, isValidLanguageCode } from '@/lib/languages';
 import { toast } from 'sonner';
 import { Headphones, LoaderCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -65,6 +66,13 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   const ankiTransport = useAnkiTransport();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
+  // The LESSON's pack, not the active one — same precedent as MarkdownReader.
+  // An Anki export needs it (#289 4.7): a Chinese lesson read while the client
+  // thinks the active language is spaced would take the regex path and throw.
+  const lessonPack =
+    lesson?.language && isValidLanguageCode(lesson.language)
+      ? getLanguageConfig(lesson.language)
+      : activeLang;
   const [siblings, setSiblings] = useState<LessonSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1015,6 +1023,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         translation,
         translation,
         source ? buildSourceLinkHtml(source) : undefined,
+        lessonPack,
       );
       await markVocabPushedToAnki(entry.id, noteId);
       setWordPanel((prev) => ({
@@ -1024,7 +1033,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
       }));
     },
-    [wordPanel, getAnkiDecks, ensureVocabEntry, ankiTransport],
+    [wordPanel, getAnkiDecks, ensureVocabEntry, ankiTransport, lessonPack],
   );
 
   const retranslateWithAi = useCallback(async () => {
@@ -1098,6 +1107,10 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     if (!wordPanel.isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // These shortcuts are bare letters and digits bound on window with
+      // capture, so an IME candidate pick would trigger them (#289 4.5): typing
+      // Chinese anywhere on this page with the drawer open would set word level.
+      if (isComposing(e)) return;
       // Cmd/Ctrl+C copies the word or phrase the drawer is showing. Word spans
       // keep the whitespace between them in the DOM, so this — like a native
       // copy — preserves spaces (readers that drop inter-word gaps copy e.g.

@@ -5,6 +5,7 @@ import { AudioLines } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { DEFAULT_RATE, isTTSAvailable, speak } from '@/lib/tts';
+import { isComposing } from '@/lib/keyboard';
 import { DICTATION_MAX_REPLAYS, DICTATION_SPEEDS } from '../../constants';
 import type { CurrentSentence } from '../../types';
 import BlacklistSentence from '../BlacklistSentence';
@@ -139,6 +140,8 @@ export default function DictationCard({
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           onKeyDown={(e) => {
+            // An IME commits its candidate with Enter (#289 4.5).
+            if (isComposing(e)) return;
             if (e.key === 'Enter' && !e.shiftKey && !e.repeat) {
               e.preventDefault();
               handleSubmit();

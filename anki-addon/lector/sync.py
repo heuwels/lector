@@ -206,19 +206,57 @@ def review_state_for_card(note, card) -> dict:
     return state
 
 
-def collect_review_states(col) -> list:
-    """Collection-read phase (QueryOp): every owned card's current state."""
-    reviews = []
+def _owned_notes(col):
+    """Every Lector-owned note in the collection, yielded once."""
     for model_name in (BASIC_MODEL, CLOZE_MODEL):
         if col.models.by_name(model_name) is None:
             continue
         for note_id in col.find_notes(f'"note:{model_name}"'):
             note = col.get_note(note_id)
-            if not lector_owned(note):
-                continue
-            for card in note.cards():
-                reviews.append(review_state_for_card(note, card))
-    return reviews
+            if lector_owned(note):
+                yield note
+
+
+def collection_crt(col) -> int:
+    """Anki's collection creation timestamp. It is stable for the life of a
+    profile and different in every other profile, so the server uses it to tell
+    "the collection I reconciled against last time" from "a collection I have
+    never seen". Returns 0 when Anki does not expose it — the caller then sends
+    no inventory, because an unfingerprinted inventory must never delete."""
+    try:
+        return int(col.crt or 0)
+    except Exception:
+        return 0
+
+
+def collect_sync_state(col) -> tuple:
+    """Collection-read phase (QueryOp), one walk of the owned notes. Returns
+    (reviews, inventory), where inventory is {lectorIds, noteIds} — everything
+    Lector owns that is STILL in the collection.
+
+    Both id lists are necessary. lectorIds matches entries Lector exported.
+    noteIds matches entries Lector imported FROM Anki: a hand-made note has an
+    empty LectorId by definition, so its entry would look deleted on every sync
+    if the server could only match on lectorIds.
+
+    The lists are built here rather than derived from `reviews` on the server: a
+    card created by this very sync reports type 0 (New), which the server drops
+    as "no learning signal" before it ever reaches the reconcile. Deriving from
+    reviews would read every unstudied card as deleted."""
+    reviews = []
+    lector_ids = set()
+    note_ids = set()
+    for note in _owned_notes(col):
+        try:
+            note_ids.add(int(note.id))
+        except (TypeError, ValueError):
+            pass
+        lector_id = field(note, "LectorId").strip()
+        if lector_id:
+            lector_ids.add(lector_id)
+        for card in note.cards():
+            reviews.append(review_state_for_card(note, card))
+    return reviews, {"lectorIds": sorted(lector_ids), "noteIds": sorted(note_ids)}
 
 
 def reviews_by_day(col) -> list:
@@ -248,24 +286,41 @@ def post_acks(api: LectorApi, acks: list) -> None:
         api.post_ack(chunk)
 
 
-def post_reviews(api: LectorApi, reviews: list, by_day) -> dict:
+def post_reviews(api: LectorApi, reviews: list, by_day, inventory=None) -> dict:
     """Network phase: push review states, chunked; day counts ride the first
-    chunk only (they're idempotent per-day upserts — once is enough)."""
-    totals = {"updated": 0, "created": 0}
+    chunk only (they're idempotent per-day upserts — once is enough).
+
+    `inventory` rides the LAST chunk, and only on a full sync. That placement
+    is the whole contract: a chunked push is several requests, so the server
+    cannot treat any single one as the complete picture, and the reviewer-hook
+    buffer (flush_reviews) posts a handful of cards to this same endpoint. The
+    inventory is the addon saying "this was all of them" — without it the
+    server never reconciles deletions, which is what keeps a shipped addon and
+    a mid-session flush safe."""
+    totals = {"updated": 0, "created": 0, "unsynced": 0}
     batches = chunked(reviews, REVIEWS_CHUNK) or [[]]
+    last = len(batches) - 1
     for index, chunk in enumerate(batches):
         if not chunk and index > 0:
             continue
-        summary = api.post_reviews(chunk, by_day if index == 0 else None)
+        summary = api.post_reviews(
+            chunk,
+            by_day if index == 0 else None,
+            inventory if index == last else None,
+        )
         totals["updated"] += int(summary.get("updated", 0) or 0)
         totals["created"] += int(summary.get("created", 0) or 0)
+        totals["unsynced"] += int(summary.get("unsynced", 0) or 0)
     return totals
 
 
 def flush_reviews(config: dict, reviews: list) -> None:
     """Push a captured batch of review states (the reviewer-hook buffer),
     chunked like any other push. Best-effort — callers run it off the main
-    thread and swallow failures; the next full sync re-sends every state."""
+    thread and swallow failures; the next full sync re-sends every state.
+
+    Never sends an inventory: this is a partial batch by definition, and an
+    inventory here would report every card the user did not answer as deleted."""
     if not reviews:
         return
     api = LectorApi(config.get("api_url", ""), config.get("api_token", ""))

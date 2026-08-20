@@ -8,6 +8,12 @@ import {
   splitTrailingPunctuation,
   stateRank,
 } from './anki';
+import { getLanguageConfig } from './languages';
+
+// zh is a real registered pack now (#213 registry slice); ja is not, so it is
+// synthesised from zh's script slice to prove the path is script-class generic.
+const zh = getLanguageConfig('zh');
+const ja = { ...zh, script: { ...zh.script, bcp47: 'ja' } };
 
 // Server-side mirrors of the pure client helpers (src/lib/anki.ts /
 // src/lib/words.ts) — keep both sides' behaviour locked together (#241).
@@ -40,6 +46,55 @@ describe('buildClozeText', () => {
   test('unicode boundaries: no blanking inside diacritic words (#289)', () => {
     expect(buildClozeText('Die Häuser is mooi.', 'Häuser')).toBe('Die {{c1::Häuser}} is mooi.');
     expect(buildClozeText('ähnlich äußern', 'äußern')).toBe('ähnlich {{c1::äußern}}');
+  });
+
+  // #289 4.7. Before this, the lookaround matcher could not fire on unspaced
+  // text at all — the neighbour of a word is always another letter — so every
+  // Chinese cloze produced no blank and the export threw.
+  describe('unspaced CJK blanks by token span', () => {
+    test('blanks a word in the middle of a Chinese sentence', () => {
+      expect(buildClozeText('我喜欢读书。', '喜欢', zh)).toBe('我{{c1::喜欢}}读书。');
+    });
+
+    test('blanks a word at the very start and the very end', () => {
+      expect(buildClozeText('喜欢读书。', '喜欢', zh)).toBe('{{c1::喜欢}}读书。');
+      expect(buildClozeText('我喜欢', '喜欢', zh)).toBe('我{{c1::喜欢}}');
+    });
+
+    test('blanks every occurrence, like the spaced path', () => {
+      expect(buildClozeText('我喜欢，他也喜欢。', '喜欢', zh)).toBe(
+        '我{{c1::喜欢}}，他也{{c1::喜欢}}。',
+      );
+    });
+
+    test('does not blank a fragment of a longer token', () => {
+      // 喜 alone is not a token of 我喜欢读书。 — the token is 喜欢.
+      expect(buildClozeText('我喜欢读书。', '喜', zh)).toBe('我喜欢读书。');
+    });
+
+    test('matches a run of consecutive tokens when the segmenters disagree', () => {
+      // A jieba-built bank word (喜欢读书) need not be a single ICU token
+      // (喜欢|读书). Matching the run beats failing the export.
+      expect(buildClozeText('我喜欢读书。', '喜欢读书', zh)).toBe('我{{c1::喜欢读书}}。');
+    });
+
+    test('a run never crosses a non-word token', () => {
+      // 喜欢他 would need to span the comma; consuming only word tokens stops it.
+      expect(buildClozeText('我喜欢，他走了。', '喜欢他', zh)).toBe('我喜欢，他走了。');
+    });
+
+    test('the same input throws-by-omission without a pack', () => {
+      // Guards the reason the pack argument exists. If this ever gains a blank,
+      // the lookaround matcher started working on unspaced text and the CJK
+      // branch is redundant.
+      expect(buildClozeText('我喜欢读书。', '喜欢')).not.toContain('{{c1::');
+    });
+
+    test('Japanese rides the same path', () => {
+      expect(buildClozeText('私は日本語を勉強します。', '日本語', ja)).toBe(
+        '私は{{c1::日本語}}を勉強します。',
+      );
+    });
   });
 });
 

@@ -2,6 +2,7 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, JournalEntryRow } from '../db';
 import { resolveLanguage } from '../lib/active-language';
+import { countTypedWords, getLanguageConfig } from '../lib/languages';
 import { getCurrentUserId } from '../lib/user';
 import { correctJournalText } from '../lib/journal-correct';
 import {
@@ -67,7 +68,7 @@ app.post('/', async (c) => {
   const date = entryDate || new Date().toISOString().split('T')[0];
   const now = new Date().toISOString();
   const bodyText = body || '';
-  const wordCount = bodyText.trim().split(/\s+/).filter(Boolean).length;
+  const wordCount = countTypedWords(bodyText, getLanguageConfig(lang));
   const id = randomUUID();
   const contentBytes = journalContentBytes({ body: bodyText });
   const checks: AtomicLimitCheck[] = [
@@ -137,7 +138,7 @@ app.put('/:id', async (c) => {
 
   if (body.body !== undefined) {
     updates.push('body = ?', 'wordCount = ?');
-    const wordCount = body.body.trim().split(/\s+/).filter(Boolean).length;
+    const wordCount = countTypedWords(body.body, getLanguageConfig(lang));
     // Meter only GROWTH (#222): editing down and re-typing must not
     // double-charge the month's allowance. `existing.wordCount` was read above
     // in the same synchronous tick (no await since), so it can't be stale.

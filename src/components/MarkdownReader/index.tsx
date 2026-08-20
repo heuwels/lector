@@ -6,7 +6,14 @@ import { ArrowLeft, ChevronLeft, ChevronRight, SquarePen } from 'lucide-react';
 import { updateLessonProgress } from '@/lib/data-layer';
 import { createTrailingThrottle } from './throttle';
 import { snapToWordBoundaries } from './utils';
-import { foldWord, getLanguageConfig, isValidLanguageCode, splitSentences } from '@/lib/languages';
+import {
+  foldWord,
+  getLanguageConfig,
+  isValidLanguageCode,
+  makeWordSegmentation,
+  splitSentences,
+} from '@/lib/languages';
+import { parseSegmentWords } from './utils';
 import { useActiveLanguage } from '@/utils/hooks';
 import { MarkdownReaderProps } from './types';
 import { Button } from '@/components/ui/button';
@@ -38,6 +45,14 @@ export default function MarkdownReader({
     lesson.language && isValidLanguageCode(lesson.language)
       ? getLanguageConfig(lesson.language)
       : activeLang;
+  // The lesson's stored segmentation (#289 4.2). Built once per lesson, not per
+  // block: every block matches against the same vocabulary. Null for spaced
+  // languages and for CJK imported before 4.2, and the tokenizer then falls
+  // back to Intl.Segmenter, so an absent value is never an error.
+  const segmentation = useMemo(
+    () => makeWordSegmentation(parseSegmentWords(lesson.segmentWords)),
+    [lesson.segmentWords],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const [highlightedPhrase, setHighlightedPhrase] = useState<string[]>([]);
   // The single word the user last clicked (drawer target). Identified by its
@@ -198,7 +213,9 @@ export default function MarkdownReader({
     if (!rawText || !rawText.includes(' ')) return;
 
     // Snap to word boundaries
-    const snappedText = snapToWordBoundaries(selection, pack);
+    // Same segmentation the render used, or a phrase drag snaps to boundaries
+    // the reader never drew (#289 4.2).
+    const snappedText = snapToWordBoundaries(selection, pack, segmentation);
     if (!snappedText || !snappedText.includes(' ')) return;
 
     const sentence = findSentence(selection.anchorNode?.parentElement as HTMLElement);
@@ -210,7 +227,7 @@ export default function MarkdownReader({
     highlightPhrase(snappedText);
 
     onWordClick(snappedText, sentence);
-  }, [onWordClick, highlightPhrase, pack, findSentence]);
+  }, [onWordClick, highlightPhrase, pack, segmentation, findSentence]);
 
   return (
     <div className="flex h-full flex-col bg-card print:block print:h-auto">
@@ -311,6 +328,7 @@ export default function MarkdownReader({
               segments={transcript.segments}
               sourceUrl={transcript.meta.sourceUrl}
               pack={pack}
+              segmentation={segmentation}
               knownWordsMap={knownWordsMap}
               highlightedPhrase={highlightedPhrase}
               activeWord={activeWord}
@@ -325,6 +343,7 @@ export default function MarkdownReader({
           <ReaderArticle
             content={lesson.textContent}
             pack={pack}
+            segmentation={segmentation}
             knownWordsMap={knownWordsMap}
             highlightedPhrase={highlightedPhrase}
             activeWord={activeWord}

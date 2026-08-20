@@ -245,4 +245,33 @@ describe('buildClozeText', () => {
       'Geen ooreenkoms hier nie.',
     );
   });
+
+  // #289 4.7 — mirrors api/src/lib/anki.test.ts. Keep the two in step.
+  describe('unspaced CJK blanks by token span', () => {
+    const zh = LANGUAGES.zh;
+
+    it('blanks a word mid-sentence, at the start, and at the end', () => {
+      expect(buildClozeText('我喜欢读书。', '喜欢', zh)).toBe('我{{c1::喜欢}}读书。');
+      expect(buildClozeText('喜欢读书。', '喜欢', zh)).toBe('{{c1::喜欢}}读书。');
+      expect(buildClozeText('我喜欢', '喜欢', zh)).toBe('我{{c1::喜欢}}');
+    });
+
+    it('blanks every occurrence', () => {
+      expect(buildClozeText('我喜欢，他也喜欢。', '喜欢', zh)).toBe(
+        '我{{c1::喜欢}}，他也{{c1::喜欢}}。',
+      );
+    });
+
+    it('never blanks a fragment of a token', () => {
+      expect(buildClozeText('我喜欢读书。', '喜', zh)).toBe('我喜欢读书。');
+    });
+
+    it('matches a run of tokens when the segmenters disagree', () => {
+      expect(buildClozeText('我喜欢读书。', '喜欢读书', zh)).toBe('我{{c1::喜欢读书}}。');
+    });
+
+    it('produces no blank without a pack, which is why the argument exists', () => {
+      expect(buildClozeText('我喜欢读书。', '喜欢')).not.toContain('{{c1::');
+    });
+  });
 });

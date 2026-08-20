@@ -5,6 +5,7 @@
 // browser→AnkiConnect path until it is retired.
 
 import type { WordState } from '../db';
+import { wrapWholeWord, type LanguageConfig } from './languages';
 
 /**
  * Rank used for upgrade-only sync (ignored shares known's rank so it is never
@@ -57,25 +58,21 @@ export function splitTrailingPunctuation(word: string): [string, string] {
   return [noLead, ''];
 }
 
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** Unicode-aware whole-word pattern (#289): \b is ASCII-only, so it saw a
- *  boundary inside "Häuser" at the ä; the lookarounds treat any letter/digit
- *  neighbor as word-internal, in every script. */
-function wholeWordPattern(word: string): RegExp {
-  return new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(word)})(?![\\p{L}\\p{N}_])`, 'giu');
-}
-
 /**
  * Build the cloze-deletion text for a sentence, or a cloze-less string when
  * the target doesn't appear (callers must check for `{{c1::`). Mirrors
  * buildClozeText in src/lib/anki.ts.
+ *
+ * `pack` routes unspaced CJK to token-span matching (#289 4.7). Without it the
+ * lookaround matcher never fires on Chinese and the export throws.
  */
-export function buildClozeText(sentence: string, targetWord: string): string {
+export function buildClozeText(
+  sentence: string,
+  targetWord: string,
+  pack?: LanguageConfig,
+): string {
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
-  return sentence.replace(wholeWordPattern(cleanTarget), '{{c1::$1}}');
+  return wrapWholeWord(sentence, cleanTarget, (match) => `{{c1::${match}}}`, pack);
 }
 
 /**
@@ -84,9 +81,13 @@ export function buildClozeText(sentence: string, targetWord: string): string {
  * highlighting in src/lib/anki.ts, so addon-created and browser-created
  * cards look identical).
  */
-export function highlightWordHtml(sentence: string, targetWord: string): string {
+export function highlightWordHtml(
+  sentence: string,
+  targetWord: string,
+  pack?: LanguageConfig,
+): string {
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
-  return sentence.replace(wholeWordPattern(cleanTarget), '<b>$1</b>');
+  return wrapWholeWord(sentence, cleanTarget, (match) => `<b>${match}</b>`, pack);
 }
 
 /** mm:ss / h:mm:ss label for a millisecond offset (#334). */

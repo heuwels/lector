@@ -1,0 +1,12 @@
+name: Setup Playwright Chromium
+description: Cache and install Playwright Chromium plus OS dependencies
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+    - name: Install Playwright Chromium
+      shell: bash
+      run: npx playwright install --with-deps chromium

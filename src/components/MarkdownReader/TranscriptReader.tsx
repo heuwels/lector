@@ -2,7 +2,7 @@
 
 import { memo } from 'react';
 import { Play } from 'lucide-react';
-import type { LanguageConfig } from '@/lib/languages';
+import type { LanguageConfig, WordSegmentation } from '@/lib/languages';
 import { foldWord } from '@/lib/languages';
 import type { TranscriptSegment, WordState } from '@/types';
 import type { WordSource } from './types';
@@ -24,6 +24,12 @@ interface TranscriptReaderProps {
   segments: TranscriptSegment[];
   sourceUrl: string;
   pack: LanguageConfig;
+  /**
+   * The lesson's stored segmentation (#289 4.2). A YouTube lesson's
+   * `segmentWords` is built from the flattened transcript, which is exactly the
+   * text of these cues, so the vocabulary covers them.
+   */
+  segmentation: WordSegmentation | null;
   knownWordsMap: Map<string, WordState>;
   highlightedPhrase: string[];
   activeWord: ActiveReaderWord | null;
@@ -46,6 +52,7 @@ function TranscriptReader({
   segments,
   sourceUrl,
   pack,
+  segmentation,
   knownWordsMap,
   highlightedPhrase,
   activeWord,
@@ -61,7 +68,7 @@ function TranscriptReader({
       data-testid="transcript-reader"
     >
       {segments.map((segment, segmentIndex) => {
-        const words = collectWords(segment.text, pack);
+        const words = collectWords(segment.text, pack, segmentation);
         const phraseSet = computePhraseHighlightSet(words, highlightedPhrase, pack);
         const source: WordSource = {
           sourceUrl,
@@ -95,7 +102,7 @@ function TranscriptReader({
             </button>
             {/* <p> so the reader's drag-select phrase lookup (closest('p')) works. */}
             <p className="flex-1 text-lg leading-[1.9] sm:text-xl">
-              {splitWords(segment.text, pack).map((part, partIndex) => {
+              {splitWords(segment.text, pack, segmentation).map((part, partIndex) => {
                 if (!part.isWord) {
                   return (
                     <span key={partIndex} data-leaf="">

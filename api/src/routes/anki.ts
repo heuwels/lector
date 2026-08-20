@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { getCurrentUserId } from '../lib/user';
 import { db, VocabRow, AnkiCardType, WordState } from '../db';
-import { getActiveLanguageCode, resolveLanguage } from '../lib/active-language';
+import { getActiveLanguageCode, packForLanguage, resolveLanguage } from '../lib/active-language';
 import { getTodayDate } from '../lib/dates';
 import { foldWord, getLanguageConfig } from '../lib/languages';
 import {
@@ -143,6 +143,10 @@ const ANKI_REVIEW_TYPES = new Set([0, 1, 2, 3]);
 const MAX_QUEUE_ITEMS = 500;
 const MAX_REVIEW_ITEMS = 10_000;
 const MAX_REVIEW_DAYS = 3_660;
+// The inventory is one flat id list (not chunked like `reviews`), so it needs
+// its own ceiling. Far above any real collection — plan limits cap vocab well
+// below this — so it only ever stops an abusive body.
+const MAX_INVENTORY_IDS = 100_000;
 
 // Version handshake for the addon-facing endpoints (lib/anki-protocol.ts):
 // resolve the addon's protocol, refuse below-minimum versions with a 426 the
@@ -267,7 +271,10 @@ app.post('/queue', async (c) => {
 
     // Validate clozes at queue time — a blank-less cloze is invalid in Anki,
     // so fail loudly here instead of letting the addon hit it later.
-    if (item.cardType === 'cloze' && !buildClozeText(sentence, word).includes('{{c1::')) {
+    if (
+      item.cardType === 'cloze' &&
+      !buildClozeText(sentence, word, packForLanguage(vocab.language)).includes('{{c1::')
+    ) {
       failed.push({ id, error: `Could not build cloze: "${word}" not found in sentence` });
       continue;
     }
@@ -416,9 +423,10 @@ app.get('/pending', (c) => {
     const translation = row.pTranslation ?? row.translation;
     const meaning = row.pMeaning ?? translation;
 
+    const rowPack = packForLanguage(row.language);
     let clozeText = '';
     if (row.cardType === 'cloze') {
-      clozeText = buildClozeText(sentence, word);
+      clozeText = buildClozeText(sentence, word, rowPack);
       if (!clozeText.includes('{{c1::')) {
         deleteRow.run(userId, row.vocabId, row.cardType);
         continue;
@@ -431,7 +439,7 @@ app.get('/pending', (c) => {
       lang: row.language,
       word,
       sentence,
-      sentenceHtml: row.cardType === 'basic' ? highlightWordHtml(sentence, word) : '',
+      sentenceHtml: row.cardType === 'basic' ? highlightWordHtml(sentence, word, rowPack) : '',
       clozeText,
       translation,
       meaning,
@@ -551,6 +559,112 @@ interface ReviewItem {
   translation?: string;
 }
 
+interface AnkiInventory {
+  /** Anki's collection creation timestamp — the profile fingerprint. */
+  crt: number;
+  /** LectorId of every owned note still in the collection. */
+  lectorIds: string[];
+  /** Anki note id of every owned note still in the collection. */
+  noteIds: number[];
+}
+
+/**
+ * Validate the optional `inventory` on POST /reviews. Returns an error message,
+ * or null when the value is absent or acceptable.
+ */
+function validateInventory(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw)) return 'inventory must be an object';
+  const value = raw as Record<string, unknown>;
+  const crtError = validateSafeInteger(value.crt, 'inventory.crt', { optional: false, min: 1 });
+  if (crtError) return crtError;
+  for (const key of ['lectorIds', 'noteIds'] as const) {
+    if (!Array.isArray(value[key])) return `inventory.${key} must be an array`;
+    const list = value[key] as unknown[];
+    if (list.length > MAX_INVENTORY_IDS) {
+      return `inventory.${key} exceeds ${MAX_INVENTORY_IDS} entries`;
+    }
+    for (const [index, id] of list.entries()) {
+      if (key === 'lectorIds') {
+        if (typeof id !== 'string' || !id) return `inventory.lectorIds[${index}] must be a string`;
+      } else {
+        const idError = validateSafeInteger(id, `inventory.noteIds[${index}]`, {
+          optional: false,
+          min: 0,
+        });
+        if (idError) return idError;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Deleted-note reconcile (protocol 3). The addon sends an inventory ONLY on the
+ * last chunk of a full sync, so its presence is the addon asserting "this was
+ * the complete collection" — a mid-session buffer flush or an older addon sends
+ * nothing and nothing is reconciled. Entries whose Anki note is gone get
+ * pushedToAnki cleared, which puts them back in reach of the vocab list's
+ * export button. Returns how many were marked.
+ *
+ * Deliberately NOT re-queued: a user who deletes a leech card on purpose would
+ * otherwise get it recreated on every sync, a fight they cannot win. Clearing
+ * the flag restores the CHOICE to re-export, and nothing else.
+ *
+ * Two guards keep a false positive cheap and rare:
+ *   - crt must match the collection we reconciled against last time. A first
+ *     sight, or a different profile, records the fingerprint and skips — so
+ *     switching profiles cannot unsync a library in one shot.
+ *   - entries with a queued row are skipped: a re-queue in flight has not been
+ *     acked yet, so its note legitimately does not exist in Anki yet.
+ * A false positive is recoverable anyway: re-exporting upserts by LectorId, so
+ * an entry whose note DOES still exist is updated in place, never duplicated.
+ */
+function reconcileDeletedNotes(userId: string, inventory: AnkiInventory): number {
+  const now = new Date().toISOString();
+  const seen = db.prepare('SELECT crt FROM anki_collections WHERE userId = ?').get(userId) as
+    | { crt: number }
+    | undefined;
+
+  if (!seen || seen.crt !== inventory.crt) {
+    db.prepare(
+      `INSERT INTO anki_collections (userId, crt, firstSeenAt, lastSeenAt) VALUES (?, ?, ?, ?)
+       ON CONFLICT(userId) DO UPDATE SET crt = excluded.crt, lastSeenAt = excluded.lastSeenAt`,
+    ).run(userId, inventory.crt, now, now);
+    return 0;
+  }
+  db.prepare('UPDATE anki_collections SET lastSeenAt = ? WHERE userId = ?').run(now, userId);
+
+  const liveIds = new Set(inventory.lectorIds);
+  const liveNotes = new Set(inventory.noteIds);
+  // ankiNoteId IS NOT NULL is a deliberate floor: every path that marks an
+  // entry pushed records the note id (/ack, the browser's AnkiConnect export,
+  // the import below), so a NULL means we cannot prove the entry ever had a
+  // note — and "cannot prove" must not become "delete".
+  const candidates = db
+    .prepare(
+      `SELECT v.id, v.ankiNoteId FROM vocab v
+       WHERE v.userId = ? AND v.pushedToAnki = 1 AND v.ankiNoteId IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM anki_pending p WHERE p.userId = v.userId AND p.vocabId = v.id
+         )`,
+    )
+    .all(userId) as Array<{ id: string; ankiNoteId: number }>;
+
+  const missing = candidates
+    .filter((row) => !liveIds.has(row.id) && !liveNotes.has(row.ankiNoteId))
+    .map((row) => row.id);
+  if (missing.length === 0) return 0;
+
+  const unsync = db.prepare(
+    'UPDATE vocab SET pushedToAnki = 0, ankiNoteId = NULL WHERE id = ? AND userId = ?',
+  );
+  db.transaction((ids: string[]) => {
+    for (const id of ids) unsync.run(id, userId);
+  })(missing);
+  return missing.length;
+}
+
 // POST /api/anki/reviews — structured review-state push from the addon: the
 // server-side twin of the browser sync (reconcileAnkiStates + findNewAnkiWords
 // in src/lib/anki.ts), minus the HTML archaeology — the addon reads LectorId/
@@ -568,10 +682,13 @@ app.post('/reviews', async (c) => {
   );
   const reviews = (body as { reviews?: unknown })?.reviews;
   const reviewsByDay = (body as { reviewsByDay?: unknown })?.reviewsByDay;
+  const inventory = (body as { inventory?: unknown })?.inventory;
 
-  if (!Array.isArray(reviews) && !Array.isArray(reviewsByDay)) {
-    return c.json({ error: 'Provide reviews and/or reviewsByDay arrays' }, 400);
+  if (!Array.isArray(reviews) && !Array.isArray(reviewsByDay) && inventory === undefined) {
+    return c.json({ error: 'Provide a reviews array, a reviewsByDay array, or an inventory' }, 400);
   }
+  const inventoryError = validateInventory(inventory);
+  if (inventoryError) return c.json({ error: inventoryError }, 400);
   if (Array.isArray(reviews) && reviews.length > MAX_REVIEW_ITEMS) {
     return c.json({ error: `Too many reviews (max ${MAX_REVIEW_ITEMS})` }, 400);
   }
@@ -859,12 +976,17 @@ app.post('/reviews', async (c) => {
     syncedDays = result.synced;
   }
 
+  // Last, so entries imported above (which are in Anki by definition, and whose
+  // note ids the inventory already carries) are on the books before the diff.
+  const unsynced = inventory ? reconcileDeletedNotes(userId, inventory as AnkiInventory) : 0;
+
   return c.json(
     downgradeAnkiResponse(c.get('ankiProtocol'), '/reviews', {
       updated,
       created,
       unchanged,
       syncedDays,
+      unsynced,
     }),
   );
 });

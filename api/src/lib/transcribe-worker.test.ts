@@ -26,6 +26,9 @@ function createSchema(db: Database): void {
       title TEXT NOT NULL DEFAULT '',
       textContent TEXT NOT NULL DEFAULT '',
       wordCount INTEGER DEFAULT 0,
+      -- #289 4.2: applyTranscript writes the segmentation vocabulary alongside
+      -- the transcript text, which is the first point the lesson has any.
+      segmentWords TEXT,
       language TEXT NOT NULL DEFAULT 'af',
       createdAt TEXT NOT NULL,
       audioPath TEXT,
