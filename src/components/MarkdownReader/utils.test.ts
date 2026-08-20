@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createElement } from 'react';
-import { splitWords, collectWords, computePhraseHighlightSet } from './utils';
+import { splitWords, collectWords, computePhraseHighlightSet, parseSegmentWords } from './utils';
 import { LANGUAGES } from '@/lib/languages';
 
 const af = LANGUAGES.af;
@@ -93,5 +93,30 @@ describe('computePhraseHighlightSet', () => {
     expect(computePhraseHighlightSet(block, ['kat'], af).size).toBe(0);
     expect(computePhraseHighlightSet(block, [], af).size).toBe(0);
     expect(computePhraseHighlightSet(['een'], ['een', 'twee'], af).size).toBe(0);
+  });
+});
+
+describe('parseSegmentWords (#289 4.2)', () => {
+  it('reads a stored list', () => {
+    expect(parseSegmentWords('["喜欢","读书"]')).toEqual(['喜欢', '读书']);
+  });
+
+  it('treats absent, empty and blank as no segmentation', () => {
+    expect(parseSegmentWords(null)).toBeNull();
+    expect(parseSegmentWords(undefined)).toBeNull();
+    expect(parseSegmentWords('')).toBeNull();
+    expect(parseSegmentWords('[]')).toBeNull();
+  });
+
+  it('degrades to null on malformed input rather than throwing', () => {
+    // The reader can always fall back to Intl.Segmenter, so one bad row must
+    // never blank the page.
+    expect(parseSegmentWords('{not json')).toBeNull();
+    expect(parseSegmentWords('{"a":1}')).toBeNull();
+    expect(parseSegmentWords('"a string"')).toBeNull();
+  });
+
+  it('drops non-string entries instead of rejecting the whole list', () => {
+    expect(parseSegmentWords('["喜欢",7,null,"读书"]')).toEqual(['喜欢', '读书']);
   });
 });

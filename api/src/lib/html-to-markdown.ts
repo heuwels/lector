@@ -1,4 +1,9 @@
-import { countWords as countWordsForPack, normalizeText, type LanguageConfig } from './languages';
+import {
+  countWords as countWordsForPack,
+  normalizeText,
+  tokenizeWords,
+  type LanguageConfig,
+} from './languages';
 
 /**
  * Simple HTML to Markdown converter for Readability output.
@@ -44,7 +49,10 @@ export function htmlToMarkdown(html: string): string {
     );
   });
 
-  markdown = markdown.replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '\n```\n$1\n```\n');
+  markdown = markdown.replace(
+    /<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi,
+    '\n```\n$1\n```\n',
+  );
   markdown = markdown.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, '\n```\n$1\n```\n');
   markdown = markdown.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`');
   markdown = markdown.replace(/<hr\s*\/?>/gi, '\n---\n');
@@ -71,14 +79,27 @@ export function htmlToMarkdown(html: string): string {
 
 function decodeHtmlEntities(text: string): string {
   const entities: Record<string, string> = {
-    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"',
-    '&#39;': "'", '&apos;': "'", '&nbsp;': ' ',
-    '&ndash;': '\u2013', '&mdash;': '\u2014',
-    '&lsquo;': '\u2018', '&rsquo;': '\u2019',
-    '&ldquo;': '\u201C', '&rdquo;': '\u201D',
-    '&hellip;': '\u2026', '&copy;': '©', '&reg;': '®',
-    '&trade;': '™', '&euro;': '€', '&pound;': '£',
-    '&yen;': '¥', '&cent;': '¢',
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&apos;': "'",
+    '&nbsp;': ' ',
+    '&ndash;': '\u2013',
+    '&mdash;': '\u2014',
+    '&lsquo;': '\u2018',
+    '&rsquo;': '\u2019',
+    '&ldquo;': '\u201C',
+    '&rdquo;': '\u201D',
+    '&hellip;': '\u2026',
+    '&copy;': '©',
+    '&reg;': '®',
+    '&trade;': '™',
+    '&euro;': '€',
+    '&pound;': '£',
+    '&yen;': '¥',
+    '&cent;': '¢',
   };
 
   let result = text;
@@ -88,7 +109,7 @@ function decodeHtmlEntities(text: string): string {
 
   result = result.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
   result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, code) =>
-    String.fromCharCode(parseInt(code, 16))
+    String.fromCharCode(parseInt(code, 16)),
   );
 
   return result;
@@ -99,4 +120,29 @@ function decodeHtmlEntities(text: string): string {
 // token count in Phase 4 without touching the callers here.
 export function countWords(text: string, pack?: LanguageConfig): number {
   return countWordsForPack(text, pack);
+}
+
+/**
+ * The lesson's segmentation vocabulary as a JSON string, or NULL (#289 4.2).
+ *
+ * Segmenting once at write time is the point: the reader cannot run a quality
+ * segmenter, and re-running even ICU on every render wastes work. The stored
+ * value is the DISTINCT word forms, so its size tracks the lesson's vocabulary
+ * rather than its length — a long text with a small vocabulary stays small.
+ *
+ * Returns NULL for every spaced pack. Whitespace is already an exact answer
+ * there, and a list would be pure bloat. Callers store the NULL as-is; the
+ * reader then falls back to `Intl.Segmenter`, so a missing value is never an
+ * error.
+ */
+export function buildSegmentWords(text: string, pack?: LanguageConfig): string | null {
+  if (pack?.script.kind !== 'cjk-unspaced') return null;
+  const forms = new Set<string>();
+  for (const token of tokenizeWords(normalizeText(text), pack)) {
+    // Single characters are the longest-match fallback anyway, so storing them
+    // buys nothing and would dominate the list for a Chinese text.
+    if (token.text.length > 1) forms.add(token.text);
+  }
+  if (forms.size === 0) return null;
+  return JSON.stringify([...forms]);
 }

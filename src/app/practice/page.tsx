@@ -23,11 +23,14 @@ import { playCorrectSound, playIncorrectSound } from '@/lib/sounds';
 import { translateGloss, translateWord } from '@/lib/claude';
 import { lookupWordRemote, type ExpandedDictionaryEntry } from '@/lib/dictionary-client';
 import { splitTrailingPunctuation } from '@/lib/words';
+import { isComposing } from '@/lib/keyboard';
 import {
+  clozeTokenSeparator,
   getLanguageConfig,
   graphemeLength,
   graphemeSplit,
   isValidLanguageCode,
+  resolveClozeTokens,
   tokenizeWords,
 } from '@/lib/languages';
 import {
@@ -76,6 +79,7 @@ import {
 import { startPostOnboardingTour } from '@/lib/post-onboarding-tour';
 
 function isInteractiveKeyTarget(event: KeyboardEvent): boolean {
+  if (isComposing(event)) return true;
   const target = event.target;
   return target instanceof HTMLElement && !!target.closest('button, input, textarea, select, a');
 }
@@ -804,6 +808,7 @@ export default function PracticePage() {
   useEffect(() => {
     if (state !== 'practicing' && state !== 'feedback') return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isComposing(e)) return;
       // Match on e.code so it's keyboard-layout independent — on macOS Alt+T
       // (Option+T) would otherwise arrive as e.key === '†'.
       if (e.altKey && e.code === 'KeyT') {
@@ -1114,7 +1119,13 @@ export default function PracticePage() {
                     'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))]',
                 }[fuzzyStatus];
 
-                const words = current.sentence.sentence.split(/\s+/);
+                // Tokens, not a whitespace split (#289 4.3): unspaced CJK has
+                // no whitespace, and `clozeIndex` indexes this array.
+                const words = resolveClozeTokens(
+                  current.sentence.sentence,
+                  current.sentence.tokens,
+                );
+                const wordGap = clozeTokenSeparator(current.sentence.sentence, words);
                 // The cloze token can carry trailing punctuation (e.g. "huis.") —
                 // render it after the input/blank so it stays visible.
                 const [clozeBase, clozePunct] = splitTrailingPunctuation(
@@ -1152,7 +1163,7 @@ export default function PracticePage() {
                       <p className="text-xl leading-loose font-medium text-foreground">
                         {words.map((word, i) => (
                           <span key={i}>
-                            {i > 0 && ' '}
+                            {i > 0 && wordGap}
                             {i === current.sentence.clozeIndex ? (
                               <>
                                 {practiceMode === 'type' && !mcFallback ? (
@@ -1162,6 +1173,9 @@ export default function PracticePage() {
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
                                     onKeyDown={(e) => {
+                                      // An IME commits its candidate with Enter
+                                      // (#289 4.5) — that must not submit too.
+                                      if (isComposing(e)) return;
                                       if (e.key === 'Enter' && !e.repeat) {
                                         e.preventDefault();
                                         handleSubmit();

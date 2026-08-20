@@ -8,7 +8,7 @@ import { splitTrailingPunctuation } from '@/lib/words';
 import { addClozeCard } from '@/lib/anki';
 import { queueForAnki } from '@/lib/anki-queue';
 import { useAnkiTransport } from '@/lib/anki-transport';
-import { foldWord } from '@/lib/languages';
+import { clozeTokenSeparator, foldWord, resolveClozeTokens } from '@/lib/languages';
 import { getVocabByText, saveVocab } from '@/lib/data-layer';
 import { ANKI_CLOZE_DECK_SETTING_KEY } from '../../constants';
 import { CurrentSentence, IFeedbackData } from '../../types';
@@ -129,47 +129,49 @@ export default function Feedback({
         </div>
         <p className="text-xl leading-relaxed font-medium text-foreground">
           {current &&
-            current.sentence.sentence.split(/\s+/).map((word, i) => (
-              <span key={i}>
-                {i > 0 && ' '}
-                {i === current.sentence.clozeIndex ? (
-                  // Keep trailing punctuation outside the highlighted chip so a
-                  // sentence-final answer ("vriende.") doesn't show the period
-                  // inside the coloured box — matching the question screen.
-                  (() => {
-                    const [base, punct] = splitTrailingPunctuation(word);
-                    return (
-                      <>
-                        <button
-                          type="button"
-                          data-testid="cloze-word"
-                          onClick={() => onWordClicked(base)}
-                          aria-label={`Look up ${base}`}
-                          className={`inline cursor-pointer rounded px-1 font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
-                            feedbackData.isCorrect
-                              ? 'border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
-                              : 'border border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
-                          }`}
-                        >
-                          {base}
-                        </button>
-                        {punct}
-                      </>
-                    );
-                  })()
-                ) : (
-                  <button
-                    type="button"
-                    data-testid="cloze-word"
-                    onClick={() => onWordClicked(word)}
-                    aria-label={`Look up ${splitTrailingPunctuation(word)[0]}`}
-                    className="inline cursor-pointer rounded px-0.5 font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  >
-                    {word}
-                  </button>
-                )}
-              </span>
-            ))}
+            resolveClozeTokens(current.sentence.sentence, current.sentence.tokens).map(
+              (word, i, all) => (
+                <span key={i}>
+                  {i > 0 && clozeTokenSeparator(current.sentence.sentence, all)}
+                  {i === current.sentence.clozeIndex ? (
+                    // Keep trailing punctuation outside the highlighted chip so a
+                    // sentence-final answer ("vriende.") doesn't show the period
+                    // inside the coloured box — matching the question screen.
+                    (() => {
+                      const [base, punct] = splitTrailingPunctuation(word);
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            data-testid="cloze-word"
+                            onClick={() => onWordClicked(base)}
+                            aria-label={`Look up ${base}`}
+                            className={`inline cursor-pointer rounded px-1 font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+                              feedbackData.isCorrect
+                                ? 'border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
+                                : 'border border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive'
+                            }`}
+                          >
+                            {base}
+                          </button>
+                          {punct}
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <button
+                      type="button"
+                      data-testid="cloze-word"
+                      onClick={() => onWordClicked(word)}
+                      aria-label={`Look up ${splitTrailingPunctuation(word)[0]}`}
+                      className="inline cursor-pointer rounded px-0.5 font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    >
+                      {word}
+                    </button>
+                  )}
+                </span>
+              ),
+            )}
         </p>
         <p className="mt-2 text-base text-muted-foreground italic">
           {current && current.sentence.translation}

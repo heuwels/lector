@@ -13,6 +13,8 @@ function props(overrides: Partial<ReaderBlockProps> = {}): ReaderBlockProps {
     blockId: 10,
     contentVersion: 'Die son skyn.',
     pack: getLanguageConfig('af'),
+    // af is spaced, so it never carries a stored segmentation (#289 4.2).
+    segmentation: null,
     knownWordsMap: new Map(),
     highlightedPhrase: [],
     activeWord: null,

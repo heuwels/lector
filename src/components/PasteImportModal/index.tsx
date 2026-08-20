@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useActiveLanguage } from '@/utils/hooks';
+import { countTypedWords } from '@/lib/languages';
 import type { PasteImportModalProps } from './types';
 
 export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImportModalProps) {
@@ -26,7 +27,7 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
   }, [isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const wordCount = countTypedWords(content, activeLang);
 
   const handleSave = useCallback(async () => {
     if (!title.trim() || !content.trim()) return;
@@ -52,7 +53,10 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <DialogTitle>Paste Text</DialogTitle>
-          <DialogClose className={buttonVariants({ variant: 'ghost', size: 'icon' })} aria-label="Close">
+          <DialogClose
+            className={buttonVariants({ variant: 'ghost', size: 'icon' })}
+            aria-label="Close"
+          >
             <X className="h-5 w-5" />
           </DialogClose>
         </div>
@@ -99,10 +103,7 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <label
-                htmlFor="paste-content"
-                className="block text-sm font-medium text-foreground"
-              >
+              <label htmlFor="paste-content" className="block text-sm font-medium text-foreground">
                 Text
               </label>
               {wordCount > 0 && (
@@ -128,10 +129,7 @@ export default function PasteImportModal({ isOpen, onClose, onSave }: PasteImpor
           <DialogClose className={buttonVariants({ variant: 'ghost' })} disabled={isSaving}>
             Cancel
           </DialogClose>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || !title.trim() || !content.trim()}
-          >
+          <Button onClick={handleSave} disabled={isSaving || !title.trim() || !content.trim()}>
             {isSaving ? (
               <div className="flex items-center gap-2">
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />

@@ -7,6 +7,7 @@ import {
   getLanguageConfig,
   isValidLanguageCode,
   normalizeText,
+  resolveClozeTokens,
   type LanguageCode,
 } from '../lib/languages';
 import { getCurrentUserId } from '../lib/user';
@@ -35,6 +36,12 @@ type BankEntry = {
   translation: string;
   clozeWord: string;
   clozeIndex: number;
+  /**
+   * Display tokens `clozeIndex` points into (#289 4.3). Absent on every spaced
+   * bank, whose tokens are the whitespace split the index was built against;
+   * unspaced CJK banks must ship it, because there is no whitespace to split.
+   */
+  tokens?: string[];
   wordRank: number | null;
   collection: string;
   source?: 'tatoeba' | 'mined';
@@ -187,9 +194,34 @@ async function loadSentenceBank(lang: string): Promise<BankEntry[]> {
 
 const app = new Hono();
 
+// The column is a JSON string; the client wants the array. A malformed or
+// non-array value degrades to null, which makes the reader derive the tokens
+// rather than throw on one bad row.
+function parseStoredTokens(value: string | null): string[] | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string')) return null;
+    return parsed.length > 0 ? (parsed as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Every cloze row reaches the client through here, which is why token
+// resolution lives at this seam rather than on each of the five write paths:
+// the row's own `language` gives us the pack, so the client always receives a
+// concrete array and never needs a pack to render a blank. A spaced row
+// resolves to the whitespace split its `clozeIndex` was written against, so
+// this is byte-identical to the previous behaviour for every shipped bank.
 function clozeResponse(sentence: ClozeSentenceRow) {
   return {
     ...sentence,
+    tokens: resolveClozeTokens(
+      sentence.sentence,
+      parseStoredTokens(sentence.tokens),
+      getLanguageConfig(sentence.language),
+    ),
     nextReview: new Date(sentence.nextReview),
     lastReviewed: sentence.lastReviewed ? new Date(sentence.lastReviewed) : null,
   };
@@ -236,13 +268,7 @@ app.get('/', (c) => {
 
   const sentences = db.prepare(query).all(...params) as ClozeSentenceRow[];
 
-  return c.json(
-    sentences.map((s) => ({
-      ...s,
-      nextReview: new Date(s.nextReview),
-      lastReviewed: s.lastReviewed ? new Date(s.lastReviewed) : null,
-    })),
-  );
+  return c.json(sentences.map(clozeResponse));
 });
 
 // POST /api/cloze
@@ -559,13 +585,7 @@ app.get('/due', (c) => {
       .slice(0, limit);
   }
 
-  return c.json(
-    sentences.map((s) => ({
-      ...s,
-      nextReview: new Date(s.nextReview),
-      lastReviewed: s.lastReviewed ? new Date(s.lastReviewed) : null,
-    })),
-  );
+  return c.json(sentences.map(clozeResponse));
 });
 
 // GET /api/cloze/counts
@@ -685,6 +705,9 @@ app.post('/seed', async (c) => {
     sentence: string;
     clozeWord: string;
     clozeIndex: number;
+    // Moves with clozeIndex: a re-pointed index against a stale token array
+    // would blank the wrong word.
+    tokens: string[] | undefined;
     translation: string;
     wordRank: number | null;
     collection: string;
@@ -707,6 +730,7 @@ app.post('/seed', async (c) => {
         sentence: ex.sentence,
         clozeWord: s.clozeWord,
         clozeIndex: s.clozeIndex,
+        tokens: s.tokens,
         translation: ex.translation,
         wordRank: s.wordRank,
         collection: s.collection,
@@ -715,12 +739,18 @@ app.post('/seed', async (c) => {
   }
 
   const insertStmt = db.prepare(`
-    INSERT OR IGNORE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, wordRank, tatoebaSentenceId, masteryLevel, nextReview, reviewCount, timesCorrect, timesIncorrect, language, userId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO clozeSentences (id, sentence, clozeWord, clozeIndex, tokens, translation, source, collection, wordRank, tatoebaSentenceId, masteryLevel, nextReview, reviewCount, timesCorrect, timesIncorrect, language, userId)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  // The bank's array is stored verbatim so display and index cannot drift; a
+  // spaced bank ships none and the row keeps NULL, which derives the same
+  // whitespace split the index was written against.
+  const bankTokens = (entry: { tokens?: string[] }) =>
+    entry.tokens && entry.tokens.length > 0 ? JSON.stringify(entry.tokens) : null;
+
   const updateStmt = db.prepare(`
-    UPDATE clozeSentences SET clozeWord = ?, clozeIndex = ?, wordRank = ?, collection = ? WHERE id = ? AND userId = ?
+    UPDATE clozeSentences SET clozeWord = ?, clozeIndex = ?, tokens = ?, wordRank = ?, collection = ? WHERE id = ? AND userId = ?
   `);
 
   const preparedInserts = toInsert.map((entry) => ({
@@ -745,6 +775,7 @@ app.post('/seed', async (c) => {
         s.text,
         s.clozeWord,
         s.clozeIndex,
+        bankTokens(s),
         s.translation,
         mined ? 'mined' : 'tatoeba',
         s.collection,
@@ -760,7 +791,15 @@ app.post('/seed', async (c) => {
       );
     }
     for (const s of toUpdate) {
-      updateStmt.run(s.clozeWord, s.clozeIndex, s.wordRank, s.collection, s.id, userId);
+      updateStmt.run(
+        s.clozeWord,
+        s.clozeIndex,
+        bankTokens(s),
+        s.wordRank,
+        s.collection,
+        s.id,
+        userId,
+      );
     }
   });
   if (!verdict.allowed) return planLimitResponse(c, verdict);
@@ -806,11 +845,7 @@ app.get('/:id', (c) => {
 
   if (!sentence) return c.json({ error: 'Not found' }, 404);
 
-  return c.json({
-    ...sentence,
-    nextReview: new Date(sentence.nextReview),
-    lastReviewed: sentence.lastReviewed ? new Date(sentence.lastReviewed) : null,
-  });
+  return c.json(clozeResponse(sentence));
 });
 
 // PUT /api/cloze/:id

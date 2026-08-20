@@ -79,6 +79,14 @@ export interface Lesson {
   sourceMeta?: string | null;
   /** JSON string of {@link TranscriptSegment}[] when sourceType is 'youtube'. */
   segments?: string | null;
+  /**
+   * JSON string[] of the distinct word forms a server-side segmenter found in
+   * this lesson (#289 4.2). Set only on unspaced CJK lessons; null everywhere
+   * else, and on CJK content imported before 4.2. The reader falls back to
+   * `Intl.Segmenter` when it is absent, so this is an upgrade, never a
+   * requirement. Unrelated to `segments` above.
+   */
+  segmentWords?: string | null;
   createdAt: string;
   lastReadAt: string;
   /** Set on audio-backed lessons (#185): the audio file's playable duration. */
@@ -144,6 +152,12 @@ export interface ClozeSentence {
   sentence: string;
   clozeWord: string;
   clozeIndex: number;
+  /**
+   * Display tokens `clozeIndex` points into (#289 4.3). Null on every row
+   * seeded from a spaced bank — derive them with `resolveClozeTokens`, never by
+   * re-tokenizing, or a stored index past an apostrophe moves.
+   */
+  tokens?: string[] | null;
   translation: string;
   source: ClozeSource;
   collection: ClozeCollection;
