@@ -25,6 +25,53 @@ export function parseSegmentWords(value: string | null | undefined): string[] | 
   }
 }
 
+// Ruby annotation elements (#289 4.4). `<rt>` holds the reading; `<rp>` holds
+// the fallback parentheses a non-ruby browser shows instead. Both are ANNOTATION,
+// never content, so every path that reads text out of the DOM must skip them.
+const ANNOTATION_TAGS = new Set(['RT', 'RP']);
+
+// Numeric nodeType constants rather than `Node.ELEMENT_NODE`. The `Node` global
+// does not exist outside a browser, so referencing it would throw under the
+// node-environment unit tests and during any server render.
+const ELEMENT_NODE = 1;
+const TEXT_NODE = 3;
+
+/**
+ * The text of a DOM subtree, excluding ruby annotations.
+ *
+ * `textContent` interleaves them. Measured in Chromium on
+ * `<ruby>我<rt>wǒ</rt></ruby><ruby>喜欢<rt>xǐhuan</rt></ruby>`, `textContent`
+ * gives "我wǒ喜欢xǐhuan" where the sentence is "我喜欢". That string is not
+ * cosmetic: `findSentence` feeds it to `wordPanel.sentence`, which is persisted
+ * to `vocab.sentence` and later validated by the Anki cloze builder, so an
+ * interleaved read corrupts saved vocabulary and fails the export.
+ */
+export function readableText(node: Node): string {
+  if (node.nodeType === TEXT_NODE) return node.textContent ?? '';
+  if (node.nodeType === ELEMENT_NODE && ANNOTATION_TAGS.has((node as Element).tagName)) {
+    return '';
+  }
+  let out = '';
+  for (const child of Array.from(node.childNodes)) out += readableText(child);
+  return out;
+}
+
+/**
+ * A Range's text, excluding ruby annotations.
+ *
+ * `range.toString()` cannot be used: unlike a selection it ignores
+ * `user-select: none`, so the CSS guard that keeps annotations out of a copy
+ * does NOT keep them out of this. Verified in Chromium — with
+ * `rt { user-select: none }`, `selection.toString()` returns "我喜欢读书。" while
+ * `range.toString()` still returns "我wǒ喜欢xǐhuan读书dúshū。".
+ *
+ * `cloneContents` is a detached fragment, so walking it cannot disturb the live
+ * selection or the rendered DOM.
+ */
+export function readableRangeText(range: Range): string {
+  return readableText(range.cloneContents());
+}
+
 // Expand a selection to full word boundaries. DOM wrapper around the pure
 // offset-based snapper in languages/tokenizer — per-pack so it follows the
 // active script instead of hardcoded Latin ranges (#289).
@@ -61,7 +108,7 @@ export function snapToWordBoundaries(
     range.setEnd(endContainer, end);
   }
 
-  return range.toString().trim();
+  return readableRangeText(range).trim();
 }
 
 export interface TextPart {

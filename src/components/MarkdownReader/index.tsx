@@ -13,7 +13,7 @@ import {
   makeWordSegmentation,
   splitSentences,
 } from '@/lib/languages';
-import { parseSegmentWords } from './utils';
+import { parseSegmentWords, readableText } from './utils';
 import { useActiveLanguage } from '@/utils/hooks';
 import { MarkdownReaderProps } from './types';
 import { Button } from '@/components/ui/button';
@@ -162,8 +162,10 @@ export default function MarkdownReader({
   const findSentence = useCallback(
     (element: HTMLElement): string => {
       const block = element.closest('p, li, blockquote, h1, h2, h3, h4, h5, h6');
-      const text = block?.textContent || '';
-      const wordText = element.textContent || '';
+      // readableText, not textContent — see the note on the ReaderArticle copy.
+      // A ruby annotation would interleave and corrupt vocab.sentence (#289 4.4).
+      const text = block ? readableText(block) : '';
+      const wordText = readableText(element);
 
       const sentences = splitSentences(text, pack);
       for (const sentence of sentences) {
