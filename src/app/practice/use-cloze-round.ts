@@ -40,7 +40,9 @@ function currentFrom(sentences: ClozeSentence[]): CurrentSentence | null {
   if (!sentence) return null;
   return {
     sentence,
-    blankedSentence: createBlankedSentence(sentence.sentence, sentence.clozeIndex),
+    // No pack here, and none needed: the API resolves `tokens` for every row
+    // it serves (#289 4.3), so the separator is recoverable from the array.
+    blankedSentence: createBlankedSentence(sentence.sentence, sentence.clozeIndex, sentence.tokens),
   };
 }
 

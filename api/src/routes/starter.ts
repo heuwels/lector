@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import { db } from '../db';
 import { getCurrentUserId } from '../lib/user';
 import { LANGUAGES, isValidLanguageCode } from '../lib/languages';
-import { countWords } from '../lib/html-to-markdown';
+import { buildSegmentWords, countWords } from '../lib/html-to-markdown';
 import { hasStarterContent, loadStarterContent } from '../lib/starter-content';
 import {
   entitlements,
@@ -106,8 +106,8 @@ app.post('/seed', async (c) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertLesson = db.prepare(`
-    INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, language, createdAt, lastReadAt, userId)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, segmentWords, language, createdAt, lastReadAt, userId)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const getCollection = db.prepare('SELECT language FROM collections WHERE userId = ? AND id = ?');
   const hasLesson = db.prepare('SELECT 1 FROM lessons WHERE userId = ? AND id = ?');
@@ -198,6 +198,7 @@ app.post('/seed', async (c) => {
           lesson.sortOrder,
           lesson.markdown,
           countWords(lesson.markdown, pack),
+          buildSegmentWords(lesson.markdown, pack),
           language,
           now,
           now,

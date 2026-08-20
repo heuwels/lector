@@ -4,6 +4,8 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useActiveLanguage } from '@/utils/hooks';
+import { countTypedWords } from '@/lib/languages';
 import type { LessonFormModalProps } from './types';
 
 export default function LessonFormModal({
@@ -13,6 +15,7 @@ export default function LessonFormModal({
   onClose,
   onSave,
 }: LessonFormModalProps) {
+  const activeLang = useActiveLanguage();
   const titleRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState('');
   const [textContent, setTextContent] = useState('');
@@ -28,7 +31,7 @@ export default function LessonFormModal({
   }, [isOpen, initial]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const wordCount = textContent.trim() ? textContent.trim().split(/\s+/).length : 0;
+  const wordCount = countTypedWords(textContent, activeLang);
 
   const handleSave = useCallback(async () => {
     if (!title.trim() || !textContent.trim()) return;
@@ -84,10 +87,7 @@ export default function LessonFormModal({
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <label
-                htmlFor="lesson-content"
-                className="block text-sm font-medium text-foreground"
-              >
+              <label htmlFor="lesson-content" className="block text-sm font-medium text-foreground">
                 Text
               </label>
               {wordCount > 0 && (
@@ -113,10 +113,7 @@ export default function LessonFormModal({
           <DialogClose className={buttonVariants({ variant: 'ghost' })} disabled={isSaving}>
             Cancel
           </DialogClose>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || !title.trim() || !textContent.trim()}
-          >
+          <Button onClick={handleSave} disabled={isSaving || !title.trim() || !textContent.trim()}>
             {isSaving ? (
               <div className="flex items-center gap-2">
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />

@@ -526,6 +526,13 @@ function getDb(): Database {
       _db.exec('ALTER TABLE lessons ADD COLUMN sourceMeta TEXT');
     if (!lessonCols.some((c) => c.name === 'segments'))
       _db.exec('ALTER TABLE lessons ADD COLUMN segments TEXT');
+    // The lesson's segmentation vocabulary (#289 4.2) — a JSON string[] of the
+    // distinct word forms a server-side segmenter found. Only unspaced CJK
+    // lessons carry one; whitespace already answers the question everywhere
+    // else. NOT to be confused with `segments` above, which is YouTube's
+    // timestamped cue array.
+    if (!lessonCols.some((c) => c.name === 'segmentWords'))
+      _db.exec('ALTER TABLE lessons ADD COLUMN segmentWords TEXT');
   }
 
   // anki_pending source-provenance columns (#334). anki_pending is not part of
@@ -597,6 +604,18 @@ function getDb(): Database {
   }
   if (!lessonAudioCols.some((c) => c.name === 'transcriptionAttempts')) {
     _db.exec('ALTER TABLE lessons ADD COLUMN transcriptionAttempts INTEGER NOT NULL DEFAULT 0');
+  }
+
+  // Cloze display tokens (#289 4.3). `clozeIndex` indexes into this array. A
+  // NULL means "derive it", which for every spaced pack is the whitespace split
+  // the index was written against, so legacy rows keep their exact behaviour;
+  // only unspaced CJK banks ship an explicit array. Guarded ALTER, because
+  // clozeSentences already went through its composite-PK rebuild.
+  const clozeTokenCols = _db.prepare('PRAGMA table_info(clozeSentences)').all() as {
+    name: string;
+  }[];
+  if (clozeTokenCols.length > 0 && !clozeTokenCols.some((c) => c.name === 'tokens')) {
+    _db.exec('ALTER TABLE clozeSentences ADD COLUMN tokens TEXT');
   }
 
   // Dead table from a long-removed translation-comparison experiment (DEBT-03).
@@ -926,6 +945,7 @@ export function migrateCompositeTenantKeys(database: Database) {
           sourceType TEXT,
           sourceMeta TEXT,
           segments TEXT,
+          segmentWords TEXT,
           language TEXT NOT NULL DEFAULT 'af',
           createdAt TEXT NOT NULL,
           lastReadAt TEXT NOT NULL,
@@ -945,6 +965,7 @@ export function migrateCompositeTenantKeys(database: Database) {
         'sourceType',
         'sourceMeta',
         'segments',
+        'segmentWords',
         'language',
         'createdAt',
         'lastReadAt',
@@ -1668,6 +1689,12 @@ export interface LessonRow {
   sourceType: string | null;
   sourceMeta: string | null;
   segments: string | null;
+  /**
+   * JSON string[] of the distinct word forms a segmenter found in this lesson
+   * (#289 4.2). NULL for every spaced language, and for CJK content imported
+   * before 4.2 — the reader falls back to `Intl.Segmenter` then.
+   */
+  segmentWords: string | null;
   createdAt: string;
   lastReadAt: string;
   audioPath: string | null;
@@ -1737,6 +1764,11 @@ export interface ClozeSentenceRow {
   sentence: string;
   clozeWord: string;
   clozeIndex: number;
+  /**
+   * JSON array of the display tokens `clozeIndex` points into (#289 4.3), or
+   * NULL to derive them. Only unspaced CJK banks store one.
+   */
+  tokens: string | null;
   translation: string;
   source: ClozeSource;
   collection: ClozeCollection;
@@ -1750,6 +1782,7 @@ export interface ClozeSentenceRow {
   timesCorrect: number;
   timesIncorrect: number;
   blacklisted: number;
+  language: LanguageCode;
 }
 
 export interface DailyStatsRow {

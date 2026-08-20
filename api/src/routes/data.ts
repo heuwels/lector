@@ -5,15 +5,9 @@ import { db } from '../db';
 import { getCurrentUserId } from '../lib/user';
 import { REDACTION_SENTINEL, validateSettingWrite } from '../lib/settings-keys';
 import { buildUserExport, USER_EXPORT_FORMAT, USER_EXPORT_VERSION } from '../lib/user-export';
-import { countWords } from '../lib/html-to-markdown';
-import {
-  DEFAULT_LANGUAGE,
-  foldWord,
-  getLanguageConfig,
-  isValidLanguageCode,
-  normalizeText,
-  type LanguageConfig,
-} from '../lib/languages';
+import { buildSegmentWords, countWords } from '../lib/html-to-markdown';
+import { countTypedWords, foldWord, isValidLanguageCode, normalizeText } from '../lib/languages';
+import { packForLanguage } from '../lib/active-language';
 import { createHash, randomUUID } from 'crypto';
 import {
   acceptedCacheContentBytes,
@@ -382,9 +376,7 @@ function existingAcceptedBytes(userId: string): Map<string, number> {
 // Restores must uphold the folded-key invariant (#289): a backup made before
 // NFC/fold keying (or hand-edited) may carry unnormalized words, and the boot
 // migration won't run again until the next restart.
-function packFor(language: string | undefined | null): LanguageConfig {
-  return getLanguageConfig(language && isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE);
-}
+const packFor = packForLanguage;
 
 // GET /api/data — full backup for the requesting user. The builder
 // (lib/user-export.ts) is shared with the admin export (#221) so both paths
@@ -1234,12 +1226,13 @@ app.post(
 
       if (data.lessons?.length) {
         const stmt = db.prepare(`
-      INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, language, createdAt, lastReadAt, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, progress_scrollPosition, progress_percentComplete, wordCount, segmentWords, language, createdAt, lastReadAt, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(userId, id) DO UPDATE SET
         collectionId = excluded.collectionId, title = excluded.title, sortOrder = excluded.sortOrder,
         textContent = excluded.textContent, progress_scrollPosition = excluded.progress_scrollPosition,
         progress_percentComplete = excluded.progress_percentComplete, wordCount = excluded.wordCount,
+        segmentWords = excluded.segmentWords,
         language = excluded.language, createdAt = excluded.createdAt, lastReadAt = excluded.lastReadAt
     `);
         for (const l of data.lessons) {
@@ -1252,7 +1245,11 @@ app.post(
             textContent,
             l.progress_scrollPosition || 0,
             l.progress_percentComplete || 0,
-            l.wordCount || countWords(textContent),
+            l.wordCount || countWords(textContent, packFor(l.language)),
+            // Derived here, never taken from the envelope: the restoring
+            // instance's segmenter is the authority, and an uploaded list is
+            // unvalidated client input.
+            buildSegmentWords(textContent, packFor(l.language)),
             l.language || 'af',
             l.createdAt || new Date().toISOString(),
             l.lastReadAt || new Date().toISOString(),
@@ -1306,7 +1303,9 @@ app.post(
             textContent,
             book.progress?.scrollPosition ?? book.progress_scrollPosition ?? 0,
             book.progress?.percentComplete ?? book.progress_percentComplete ?? 0,
-            countWords(textContent),
+            // Legacy books pre-date multi-language and are always 'af' (see the
+            // hardcoded literal in the INSERT above), so the pack is explicit.
+            countWords(textContent, packFor('af')),
             book.createdAt || new Date().toISOString(),
             book.lastReadAt || new Date().toISOString(),
             userId,
@@ -1419,7 +1418,7 @@ app.post(
         `);
         for (const entry of data.journalEntries) {
           const now = new Date().toISOString();
-          const wordCount = entry.body.trim().split(/\s+/).filter(Boolean).length;
+          const wordCount = countTypedWords(entry.body, packFor(entry.language));
           stmt.run(
             entry.id,
             entry.body,

@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { db } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
-import { countWords } from '../lib/html-to-markdown';
-import { normalizeText } from '../lib/languages';
+import { buildSegmentWords, countWords } from '../lib/html-to-markdown';
+import { getLanguageConfig, normalizeText } from '../lib/languages';
 import { safeFetch, readBodyCapped, SsrfError } from '../lib/safe-fetch';
 import { config } from '../lib/config';
 import { extractionBurstLimiter, type ExtractionBurstLimiter } from '../lib/rate-limit';
@@ -425,8 +425,8 @@ export function makeYoutubeImportRoutes({
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertLesson = db.prepare(`
-      INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, sourceType, sourceMeta, segments, language, createdAt, lastReadAt, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, wordCount, segmentWords, sourceType, sourceMeta, segments, language, createdAt, lastReadAt, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     // Byte accounting includes the segments JSON (it roughly doubles the stored
@@ -452,7 +452,8 @@ export function makeYoutubeImportRoutes({
           title,
           0,
           textContent,
-          countWords(textContent),
+          countWords(textContent, getLanguageConfig(lang)),
+          buildSegmentWords(textContent, getLanguageConfig(lang)),
           'youtube',
           sourceMeta,
           segmentsJson,

@@ -1,22 +1,39 @@
 import { splitTrailingPunctuation } from '@/lib/words';
 import {
+  clozeTokenSeparator,
   foldApostrophesFor,
   foldForComparison,
   graphemeLength,
   lowerForPack,
   normalizeText,
+  resolveClozeTokens,
   type LanguageConfig,
 } from '@/lib/languages';
 import { ClozeMasteryLevel, ClozeSentence } from '@/types';
 import { DictationDiff, DictationWord, FuzzyStatus, PracticeMode } from './types';
 import { DICTATION_PASS_THRESHOLD, DICTATION_POINTS_BASE } from './constants';
 
-// Helper export function to create blanked sentence, moving punctuation outside the blank
-export function createBlankedSentence(sentence: string, wordIndex: number): string {
-  const words = sentence.split(/\s+/);
-  const [, punct] = splitTrailingPunctuation(words[wordIndex]);
+// Helper export function to create blanked sentence, moving punctuation outside the blank.
+//
+// Tokens come from the row (#289 4.3) rather than a whitespace split here: an
+// unspaced CJK sentence has no whitespace to split on, and rejoining its tokens
+// with spaces would write spaces into Chinese prose. `clozeTokenSeparator`
+// picks the separator that rebuilds the sentence, so spaced scripts are
+// unchanged.
+export function createBlankedSentence(
+  sentence: string,
+  wordIndex: number,
+  tokens?: string[] | null,
+  pack?: LanguageConfig,
+): string {
+  const resolved = resolveClozeTokens(sentence, tokens, pack);
+  // Read the separator off the UNEDITED array — once the blank replaces a
+  // token, neither candidate join rebuilds the sentence any more.
+  const separator = clozeTokenSeparator(sentence, resolved, pack);
+  const words = [...resolved];
+  const [, punct] = splitTrailingPunctuation(words[wordIndex] ?? '');
   words[wordIndex] = '_____' + punct;
-  return words.join(' ');
+  return words.join(separator);
 }
 
 // Helper export function to normalize text for comparison. NFC first (#289):

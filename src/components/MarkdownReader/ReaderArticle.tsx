@@ -10,7 +10,7 @@ import {
 } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import type { LanguageConfig } from '@/lib/languages';
+import type { LanguageConfig, WordSegmentation } from '@/lib/languages';
 import { foldWord, splitSentences } from '@/lib/languages';
 import type { WordState } from '@/types';
 import { collectWords, computePhraseHighlightSet, splitWords } from './utils';
@@ -27,6 +27,8 @@ export interface ReaderBlockProps {
   blockId: number;
   contentVersion: string;
   pack: LanguageConfig;
+  /** The lesson's stored segmentation (#289 4.2); null falls back to ICU. */
+  segmentation: WordSegmentation | null;
   knownWordsMap: Map<string, WordState>;
   highlightedPhrase: string[];
   activeWord: ActiveReaderWord | null;
@@ -53,6 +55,9 @@ export function readerBlockPropsEqual(previous: ReaderBlockProps, next: ReaderBl
     previous.blockId !== next.blockId ||
     previous.contentVersion !== next.contentVersion ||
     previous.pack.code !== next.pack.code ||
+    // Identity is enough: MarkdownReader memoizes it on lesson.segmentWords, so
+    // a new object means a different segmentation and every span must re-split.
+    previous.segmentation !== next.segmentation ||
     previous.onWordClick !== next.onWordClick ||
     previous.onActivateWord !== next.onActivateWord ||
     previous.onClearPhrase !== next.onClearPhrase
@@ -72,7 +77,9 @@ export function readerBlockPropsEqual(previous: ReaderBlockProps, next: ReaderBl
 
   if (previous.knownWordsMap === next.knownWordsMap) return true;
   const words = new Set(
-    collectWords(previous.children, previous.pack).map((word) => foldWord(word, previous.pack)),
+    collectWords(previous.children, previous.pack, previous.segmentation).map((word) =>
+      foldWord(word, previous.pack),
+    ),
   );
   for (const word of words) {
     if (previous.knownWordsMap.get(word) !== next.knownWordsMap.get(word)) return false;
@@ -85,6 +92,7 @@ const ReaderBlock = memo(function ReaderBlock({
   children,
   blockId,
   pack,
+  segmentation,
   knownWordsMap,
   highlightedPhrase,
   activeWord,
@@ -93,14 +101,14 @@ const ReaderBlock = memo(function ReaderBlock({
   onClearPhrase,
 }: ReaderBlockProps) {
   const phraseSet = computePhraseHighlightSet(
-    collectWords(children, pack),
+    collectWords(children, pack, segmentation),
     highlightedPhrase,
     pack,
   );
 
   const renderChildren = (value: ReactNode, context: { i: number }, keyPrefix = 'r'): ReactNode => {
     if (typeof value === 'string') {
-      return splitWords(value, pack).map((part, index) => {
+      return splitWords(value, pack, segmentation).map((part, index) => {
         if (!part.isWord) {
           return (
             <span key={`${keyPrefix}-${index}`} data-leaf="">
@@ -159,6 +167,7 @@ const ReaderBlock = memo(function ReaderBlock({
 interface ReaderArticleProps {
   content: string;
   pack: LanguageConfig;
+  segmentation: WordSegmentation | null;
   knownWordsMap: Map<string, WordState>;
   highlightedPhrase: string[];
   activeWord: ActiveReaderWord | null;
@@ -170,6 +179,7 @@ interface ReaderArticleProps {
 function ReaderArticle({
   content,
   pack,
+  segmentation,
   knownWordsMap,
   highlightedPhrase,
   activeWord,
@@ -180,6 +190,7 @@ function ReaderArticle({
   const blockProps = {
     contentVersion: content,
     pack,
+    segmentation,
     knownWordsMap,
     highlightedPhrase,
     activeWord,

@@ -16,6 +16,7 @@ import { formatDate } from './utils';
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/PageHeader';
 import { useActiveLanguage } from '@/utils/hooks';
+import { countTypedWords } from '@/lib/languages';
 
 export default function JournalPage() {
   const activeLang = useActiveLanguage();
@@ -150,7 +151,7 @@ export default function JournalPage() {
     setError(null);
   };
 
-  const wordCount = bodyText.trim().split(/\s+/).filter(Boolean).length;
+  const wordCount = countTypedWords(bodyText, activeLang);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 pb-24 sm:px-6 sm:pb-8 lg:px-8">
@@ -196,9 +197,7 @@ export default function JournalPage() {
                 <span>
                   {wordCount} word{wordCount > 1 ? 's' : ''}
                 </span>
-                {saveStatus && (
-                  <span className="text-primary">{saveStatus}</span>
-                )}
+                {saveStatus && <span className="text-primary">{saveStatus}</span>}
               </div>
 
               <div className="flex items-center gap-2">
@@ -209,10 +208,7 @@ export default function JournalPage() {
                 >
                   {isSaving ? 'Saving...' : 'Save Draft'}
                 </Button>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || !bodyText.trim()}
-                >
+                <Button onClick={handleSubmit} disabled={isSubmitting || !bodyText.trim()}>
                   {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isSubmitting ? 'Correcting...' : 'Submit for Correction'}
                 </Button>

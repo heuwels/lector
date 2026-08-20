@@ -6,6 +6,11 @@ import {
   snapToWordBoundaries,
   splitSentences,
   countWords,
+  countTypedWords,
+  clozeTokens,
+  clozeTokenSeparator,
+  resolveClozeTokens,
+  makeWordSegmentation,
   type Token,
 } from './index';
 import { foldWord, normalizeText } from '../text';
@@ -31,11 +36,12 @@ function legacyWords(text: string): string[] {
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
 // the contract for exactly those packs. Languages added after #289 get their
-// own goldens below instead — ru, grc and uk because the oracle can't see their
-// scripts, and tr because the oracle applies the Afrikaans 'n alternative to
-// every language, which mis-splits a Turkish suffixed proper noun
-// (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to the af pack.
-const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>, string[]> = {
+// own goldens below instead — ru, grc, uk and zh because the oracle can't see
+// their scripts (zh doubly so: it has no whitespace, so the oracle returns the
+// whole paragraph), and tr because the oracle applies the Afrikaans 'n
+// alternative to every language, which mis-splits a Turkish suffixed proper
+// noun (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to the af pack.
+const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh'>, string[]> = {
   af: [
     'Hallo, hoe gaan dit met jou?',
     '’n Man loop in die straat. Sy sê: „Dit is ’n mooi dag!“',
@@ -114,7 +120,7 @@ const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>, string[]
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
   for (const [code, texts] of Object.entries(CORPUS) as [
-    Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk'>,
+    Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh'>,
     string[],
   ][]) {
     const pack = LANGUAGES[code];
@@ -248,6 +254,15 @@ const zh = synth({
   hasCase: false,
   sentenceTerminators: '。．！？!?',
 });
+// The second `cjk-unspaced` language (#214). It exists here to pin that the
+// engine is script-class generic: the only difference from zh is the bcp47 tag
+// handed to Intl.Segmenter.
+const ja = synth({
+  bcp47: 'ja',
+  kind: 'cjk-unspaced',
+  hasCase: false,
+  sentenceTerminators: '。．！？!?',
+});
 
 describe('multi-script goldens (synthetic packs — no per-language code)', () => {
   it('tokenizes Russian, including hyphenated compounds', () => {
@@ -300,10 +315,97 @@ describe('multi-script goldens (synthetic packs — no per-language code)', () =
     expect(tokens).toEqual(['한국']);
   });
 
-  it('falls back to letter-runs for unspaced CJK until the Phase 4 engine lands', () => {
-    // Documents the interim contract: the seam dispatches, the default engine
-    // keeps the run whole (one tap target), Intl.Segmenter lands in Phase 4.
-    expect(tokenizeWords('我喜欢读书。', zh).map((t) => t.text)).toEqual(['我喜欢读书']);
+  it('segments unspaced Chinese into words, not one letter run', () => {
+    expect(tokenizeWords('我喜欢读书。', zh).map((t) => t.text)).toEqual(['我', '喜欢', '读书']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unspaced-CJK engine (#289 Phase 4, item 4.1)
+// ---------------------------------------------------------------------------
+
+const ZH_CORPUS = [
+  '我喜欢读书，因为读书使我快乐。',
+  '他昨天去了北京大学。',
+  '「你好。」她说。',
+  '2026年的中国有14亿人口！',
+  '他说 hello 然后走了。',
+];
+
+describe('unspaced CJK engine (#289 Phase 4)', () => {
+  it('reassembles Chinese text byte-for-byte with correct offsets', () => {
+    for (const text of ZH_CORPUS) {
+      const tokens = tokenize(text, zh);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('emits one gap token between two words, like the regex engine', () => {
+    const tokens = tokenize('他说，我走。', zh);
+    for (let i = 1; i < tokens.length; i++) {
+      expect(tokens[i - 1].isWord || tokens[i].isWord).toBe(true);
+    }
+  });
+
+  it('keeps multi-character words whole and splits compounds', () => {
+    expect(tokenizeWords('他昨天去了北京大学。', zh).map((t) => t.text)).toEqual([
+      '他',
+      '昨天',
+      '去了',
+      '北京',
+      '大学',
+    ]);
+  });
+
+  it('tokenizes Latin and digits embedded in Chinese', () => {
+    expect(tokenizeWords('他说 hello 然后走了。', zh).map((t) => t.text)).toEqual([
+      '他',
+      '说',
+      'hello',
+      '然后',
+      // ICU keeps verb + aspect particle together (走了, and 去了 above). A
+      // quality segmenter splits them; the seam swaps without touching callers.
+      '走了',
+    ]);
+    expect(tokenizeWords('2026年的中国', zh).map((t) => t.text)).toEqual([
+      '2026',
+      '年',
+      '的',
+      '中国',
+    ]);
+  });
+
+  it('splits sentences with no whitespace after the terminator', () => {
+    expect(splitSentences('我喜欢读书。他昨天去了北京！你呢？', zh)).toEqual([
+      '我喜欢读书。',
+      '他昨天去了北京！',
+      '你呢？',
+    ]);
+  });
+
+  it('keeps a closing quote with the sentence it ends', () => {
+    expect(splitSentences('「你好。」她说。', zh)).toEqual(['「你好。」', '她说。']);
+  });
+
+  it('collapses a run of terminators into one break', () => {
+    expect(splitSentences('真的！？我不信。', zh)).toEqual(['真的！？', '我不信。']);
+  });
+
+  it('snaps a selection to segmenter boundaries, not to the whole run', () => {
+    const text = '他昨天去了北京大学';
+    // A caret inside 昨天 expands to 昨天 alone — the character walk the spaced
+    // engine uses would swallow the entire unspaced run.
+    expect(snapToWordBoundaries(text, 2, 2, zh)).toEqual({ start: 1, end: 3 });
+    // A drag across two words expands to cover both whole.
+    expect(snapToWordBoundaries(text, 2, 6, zh)).toEqual({ start: 1, end: 7 });
+  });
+
+  it('leaves an empty string alone', () => {
+    expect(tokenize('', zh)).toEqual([]);
+    expect(splitSentences('', zh)).toEqual(['']);
   });
 });
 
@@ -555,12 +657,9 @@ describe('Polish pack (real manifest)', () => {
   });
 
   it('joins hyphenated compounds', () => {
-    expect(tokenizeWords('biało-czerwona flaga, słownik polsko-angielski', pl).map((t) => t.text)).toEqual([
-      'biało-czerwona',
-      'flaga',
-      'słownik',
-      'polsko-angielski',
-    ]);
+    expect(
+      tokenizeWords('biało-czerwona flaga, słownik polsko-angielski', pl).map((t) => t.text),
+    ).toEqual(['biało-czerwona', 'flaga', 'słownik', 'polsko-angielski']);
   });
 
   it('folds case with the default Unicode mapping', () => {
@@ -813,6 +912,43 @@ describe('countWords', () => {
   it('accepts a missing pack (legacy callers)', () => {
     expect(countWords('een twee drie')).toBe(3);
   });
+
+  it('counts segmenter tokens for unspaced CJK, not whitespace runs (#289 4.6)', () => {
+    // The whole point: the whitespace count of this lesson is 1.
+    expect('我喜欢读书，因为读书使我快乐。'.split(/\s+/).length).toBe(1);
+    expect(countWords('我喜欢读书，因为读书使我快乐。', zh)).toBe(8);
+  });
+
+  it('strips markdown syntax before counting CJK tokens', () => {
+    expect(countWords('# 标题\n\n他*昨天*去了[北京](x)。', zh)).toBe(
+      countWords('标题 他昨天去了北京x。', zh),
+    );
+  });
+
+  it('falls back to the spaced count for a CJK text with no pack', () => {
+    expect(countWords('我喜欢读书。')).toBe(1);
+  });
+});
+
+describe('countTypedWords', () => {
+  it('keeps the exact historical journal count for spaced scripts', () => {
+    for (const text of ['een twee drie', '  padded  ', '', '*', '(a) b', 'a\nb\tc']) {
+      expect(countTypedWords(text, LANGUAGES.nl)).toBe(
+        text.trim().split(/\s+/).filter(Boolean).length,
+      );
+    }
+  });
+
+  it('does not strip markdown, unlike countWords', () => {
+    // The journal count is metered against a monthly allowance, so the lesson
+    // counter's markdown stripping must not be able to move the charge.
+    expect(countTypedWords('*', LANGUAGES.nl)).toBe(1);
+    expect(countWords('*', LANGUAGES.nl)).toBe(0);
+  });
+
+  it('counts segmenter tokens for unspaced CJK', () => {
+    expect(countTypedWords('我喜欢读书，因为读书使我快乐。', zh)).toBe(8);
+  });
 });
 
 describe('isWordChar', () => {
@@ -858,5 +994,233 @@ describe('Token invariants', () => {
 
   it('returns [] for the empty string', () => {
     expect(tokenize('', LANGUAGES.af)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cloze display tokens (#289 4.3)
+// ---------------------------------------------------------------------------
+
+describe('clozeTokens', () => {
+  // THE migration guarantee. `clozeIndex` is stored in every user's
+  // clozeSentences table as a whitespace-token index, so a spaced pack must
+  // keep splitting on whitespace forever. Re-deriving through the tokenizer
+  // would move every index past an apostrophe or a hyphen.
+  it.each([
+    ['fr', "L'eau est belle."],
+    ['fr', "Aujourd'hui j'ai vu l'homme."],
+    ['af', "Dit is 'n groot hond."],
+    ['uk', "П'ять котів сплять."],
+    ['grc', 'ἐν ἀρχῇ ἦν ὁ λόγος.'],
+    ['ru', 'Привет, как дела?'],
+    ['tr', 'İyi günler dostum.'],
+  ] as Array<[LanguageCode, string]>)(
+    'keeps the whitespace split for %s so stored indices cannot move',
+    (code, sentence) => {
+      expect(clozeTokens(sentence, LANGUAGES[code])).toEqual(sentence.split(/\s+/));
+    },
+  );
+
+  it('proves the apostrophe case would break under the tokenizer', () => {
+    // Not a behaviour assertion — a guard on the reason the rule exists. If
+    // these two ever agree, the comment above is stale, not the code.
+    const sentence = "L'eau est belle.";
+    expect(clozeTokens(sentence, LANGUAGES.fr)).toHaveLength(3);
+    expect(tokenizeWords(sentence, LANGUAGES.fr)).toHaveLength(4);
+  });
+
+  it('falls back to the whitespace split with no pack', () => {
+    expect(clozeTokens('Die hond is groot.', undefined)).toEqual(['Die', 'hond', 'is', 'groot.']);
+  });
+
+  it('segments unspaced CJK, which has no whitespace to split on', () => {
+    expect(clozeTokens('我喜欢读书。', zh)).toEqual(['我', '喜欢', '读书', '。']);
+  });
+
+  it('segments Japanese through the same generic engine', () => {
+    // The engine dispatches on script.kind and passes script.bcp47 straight to
+    // Intl.Segmenter, so ja needs no code of its own (#214 rides on this).
+    expect(clozeTokens('私は日本語を勉強しています。', ja)).toEqual([
+      '私',
+      'は',
+      '日本語',
+      'を',
+      '勉強',
+      'し',
+      'てい',
+      'ます',
+      '。',
+    ]);
+  });
+
+  it.each([
+    ['fr', "L'eau est belle.", LANGUAGES.fr],
+    ['af', 'Die hond is groot.', LANGUAGES.af],
+    ['zh', '我喜欢读书。', zh],
+    ['ja', '私は日本語を勉強しています。', ja],
+  ] as Array<[string, string, LanguageConfig]>)(
+    'round-trips %s: tokens rejoin to the exact sentence',
+    (_label, sentence, pack) => {
+      const tokens = clozeTokens(sentence, pack);
+      expect(tokens.join(clozeTokenSeparator(sentence, tokens, pack))).toBe(sentence);
+    },
+  );
+});
+
+describe('clozeTokenSeparator', () => {
+  it('infers the empty separator for an unspaced sentence', () => {
+    expect(clozeTokenSeparator('我喜欢读书。', ['我', '喜欢', '读书', '。'])).toBe('');
+  });
+
+  it('infers a space for a spaced sentence', () => {
+    expect(clozeTokenSeparator('Die hond is groot.', ['Die', 'hond', 'is', 'groot.'])).toBe(' ');
+  });
+
+  it('needs no pack to tell the two apart', () => {
+    // The practice reducer has no pack in hand; this is why inference beats a
+    // pack lookup there.
+    expect(clozeTokenSeparator('私は本を読む。', ['私', 'は', '本', 'を', '読む', '。'])).toBe('');
+  });
+
+  it('falls back to the pack when the tokens no longer rebuild the sentence', () => {
+    // The blanked sentence has an edited token, so neither join matches.
+    expect(clozeTokenSeparator('我喜欢读书。', ['我', '_____', '读书', '。'], zh)).toBe('');
+    expect(clozeTokenSeparator('Die hond is groot.', ['Die', '_____'], LANGUAGES.af)).toBe(' ');
+  });
+
+  it('falls back to a space for a single-token array with no pack', () => {
+    expect(clozeTokenSeparator('Hallo', ['Hallo'])).toBe(' ');
+  });
+});
+
+describe('resolveClozeTokens', () => {
+  it('prefers the stored array over any derivation', () => {
+    // A bank that segmented 喜欢读书 as one word stays authoritative, so the
+    // index the builder wrote keeps pointing at the same token.
+    expect(resolveClozeTokens('我喜欢读书。', ['我', '喜欢读书', '。'], zh)).toEqual([
+      '我',
+      '喜欢读书',
+      '。',
+    ]);
+  });
+
+  it('derives when the row stores nothing', () => {
+    expect(resolveClozeTokens('Die hond is groot.', null, LANGUAGES.af)).toEqual([
+      'Die',
+      'hond',
+      'is',
+      'groot.',
+    ]);
+  });
+
+  it('treats an empty stored array as absent', () => {
+    expect(resolveClozeTokens('Die hond.', [], LANGUAGES.af)).toEqual(['Die', 'hond.']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Word-list segmentation (#289 4.2)
+// ---------------------------------------------------------------------------
+
+describe('makeWordSegmentation', () => {
+  it('returns null for an absent or empty list, so callers get one falsy check', () => {
+    expect(makeWordSegmentation(null)).toBeNull();
+    expect(makeWordSegmentation(undefined)).toBeNull();
+    expect(makeWordSegmentation([])).toBeNull();
+    expect(makeWordSegmentation([''])).toBeNull();
+  });
+
+  it('reports the longest entry, which bounds the match window', () => {
+    const seg = makeWordSegmentation(['我', '喜欢', '读书'])!;
+    expect(seg.maxLength).toBe(2);
+    expect(seg.size).toBe(3);
+    expect(seg.has('喜欢')).toBe(true);
+    expect(seg.has('喜')).toBe(false);
+  });
+
+  it('de-duplicates repeated forms', () => {
+    expect(makeWordSegmentation(['我', '我', '喜欢'])!.size).toBe(2);
+  });
+});
+
+describe('tokenize with a word list', () => {
+  it('prefers the list over Intl.Segmenter, so a server segmenter wins', () => {
+    // ICU splits 读书 as one word; this list deliberately says otherwise, which
+    // is how a jieba/MeCab result overrides the browser's opinion.
+    const seg = makeWordSegmentation(['我', '喜欢读书'])!;
+    expect(tokenizeWords('我喜欢读书。', zh, seg).map((t) => t.text)).toEqual(['我', '喜欢读书']);
+    expect(tokenizeWords('我喜欢读书。', zh).map((t) => t.text)).toEqual(['我', '喜欢', '读书']);
+  });
+
+  it('matches longest-first, not first-fit', () => {
+    const seg = makeWordSegmentation(['日', '日本', '日本語'])!;
+    expect(tokenizeWords('日本語', ja, seg).map((t) => t.text)).toEqual(['日本語']);
+  });
+
+  it('keeps an uncovered character as its own word token, so it stays tappable', () => {
+    const seg = makeWordSegmentation(['喜欢'])!;
+    expect(tokenizeWords('我喜欢書', zh, seg).map((t) => t.text)).toEqual(['我', '喜欢', '書']);
+  });
+
+  it('classifies uncovered punctuation as a gap and merges runs', () => {
+    const seg = makeWordSegmentation(['我', '喜欢'])!;
+    const tokens = tokenize('我喜欢！？', zh, seg);
+    expect(tokens.map((t) => [t.text, t.isWord])).toEqual([
+      ['我', true],
+      ['喜欢', true],
+      ['！？', false],
+    ]);
+  });
+
+  it('never splits an astral character into lone surrogates', () => {
+    // 𠮷 (U+20BB7) is two UTF-16 units. Splitting it would render tofu.
+    const seg = makeWordSegmentation(['喜欢'])!;
+    const tokens = tokenizeWords('𠮷喜欢', zh, seg);
+    expect(tokens.map((t) => t.text)).toEqual(['𠮷', '喜欢']);
+    expect(tokens[0].end - tokens[0].start).toBe(2);
+  });
+
+  it.each([
+    ['我喜欢读书。这本书很好。', ['我', '喜欢读书', '这本书', '很好']],
+    ['私は日本語を勉強します。', ['私', 'は', '日本語', 'を', '勉強']],
+    ['我喜欢COVID-19的论文。', ['我', '喜欢']],
+  ] as Array<[string, string[]]>)(
+    'satisfies the exhaustive-stream contract for %s',
+    (text, words) => {
+      const seg = makeWordSegmentation(words)!;
+      const tokens = tokenize(text, text.includes('私') ? ja : zh, seg);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const token of tokens) {
+        expect(text.slice(token.start, token.end)).toBe(token.text);
+      }
+      let position = 0;
+      for (const token of tokens) {
+        expect(token.start).toBe(position);
+        position = token.end;
+      }
+      expect(position).toBe(text.length);
+    },
+  );
+
+  it('ignores the list for spaced packs, which already have an exact answer', () => {
+    // A stray list must never change a shipped Latin pack's output.
+    const seg = makeWordSegmentation(['Die hond'])!;
+    expect(tokenizeWords('Die hond is groot.', LANGUAGES.af, seg).map((t) => t.text)).toEqual([
+      'Die',
+      'hond',
+      'is',
+      'groot',
+    ]);
+  });
+});
+
+describe('snapToWordBoundaries with a word list', () => {
+  it('snaps to the list boundaries the render used, not ICU boundaries', () => {
+    const text = '我喜欢读书。';
+    const seg = makeWordSegmentation(['我', '喜欢读书'])!;
+    // Tap inside 读 — the list says it belongs to 喜欢读书, ICU would say 读书.
+    const tapAt = text.indexOf('读');
+    expect(snapToWordBoundaries(text, tapAt, tapAt + 1, zh, seg)).toEqual({ start: 1, end: 5 });
+    expect(snapToWordBoundaries(text, tapAt, tapAt + 1, zh)).toEqual({ start: 3, end: 5 });
   });
 });
