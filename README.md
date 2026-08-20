@@ -1,290 +1,175 @@
 # Lector
 
-A self-hosted and cloud language learning reader — LingQ-style reading, Clozemaster-style cloze practice, and a first party Anki integration.
+A self-hosted language reader. Import the text that you want to read. Tap a word for a translation. Save it. Practise it. Send it to Anki.
+
+[Try the hosted app](https://app.lector.dev) · [Docs](https://lector.dev) · [Discord](https://discord.gg/XBEnx2ZWd5)
+
+[![License](https://img.shields.io/badge/license-AGPL%20v3-blue?style=flat-square)](LICENSE)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-yes-orange?style=flat-square)](https://lector.dev)
+[![Release](https://img.shields.io/github/v/release/heuwels/lector?style=flat-square)](https://github.com/heuwels/lector/releases)
+
+![The Lector reader with colour-coded word states](https://lector.dev/images/reader.png)
+
+One Docker Compose file starts the app. A local dictionary covers common words with no API key. Optional local models run through the bundled Ollama service. Optional cloud models cover rare words and the tutor.
+
+## Quick start
+
+You need Docker and Docker Compose.
+
+```bash
+git clone https://github.com/heuwels/lector.git
+cd lector
+docker compose up -d
+```
+
+Open [http://localhost:3400](http://localhost:3400).
+
+The UI listens on port 3400. The API listens on port 3457. The browser calls the API directly, so both ports must be reachable.
+
+For a remote host, set `API_URL` to the origin that the browser uses for the API. Example: `http://192.168.1.10:3457`.
+
+```bash
+# optional: cloud translation for rare words
+export ANTHROPIC_API_KEY=sk-ant-...
+docker compose up -d
+```
+
+The image is `ghcr.io/heuwels/lector:latest`. A production Compose file with health checks lives in [`deploy/`](deploy/). Full environment notes live in [`deploy/README.md`](deploy/README.md).
+
+If you do not want to run a server, use the hosted app at [app.lector.dev](https://app.lector.dev). Paid plans start at $5 per month.
 
 ## Features
 
-- **EPUB/Markdown reader** with click-to-translate (Claude API), word state tracking, and Literata serif typography
-- **Cloze practice** with 2900+ pre-loaded sentences from Tatoeba, ordered by word frequency
-  - Multiple choice and typing modes
-  - SRS scheduling with mastery levels
-  - Sound effects, streak tracking, hard mode
-- **Vocabulary mining** — save words from reading, track known/learning states
-- **AnkiConnect** — push cards directly to your local Anki (browser-to-localhost, no proxy)
-- **Web/paste import** — extract articles via Readability, paste text directly
-- **YouTube transcript import** — turn a video's captions into a lesson with clickable, seekable timestamps; the video is never downloaded or hosted, and mined cards carry a timestamped source link into Anki
-- **SQLite storage** — all data local, no cloud dependency
+- **Reader.** Import an EPUB file, a Markdown file, a web article, pasted text, a YouTube transcript, or a podcast. Each word has a state: new, learning, or known. Tap a word for a translation.
+- **Cloze practice.** Frequency-ordered sentences. Choose an answer from a list, or type the missing word. Spaced repetition with mastery levels.
+- **Vocabulary.** Save words as you read. Track known and learning states. Mine phrases as well as single words.
+- **Anki.** A self-host install can push cards to AnkiConnect on your machine. Cloud and remote HTTPS use the [Lector Sync add-on](https://ankiweb.net/shared/info/1098736891) on AnkiWeb. The add-on code is `1098736891`. Reviews in Anki can update mastery in Lector.
+- **Tutor and journal.** Ask grammar questions in plain language. Write in the target language. The tutor returns corrections. Use the Claude API or a local model.
+- **Listen.** Optional text-to-speech. YouTube captions stay timestamped. A podcast upload can become a transcript and a listen-along lesson.
+- **Data.** SQLite on your server. Export and restore from Settings. Self-host needs no cloud account.
 
-## Getting Started
+## Languages
 
-### Prerequisites
+Language packs ship for:
 
-- Node.js 22+ (see `.nvmrc`)
-- npm
+Afrikaans, Czech, Dutch, Esperanto, French, German, Italian, Koine Greek, Mandarin Chinese, Polish, Portuguese, Russian, Spanish, Turkish, Ukrainian.
 
-### Styleguide
+A pack includes a dictionary, frequency data, and cloze sentences. The reader still works for a language with no pack. Depth is lower without a pack.
 
-#### Folder structure
+Afrikaans was the first pack. It remains the most complete reference set. It is not the product. The product is the reader for any language that you study.
 
-Where appropriate, files should be broken into a folder with categorised files. e.g. components/TranslationDrawer.tsx should become
+See [lector.dev/docs/languages](https://lector.dev/docs/languages/) for pack status.
 
-```
-components/TranslationDrawer
-    -> index.tsx
-    -> utils.ts
-    -> types.ts
-    -> tests.ts
-    -> components/
-        -> Gloss/index.tsx
+## Anki
+
+Two transports exist. Open Settings, then Anki Integration, then Connection.
+
+**AnkiConnect for a local self-host.** The browser talks to AnkiConnect on `localhost:8765`. Install the [AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159). Allow your app origin:
+
+```json
+{
+  "webCorsOriginList": ["http://localhost:3400", "http://localhost:3456"]
+}
 ```
 
-### Development
+**Lector Sync add-on for cloud or a remote HTTPS host.** A hosted page cannot call `localhost` on your machine. The add-on runs inside Anki Desktop. It pulls queued cards onto `Lector` note types. It writes review states back to Lector. Point `api_url` at your Lector origin.
 
-The app runs as two processes — the Next.js front-end (`:3456`) and the Hono API (`:3457`). Start each in its own terminal:
+## Configuration
 
-```bash
-npm install
-npm run dev:api   # terminal 1 — Hono API on :3457
-npm run dev       # terminal 2 — Next.js UI on :3456
-```
+If you want a file, copy `.env.example` to `.env`. Compose also reads the process environment.
 
-Open [http://localhost:3456](http://localhost:3456). The browser calls the Hono API **directly** on `:3457` (CORS-enabled) — there is no Next.js API proxy.
+| Variable | Purpose |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Cloud translation and tutor. Optional. The local dictionary covers common words. |
+| `API_URL` | Browser-facing API origin. Required when you browse from another host. |
+| `LECTOR_MODE` | `selfhost` (default, one user, no login) or `cloud` (accounts). |
+| `LLM_PROVIDER` | `anthropic` (default) or an OpenAI-compatible backend. |
+| `OPENAI_COMPAT_URL` | Local model endpoint. The bundled Ollama service is `http://ollama:11434`. |
+| `CLASSIFY_WORKER` | Set to `1` to fill the fluency radar. Compose sets this for you. |
+| `TRANSCRIBE_WORKER` | Set to `1` to transcribe podcast uploads. Needs a Whisper endpoint. See [`deploy/README.md`](deploy/README.md). |
 
-### REST API documentation
+The app runs with no API keys. Claude is only required for rare words, phrase translation, and the tutor.
 
-`api/openapi.json` describes the HTTP API. A script writes that file. Do not edit it
-by hand.
+TTS audio is cached under `DATA_DIR/tts-cache`. Classification can use a provider batch API at half the synchronous price. Details live in [`deploy/README.md`](deploy/README.md).
 
-```bash
-npm run gen:openapi          # write api/openapi.json
-npm run gen:openapi:check    # verify the file, and fail on an undocumented route
-```
+### Cloud mode
 
-The generator reads the route table of the running app
-(`api/src/routes/registry.ts`). Every path, method and token scope therefore
-comes from the code that serves it. Prose and payload shapes come from
-`api/src/lib/openapi/annotations.ts`.
+`LECTOR_MODE=cloud` enables accounts. Self-host stays free. Cloud mode is also the multi-user option on your own box.
 
-The document holds only the endpoints a personal access token can reach. Those
-are the endpoints with a scope in `SCOPE_MAP` (`api/src/lib/auth.ts`). To get a
-document with the browser-only and operator-only endpoints too, add
-`--include-internal`.
+Required:
 
-A new route fails `bun test` in `api/` until you add its entry to
-`annotations.ts`. That gate keeps the published documentation complete.
+- `BETTER_AUTH_SECRET`: generate with `openssl rand -base64 32`. Cloud mode refuses to boot without it.
+- `BETTER_AUTH_URL`: public origin for auth links, for example `https://app.example.com`.
 
-### Environment Variables
+Optional:
 
-Copy `.env.example` to `.env.local` and configure:
+- `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`: Sign in with GitHub.
+- `OIDC_ISSUER`, `OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET`: Sign in with your identity provider.
+- `RESEND_API_KEY`: verification mail. Without it, mail lands in the server log.
+- `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`: bot protection on sign-up.
 
-```bash
-# Required for AI translation (word lookups fall back to local dictionary)
-ANTHROPIC_API_KEY=sk-ant-...
+**CAUTION:** Before you change `LECTOR_MODE`, read [Move self-host data to an account](#move-self-host-data-to-an-account). If you switch an existing self-host database to cloud mode, the old library stays in the database. The new account does not see it until you move it.
 
-# Optional: Google Cloud API key (for TTS)
-GOOGLE_CLOUD_API_KEY=...
+The canary at `LECTOR_CLOUD_GATE=external` delegates login to a gateway such as Cloudflare Access. The AWS path lives in [`deploy/cloud/`](deploy/cloud/).
 
-# Background word→domain classifier feeding the Stats fluency radar. The code
-# default is OFF (keeps tests LLM-free), so opt in wherever the radar should
-# populate; the shipped compose files set it for you.
-CLASSIFY_WORKER=1
+### Move self-host data to an account
 
-# Background audio transcription for podcast import (#185). Off by default
-# (keeps tests ASR-free); needs an OpenAI-compatible Whisper backend — see
-# "Audio import & transcription" below.
-TRANSCRIBE_WORKER=1
-```
+In self-host mode every row belongs to the implicit `local` user. Cloud mode shows only rows that the signed-in account owns. An empty library after the switch is not data loss.
 
-The app works without API keys — the local dictionary covers the top 2000 words. Claude API is only needed for uncommon words and phrase translation.
+`adopt-local-data` moves every row from `local` to one fresh account. If the target account already owns rows, the script refuses. The default run is a dry run.
 
-#### Cost controls ([#226](https://github.com/heuwels/lector/issues/226))
-
-Synthesized audio is **cached** and repeat requests for the same (language, voice, rate, text) are served from the cache instead of re-billed — this also covers your own Google bill when self-hosting. On by default, storing under `DATA_DIR/tts-cache`:
-
-- `TTS_CACHE=0` — disable caching entirely
-- `TTS_CACHE_MAX_BYTES` — disk-cache size cap, least-recently-used entries evicted (default 1 GiB)
-- `TTS_CACHE_S3_BUCKET` — store audio in S3-compatible object storage instead of disk (for cloud/multi-instance). Optional companions: `TTS_CACHE_S3_REGION`, `TTS_CACHE_S3_PREFIX` (default `tts-cache/`), `TTS_CACHE_S3_ENDPOINT` (R2/MinIO), with credentials from the standard `AWS_*`/`S3_*` env vars. No eviction is done in S3 — attach a bucket lifecycle rule instead.
-
-The word→domain classifier runs through the provider's **Batch API at 50% of synchronous pricing** whenever the classification provider supports it (currently: Anthropic with API-key auth — the default setup). Providers without a batch endpoint (LM Studio, Ollama, OpenRouter) keep the synchronous path automatically. Batches turn around in minutes, so a fresh install's radar fills slightly slower in exchange for half-price classification:
-
-- `CLASSIFY_BATCH=0` — force the synchronous path even when batching is available
-- `CLASSIFY_BATCH_MAX_REQUESTS` — prompts per submitted batch, each carrying `CLASSIFY_BATCH_SIZE` words (default 40 × 30 = up to 1,200 words per batch)
-
-#### Audio import & transcription ([#185](https://github.com/heuwels/lector/issues/185))
-
-"Import Audio" uploads a podcast episode or recording; a background worker
-transcribes it into a timestamped transcript that works as a normal reading
-lesson **and** as a listen-along player (continuous playback or sentence-by-
-sentence shadowing). Transcription talks to any OpenAI-compatible
-`POST /v1/audio/transcriptions` backend:
-
-- **Local (default, recommended on a Mac):** run
-  [Speaches](https://speaches.ai) / `faster-whisper-server` **natively on the
-  host** — not inside the Lector container, which has no GPU/Metal on
-  Docker-for-Mac. The default `ASR_URL` is `http://localhost:8000`; from a
-  container use `ASR_URL=http://host.docker.internal:8000`. With the server's
-  idle TTL the multi-GB model loads on the first job and unloads afterwards,
-  so it costs ~nothing while quiet — and because transcription is a background
-  job, the cold-start latency is invisible.
-- **Hosted fallback (Groq):** `ASR_URL=https://api.groq.com/openai` +
-  `ASR_API_KEY` + `ASR_MAX_BYTES=104857600`. A ~40-minute episode is ~3–7¢ on
-  `whisper-large-v3`.
-
-`ASR_MODEL` defaults to `whisper-large-v3` (best Afrikaans accuracy; the
-language hint is always sent — Whisper mis-detects Afrikaans as Dutch on
-auto-detect). Enable the worker with `TRANSCRIBE_WORKER=1`. Audio files live
-on disk under `DATA_DIR/audio/` and are **not** part of the export/restore
-backup (the transcript text is; segments and audio are a
-[#109](https://github.com/heuwels/lector/issues/109) follow-up). `ffmpeg` is
-optional but recommended — it supplies the duration estimate at upload time.
-
-On billed deployments two plan limits meter the feature (selfhost is
-unaffected): `audioTranscriptionMinutesPerMonth` (ASR compute scales with
-duration, so minutes are reserved at upload from the probed duration — 300/mo
-on Cloud, 900/mo on Plus, 0 on Free) and `maxAudioStorageBytes` (total audio
-on disk — 2 GiB Cloud, 10 GiB Plus). Both are tunable via
-`LECTOR_PLAN_LIMITS`; a deployment running a local Whisper can grant Free
-minutes at no third-party cost.
-
-#### Deployment mode
-
-`LECTOR_MODE` selects the deployment shape: `selfhost` (the default — leave it unset, this is the app as it has always been: single user, no login) or `cloud` — real accounts and per-user data, powered by built-in [Better Auth](https://better-auth.com) sessions ([#218](https://github.com/heuwels/lector/issues/218)). The two modes share one codebase and one image ([#242](https://github.com/heuwels/lector/issues/242)); self-hosting stays free and BYO-everything. Cloud mode is also the **multi-user opt-in for self-hosters** — run it on your own box to give each household member their own library.
-
-> **Switching an existing selfhost box to cloud mode?** Nothing is deleted, but your existing library becomes invisible to the account you sign up with until you explicitly adopt it — read [Adopting existing selfhost data](#adopting-existing-selfhost-data) _before_ you flip the switch.
-
-Cloud mode env:
-
-- `BETTER_AUTH_SECRET` (**required** — cloud refuses to boot without it; generate with `openssl rand -base64 32`)
-- `BETTER_AUTH_URL` — the public origin auth links are minted against (e.g. `https://app.example.com`)
-- `LECTOR_TRUSTED_ORIGINS` — comma-separated browser origins allowed to send credentialed cross-origin requests (only needed when the UI is served from a different origin than the API)
-- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — optional; enables "Sign in with GitHub"
-- `OIDC_ISSUER` + `OIDC_CLIENT_ID` + `OIDC_CLIENT_SECRET` — optional (all three); **BYO OIDC**: "Continue with …" against any OpenID Connect provider — Authentik, Keycloak, Auth0, Entra, Pocket ID, … `OIDC_ISSUER` is the issuer origin (or a pasted discovery URL); allowlist `<origin>/api/auth/oauth2/callback/oidc` as the redirect URI on the IdP. Optional extras: `OIDC_PROVIDER_NAME` labels the login button (default "SSO"); `OIDC_SCOPES` overrides the requested scopes (default `openid profile email`). Made for multi-user self-hosting behind your own IdP as much as for cloud.
-- `RESEND_API_KEY` (+ optional `EMAIL_FROM`) — verification and password-reset email delivery; without it, emails land in the server log (fine for trying it out on your own box)
-- `EMAIL_FILE` — append outbound emails as JSON lines to this file instead of sending (a local outbox; the e2e suites read verification links from it — takes precedence over Resend)
-- `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` — optional; puts [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) bot protection on sign-up, sign-in, and password-reset (set both or neither)
-
-Signed-in cloud users can mint **personal API tokens** in Settings — the same scoped `Bearer` tokens self-host has, tenanted per account, for CLI/script access without a browser session ([#218](https://github.com/heuwels/lector/issues/218)).
-
-The **cloud canary** exception is unchanged: `LECTOR_CLOUD_GATE=external` declares that an authenticating gateway (e.g. Cloudflare Access) fronts every request, letting cloud mode boot with app-level auth delegated to the gate (built-in accounts are not mounted). The full canary deployment (AWS CDK + Cloudflare Tunnel) lives in [`deploy/cloud/`](deploy/cloud/).
-
-#### Adopting existing selfhost data ([#327](https://github.com/heuwels/lector/issues/327))
-
-In selfhost mode every row belongs to the implicit `local` user. Switching the same database to `LECTOR_MODE=cloud` deletes nothing, but accounts only see rows they own — so the library, vocabulary, and stats you built up in selfhost are invisible to the account you sign up with until you adopt them. An empty library right after the switch is **not** data loss; don't start re-importing backups into the new account — adopt instead.
-
-`adopt-local-data` reassigns everything owned by `local` to one account. It only adopts into a **fresh** account (one that owns no rows yet) and refuses otherwise, so it can never merge two users; it moves every tenant table in a single transaction; and it's idempotent — once adopted there is no `local` data left to move. Adoption merges nothing and rewrites only row ownership. The default run is a dry run: nothing is written until you pass `--commit`.
-
-The procedure:
-
-1. **Back up first**, with the app stopped: copy `DATA_DIR` (at minimum `lector.db`) somewhere safe — see [Backups](#backups). Keep the backup until well after you're satisfied.
-2. Enable cloud mode (`LECTOR_MODE=cloud` plus the env above) and start the app.
-3. Create the target account — sign up and verify it once in the browser.
-4. Confirm the target account is registered:
+1. Stop the app. Copy `DATA_DIR` to a backup. Include `lector.db`. See [Backups](#backups).
+2. Set `LECTOR_MODE=cloud` and the auth variables. Start the app.
+3. Create the target account in the browser. Check the mail link.
+4. List accounts:
 
    ```bash
-   # source checkout
-   cd api && bun run adopt-local-data -- --list
-
-   # Docker (service name `lector` in deploy/docker-compose.yml)
    docker compose exec lector sh -c \
      'cd /app/api && DATA_DIR=/app/data bun run src/scripts/adopt-local-data.ts --list'
    ```
 
-5. Dry-run the adoption (the default — no writes) and check the per-table counts it prints against what you expect your library to contain:
+5. Dry-run the move. Check the per-table counts:
 
    ```bash
-   # source checkout
-   cd api && bun run adopt-local-data -- --to you@example.com
-
-   # Docker
    docker compose exec lector sh -c \
      'cd /app/api && DATA_DIR=/app/data bun run src/scripts/adopt-local-data.ts --to you@example.com'
    ```
 
-   (`--to-id <userId>` targets an account by raw id instead of email; `--help` shows everything.)
+6. Run the same command with `--commit` to apply it.
+7. Sign in. Confirm the library, vocabulary, and stats. Keep the backup.
 
-6. Re-run the same command with `--commit` appended to apply the reassignment.
-7. Sign in and verify the library, vocabulary, and stats — then keep the backup anyway.
+To roll back, stop the app, restore `DATA_DIR`, and unset `LECTOR_MODE`.
 
-**Rollback:** stop the app, restore the backed-up `DATA_DIR`, and unset `LECTOR_MODE` — adoption only rewrites row ownership, so the pre-switch backup returns you exactly to selfhost state. (Or stay in cloud mode and redo the adoption against a fresh account.)
+## Backups
 
-### Anki
-
-Two integrations, by deployment shape ([#241](https://github.com/heuwels/lector/issues/241)):
-
-**Self-host — AnkiConnect (browser-direct).** The app connects directly to AnkiConnect on `localhost:8765` from your browser. Install the [AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159) in Anki Desktop, and in its config ensure your app origin is allowed:
-
-```json
-{
-  "webCorsOriginList": ["http://localhost:3000"]
-}
-```
-
-**The Lector Sync add-on (cloud, and any HTTPS/remote self-host).** A hosted HTTPS page can't call your machine's `localhost:8765` (Chrome's Local Network Access blocks it), so the alternative transport is [`anki-addon/`](anki-addon/), published on AnkiWeb as [Lector Sync](https://ankiweb.net/shared/info/1098736891) (add-on code `1098736891`): it runs inside Anki Desktop, pulls the cards you queue in Lector onto structured `Lector` note types (upserted by `LectorId` — no duplicates), and pushes your review states back so word states upgrade automatically. Point its `api_url` at whichever Lector you use — the hosted app or your own origin. Cloud always uses this transport; self-hosters switch to it under **Settings → Anki Integration → Connection** (setup instructions appear there).
-
-## Docker Deployment
-
-The image is published to GHCR on every push to master.
-
-```bash
-docker pull ghcr.io/3stacks/lector:latest
-```
-
-### Docker Compose
-
-```yaml
-services:
-  lector:
-    image: ghcr.io/3stacks/lector:latest
-    container_name: lector
-    restart: unless-stopped
-    ports:
-      - '3400:3000' # UI
-      - '3457:3457' # Hono API — the browser calls it directly, so it must be reachable
-    environment:
-      - NODE_ENV=production
-      - API_URL=http://localhost:3457 # browser-facing API origin — set to http://<host>:3457 for remote access
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - CLASSIFY_WORKER=1 # word→domain classifier behind the fluency radar (off by default in code)
-    volumes:
-      - ./data:/app/data
-```
-
-Both ports must be published: the browser loads the UI from `:3400` and calls the Hono API **directly** on `:3457` (there is no Next.js API proxy). Set `API_URL` to the origin the browser uses to reach the API (e.g. `http://<host>:3457`) — it's injected into the page at container start (`/__env.js`). It defaults to `http://localhost:3457`, which only works when you browse from the same host.
-
-Environment variables are injected at runtime — no secrets are baked into the Docker image.
-
-See `deploy/` for a full docker-compose setup with health checks.
-
-### Backups
-
-Two supported paths ([#294](https://github.com/heuwels/lector/issues/294)):
-
-- **In-app export** — Settings → Learning data → "Export all learning data" (`GET /api/data`): a portable JSON takeout of your library, vocabulary, SRS state, journal and stats that restores into any Lector instance via `POST /api/data`.
-- **Volume-level** — copy `DATA_DIR`. With the app stopped, a plain copy is safe. Against a running app, checkpoint the SQLite WAL first so the copy isn't torn mid-write:
+- **In-app export.** Open Settings, then Learning data, then Export all learning data. Restore with the matching import. This is a JSON takeout of the library, vocabulary, SRS state, journal, and stats.
+- **Volume copy.** If the app is stopped, copy `DATA_DIR`. If the app still runs, checkpoint SQLite first:
 
   ```bash
   sqlite3 "$DATA_DIR/lector.db" "PRAGMA wal_checkpoint(TRUNCATE)" && cp -a "$DATA_DIR" /path/to/backups/
   ```
 
-The cloud deployment doesn't use either of these for durability — it streams every write to S3 via Litestream (see [`deploy/cloud/`](deploy/cloud/), [#270](https://github.com/heuwels/lector/issues/270)).
+The hosted cloud streams writes to object storage with Litestream. See [`deploy/cloud/`](deploy/cloud/).
 
-## Sentence Bank
+## Development
 
-The cloze practice system ships with ~2900 Afrikaans-English sentence pairs pre-loaded. To regenerate from Tatoeba's latest data dumps:
+To run from source, read [CONTRIBUTING.md](CONTRIBUTING.md). That file also holds the folder styleguide and the OpenAPI rules.
 
 ```bash
-npm run fetch-sentences
+npm install
+npm run dev:api   # Hono API on :3457
+npm run dev       # Next.js UI on :3456
 ```
 
-This downloads Tatoeba's per-language TSV exports, joins Afrikaans sentences with English translations, and tags each with word frequency data.
+Open [http://localhost:3456](http://localhost:3456).
 
-## Data Attribution
+## Data attribution
 
-- **Sentence bank**: Sourced from [Tatoeba](https://tatoeba.org), licensed under [CC-BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/). Tatoeba is a collaborative project of freely-licensed sentence translations.
-- **Word frequency dictionary**: The top 2000 Afrikaans words with English translations, compiled from publicly available frequency lists.
+- **Sentence banks.** [Tatoeba](https://tatoeba.org), [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/).
+- **Dictionaries and frequency lists.** Wiktionary extracts through [kaikki.org](https://kaikki.org), Wikipedia dumps, and OpenSubtitles, plus pack-specific sources listed on [lector.dev](https://lector.dev/reference-data/).
 
 ## License
 
 Copyright © 2026 Luke Boyle.
 
-Licensed under the **GNU Affero General Public License v3.0** (AGPLv3) — see [LICENSE](LICENSE). You're free to use, self-host, study, modify, and redistribute Lector. Under the AGPL's network-use clause (§13), anyone who runs a modified version as a network service must make the corresponding source available to its users.
+Licensed under the **GNU Affero General Public License v3.0** (AGPLv3). See [LICENSE](LICENSE). You may use, self-host, study, modify, and redistribute Lector. If you run a modified version as a network service, you must offer the matching source to its users. See AGPL section 13.
