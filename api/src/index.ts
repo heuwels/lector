@@ -3,38 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 
-import collections from './routes/collections';
-import groups from './routes/groups';
-import knownWords from './routes/known-words';
-import studyPing from './routes/study-ping';
-import tatoeba from './routes/tatoeba';
-import tts from './routes/tts';
-import extractUrl from './routes/extract-url';
-import dictionary from './routes/dictionary';
-import journal from './routes/journal';
-import importRoutes from './routes/import';
-import youtubeImport from './routes/youtube-import';
-import anki from './routes/anki';
-import lessons from './routes/lessons';
-import vocab from './routes/vocab';
-import cloze from './routes/cloze';
-import stats from './routes/stats';
-import settings from './routes/settings';
-import starter from './routes/starter';
-import translate from './routes/translate';
-import explain from './routes/explain';
-import data from './routes/data';
-import journalCorrect from './routes/journal-correct';
-import llmStatus from './routes/llm-status';
-import tokens from './routes/tokens';
-import chat from './routes/chat';
-import llmOpenai from './routes/llm-openai';
-import billing from './routes/billing';
-import admin from './routes/admin';
-import impersonation from './routes/impersonation';
-import byok from './routes/byok';
-import onboarding from './routes/onboarding';
-import learnerEvents from './routes/learner-events';
+import { routeMounts } from './routes/registry';
 import { authMiddleware } from './lib/auth';
 import { sessionMiddleware } from './lib/session';
 import { assertBillingBootable, billingConfig, billingMiddleware } from './lib/billing';
@@ -183,38 +152,9 @@ if (billingConfig.freeTierEnabled) {
   console.log('[lector] billing: derived Free account access active');
 }
 
-app.route('/api/collections', collections);
-app.route('/api/groups', groups);
-app.route('/api/known-words', knownWords);
-app.route('/api/study-ping', studyPing);
-app.route('/api/tatoeba', tatoeba);
-app.route('/api/tts', tts);
-app.route('/api/extract-url', extractUrl);
-app.route('/api/dictionary', dictionary);
-app.route('/api/journal', journal);
-app.route('/api/import', importRoutes);
-app.route('/api/import/youtube', youtubeImport);
-app.route('/api/anki', anki);
-app.route('/api/lessons', lessons);
-app.route('/api/vocab', vocab);
-app.route('/api/cloze', cloze);
-app.route('/api/stats', stats);
-app.route('/api/settings', settings);
-app.route('/api/starter', starter);
-app.route('/api/translate', translate);
-app.route('/api/explain', explain);
-app.route('/api/data', data);
-app.route('/api/journal-correct', journalCorrect);
-app.route('/api/llm-status', llmStatus);
-app.route('/api/tokens', tokens);
-app.route('/api/chat', chat);
-app.route('/api/llm/openai', llmOpenai);
-app.route('/api/billing', billing);
-app.route('/api/admin', admin);
-app.route('/api/impersonation', impersonation);
-app.route('/api/byok', byok);
-app.route('/api/onboarding', onboarding);
-app.route('/api/learner-events', learnerEvents);
+for (const { prefix, app: routes } of routeMounts) {
+  app.route(prefix, routes);
+}
 
 // Capture unhandled errors to Sentry/GlitchTip. Deliberate HTTP errors
 // (e.g. the identity seam's fail-closed 401, lib/user.ts) pass through with

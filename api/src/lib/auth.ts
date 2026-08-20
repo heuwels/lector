@@ -36,7 +36,13 @@ export const VALID_SCOPES = new Set([
   'anki:*',
 ]);
 
-const SCOPE_MAP: Record<string, { read: string; write: string }> = {
+/**
+ * Resource segment (`/api/<resource>`) -> the scopes a PAT needs to read or
+ * write it. Exported so `scripts/gen-openapi.ts` documents the same scope a
+ * request is actually checked against. An absent entry means default-deny:
+ * the resource is unreachable with a token at all.
+ */
+export const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   collections: { read: 'collections:read', write: 'collections:write' },
   groups: { read: 'collections:read', write: 'collections:write' },
   lessons: { read: 'collections:read', write: 'collections:write' },

@@ -50,6 +50,29 @@ npm run dev       # terminal 2 — Next.js UI on :3456
 
 Open [http://localhost:3456](http://localhost:3456). The browser calls the Hono API **directly** on `:3457` (CORS-enabled) — there is no Next.js API proxy.
 
+### REST API documentation
+
+`api/openapi.json` describes the HTTP API. A script writes that file. Do not edit it
+by hand.
+
+```bash
+npm run gen:openapi          # write api/openapi.json
+npm run gen:openapi:check    # verify the file, and fail on an undocumented route
+```
+
+The generator reads the route table of the running app
+(`api/src/routes/registry.ts`). Every path, method and token scope therefore
+comes from the code that serves it. Prose and payload shapes come from
+`api/src/lib/openapi/annotations.ts`.
+
+The document holds only the endpoints a personal access token can reach. Those
+are the endpoints with a scope in `SCOPE_MAP` (`api/src/lib/auth.ts`). To get a
+document with the browser-only and operator-only endpoints too, add
+`--include-internal`.
+
+A new route fails `bun test` in `api/` until you add its entry to
+`annotations.ts`. That gate keeps the published documentation complete.
+
 ### Environment Variables
 
 Copy `.env.example` to `.env.local` and configure:

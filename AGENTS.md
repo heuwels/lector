@@ -17,6 +17,18 @@ Tests live in:
 
 CI runs all of these, plus the e2e suite a second time against the production Docker image (`E2E_EXTERNAL_SERVER=1` with the container mapped to :3456 for the UI and :3457 for the Hono API the browser calls directly) to cover the standalone build and `docker-entrypoint.sh`. That e2e image is the amd64 image that a merge to master publishes. The workflow applies a new tag to it. It does not build it again.
 
+## API Documentation
+
+`api/openapi.json` is generated from the route table, and it must stay complete.
+
+- Mount a new route module in `api/src/routes/registry.ts`, never in `api/src/index.ts`.
+- Add one entry per endpoint to `api/src/lib/openapi/annotations.ts`, keyed `"<METHOD> <path>"`.
+- Run `npm run gen:openapi` and commit `api/openapi.json` with the change.
+
+`bun test` in `api/` fails while a route has no entry, or while the committed
+document is stale. The document holds only the endpoints a personal access token
+can reach. The scope map in `api/src/lib/auth.ts` decides that set.
+
 ## Tech Stack
 
 - Next.js 16 + React 19 — the front-end. It serves the UI only: no database, and **no `/api/*` routes** (the Next→Hono proxy was removed in #188).

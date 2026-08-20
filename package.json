@@ -19,7 +19,9 @@
     "build:anki-addon": "python3 scripts/build-anki-addon.py",
     "fetch-sentences": "npx tsx scripts/fetch-sentences.ts",
     "gen:favicons": "node scripts/gen-favicons.mjs",
-    "cli": "bun run cli/src/index.ts"
+    "cli": "bun run cli/src/index.ts",
+    "gen:openapi": "cd api && bun run src/scripts/gen-openapi.ts",
+    "gen:openapi:check": "cd api && bun run src/scripts/gen-openapi.ts --check"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
