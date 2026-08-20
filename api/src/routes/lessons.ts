@@ -8,6 +8,7 @@ import {
   normalizeText,
   parseStoredSegmentWords,
   tokenizeWords,
+  type LanguageConfig,
 } from '../lib/languages';
 import { lookupReadings } from '../lib/dictionary-db';
 import { resolveLanguage } from '../lib/active-language';
@@ -62,6 +63,27 @@ app.get('/:id/segments', (c) => {
   return c.json(segments);
 });
 
+/**
+ * The words of a lesson, in document order, for the annotation layer (#289 4.4).
+ *
+ * Splits with the lesson's STORED segmentation, so the words asked about are the
+ * words the reader draws (#289 4.2). A lesson with none falls back to the pack's
+ * default engine, which is what the reader falls back to as well.
+ *
+ * Exported for its own test. Splitting any other way keys the readings to words
+ * that no reader span carries, and the reader then prints nothing.
+ */
+export function lessonReadingWords(
+  lesson: Pick<LessonRow, 'textContent' | 'segmentWords'>,
+  pack: LanguageConfig,
+): string[] {
+  return tokenizeWords(
+    lesson.textContent,
+    pack,
+    makeWordSegmentation(parseStoredSegmentWords(lesson.segmentWords)),
+  ).map((token) => token.text);
+}
+
 // GET /api/lessons/:id/readings (#289 4.4)
 // Per-word readings for the reader's annotation layer, keyed by the FOLDED word
 // so the client can look one up with the same key it already folds for word
@@ -88,16 +110,7 @@ app.get('/:id/readings', (c) => {
   const pack = getLanguageConfig(lang);
   if (!pack.pronunciation.annotation) return c.json({});
 
-  // The lesson's stored segmentation, so the words asked about are the words the
-  // reader will draw (#289 4.2). Falls back to the pack's default engine when
-  // the lesson has none.
-  const words = tokenizeWords(
-    lesson.textContent,
-    pack,
-    makeWordSegmentation(parseStoredSegmentWords(lesson.segmentWords)),
-  ).map((token) => token.text);
-
-  return c.json(Object.fromEntries(lookupReadings(words, lang)));
+  return c.json(Object.fromEntries(lookupReadings(lessonReadingWords(lesson, pack), lang)));
 });
 
 // GET /api/lessons/:id/audio (#185)
