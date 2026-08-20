@@ -94,6 +94,10 @@ export default function Feedback({
         cleanWord,
         current.sentence.translation,
         cleanWord,
+        undefined,
+        // Cloze rows are per-language, and activeLang is the language whose
+        // bank served them, so it is the right pack here (#289 4.7).
+        activeLang,
       );
       setAnkiAdded(true);
     } catch (error) {

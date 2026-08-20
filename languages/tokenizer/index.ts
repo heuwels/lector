@@ -497,3 +497,91 @@ export function resolveClozeTokens(
   if (stored && stored.length > 0) return stored;
   return clozeTokens(sentence, pack);
 }
+
+// ---------------------------------------------------------------------------
+// Whole-word wrapping for export templates (#289 Phase 4, item 4.7)
+// ---------------------------------------------------------------------------
+
+/** Escape a string for literal use inside a RegExp. */
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * The spaced whole-word matcher. `\b` is ASCII-only, so it saw a boundary
+ * inside "Häuser" at the ä; the lookarounds treat any letter/digit neighbour as
+ * word-internal, in every alphabetic script.
+ */
+function spacedWholeWordPattern(word: string): RegExp {
+  return new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(word)})(?![\\p{L}\\p{N}_])`, 'giu');
+}
+
+/**
+ * Wrap every whole-word occurrence of `target` in `text` (#289 4.7).
+ *
+ * The lookaround matcher above cannot work on unspaced CJK at all: the
+ * neighbour of a word is always another letter, so the lookarounds fail even
+ * when the word sits at the very start or end of the sentence. The Anki
+ * exporter then produced no `{{c1::…}}` and threw rather than degrading.
+ *
+ * `cjk-unspaced` packs therefore match on TOKEN SPANS instead. A word is
+ * wrapped when a whole token equals it, which is the same notion of "word" the
+ * reader draws and the cloze bank indexes.
+ *
+ * Spaced packs keep the regex path byte-identical.
+ */
+export function wrapWholeWord(
+  text: string,
+  target: string,
+  wrap: (match: string) => string,
+  pack?: LanguageConfig,
+  words?: WordSegmentation | null,
+): string {
+  if (!target) return text;
+  if (pack?.script.kind !== 'cjk-unspaced') {
+    return text.replace(spacedWholeWordPattern(target), (match) => wrap(match));
+  }
+
+  // CJK has no case, so a plain lowercase compare is enough to keep the spirit
+  // of the regex path's `i` flag for a Latin run embedded in Chinese (COVID).
+  const needle = target.toLowerCase();
+  const tokens = tokenizeSegmented(text, pack.script, words);
+
+  // Match a RUN of consecutive word tokens, never a substring. One token is the
+  // normal case. A longer run covers a segmenter mismatch: a jieba-built bank
+  // word (喜欢读书) need not be a single ICU token (喜欢|读书), and refusing it
+  // would fail the export for no good reason.
+  //
+  // Consuming whole tokens only is what preserves the invariant the spaced path
+  // gets from its lookarounds — a fragment is never wrapped, so 喜 no more
+  // matches inside 喜欢 than `huis` matches inside `huisie`.
+  const runLength = (start: number): number => {
+    let joined = '';
+    for (let end = start; end < tokens.length; end++) {
+      const token = tokens[end];
+      if (!token.isWord) break;
+      joined += token.text.toLowerCase();
+      if (joined === needle) return end - start + 1;
+      if (joined.length >= needle.length) break;
+    }
+    return 0;
+  };
+
+  let out = '';
+  for (let i = 0; i < tokens.length; ) {
+    const run = runLength(i);
+    if (run === 0) {
+      out += tokens[i].text;
+      i += 1;
+      continue;
+    }
+    out += wrap(
+      tokens
+        .slice(i, i + run)
+        .map((token) => token.text)
+        .join(''),
+    );
+    i += run;
+  }
+  return out;
+}

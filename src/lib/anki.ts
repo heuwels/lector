@@ -7,7 +7,7 @@
 // remote Anki install (e.g. over Tailscale) can point at http://100.x.x.x:8765.
 
 import { splitTrailingPunctuation } from './words';
-import { foldWord } from './languages';
+import { foldWord, wrapWholeWord, type LanguageConfig } from './languages';
 import { getActivePack } from './data-layer';
 import type { WordState } from '@/types';
 import { apiFetch } from './api-base';
@@ -228,6 +228,7 @@ export async function addBasicCard(
   targetWord: string,
   translation: string,
   wordMeaning: string,
+  pack?: LanguageConfig,
 ): Promise<number> {
   console.log(`[Anki] Adding basic card to deck "${deckName}" for word "${targetWord}"`);
 
@@ -241,10 +242,13 @@ export async function addBasicCard(
   // Highlight the target word in the sentence. Unicode-aware boundaries
   // (#289): \b is ASCII-only, so it saw a boundary inside "Häuser" at the ä
   // and happily highlighted embedded fragments; the lookarounds treat any
-  // letter/digit neighbor as word-internal, in every script.
-  const highlightedSentence = sentence.replace(
-    new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(cleanTarget)})(?![\\p{L}\\p{N}_])`, 'giu'),
-    '<b>$1</b>',
+  // letter/digit neighbor as word-internal, in every script. Unspaced CJK
+  // takes the token-span path instead (#289 4.7).
+  const highlightedSentence = wrapWholeWord(
+    sentence,
+    cleanTarget,
+    (match) => `<b>${match}</b>`,
+    pack,
   );
 
   const noteId = await ankiRequest<number | null>('addNote', {
@@ -319,12 +323,15 @@ export async function addWordCard(
  * Unicode-aware boundaries (#289): ASCII \b mismatched every non-Latin script
  * and false-matched inside diacritic words. Exported for tests.
  */
-export function buildClozeText(sentence: string, targetWord: string): string {
+export function buildClozeText(
+  sentence: string,
+  targetWord: string,
+  pack?: LanguageConfig,
+): string {
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
-  return sentence.replace(
-    new RegExp(`(?<![\\p{L}\\p{N}_])(${escapeRegex(cleanTarget)})(?![\\p{L}\\p{N}_])`, 'giu'),
-    '{{c1::$1}}',
-  );
+  // `pack` routes unspaced CJK to token-span matching (#289 4.7). Without it
+  // the lookaround matcher never fires on Chinese and addClozeCard throws.
+  return wrapWholeWord(sentence, cleanTarget, (match) => `{{c1::${match}}}`, pack);
 }
 
 /**
@@ -343,13 +350,14 @@ export async function addClozeCard(
   translation: string,
   wordMeaning: string,
   sourceHtml?: string,
+  pack?: LanguageConfig,
 ): Promise<number> {
   console.log(`[Anki] Adding cloze card to deck "${deckName}" for word "${targetWord}"`);
 
   await ensureDeckExists(deckName);
 
   const [cleanTarget] = splitTrailingPunctuation(targetWord);
-  const clozeText = buildClozeText(sentence, targetWord);
+  const clozeText = buildClozeText(sentence, targetWord, pack);
   const sourceLine = sourceHtml ? `<br><br><small>${sourceHtml}</small>` : '';
 
   // A note without a {{c1::…}} blank is invalid — fail with a clear message
@@ -535,13 +543,6 @@ export async function syncWordStates(): Promise<
     Array.from(wordStates.keys()).slice(0, 10).join(', ') + (wordStates.size > 10 ? '...' : ''),
   );
   return wordStates;
-}
-
-/**
- * Escape special regex characters in a string
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** mm:ss / h:mm:ss label for a millisecond offset (#334). Mirrors

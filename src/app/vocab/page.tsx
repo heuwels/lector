@@ -228,8 +228,14 @@ export default function VocabPage() {
       }
 
       const targetDeck = cardType === 'cloze' ? ankiClozeDeck : ankiDeck;
-      const addCard = cardType === 'cloze' ? addClozeCard : addBasicCard;
       const cardLabel = cardType === 'cloze' ? 'cloze' : 'basic';
+      // Branched rather than assigned to one variable: the two now take the
+      // pack in different positions, because only the cloze card renders a
+      // source line. The pack routes unspaced CJK to token spans (#289 4.7).
+      const addCard = (deck: string, sentence: string, word: string, translation: string) =>
+        cardType === 'cloze'
+          ? addClozeCard(deck, sentence, word, translation, translation, undefined, activeLang)
+          : addBasicCard(deck, sentence, word, translation, translation, activeLang);
 
       let successCount = 0;
       let errorCount = 0;
@@ -240,8 +246,7 @@ export default function VocabPage() {
             targetDeck,
             entry.sentence,
             entry.text,
-            entry.translation,
-            entry.translation, // word meaning — using translation for now
+            entry.translation, // doubles as the word meaning for now
           );
           await markVocabPushedToAnki(entry.id, noteId);
           successCount++;
@@ -266,7 +271,7 @@ export default function VocabPage() {
         });
       }
     },
-    [entries, ankiTransport, ankiConnected, ankiDeck, ankiClozeDeck],
+    [entries, ankiTransport, ankiConnected, ankiDeck, ankiClozeDeck, activeLang],
   );
 
   // Mark selected entries as known

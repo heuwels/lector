@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { getCurrentUserId } from '../lib/user';
 import { db, VocabRow, AnkiCardType, WordState } from '../db';
-import { getActiveLanguageCode, resolveLanguage } from '../lib/active-language';
+import { getActiveLanguageCode, packForLanguage, resolveLanguage } from '../lib/active-language';
 import { getTodayDate } from '../lib/dates';
 import { foldWord, getLanguageConfig } from '../lib/languages';
 import {
@@ -271,7 +271,10 @@ app.post('/queue', async (c) => {
 
     // Validate clozes at queue time — a blank-less cloze is invalid in Anki,
     // so fail loudly here instead of letting the addon hit it later.
-    if (item.cardType === 'cloze' && !buildClozeText(sentence, word).includes('{{c1::')) {
+    if (
+      item.cardType === 'cloze' &&
+      !buildClozeText(sentence, word, packForLanguage(vocab.language)).includes('{{c1::')
+    ) {
       failed.push({ id, error: `Could not build cloze: "${word}" not found in sentence` });
       continue;
     }
@@ -420,9 +423,10 @@ app.get('/pending', (c) => {
     const translation = row.pTranslation ?? row.translation;
     const meaning = row.pMeaning ?? translation;
 
+    const rowPack = packForLanguage(row.language);
     let clozeText = '';
     if (row.cardType === 'cloze') {
-      clozeText = buildClozeText(sentence, word);
+      clozeText = buildClozeText(sentence, word, rowPack);
       if (!clozeText.includes('{{c1::')) {
         deleteRow.run(userId, row.vocabId, row.cardType);
         continue;
@@ -435,7 +439,7 @@ app.get('/pending', (c) => {
       lang: row.language,
       word,
       sentence,
-      sentenceHtml: row.cardType === 'basic' ? highlightWordHtml(sentence, word) : '',
+      sentenceHtml: row.cardType === 'basic' ? highlightWordHtml(sentence, word, rowPack) : '',
       clozeText,
       translation,
       meaning,
