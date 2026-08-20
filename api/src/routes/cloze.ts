@@ -184,6 +184,10 @@ const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   ru: () => import('../lib/sentence-bank-ru.json'),
   tr: () => import('../lib/sentence-bank-tr.json'),
   uk: () => import('../lib/sentence-bank-uk.json'),
+  // The first bank that ships `tokens` (#289 4.3). Mandarin has no whitespace,
+  // so the client cannot re-derive the segmentation, and jieba disagrees with
+  // the browser's Intl.Segmenter anyway.
+  zh: () => import('../lib/sentence-bank-zh.json'),
 };
 
 async function loadSentenceBank(lang: string): Promise<BankEntry[]> {
