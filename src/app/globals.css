@@ -647,6 +647,13 @@ html {
     background: transparent !important;
   }
 
+  /* Ruby pronunciation annotations (#289 4.4) are kept. They are content, not
+     chrome: a learner who turned pinyin on wants it on the printed sheet too.
+     The `[data-leaf]` reset above leaves <rt> alone because the annotation is a
+     child of the leaf, not the leaf itself, and its 70% opacity survives the
+     monochrome reset — so it prints grey against black word text, which is the
+     reading order we want on paper. */
+
   /* Reader content links stay legible as black underlined text (they already
      carry an `underline` class, so nothing extra is needed here). We deliberately
      do NOT underline links app-wide — that would underline navigational card

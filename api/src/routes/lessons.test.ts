@@ -139,6 +139,29 @@ describe('lessons route', () => {
   });
 });
 
+describe('GET /:id/readings (#289 4.4)', () => {
+  beforeEach(reset);
+  afterEach(reset);
+
+  // A language with no `annotation` in its pronunciation config opts out. It
+  // must answer 200 with nothing, so the reader can call this for any lesson
+  // without first knowing which languages support it.
+  test('returns nothing for a language that declares no annotation source', async () => {
+    seedLesson();
+
+    const response = await app.request('/lesson-1/readings?language=af');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({});
+  });
+
+  test('404 for an unknown lesson', async () => {
+    const response = await app.request('/missing/readings?language=af');
+
+    expect(response.status).toBe(404);
+  });
+});
+
 describe('audio lesson routes (#185)', () => {
   beforeEach(() => {
     reset();

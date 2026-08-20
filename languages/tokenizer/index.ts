@@ -136,6 +136,26 @@ export interface WordSegmentation {
 }
 
 /**
+ * Read a stored `lessons.segmentWords` JSON string into a word list.
+ *
+ * Shared by both sides: the API needs it to answer per-lesson questions about
+ * the words a reader will draw, and the client needs it to render them. A
+ * malformed value degrades to null rather than throwing — the caller can always
+ * fall back to `Intl.Segmenter`, so one bad row must not break a page.
+ */
+export function parseStoredSegmentWords(value: string | null | undefined): string[] | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const words = parsed.filter((item): item is string => typeof item === 'string');
+    return words.length > 0 ? words : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Build a segmentation from a stored word list. Returns null for an empty or
  * absent list so callers can treat "no segmentation" as one falsy check and
  * fall back to `Intl.Segmenter`.

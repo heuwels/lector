@@ -13,6 +13,11 @@ export interface WordCellProps {
   isPhraseHighlighted?: boolean;
   /** Tap/Enter/Space. The element is passed so callers can find the sentence context. */
   onActivate?: (text: string, element: HTMLElement) => void;
+  /**
+   * Pronunciation printed above the word as HTML ruby (#289 4.4) — pinyin for
+   * zh, rule-derived IPA for eo. Omit for no annotation.
+   */
+  reading?: string;
   testId?: string;
 }
 
@@ -31,6 +36,7 @@ export default function WordCell({
   isActive = false,
   isPhraseHighlighted = false,
   onActivate,
+  reading,
   testId = 'reader-word',
 }: WordCellProps) {
   const colorClass = state ? stateClasses[state] : stateClasses.new;
@@ -40,6 +46,9 @@ export default function WordCell({
     <span
       data-leaf=""
       data-testid={testId}
+      // Test hook for the rendered word state — the e2e suite asserts on it to
+      // check a save landed without reading colors out of the computed style.
+      data-word-state={state ?? 'new'}
       role="button"
       tabIndex={0}
       aria-label={`Look up ${text}`}
@@ -58,7 +67,21 @@ export default function WordCell({
           : undefined
       }
     >
-      {text}
+      {reading ? (
+        <ruby>
+          {text}
+          {/* No <rp> fallback: every browser lector supports renders ruby, and
+              the extra nodes would double the text every DOM read has to skip. */}
+          {/* 0.58em, not the browser default of 0.5: pinyin carries tone marks
+              that need the extra pixel to read at body size. `select-none` is
+              what keeps the reading out of a copied selection. */}
+          <rt className="text-[0.58em] leading-none font-normal tracking-tight opacity-75 select-none">
+            {reading}
+          </rt>
+        </ruby>
+      ) : (
+        text
+      )}
     </span>
   );
 }

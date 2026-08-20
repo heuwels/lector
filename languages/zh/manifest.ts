@@ -115,7 +115,9 @@ export const zh = {
   fallbackTts: ['zh-CN', 'zh-Hans', 'zh'],
   avoidWords: AVOID_WORDS,
   testPhrase: '你好！你好吗？',
-  pronunciation: { audio: ['google'] as const },
+  // Pinyin sits in the dictionary's `ipa` column (see the zh build profile), so
+  // the reader can print it above each word (#289 4.4).
+  pronunciation: { audio: ['google'] as const, annotation: 'dictionary' as const },
   script: {
     // zh-Hans, not bare zh: it selects Simplified glyph forms and the
     // Simplified ICU segmentation dictionary. Han unification means the tag is

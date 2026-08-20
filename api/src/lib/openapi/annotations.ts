@@ -839,6 +839,21 @@ const libraryOps: Record<string, OperationDoc> = {
       '200': { description: 'Segments in playback order.', schema: arrayOf('TranscriptSegment') },
     },
   },
+  'GET /api/lessons/{id}/readings': {
+    notFound: true,
+    summary: 'Get the pronunciation of every word in a lesson',
+    description:
+      'Returns one reading per word for the reader annotation layer: pinyin for Chinese, and a rule-derived transcription for Esperanto. The keys are the folded word forms the reader looks words up by. The object is empty for a language that declares no annotation source, and a word the dictionary has no reading for is absent.',
+    tag: 'Library',
+    sharedParams: LANG,
+    pathParams: { id: 'Lesson identifier.' },
+    responses: {
+      '200': {
+        description: 'Folded word to reading.',
+        schema: { type: 'object', additionalProperties: { type: 'string' } },
+      },
+    },
+  },
   'GET /api/lessons/{id}/audio': {
     notFound: 'The lesson has no audio, or the stored file is gone.',
     summary: 'Stream the audio of a lesson',
