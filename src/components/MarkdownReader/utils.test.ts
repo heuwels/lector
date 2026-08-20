@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { createElement } from 'react';
-import { splitWords, collectWords, computePhraseHighlightSet, parseSegmentWords } from './utils';
+import {
+  splitWords,
+  collectWords,
+  computePhraseHighlightSet,
+  parseSegmentWords,
+  readableText,
+} from './utils';
 import { LANGUAGES } from '@/lib/languages';
 
 const af = LANGUAGES.af;
@@ -118,5 +124,54 @@ describe('parseSegmentWords (#289 4.2)', () => {
 
   it('drops non-string entries instead of rejecting the whole list', () => {
     expect(parseSegmentWords('["喜欢",7,null,"读书"]')).toEqual(['喜欢', '读书']);
+  });
+});
+
+describe('readableText (#289 4.4)', () => {
+  // The vitest environment is 'node', so these are DOM-shaped stubs exercising
+  // the walk itself. Real browser behaviour is covered in e2e: with a live
+  // <ruby>, `textContent` gives "我wǒ喜欢xǐhuan" where this returns "我喜欢".
+  const text = (value: string): Node => ({ nodeType: 3, textContent: value }) as unknown as Node;
+  const el = (tagName: string, ...children: Node[]): Node =>
+    ({ nodeType: 1, tagName, childNodes: children }) as unknown as Node;
+  const ruby = (base: string, reading: string) => el('RUBY', text(base), el('RT', text(reading)));
+
+  it('skips the reading and keeps the base text', () => {
+    expect(readableText(ruby('喜欢', 'xǐhuan'))).toBe('喜欢');
+  });
+
+  it('reassembles a whole block without any annotation', () => {
+    const block = el(
+      'P',
+      el('SPAN', ruby('我', 'wǒ')),
+      el('SPAN', ruby('喜欢', 'xǐhuan')),
+      el('SPAN', ruby('读书', 'dúshū')),
+      el('SPAN', text('。')),
+    );
+    expect(readableText(block)).toBe('我喜欢读书。');
+  });
+
+  it('skips <rp> too, which is the non-ruby fallback parenthesis', () => {
+    const withFallback = el(
+      'RUBY',
+      text('日本語'),
+      el('RP', text('(')),
+      el('RT', text('にほんご')),
+      el('RP', text(')')),
+    );
+    expect(readableText(withFallback)).toBe('日本語');
+  });
+
+  it('leaves un-annotated markup untouched, including nested inline elements', () => {
+    const block = el('P', text('Die '), el('STRONG', text('groot')), text(' hond.'));
+    expect(readableText(block)).toBe('Die groot hond.');
+  });
+
+  it('returns a bare text node as itself', () => {
+    expect(readableText(text('hallo'))).toBe('hallo');
+  });
+
+  it('returns empty for an annotation asked about directly', () => {
+    expect(readableText(el('RT', text('wǒ')))).toBe('');
   });
 });
