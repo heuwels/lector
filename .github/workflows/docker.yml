@@ -2,8 +2,10 @@ name: Build and Push Docker Image
 
 on:
   # Master only accepts up-to-date PRs whose required CI checks passed, with
-  # protection enforced for admins. Publish that already-validated merge once
-  # instead of rerunning the full suite after merge.
+  # protection enforced for admins. The PR already built and e2e-tested the
+  # images (tree-<tree>-amd64 / tree-<tree>-arm64). This workflow retags those
+  # images as sha-<commit> and deploys. It rebuilds only when the tree tag
+  # is missing (fork merge, expired package, or a direct master push).
   push:
     branches: [master]
 
@@ -16,74 +18,78 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: write
     steps:
       - uses: actions/checkout@v6
         with:
-          # Full history + tags so `git describe` can derive the version.
+          # Full history + tags so a fallback build can run `git describe`.
           fetch-depth: 0
           ref: ${{ env.IMAGE_SHA }}
-      - name: Compute build metadata
-        id: build_meta
-        run: |
-          echo "version=$(git describe --tags --always --dirty)" >> "$GITHUB_OUTPUT"
-          echo "branch=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7
+      - name: Reuse the PR image
+        id: reuse
+        run: bash scripts/ci/retag-tree-image.sh amd64
+        env:
+          IMAGE_SHA: ${{ env.IMAGE_SHA }}
+      - uses: ./.github/actions/build-image
+        if: steps.reuse.outputs.reused != 'true'
         with:
-          context: .
+          platform: linux/amd64
           push: true
-          tags: ghcr.io/heuwels/lector:sha-${{ env.IMAGE_SHA }}-amd64
-          platforms: linux/amd64
-          # Build context has no .git (see .dockerignore); pass version metadata
-          # in as build args. BUILD_TIME is stamped by next.config at build time.
-          build-args: |
-            APP_VERSION=${{ steps.build_meta.outputs.version }}
-            GIT_COMMIT=${{ env.IMAGE_SHA }}
-            GIT_BRANCH=${{ steps.build_meta.outputs.branch }}
-          cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64
-          cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64,mode=max,ignore-error=true
+          write_registry_cache: true
+          git_commit: ${{ env.IMAGE_SHA }}
+          git_branch: ${{ github.ref_name }}
+      - name: Tag the fallback image
+        if: steps.reuse.outputs.reused != 'true'
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          docker buildx imagetools create \
+            -t "ghcr.io/heuwels/lector:sha-${IMAGE_SHA}-amd64" \
+            "ghcr.io/heuwels/lector:tree-${tree}-amd64"
 
   build-arm64:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       packages: write
+      actions: write
     steps:
       - uses: actions/checkout@v6
         with:
-          # Full history + tags so `git describe` can derive the version.
+          # Full history + tags so a fallback build can run `git describe`.
           fetch-depth: 0
           ref: ${{ env.IMAGE_SHA }}
-      - name: Compute build metadata
-        id: build_meta
-        run: |
-          echo "version=$(git describe --tags --always --dirty)" >> "$GITHUB_OUTPUT"
-          echo "branch=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7
+      - name: Reuse the PR image
+        id: reuse
+        run: bash scripts/ci/retag-tree-image.sh arm64
+        env:
+          IMAGE_SHA: ${{ env.IMAGE_SHA }}
+      - uses: ./.github/actions/build-image
+        if: steps.reuse.outputs.reused != 'true'
         with:
-          context: .
+          platform: linux/arm64
           push: true
-          tags: ghcr.io/heuwels/lector:sha-${{ env.IMAGE_SHA }}-arm64
-          platforms: linux/arm64
-          # Build context has no .git (see .dockerignore); pass version metadata
-          # in as build args. BUILD_TIME is stamped by next.config at build time.
-          build-args: |
-            APP_VERSION=${{ steps.build_meta.outputs.version }}
-            GIT_COMMIT=${{ env.IMAGE_SHA }}
-            GIT_BRANCH=${{ steps.build_meta.outputs.branch }}
-          cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-arm64
-          cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-arm64,mode=max,ignore-error=true
+          write_registry_cache: true
+          git_commit: ${{ env.IMAGE_SHA }}
+          git_branch: ${{ github.ref_name }}
+      - name: Tag the fallback image
+        if: steps.reuse.outputs.reused != 'true'
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          docker buildx imagetools create \
+            -t "ghcr.io/heuwels/lector:sha-${IMAGE_SHA}-arm64" \
+            "ghcr.io/heuwels/lector:tree-${tree}-arm64"
 
   merge:
     runs-on: ubuntu-latest

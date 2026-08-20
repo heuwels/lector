@@ -5,6 +5,15 @@ on:
     branches: [master]
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Same-repo PRs and workflow_dispatch can push the tested image to ghcr so
+# docker.yml can retag it. Fork PRs cannot; they load the image locally.
+env:
+  CAN_PUSH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+
 jobs:
   deployment-script-tests:
     runs-on: ubuntu-latest
@@ -12,6 +21,11 @@ jobs:
       - uses: actions/checkout@v6
       - name: Validate gated deployment and rollback
         run: bash deploy/cloud/deploy-cloud.test.sh
+      - name: Validate image retag helper
+        run: |
+          bash -n scripts/ci/fetch-dicts.sh
+          bash -n scripts/ci/retag-tree-image.sh
+          bash scripts/ci/retag-tree-image.test.sh
 
   # Anki addon (#241): aqt-free contract tests over anki-addon/lector — chunk
   # ceilings vs the API's batch caps, review-payload shape, ownership scoping.
@@ -53,21 +67,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Fetch on-device dictionaries
-        # dictionary-db.test.ts is an integration test over the real (gitignored)
-        # dictionaries — without this the whole vitest run fails in beforeAll.
-        # Sources dict.env and pulls every language listed in DICT_LANGS.
-        run: |
-          set -a; . ./dict.env; set +a
-          mkdir -p data
-          for L in $DICT_LANGS; do
-            U=$(echo "$L" | tr a-z A-Z)
-            ver="DICT_VERSION_$U"; sha="DICT_SHA256_$U"
-            curl -fL --retry 3 \
-              "https://github.com/heuwels/lector/releases/download/${!ver}/dictionary-${L}.db" \
-              -o "data/dictionary-${L}.db"
-            echo "${!sha}  data/dictionary-${L}.db" | sha256sum -c -
-          done
+      # dictionary-db.test.ts is an integration test over the real (gitignored)
+      # dictionaries — without this the whole vitest run fails in beforeAll.
+      - uses: ./.github/actions/fetch-dicts
       - run: npm test
       - name: Verify starter content
         # Packs that ship a starter series (#317) must stay verifier-clean:
@@ -127,22 +129,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y espeak-ng
       - run: npm ci
       - run: cd api && bun install --frozen-lockfile
-      - name: Fetch on-device dictionaries
-        # The dictionaries are gitignored — they ship in the Docker image. For CI
-        # the dev server needs a copy at data/dictionary-<lang>.db so e2e tests
-        # that assert the "on-device" lookup path actually find a hit.
-        run: |
-          set -a; . ./dict.env; set +a
-          mkdir -p data
-          for L in $DICT_LANGS; do
-            U=$(echo "$L" | tr a-z A-Z)
-            ver="DICT_VERSION_$U"; sha="DICT_SHA256_$U"
-            curl -fL --retry 3 \
-              "https://github.com/heuwels/lector/releases/download/${!ver}/dictionary-${L}.db" \
-              -o "data/dictionary-${L}.db"
-            echo "${!sha}  data/dictionary-${L}.db" | sha256sum -c -
-          done
-      - run: npx playwright install --with-deps chromium
+      # The dictionaries are gitignored — they ship in the Docker image. For CI
+      # the dev server needs a copy at data/dictionary-<lang>.db so e2e tests
+      # that assert the "on-device" lookup path actually find a hit.
+      - uses: ./.github/actions/fetch-dicts
+      - uses: ./.github/actions/setup-playwright
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
@@ -156,44 +147,36 @@ jobs:
   # build + docker-entrypoint.sh (both servers in one container) — so standalone
   # packaging and the browser→Hono direct calls are covered before a release
   # image is ever cut (#110, #188).
+  #
+  # The image is pushed as ghcr.io/heuwels/lector:tree-<tree>-amd64. docker.yml
+  # retags that image on merge; it does not build amd64 again. Fork PRs cannot
+  # push, so they load the image into the runner instead.
   e2e-docker:
     runs-on: ubuntu-latest
     needs: [build]
     permissions:
       contents: read
       packages: write
+      actions: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Full history + tags so `git describe` can stamp APP_VERSION.
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - uses: docker/setup-buildx-action@v4
-      # Registry build cache is shared across branches (unlike type=gha, which is
-      # branch-isolated), so this PR/manual build populates the cache that
-      # docker.yml's publish build on master then reuses — no second from-scratch
-      # image build.
-      # Fork PRs can't push to ghcr: skip the login; cache-to then fails soft
-      # (ignore-error) and cache-from simply misses.
-      - name: Log in to ghcr (build cache)
-        # Same-repo PRs and manual runs can write the cache; fork PRs can't push
-        # to ghcr — skip login, cache-to fails soft (ignore-error).
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build production image
-        uses: docker/build-push-action@v7
+        uses: ./.github/actions/build-image
         with:
-          context: .
-          load: true
-          push: false
-          tags: lector:e2e
-          platforms: linux/amd64
-          cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64
-          cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64,mode=max,ignore-error=true
+          platform: linux/amd64
+          push: ${{ env.CAN_PUSH }}
+          load: ${{ env.CAN_PUSH != 'true' }}
+          local_tag: lector:e2e
+          pr_number: ${{ github.event.pull_request.number }}
+          git_commit: ${{ github.event.pull_request.head.sha || github.sha }}
+          git_branch: ${{ github.head_ref || github.ref_name }}
       - name: Cloud mode without a secret refuses to boot (fail-closed guard, #242/#218)
         # LECTOR_MODE=cloud runs built-in accounts (#218) and must exit
         # non-zero without BETTER_AUTH_SECRET — never sign sessions with the
@@ -258,7 +241,7 @@ jobs:
           docker run -d --name lector-e2e -p 3456:3000 -p 3457:3457 \
             --add-host=host.docker.internal:host-gateway lector:e2e
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/setup-playwright
       - name: Wait for app
         run: |
           for i in $(seq 1 30); do
@@ -279,3 +262,25 @@ jobs:
           name: playwright-report-docker
           path: playwright-report/
           retention-days: 7
+
+  # Production hosts are arm64. Build that image on the PR so docker.yml can
+  # retag it instead of compiling Next again on merge.
+  docker-arm64:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04-arm
+    needs: [build]
+    permissions:
+      contents: read
+      packages: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/build-image
+        with:
+          platform: linux/arm64
+          push: true
+          pr_number: ${{ github.event.pull_request.number }}
+          git_commit: ${{ github.event.pull_request.head.sha || github.sha }}
+          git_branch: ${{ github.head_ref || github.ref_name }}
