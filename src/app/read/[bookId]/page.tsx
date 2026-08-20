@@ -41,7 +41,7 @@ import {
 } from '@/lib/dictionary-client';
 import { speak } from '@/lib/tts';
 import { isComposing } from '@/lib/keyboard';
-import { foldWord } from '@/lib/languages';
+import { foldWord, getLanguageConfig, isValidLanguageCode } from '@/lib/languages';
 import { toast } from 'sonner';
 import { Headphones, LoaderCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -66,6 +66,13 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   const ankiTransport = useAnkiTransport();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
+  // The LESSON's pack, not the active one — same precedent as MarkdownReader.
+  // An Anki export needs it (#289 4.7): a Chinese lesson read while the client
+  // thinks the active language is spaced would take the regex path and throw.
+  const lessonPack =
+    lesson?.language && isValidLanguageCode(lesson.language)
+      ? getLanguageConfig(lesson.language)
+      : activeLang;
   const [siblings, setSiblings] = useState<LessonSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1016,6 +1023,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         translation,
         translation,
         source ? buildSourceLinkHtml(source) : undefined,
+        lessonPack,
       );
       await markVocabPushedToAnki(entry.id, noteId);
       setWordPanel((prev) => ({
@@ -1025,7 +1033,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           : { ...entry, pushedToAnki: true, ankiNoteId: noteId },
       }));
     },
-    [wordPanel, getAnkiDecks, ensureVocabEntry, ankiTransport],
+    [wordPanel, getAnkiDecks, ensureVocabEntry, ankiTransport, lessonPack],
   );
 
   const retranslateWithAi = useCallback(async () => {
