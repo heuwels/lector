@@ -57,20 +57,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y espeak-ng
       - run: npm ci
       - run: cd api && bun install --frozen-lockfile
-      - name: Fetch on-device dictionaries
-        # Sources dict.env and pulls every language listed in DICT_LANGS.
-        run: |
-          set -a; . ./dict.env; set +a
-          mkdir -p data
-          for L in $DICT_LANGS; do
-            U=$(echo "$L" | tr a-z A-Z)
-            ver="DICT_VERSION_$U"; sha="DICT_SHA256_$U"
-            curl -fL --retry 3 \
-              "https://github.com/heuwels/lector/releases/download/${!ver}/dictionary-${L}.db" \
-              -o "data/dictionary-${L}.db"
-            echo "${!sha}  data/dictionary-${L}.db" | sha256sum -c -
-          done
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/fetch-dicts
+      - uses: ./.github/actions/setup-playwright
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
@@ -79,71 +67,16 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  build-amd64:
+  # The commit already has a multi-arch sha-<commit> image from docker.yml.
+  # Apply the semver tags to that image. Do not build it again.
+  publish:
     runs-on: ubuntu-latest
     needs: [lint, typecheck, build, e2e-tests]
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/heuwels/lector:sha-${{ github.sha }}-amd64
-          platforms: linux/amd64
-          # Build context has no .git (see .dockerignore); on a release the tag
-          # IS the version. BUILD_TIME is stamped by next.config; branch is left
-          # unset (a tag build is detached → the About panel hides the Branch row).
-          build-args: |
-            APP_VERSION=${{ github.ref_name }}
-            GIT_COMMIT=${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64
-          cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-amd64,mode=max,ignore-error=true
-
-  build-arm64:
-    runs-on: ubuntu-24.04-arm
-    needs: [lint, typecheck, build, e2e-tests]
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/heuwels/lector:sha-${{ github.sha }}-arm64
-          platforms: linux/arm64
-          # Build context has no .git (see .dockerignore); on a release the tag
-          # IS the version. BUILD_TIME is stamped by next.config; branch is left
-          # unset (a tag build is detached → the About panel hides the Branch row).
-          build-args: |
-            APP_VERSION=${{ github.ref_name }}
-            GIT_COMMIT=${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/heuwels/lector:buildcache-arm64
-          cache-to: type=registry,ref=ghcr.io/heuwels/lector:buildcache-arm64,mode=max,ignore-error=true
-
-  merge:
-    runs-on: ubuntu-latest
-    needs: [build-amd64, build-arm64]
-    permissions:
-      contents: read
-      packages: write
-    steps:
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -157,12 +90,16 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
-      - name: Create multi-arch manifest
+      - name: Retag the published image
         run: |
+          set -euo pipefail
+          src="ghcr.io/heuwels/lector:sha-${{ github.sha }}"
+          if ! docker buildx imagetools inspect "$src" >/dev/null 2>&1; then
+            echo "No published image at $src. Tag a commit that docker.yml already published." >&2
+            exit 1
+          fi
           TAG_ARGS=""
           while IFS= read -r TAG; do
             TAG_ARGS="$TAG_ARGS -t $TAG"
           done <<< "${{ steps.meta.outputs.tags }}"
-          docker buildx imagetools create $TAG_ARGS \
-            ghcr.io/heuwels/lector:sha-${{ github.sha }}-amd64 \
-            ghcr.io/heuwels/lector:sha-${{ github.sha }}-arm64
+          docker buildx imagetools create $TAG_ARGS "$src"

@@ -15,7 +15,7 @@ Tests live in:
 - `api/src/**/*.test.ts` - bun:test unit tests — run with `cd api && bun test` (vitest excludes `api/**`; don't mix the two runners)
 - `e2e/` - Playwright end-to-end tests — run with `npm run test:e2e` (boots both servers against an isolated `tmp/e2e-data`, never the real `data/`)
 
-CI runs all of these, plus the e2e suite a second time against the production Docker image (`E2E_EXTERNAL_SERVER=1` with the container mapped to :3456 for the UI and :3457 for the Hono API the browser calls directly) to cover the standalone build and `docker-entrypoint.sh`.
+CI runs all of these, plus the e2e suite a second time against the production Docker image (`E2E_EXTERNAL_SERVER=1` with the container mapped to :3456 for the UI and :3457 for the Hono API the browser calls directly) to cover the standalone build and `docker-entrypoint.sh`. That e2e image is the amd64 image that a merge to master publishes. The workflow applies a new tag to it. It does not build it again.
 
 ## Tech Stack
 
