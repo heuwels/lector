@@ -55,7 +55,7 @@ The generator reads `api/src/routes/registry.ts`. Prose and payload shapes come 
 
 ### Flow maps
 
-Maps of critical user flows are in [`docs/flows/`](docs/flows/README.md). Open `docs/flows/index.html` to walk the graph.
+Maps of every app domain are in [`docs/flows/`](docs/flows/README.md). Open `docs/flows/index.html` to walk the graph. The Lector node has a First walk.
 
 If you change a listed path, update `docs/flows/graph-data.js` and the matching `.md` notes in the same change. Then run `node docs/flows/validate-graph.mjs`.
 

@@ -275,7 +275,13 @@
   function pathFlowId() {
     if (state.pathFlow && byId[state.pathFlow] && byId[state.pathFlow].steps) return state.pathFlow;
     var n = node(state.id);
-    return n && n.steps ? n.id : null;
+    if (n && n.steps) return n.id;
+    var app = byId["app:lector"];
+    if (app && app.steps && app.steps.indexOf(state.id) >= 0) return "app:lector";
+    var flow = G.nodes.find(function (x) {
+      return x.kind === "flow" && x.steps && x.steps.indexOf(state.id) >= 0;
+    });
+    return flow ? flow.id : null;
   }
 
   function renderPath() {
@@ -292,8 +298,11 @@
     });
     box.hidden = false;
     var atEnd = state.pathIndex >= steps.length - 1 && state.pathIndex >= 0;
+    var heading = flow.kind === "app" ? "First walk" : "Happy path";
     var html =
-      "<h2>Happy path</h2><p class='path-flow'>" +
+      "<h2>" +
+      heading +
+      "</h2><p class='path-flow'>" +
       escapeHtml(flow.label) +
       "</p><div class='path-row'>" +
       "<button type='button' id='path-prev'" +
@@ -344,12 +353,45 @@
     });
   }
 
+  function repoRoot() {
+    if (typeof window.LECTOR_REPO_ROOT === "string" && window.LECTOR_REPO_ROOT) {
+      return window.LECTOR_REPO_ROOT.replace(/\/$/, "");
+    }
+    if (location.protocol === "file:") {
+      return decodeURIComponent(location.pathname || "").replace(/\/docs\/flows\/[^/]*$/, "");
+    }
+    return "";
+  }
+
+  function editorHref(rel) {
+    var root = repoRoot();
+    if (!root || !rel) return "";
+    return "vscode://file" + encodeURI(root + "/" + rel.replace(/^\//, ""));
+  }
+
   function renderDetail() {
     var n = node(state.id);
     var parts = [];
     if (n.path) {
-      var href = G.repo + n.path;
-      parts.push("<dt>Path</dt><dd><a href='" + href + "' target='_blank' rel='noreferrer'><code>" + escapeHtml(n.path) + "</code></a></dd>");
+      var local = editorHref(n.path);
+      var remote = G.repo + n.path;
+      var main = local || remote;
+      var extra = local
+        ? " <a class='ext' href='" +
+          escapeAttr(remote) +
+          "' target='_blank' rel='noreferrer'>GitHub</a>"
+        : "";
+      parts.push(
+        "<dt>Path</dt><dd><a href='" +
+          escapeAttr(main) +
+          "'" +
+          (local ? "" : " target='_blank' rel='noreferrer'") +
+          "><code>" +
+          escapeHtml(n.path) +
+          "</code></a>" +
+          extra +
+          "</dd>",
+      );
     }
     if (n.md) {
       parts.push("<dt>Notes</dt><dd><a href='" + n.md + "'>" + escapeHtml(n.md) + "</a></dd>");
@@ -426,8 +468,13 @@
 
     var center = { x: w / 2, y: h / 2 };
     var ids = uniqueNeighborIds(state.id, state.hops);
-    var cap = 16;
+    var cap = 28;
     var shown = ids.slice(0, cap);
+    if (node(state.id).kind === "app") {
+      shown = ids.filter(function (id) {
+        return byId[id] && byId[id].kind === "domain";
+      });
+    }
     var pos = Object.create(null);
     pos[state.id] = center;
     var r = Math.min(w, h) * 0.34;

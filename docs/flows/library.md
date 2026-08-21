@@ -81,6 +81,20 @@ sequenceDiagram
 
 `e2e/collections.spec.ts`, `e2e/reader-markdown.spec.ts`, `e2e/groups.spec.ts`.
 
+## Collection groups
+
+**App domain:** Library
+
+A group is a folder of collections. The home page lists groups first.
+
+| Role | Path | Function |
+| --- | --- | --- |
+| Library page | `src/app/(index)/page.tsx` | `loadData` |
+| Client | `src/lib/data-layer.ts` | `getAllGroups` |
+| API | `api/src/routes/groups.ts` | `GET /`, `POST /`, `PUT /:id`, `DELETE /:id` |
+
+`collection_groups` is language-agnostic. Import can target a group through `importGroupId`.
+
 ## Lesson progress
 
 **App domain:** Library

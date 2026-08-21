@@ -3,15 +3,16 @@
 The walkable graph is the map of critical paths. Open `docs/flows/index.html` in a browser.
 
 ```bash
-cd docs/flows
-python3 -m http.server 8766
+npm run docs:flows
 ```
 
-Then open http://localhost:8766/. You can also open `index.html` as a file.
+Then open http://127.0.0.1:8766/. You can also open `index.html` as a file.
+
+Click a Path link. Visual Studio Code (VS Code) opens the file. GitHub stays as a second link.
 
 Stand on a node. The left list shows neighbors. The graph in the centre shows the same set. Click a neighbor to walk. The trail at the top is the walk so far.
 
-Search jumps to a node. A flow with a happy path has Start walk. That walk follows the main call chain.
+Search jumps to a node. The Lector node has a First walk. That walk visits every app domain. A flow has Start walk. That walk follows the main call chain.
 
 Each node names the app domain, the key files, the key functions, the HTTP route, and the SQLite tables.
 
@@ -33,24 +34,29 @@ Topic domains live in `api/src/lib/domains.ts`. They tag known words as `food`, 
 
 ```mermaid
 flowchart LR
-  Library[Library] --> Reader[Reader]
-  Reader --> Translation[Translation]
-  Reader --> Vocabulary[Vocabulary]
-  Translation --> Vocabulary
+  Auth[Auth] --> Billing[Billing]
+  Billing --> Onboarding[Onboarding]
+  Onboarding --> Library[Library]
+  Library --> Translation[Translation]
+  Translation --> Vocabulary[Vocabulary]
   Vocabulary --> Practice[Practice]
   Vocabulary --> Anki[Anki]
-  Reader --> Listen[Listen]
+  Library --> Listen[Listen]
   Practice --> Tutor[Tutor]
   Journal[Journal] --> Tutor
-  Onboarding[Onboarding] --> Library
   Onboarding --> Practice
   Vocabulary --> Stats[Stats]
   Practice --> Stats
+  Settings[Settings] --> Data[Data]
+  Settings --> Billing
+  Admin[Admin] --> Billing
 ```
 
 | App domain | What it covers | Map |
 | --- | --- | --- |
-| Library | Collections, lessons, and import | [library.md](library.md) |
+| Auth | Cloud session gate, login, and register | [auth.md](auth.md) |
+| Onboarding | Setup, starter texts, and first cloze | [onboarding.md](onboarding.md) |
+| Library | Collections, groups, lessons, and import | [library.md](library.md) |
 | Translation | Word tap, gloss, and In-context action | [translation.md](translation.md) |
 | Vocabulary | Saved entries, word states, and known-word import | [vocabulary.md](vocabulary.md) |
 | Practice | Cloze, dictation, and review | [practice.md](practice.md) |
@@ -58,8 +64,11 @@ flowchart LR
 | Tutor | Chat widget and cloze Explain | [tutor.md](tutor.md) |
 | Listen | Speech, podcast audio, and YouTube captions | [listen.md](listen.md) |
 | Anki | Card push and review sync | [anki.md](anki.md) |
-| Onboarding | Setup, starter texts, and first cloze | [onboarding.md](onboarding.md) |
 | Stats | Daily counts, streaks, and fluency radar | [stats.md](stats.md) |
+| Settings | User keys, LLM provider, tokens, and account delete | [settings.md](settings.md) |
+| Data | Export and restore of learning data | [data.md](data.md) |
+| Billing | Plan gate, Paddle checkout, and entitlements | [billing.md](billing.md) |
+| Admin | Operator dashboard, support actions, and impersonation | [admin.md](admin.md) |
 
 ## Layers
 
@@ -101,22 +110,18 @@ flowchart TD
 
 Active language is a query parameter on most list calls. By-id lesson and journal calls can omit it. The API then uses `resolveLanguage` in `api/src/lib/active-language.ts`.
 
-## Other surfaces
-
-These are not study flows. Key files:
-
-| Surface | Client | API |
-| --- | --- | --- |
-| Auth | `src/lib/auth-client.ts`, `src/app/(auth)/` | `/api/auth/*` in `api/src/index.ts` |
-| Data takeout | `src/app/settings/components/DataManagement/` | `api/src/routes/data.ts` |
-| Billing | `src/app/settings/components/CloudPlanSettings.tsx` | `api/src/routes/billing.ts` |
-| Settings for the large language model (LLM) | `src/app/settings/components/LLMSettings/` | `api/src/lib/llm/` |
+Cloud mode adds Auth, Billing, and Admin. Selfhost skips those three domains. SetupGuard still runs.
 
 ## Flow index
 
 | Flow | App domain | Map |
 | --- | --- | --- |
+| Sign in | Auth | [auth.md](auth.md#sign-in) |
+| Sign up | Auth | [auth.md](auth.md#sign-up) |
+| Session gate | Auth | [auth.md](auth.md#session-gate) |
+| Language setup | Onboarding | [onboarding.md](onboarding.md#language-setup) |
 | Load library item | Library | [library.md](library.md#load-library-item) |
+| Collection groups | Library | [library.md](library.md#collection-groups) |
 | Import EPUB, paste, URL, YouTube, audio | Library | [library.md](library.md#import) |
 | Translate word | Translation | [translation.md](translation.md#translate-word) |
 | In-context translation | Translation | [translation.md](translation.md#in-context-translation) |
@@ -137,5 +142,16 @@ These are not study flows. Key files:
 | Listen-along | Listen | [listen.md](listen.md#listen-along) |
 | Push to Anki | Anki | [anki.md](anki.md#push-to-anki) |
 | Sync Anki reviews | Anki | [anki.md](anki.md#sync-anki-reviews) |
-| Language setup | Onboarding | [onboarding.md](onboarding.md#language-setup) |
 | Daily stats and fluency | Stats | [stats.md](stats.md) |
+| Save settings | Settings | [settings.md](settings.md#save-settings) |
+| Configure LLM | Settings | [settings.md](settings.md#configure-llm) |
+| API tokens | Settings | [settings.md](settings.md#api-tokens) |
+| Delete account | Settings | [settings.md](settings.md#delete-account) |
+| Export learning data | Data | [data.md](data.md#export-learning-data) |
+| Restore learning data | Data | [data.md](data.md#restore-learning-data) |
+| Subscribe | Billing | [billing.md](billing.md#subscribe) |
+| Entitlements | Billing | [billing.md](billing.md#entitlements) |
+| Change plan | Billing | [billing.md](billing.md#change-plan) |
+| Admin member list | Admin | [admin.md](admin.md#admin-member-list) |
+| Admin support action | Admin | [admin.md](admin.md#admin-support-action) |
+| Impersonate | Admin | [admin.md](admin.md#impersonate) |

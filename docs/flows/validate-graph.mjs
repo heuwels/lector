@@ -52,9 +52,9 @@ const orphans = G.nodes.filter((n) => n.kind !== "app" && degree.get(n.id) === 0
 for (const n of orphans) errors.push("Orphan node " + n.id);
 
 for (const n of G.nodes) {
-  if (n.kind !== "flow" || !n.steps) continue;
+  if ((n.kind !== "flow" && n.kind !== "app") || !n.steps) continue;
   for (const id of n.steps) {
-    if (!byId.has(id)) errors.push("Flow " + n.id + " step missing: " + id);
+    if (!byId.has(id)) errors.push(n.kind + " " + n.id + " step missing: " + id);
   }
 }
 
@@ -62,6 +62,16 @@ const flows = G.nodes.filter((n) => n.kind === "flow");
 for (const f of flows) {
   if (!f.domain) errors.push("Flow has no domain: " + f.id);
   else if (!byId.has("domain:" + f.domain)) errors.push("Flow domain missing: " + f.id);
+  if (!f.steps || !f.steps.length) errors.push("Flow has no steps: " + f.id);
+}
+
+const app = byId.get("app:lector");
+if (!app || !app.steps || !app.steps.length) errors.push("app:lector has no first walk");
+const domains = G.nodes.filter((n) => n.kind === "domain");
+if (app && app.steps) {
+  for (const d of domains) {
+    if (!app.steps.includes(d.id)) errors.push("First walk misses domain " + d.id);
+  }
 }
 
 if (errors.length) {

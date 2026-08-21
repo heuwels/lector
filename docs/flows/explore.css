@@ -393,6 +393,12 @@ main {
   margin: 0.15rem 0 0;
 }
 
+#detail a.ext {
+  margin-left: 0.55rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 #detail ul {
   margin: 0.2rem 0 0;
   padding-left: 1.1rem;

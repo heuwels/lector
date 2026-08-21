@@ -40,7 +40,7 @@ can reach. The scope map in `api/src/lib/auth.ts` decides that set.
 
 ## Flow maps
 
-Maps of critical user flows are in `docs/flows/`. Open `docs/flows/index.html` to walk the graph. When you change a listed path, update `docs/flows/graph-data.js` and the matching `.md` notes. Then run `node docs/flows/validate-graph.mjs`.
+Maps of every app domain are in `docs/flows/`. Open `docs/flows/index.html` to walk the graph. The Lector node has a First walk. When you change a listed path, update `docs/flows/graph-data.js` and the matching `.md` notes. Then run `node docs/flows/validate-graph.mjs`.
 
 ## Key Patterns
 

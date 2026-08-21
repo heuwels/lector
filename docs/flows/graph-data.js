@@ -45,7 +45,24 @@
   // ── App and layers ────────────────────────────────────────────────────────
 
   N("app:lector", "app", "Lector", {
-    summary: "Self-hosted language reader. Start here. Walk into a domain, then a flow, then a file or function.",
+    summary: "Self-hosted language reader. Start here. The first walk visits every app domain. Then open a flow, a file, or a function.",
+    steps: [
+      "domain:auth",
+      "domain:onboarding",
+      "domain:library",
+      "domain:translation",
+      "domain:vocabulary",
+      "domain:practice",
+      "domain:journal",
+      "domain:tutor",
+      "domain:listen",
+      "domain:anki",
+      "domain:stats",
+      "domain:settings",
+      "domain:data",
+      "domain:billing",
+      "domain:admin",
+    ],
   });
 
   N("layer:ui", "layer", "UI", { summary: "React pages and components in src/app and src/components." });
@@ -97,6 +114,26 @@
     summary: "Daily counts, streaks, and the fluency radar. Topic domains live in domains.ts.",
     md: "stats.md",
   });
+  N("domain:auth", "domain", "Auth", {
+    summary: "Cloud session gate. Login, register, and Better Auth. Selfhost skips this domain.",
+    md: "auth.md",
+  });
+  N("domain:settings", "domain", "Settings", {
+    summary: "User keys, LLM provider, tokens, and account delete.",
+    md: "settings.md",
+  });
+  N("domain:data", "domain", "Data", {
+    summary: "Export and restore of learning data. Keys never leave the server.",
+    md: "data.md",
+  });
+  N("domain:billing", "domain", "Billing", {
+    summary: "Cloud plan gate, Paddle checkout, and the entitlements engine.",
+    md: "billing.md",
+  });
+  N("domain:admin", "domain", "Admin", {
+    summary: "Operator dashboard. Member list, support actions, and impersonation.",
+    md: "admin.md",
+  });
 
   // ── Flows ─────────────────────────────────────────────────────────────────
 
@@ -119,11 +156,26 @@
     domain: "library",
     md: "library.md#import",
     summary: "EPUB, paste, markdown, web URL, YouTube captions, or audio. Destination group is importGroupId.",
+    steps: [
+      "file:home-page",
+      "fn:importEpub",
+      "route:import-epub",
+      "fn:parseEpub",
+      "table:collections",
+      "table:lessons",
+    ],
   });
   N("flow:lesson-progress", "flow", "Lesson progress", {
     domain: "library",
     md: "library.md#lesson-progress",
     summary: "Scroll writes progress. progressWriter waits 1 second between writes.",
+    steps: ["file:markdown-reader", "fn:updateLessonProgress", "route:lessons-progress", "table:lessons"],
+  });
+  N("flow:collection-groups", "flow", "Collection groups", {
+    domain: "library",
+    md: "library.md#collection-groups",
+    summary: "Create a group. Assign collections. The home page lists groups first.",
+    steps: ["fn:home-loadData", "fn:getAllGroups", "route:groups-list", "table:collection_groups"],
   });
   N("flow:translate-word", "flow", "Translate word", {
     domain: "translation",
@@ -157,31 +209,37 @@
     domain: "translation",
     md: "translation.md#phrase-selection",
     summary: "Drag across two or more words. Snaps to bounds. translatePhrase. No dictionary path.",
+    steps: ["fn:handleMouseUp", "fn:snapToWordBoundaries", "fn:read-handleWordClick", "fn:translatePhrase", "route:translate-post"],
   });
   N("flow:enrich-nested", "flow", "Enrich and nested lookup", {
     domain: "translation",
     md: "translation.md#enrich-and-nested-lookup",
     summary: "Enrich upgrades a bare gloss. Nested lookup follows a form-of link and keeps the original sentence.",
+    steps: ["fn:enrichWord", "route:translate-enrich", "fn:findNestedWordRef", "fn:read-handleNestedLookup", "fn:read-handleWordClick"],
   });
   N("flow:cache-translation", "flow", "Cache accepted translation", {
     domain: "translation",
     md: "translation.md#cache-accepted-translation",
     summary: "Known, level, or Anki stores a trusted AI gloss in cached_entries. Next tap can skip the LLM.",
+    steps: ["fn:cacheAcceptedTranslation", "route:dict-cache", "fn:cacheAcceptedEntry", "table:cached_entries"],
   });
   N("flow:save-vocab", "flow", "Save vocab and set word state", {
     domain: "vocabulary",
     md: "vocabulary.md#save-vocab-and-set-word-state",
     summary: "No Save button. Level, Known, Ignore, key S, or Anki creates or updates vocab and knownWords.",
+    steps: ["fn:applyReaderWordState", "fn:patchWordState", "fn:saveVocab", "route:vocab-post", "table:vocab"],
   });
   N("flow:vocab-list", "flow", "Vocab list", {
     domain: "vocabulary",
     md: "vocabulary.md#vocab-list",
     summary: "Filter, search, and page in memory. GET /api/vocab has no limit.",
+    steps: ["file:vocab-page", "route:vocab-get", "table:vocab"],
   });
   N("flow:known-word-import", "flow", "Known-word import", {
     domain: "vocabulary",
     md: "vocabulary.md#known-word-import",
     summary: "Plain list writes knownWords only. A LingQ CSV also writes vocab.",
+    steps: ["file:known-words-import", "route:known-words-post", "table:knownWords"],
   });
   N("flow:practice-word", "flow", "Practice word", {
     domain: "practice",
@@ -200,11 +258,13 @@
     domain: "practice",
     md: "practice.md#dictation",
     summary: "Same SRS persist. User types the full sentence after TTS. Pass threshold is 0.75.",
+    steps: ["file:practice-page", "fn:speak", "fn:persistReview", "route:cloze-review"],
   });
   N("flow:blacklist", "flow", "Blacklist sentence", {
     domain: "practice",
     md: "practice.md#blacklist-sentence",
     summary: "Row stays in the table. Due queries exclude it.",
+    steps: ["file:practice-page", "route:cloze-put", "table:clozeSentences"],
   });
   N("flow:journal-submit", "flow", "Submit journal for correction", {
     domain: "journal",
@@ -223,56 +283,170 @@
     domain: "journal",
     md: "journal.md#save-journal-draft",
     summary: "Save Draft writes the row. No LLM call. After first create, a 3 second timer also writes.",
+    steps: ["file:journal-page", "fn:createJournalEntry", "route:journal-create", "fn:updateJournalDraft", "route:journal-put"],
   });
   N("flow:tutor-chat", "flow", "Tutor chat", {
     domain: "tutor",
     md: "tutor.md#tutor-chat",
     summary: "Chat widget. POST /api/chat. Free plan does not persist history.",
+    steps: ["fn:sendMessage", "route:chat-post", "fn:getProvider", "table:chat_messages"],
   });
   N("flow:cloze-explain", "flow", "Cloze Explain", {
     domain: "tutor",
     md: "tutor.md#cloze-explain",
     summary: "After a cloze Check, Explain asks for a prose breakdown. Dictation has no Explain.",
+    steps: ["fn:handleExplain", "route:explain-post", "fn:getProvider"],
   });
   N("flow:speak-word", "flow", "Speak word", {
     domain: "listen",
     md: "listen.md#speak-word",
     summary: "tts.speak. Pack audio none, eSpeak, Google, or browser speechSynthesis.",
+    steps: ["fn:speak", "file:tts", "route:tts-post"],
   });
   N("flow:listen-along", "flow", "Listen-along", {
     domain: "listen",
     md: "listen.md#listen-along",
     summary: "Podcast playback after ASR. GET segments and Range audio. Not the YouTube player.",
+    steps: ["file:listen-along", "route:lessons-segments", "route:lessons-audio", "table:transcript_segments"],
   });
   N("flow:youtube-captions", "flow", "YouTube captions", {
     domain: "listen",
     md: "listen.md#youtube-captions",
     summary: "Cues on lessons.segments JSON. YouTube iframe seek. Import is the Library domain.",
+    steps: ["file:youtube-player", "file:transcript-reader", "fn:read-handleWordClick"],
   });
   N("flow:anki-push", "flow", "Push to Anki", {
     domain: "anki",
     md: "anki.md#push-to-anki",
     summary: "AnkiConnect addNote from the browser, or POST /api/anki/queue for the add-on.",
+    steps: ["fn:useAnkiTransport", "fn:addWordCard", "fn:queueForAnki", "route:anki-queue", "table:anki_pending"],
   });
   N("flow:anki-sync", "flow", "Sync Anki reviews", {
     domain: "anki",
     md: "anki.md#sync-anki-reviews",
     summary: "Upgrade-only map from Anki card type to word state. Heatmap day counts are a second writer.",
+    steps: ["fn:syncWordStates", "route:anki-reviews", "table:vocab", "table:knownWords"],
   });
   N("flow:language-setup", "flow", "Language setup", {
     domain: "onboarding",
     md: "onboarding.md#language-setup",
     summary: "SetupGuard, seed starter, guided lesson, three cloze cards, complete Onboarding.",
+    steps: ["file:setup-guard", "file:setup-page", "fn:seedStarterContent", "fn:startOnboarding", "route:onboarding-start"],
   });
   N("flow:daily-stats", "flow", "Daily stats", {
     domain: "stats",
     md: "stats.md#daily-stats",
     summary: "PUT /api/stats/today from the client. Dictionary and translate routes stamp sessionStartedAt.",
+    steps: ["fn:incrementDailyStat", "route:stats-today", "fn:recordStudySessionPing", "table:dailyStats"],
   });
   N("flow:fluency-radar", "flow", "Fluency radar", {
     domain: "stats",
     md: "stats.md#fluency-radar",
     summary: "Background classify-worker tags knownWords.domain. Not on the tap path.",
+    steps: ["file:classify-worker", "file:word-classifier", "route:stats-fluency", "fn:deriveDomainFluency"],
+  });
+  N("flow:sign-in", "flow", "Sign in", {
+    domain: "auth",
+    md: "auth.md#sign-in",
+    summary: "Cloud only. AuthGuard sends a guest to /login. Better Auth writes the session cookie.",
+    steps: [
+      "file:auth-guard",
+      "fn:bounceToLogin",
+      "file:login-page",
+      "fn:sign-in-email",
+      "route:auth-handler",
+      "table:session",
+    ],
+  });
+  N("flow:sign-up", "flow", "Sign up", {
+    domain: "auth",
+    md: "auth.md#sign-up",
+    summary: "Register page. Better Auth sends a verify email. The account is not a session until verify.",
+    steps: ["file:register-page", "fn:sign-up-email", "route:auth-handler", "file:accounts"],
+  });
+  N("flow:session-gate", "flow", "Session gate", {
+    domain: "auth",
+    md: "auth.md#session-gate",
+    summary: "Root layout order: AuthGuard, then BillingGuard, then SetupGuard. Selfhost skips the first two.",
+    steps: ["file:layout", "file:auth-guard", "file:billing-guard", "file:setup-guard"],
+  });
+  N("flow:save-settings", "flow", "Save settings", {
+    domain: "settings",
+    md: "settings.md#save-settings",
+    summary: "Settings page writes one key at a time through data-layer to PUT /api/settings/:key.",
+    steps: ["file:settings-page", "fn:setSetting", "route:settings-put", "table:settings"],
+  });
+  N("flow:configure-llm", "flow", "Configure LLM", {
+    domain: "settings",
+    md: "settings.md#configure-llm",
+    summary: "Selfhost uses LLMSettings. Cloud uses BYOKSettings. getProvider reads the same keys.",
+    steps: ["file:llm-settings", "fn:setSetting", "file:byok-settings", "route:byok-put", "fn:getProvider"],
+  });
+  N("flow:api-tokens", "flow", "API tokens", {
+    domain: "settings",
+    md: "settings.md#api-tokens",
+    summary: "Personal access token for CLI or script use. The raw token shows once.",
+    steps: ["file:api-tokens", "fn:createApiToken", "route:tokens-post", "table:api_tokens"],
+  });
+  N("flow:delete-account", "flow", "Delete account", {
+    domain: "settings",
+    md: "settings.md#delete-account",
+    summary: "Cloud only. Better Auth sends a confirm email. The click erases the tenant.",
+    steps: ["file:delete-account", "fn:delete-user", "file:accounts", "route:auth-handler"],
+  });
+  N("flow:export-data", "flow", "Export learning data", {
+    domain: "data",
+    md: "data.md#export-learning-data",
+    summary: "GET /api/data. buildUserExport packs study rows. API keys never leave.",
+    steps: ["file:data-management", "route:data-get", "fn:buildUserExport"],
+  });
+  N("flow:restore-data", "flow", "Restore learning data", {
+    domain: "data",
+    md: "data.md#restore-learning-data",
+    summary: "POST /api/data. One restore at a time. Free plan has a smaller body cap.",
+    steps: ["file:data-management", "fn:importFromDexie", "route:data-post", "file:entitlements"],
+  });
+  N("flow:subscribe", "flow", "Subscribe", {
+    domain: "billing",
+    md: "billing.md#subscribe",
+    summary: "BillingGuard locks a guest of the paywall. /subscribe starts a Paddle checkout.",
+    steps: [
+      "file:billing-guard",
+      "fn:fetchBillingStatus",
+      "file:subscribe-page",
+      "fn:startCheckout",
+      "route:billing-checkout",
+    ],
+  });
+  N("flow:entitlements", "flow", "Entitlements", {
+    domain: "billing",
+    md: "billing.md#entitlements",
+    summary: "Routes call the entitlements engine. The client only reads GET /api/billing/entitlements.",
+    steps: ["fn:getEntitlements", "route:billing-entitlements", "file:entitlements", "table:usage_counters"],
+  });
+  N("flow:plan-change", "flow", "Change plan", {
+    domain: "billing",
+    md: "billing.md#change-plan",
+    summary: "CloudPlanSettings previews proration, then POSTs the change. Entitlement waits for the webhook.",
+    steps: ["file:cloud-plan-settings", "fn:previewPlanChange", "fn:applyPlanChange", "route:billing-change"],
+  });
+  N("flow:admin-list", "flow", "Admin member list", {
+    domain: "admin",
+    md: "admin.md#admin-member-list",
+    summary: "Admin page loads summary and users. requireAdmin gates every /api/admin route.",
+    steps: ["file:admin-page", "fn:getAdminUsers", "route:admin-users", "file:admin-lib"],
+  });
+  N("flow:admin-support", "flow", "Admin support action", {
+    domain: "admin",
+    md: "admin.md#admin-support-action",
+    summary: "Suspend, restore, comp, export, reset MFA, or revoke sessions. Each write hits the audit log.",
+    steps: ["file:admin-page", "fn:suspendUser", "route:admin-suspend", "table:admin_audit_log"],
+  });
+  N("flow:impersonate", "flow", "Impersonate", {
+    domain: "admin",
+    md: "admin.md#impersonate",
+    summary: "Operator acts as a member. AuthGuard namespaces caches under the target user.",
+    steps: ["fn:startImpersonation", "route:admin-impersonate", "table:admin_impersonation", "file:auth-guard"],
   });
 
   // ── Shared files ──────────────────────────────────────────────────────────
@@ -317,6 +491,35 @@
   N("file:youtube-import", "file", "YouTubeImportModal", { path: "src/components/YouTubeImportModal/index.tsx", domain: "library" });
   N("file:paste-import", "file", "PasteImportModal", { path: "src/components/PasteImportModal/index.tsx", domain: "library" });
   N("file:definition-links", "file", "definition-links.ts", { path: "src/lib/definition-links.ts", domain: "translation" });
+  N("file:layout", "file", "Root layout", { path: "src/app/layout.tsx", domain: "auth" });
+  N("file:auth-guard", "file", "AuthGuard", { path: "src/components/AuthGuard/index.tsx", domain: "auth" });
+  N("file:billing-guard", "file", "BillingGuard", { path: "src/components/BillingGuard/index.tsx", domain: "billing" });
+  N("file:login-page", "file", "Login page", { path: "src/app/(auth)/login/page.tsx", domain: "auth" });
+  N("file:register-page", "file", "Register page", { path: "src/app/(auth)/register/page.tsx", domain: "auth" });
+  N("file:subscribe-page", "file", "Subscribe page", { path: "src/app/(auth)/subscribe/page.tsx", domain: "billing" });
+  N("file:auth-client", "file", "auth-client.ts", { path: "src/lib/auth-client.ts", domain: "auth" });
+  N("file:accounts", "file", "accounts.ts", { path: "api/src/lib/accounts.ts", domain: "auth" });
+  N("file:settings-page", "file", "Settings page", { path: "src/app/settings/page.tsx", domain: "settings" });
+  N("file:llm-settings", "file", "LLMSettings", { path: "src/app/settings/components/LLMSettings/index.tsx", domain: "settings" });
+  N("file:byok-settings", "file", "BYOKSettings", { path: "src/app/settings/components/BYOKSettings.tsx", domain: "settings" });
+  N("file:api-tokens", "file", "APITokens", { path: "src/app/settings/components/APITokens/index.tsx", domain: "settings" });
+  N("file:delete-account", "file", "DeleteAccount", { path: "src/app/settings/components/DeleteAccount/index.tsx", domain: "settings" });
+  N("file:data-management", "file", "DataManagement", { path: "src/app/settings/components/DataManagement/index.tsx", domain: "data" });
+  N("file:cloud-plan-settings", "file", "CloudPlanSettings", { path: "src/app/settings/components/CloudPlanSettings.tsx", domain: "billing" });
+  N("file:billing-client", "file", "billing.ts (client)", { path: "src/lib/billing.ts", domain: "billing" });
+  N("file:admin-page", "file", "Admin page", { path: "src/app/admin/page.tsx", domain: "admin" });
+  N("file:admin-client", "file", "admin-client.ts", { path: "src/lib/admin-client.ts", domain: "admin" });
+  N("file:admin-lib", "file", "admin.ts", { path: "api/src/lib/admin.ts", domain: "admin" });
+  N("file:user-export", "file", "user-export.ts", { path: "api/src/lib/user-export.ts", domain: "data" });
+  N("file:byok-lib", "file", "byok.ts", { path: "api/src/lib/byok.ts", domain: "settings" });
+  N("file:route-settings", "file", "settings.ts (API)", { path: "api/src/routes/settings.ts", domain: "settings" });
+  N("file:route-data", "file", "data.ts", { path: "api/src/routes/data.ts", domain: "data" });
+  N("file:route-billing", "file", "billing.ts (API)", { path: "api/src/routes/billing.ts", domain: "billing" });
+  N("file:route-admin", "file", "admin.ts (API)", { path: "api/src/routes/admin.ts", domain: "admin" });
+  N("file:route-tokens", "file", "tokens.ts", { path: "api/src/routes/tokens.ts", domain: "settings" });
+  N("file:route-byok", "file", "byok.ts (API)", { path: "api/src/routes/byok.ts", domain: "settings" });
+  N("file:route-groups", "file", "groups.ts", { path: "api/src/routes/groups.ts", domain: "library" });
+  N("file:route-impersonation", "file", "impersonation.ts", { path: "api/src/routes/impersonation.ts", domain: "admin" });
 
   N("file:registry", "file", "registry.ts", { path: "api/src/routes/registry.ts" });
   N("file:route-collections", "file", "collections.ts", { path: "api/src/routes/collections.ts", domain: "library" });
@@ -425,6 +628,25 @@
   N("fn:buildWordEntryPrompt", "fn", "buildWordEntryPrompt", { path: "api/src/lib/translate-prompts.ts" });
   N("fn:foldWord", "fn", "foldWord", { path: "languages/registry.ts" });
   N("fn:deriveDomainFluency", "fn", "deriveDomainFluency", { path: "api/src/lib/domains.ts" });
+  N("fn:getAllGroups", "fn", "getAllGroups", { path: "src/lib/data-layer.ts" });
+  N("fn:bounceToLogin", "fn", "bounceToLogin", { path: "src/lib/api-base.ts" });
+  N("fn:sign-in-email", "fn", "authClient.signIn.email", { path: "src/app/(auth)/login/page.tsx" });
+  N("fn:sign-up-email", "fn", "authClient.signUp.email", { path: "src/app/(auth)/register/page.tsx" });
+  N("fn:delete-user", "fn", "authClient.deleteUser", { path: "src/app/settings/components/DeleteAccount/index.tsx" });
+  N("fn:setSetting", "fn", "setSetting", { path: "src/lib/data-layer.ts" });
+  N("fn:createApiToken", "fn", "createApiToken", { path: "src/lib/data-layer.ts" });
+  N("fn:importFromDexie", "fn", "importFromDexie", { path: "src/lib/data-layer.ts" });
+  N("fn:buildUserExport", "fn", "buildUserExport", { path: "api/src/lib/user-export.ts" });
+  N("fn:getEntitlements", "fn", "getEntitlements", { path: "src/lib/data-layer.ts" });
+  N("fn:fetchBillingStatus", "fn", "fetchBillingStatus", { path: "src/lib/billing.ts" });
+  N("fn:startCheckout", "fn", "startCheckout", { path: "src/lib/billing.ts" });
+  N("fn:previewPlanChange", "fn", "previewPlanChange", { path: "src/lib/billing.ts" });
+  N("fn:applyPlanChange", "fn", "applyPlanChange", { path: "src/lib/billing.ts" });
+  N("fn:getAdminUsers", "fn", "getAdminUsers", { path: "src/lib/admin-client.ts" });
+  N("fn:suspendUser", "fn", "suspendUser", { path: "src/lib/admin-client.ts" });
+  N("fn:startImpersonation", "fn", "startImpersonation", { path: "src/lib/admin-client.ts" });
+  N("fn:createAuthEngine", "fn", "createAuthEngine", { path: "api/src/lib/accounts.ts" });
+  N("fn:requireAdmin", "fn", "makeRequireAdmin", { path: "api/src/lib/admin.ts" });
 
   // ── Routes ────────────────────────────────────────────────────────────────
 
@@ -469,6 +691,25 @@
   N("route:onboarding-start", "route", "POST /api/onboarding/start", { path: "api/src/routes/onboarding.ts" });
   N("route:stats-today", "route", "PUT /api/stats/today", { path: "api/src/routes/stats.ts" });
   N("route:stats-fluency", "route", "GET /api/stats/fluency", { path: "api/src/routes/stats.ts" });
+  N("route:groups-list", "route", "GET /api/groups", { path: "api/src/routes/groups.ts" });
+  N("route:groups-post", "route", "POST /api/groups", { path: "api/src/routes/groups.ts" });
+  N("route:auth-handler", "route", "/api/auth/*", { path: "api/src/index.ts" });
+  N("route:settings-get", "route", "GET /api/settings/:key", { path: "api/src/routes/settings.ts" });
+  N("route:settings-put", "route", "PUT /api/settings/:key", { path: "api/src/routes/settings.ts" });
+  N("route:tokens-post", "route", "POST /api/tokens", { path: "api/src/routes/tokens.ts" });
+  N("route:tokens-list", "route", "GET /api/tokens", { path: "api/src/routes/tokens.ts" });
+  N("route:byok-put", "route", "PUT /api/byok", { path: "api/src/routes/byok.ts" });
+  N("route:data-get", "route", "GET /api/data", { path: "api/src/routes/data.ts" });
+  N("route:data-post", "route", "POST /api/data", { path: "api/src/routes/data.ts" });
+  N("route:billing-status", "route", "GET /api/billing/status", { path: "api/src/routes/billing.ts" });
+  N("route:billing-entitlements", "route", "GET /api/billing/entitlements", { path: "api/src/routes/billing.ts" });
+  N("route:billing-checkout", "route", "POST /api/billing/checkout", { path: "api/src/routes/billing.ts" });
+  N("route:billing-change", "route", "POST /api/billing/change", { path: "api/src/routes/billing.ts" });
+  N("route:billing-webhook", "route", "POST /api/billing/webhook", { path: "api/src/routes/billing.ts" });
+  N("route:admin-users", "route", "GET /api/admin/users", { path: "api/src/routes/admin.ts" });
+  N("route:admin-suspend", "route", "POST /api/admin/users/:id/suspend", { path: "api/src/routes/admin.ts" });
+  N("route:admin-impersonate", "route", "POST /api/admin/users/:id/impersonate", { path: "api/src/routes/admin.ts" });
+  N("route:impersonation-status", "route", "GET /api/impersonation/status", { path: "api/src/routes/impersonation.ts" });
 
   // ── Tables ────────────────────────────────────────────────────────────────
 
@@ -486,6 +727,16 @@
   N("table:onboarding_progress", "table", "onboarding_progress", { path: "api/src/db.ts" });
   N("table:usage_counters", "table", "usage_counters", { path: "api/src/db.ts" });
   N("table:dict-pack", "table", "dictionary-{lang}.db", { path: "data/dictionary-{lang}.db" });
+  N("table:settings", "table", "settings", { path: "api/src/db.ts" });
+  N("table:collection_groups", "table", "collection_groups", { path: "api/src/db.ts" });
+  N("table:api_tokens", "table", "api_tokens", { path: "api/src/db.ts" });
+  N("table:user_provider_credentials", "table", "user_provider_credentials", { path: "api/src/db.ts" });
+  N("table:session", "table", "session", { path: "api/src/lib/accounts.ts" });
+  N("table:billing_subscriptions", "table", "billing_subscriptions", { path: "api/src/db.ts" });
+  N("table:billing_customers", "table", "billing_customers", { path: "api/src/db.ts" });
+  N("table:admin_audit_log", "table", "admin_audit_log", { path: "api/src/db.ts" });
+  N("table:admin_impersonation", "table", "admin_impersonation", { path: "api/src/db.ts" });
+  N("table:admin_account_flags", "table", "admin_account_flags", { path: "api/src/db.ts" });
 
   // ── Edges: app, layers, domains ───────────────────────────────────────────
 
@@ -516,6 +767,11 @@
     "anki",
     "onboarding",
     "stats",
+    "auth",
+    "settings",
+    "data",
+    "billing",
+    "admin",
   ].forEach(function (d) {
     edge("app:lector", "domain:" + d, "contains");
   });
@@ -527,10 +783,15 @@
   edge("domain:library", "domain:listen", "then");
   edge("domain:practice", "domain:tutor", "then");
   edge("domain:journal", "domain:tutor", "then");
+  edge("domain:auth", "domain:billing", "then");
+  edge("domain:billing", "domain:onboarding", "then");
   edge("domain:onboarding", "domain:library", "then");
   edge("domain:onboarding", "domain:practice", "then");
   edge("domain:vocabulary", "domain:stats", "then");
   edge("domain:practice", "domain:stats", "then");
+  edge("domain:settings", "domain:data", "then");
+  edge("domain:settings", "domain:billing", "then");
+  edge("domain:admin", "domain:billing", "uses");
 
   function domainFlows(domain, flowIds) {
     flowIds.forEach(function (id) {
@@ -538,7 +799,7 @@
     });
   }
 
-  domainFlows("library", ["flow:load-library-item", "flow:import", "flow:lesson-progress"]);
+  domainFlows("library", ["flow:load-library-item", "flow:import", "flow:lesson-progress", "flow:collection-groups"]);
   domainFlows("translation", [
     "flow:translate-word",
     "flow:in-context",
@@ -554,6 +815,11 @@
   domainFlows("anki", ["flow:anki-push", "flow:anki-sync"]);
   domainFlows("onboarding", ["flow:language-setup"]);
   domainFlows("stats", ["flow:daily-stats", "flow:fluency-radar"]);
+  domainFlows("auth", ["flow:sign-in", "flow:sign-up", "flow:session-gate"]);
+  domainFlows("settings", ["flow:save-settings", "flow:configure-llm", "flow:api-tokens", "flow:delete-account"]);
+  domainFlows("data", ["flow:export-data", "flow:restore-data"]);
+  domainFlows("billing", ["flow:subscribe", "flow:entitlements", "flow:plan-change"]);
+  domainFlows("admin", ["flow:admin-list", "flow:admin-support", "flow:impersonate"]);
 
   // Cross-flow walks
   edge("flow:load-library-item", "flow:translate-word", "then");
@@ -918,6 +1184,153 @@
   edge("fn:deriveDomainFluency", "file:domains-lib", "in");
   edge("file:entitlements", "table:usage_counters", "writes");
 
+  // ── Collection groups ─────────────────────────────────────────────────────
+
+  edge("flow:collection-groups", "fn:home-loadData", "starts");
+  edge("fn:home-loadData", "fn:getAllGroups", "calls");
+  edge("fn:getAllGroups", "file:data-layer", "in");
+  edge("fn:getAllGroups", "route:groups-list", "http");
+  edge("route:groups-list", "file:route-groups", "in");
+  edge("route:groups-list", "table:collection_groups", "reads");
+  edge("route:groups-post", "file:route-groups", "in");
+  edge("route:groups-post", "table:collection_groups", "writes");
+  edge("file:home-page", "route:groups-post", "http");
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+
+  edge("flow:session-gate", "file:layout", "starts");
+  edge("file:layout", "file:auth-guard", "opens");
+  edge("file:layout", "file:billing-guard", "opens");
+  edge("file:layout", "file:setup-guard", "opens");
+  edge("flow:sign-in", "file:auth-guard", "starts");
+  edge("file:auth-guard", "fn:bounceToLogin", "calls");
+  edge("fn:bounceToLogin", "file:api-base", "in");
+  edge("fn:bounceToLogin", "file:login-page", "then");
+  edge("file:login-page", "fn:sign-in-email", "calls");
+  edge("fn:sign-in-email", "file:auth-client", "in");
+  edge("fn:sign-in-email", "route:auth-handler", "http");
+  edge("route:auth-handler", "file:accounts", "in");
+  edge("route:auth-handler", "fn:createAuthEngine", "calls");
+  edge("fn:createAuthEngine", "file:accounts", "in");
+  edge("route:auth-handler", "table:session", "writes");
+  edge("flow:sign-up", "file:register-page", "starts");
+  edge("file:register-page", "fn:sign-up-email", "calls");
+  edge("fn:sign-up-email", "file:auth-client", "in");
+  edge("fn:sign-up-email", "route:auth-handler", "http");
+  edge("flow:sign-in", "flow:session-gate", "then");
+  edge("flow:sign-up", "flow:sign-in", "then");
+  edge("flow:session-gate", "flow:language-setup", "then");
+  edge("flow:session-gate", "flow:subscribe", "then");
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+
+  edge("flow:save-settings", "file:settings-page", "starts");
+  edge("file:settings-page", "fn:setSetting", "calls");
+  edge("fn:setSetting", "file:data-layer", "in");
+  edge("fn:setSetting", "route:settings-put", "http");
+  edge("route:settings-put", "file:route-settings", "in");
+  edge("route:settings-put", "table:settings", "writes");
+  edge("route:settings-get", "file:route-settings", "in");
+  edge("route:settings-get", "table:settings", "reads");
+  edge("flow:configure-llm", "file:llm-settings", "starts");
+  edge("file:settings-page", "file:llm-settings", "opens");
+  edge("file:settings-page", "file:byok-settings", "opens");
+  edge("file:llm-settings", "fn:setSetting", "calls");
+  edge("file:byok-settings", "route:byok-put", "http");
+  edge("route:byok-put", "file:route-byok", "in");
+  edge("route:byok-put", "file:byok-lib", "in");
+  edge("route:byok-put", "table:user_provider_credentials", "writes");
+  edge("file:byok-lib", "fn:getProvider", "uses");
+  edge("flow:configure-llm", "fn:getProvider", "then");
+  edge("flow:api-tokens", "file:api-tokens", "starts");
+  edge("file:settings-page", "file:api-tokens", "opens");
+  edge("file:api-tokens", "fn:createApiToken", "calls");
+  edge("fn:createApiToken", "file:data-layer", "in");
+  edge("fn:createApiToken", "route:tokens-post", "http");
+  edge("route:tokens-post", "file:route-tokens", "in");
+  edge("route:tokens-post", "table:api_tokens", "writes");
+  edge("route:tokens-list", "file:route-tokens", "in");
+  edge("route:tokens-list", "table:api_tokens", "reads");
+  edge("flow:delete-account", "file:delete-account", "starts");
+  edge("file:settings-page", "file:delete-account", "opens");
+  edge("file:delete-account", "fn:delete-user", "calls");
+  edge("fn:delete-user", "file:auth-client", "in");
+  edge("fn:delete-user", "route:auth-handler", "http");
+
+  // ── Data ──────────────────────────────────────────────────────────────────
+
+  edge("flow:export-data", "file:data-management", "starts");
+  edge("file:settings-page", "file:data-management", "opens");
+  edge("file:data-management", "route:data-get", "http");
+  edge("route:data-get", "file:route-data", "in");
+  edge("route:data-get", "fn:buildUserExport", "calls");
+  edge("fn:buildUserExport", "file:user-export", "in");
+  edge("flow:restore-data", "file:data-management", "starts");
+  edge("file:data-management", "fn:importFromDexie", "calls");
+  edge("fn:importFromDexie", "file:data-layer", "in");
+  edge("fn:importFromDexie", "route:data-post", "http");
+  edge("route:data-post", "file:route-data", "in");
+  edge("route:data-post", "file:entitlements", "meters");
+
+  // ── Billing ───────────────────────────────────────────────────────────────
+
+  edge("flow:subscribe", "file:billing-guard", "starts");
+  edge("file:billing-guard", "fn:fetchBillingStatus", "calls");
+  edge("fn:fetchBillingStatus", "file:billing-client", "in");
+  edge("fn:fetchBillingStatus", "route:billing-status", "http");
+  edge("route:billing-status", "file:route-billing", "in");
+  edge("route:billing-status", "table:billing_subscriptions", "reads");
+  edge("file:billing-guard", "file:subscribe-page", "then");
+  edge("file:subscribe-page", "fn:startCheckout", "calls");
+  edge("fn:startCheckout", "file:billing-client", "in");
+  edge("fn:startCheckout", "route:billing-checkout", "http");
+  edge("route:billing-checkout", "file:route-billing", "in");
+  edge("route:billing-webhook", "file:route-billing", "in");
+  edge("route:billing-webhook", "table:billing_subscriptions", "writes");
+  edge("route:billing-webhook", "table:billing_customers", "writes");
+  edge("flow:entitlements", "fn:getEntitlements", "starts");
+  edge("fn:getEntitlements", "file:data-layer", "in");
+  edge("fn:getEntitlements", "route:billing-entitlements", "http");
+  edge("route:billing-entitlements", "file:route-billing", "in");
+  edge("route:billing-entitlements", "file:entitlements", "uses");
+  edge("file:entitlements", "table:usage_counters", "reads");
+  edge("flow:plan-change", "file:cloud-plan-settings", "starts");
+  edge("file:settings-page", "file:cloud-plan-settings", "opens");
+  edge("file:cloud-plan-settings", "fn:previewPlanChange", "calls");
+  edge("file:cloud-plan-settings", "fn:applyPlanChange", "calls");
+  edge("fn:previewPlanChange", "file:billing-client", "in");
+  edge("fn:applyPlanChange", "file:billing-client", "in");
+  edge("fn:applyPlanChange", "route:billing-change", "http");
+  edge("route:billing-change", "file:route-billing", "in");
+  edge("flow:subscribe", "flow:entitlements", "then");
+  edge("flow:plan-change", "flow:entitlements", "then");
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+
+  edge("flow:admin-list", "file:admin-page", "starts");
+  edge("file:admin-page", "fn:getAdminUsers", "calls");
+  edge("fn:getAdminUsers", "file:admin-client", "in");
+  edge("fn:getAdminUsers", "route:admin-users", "http");
+  edge("route:admin-users", "file:route-admin", "in");
+  edge("route:admin-users", "fn:requireAdmin", "calls");
+  edge("fn:requireAdmin", "file:admin-lib", "in");
+  edge("flow:admin-support", "file:admin-page", "starts");
+  edge("file:admin-page", "fn:suspendUser", "calls");
+  edge("fn:suspendUser", "file:admin-client", "in");
+  edge("fn:suspendUser", "route:admin-suspend", "http");
+  edge("route:admin-suspend", "file:route-admin", "in");
+  edge("route:admin-suspend", "table:admin_audit_log", "writes");
+  edge("route:admin-suspend", "table:admin_account_flags", "writes");
+  edge("flow:impersonate", "fn:startImpersonation", "starts");
+  edge("fn:startImpersonation", "file:admin-client", "in");
+  edge("fn:startImpersonation", "route:admin-impersonate", "http");
+  edge("route:admin-impersonate", "file:route-admin", "in");
+  edge("route:admin-impersonate", "table:admin_impersonation", "writes");
+  edge("route:impersonation-status", "file:route-impersonation", "in");
+  edge("file:auth-guard", "route:impersonation-status", "http");
+  edge("flow:admin-list", "flow:admin-support", "then");
+  edge("flow:admin-support", "flow:impersonate", "then");
+
   // File-in-layer (so a file walk reaches the stack)
   edge("file:home-page", "layer:ui", "in");
   edge("file:read-page", "layer:ui", "in");
@@ -926,6 +1339,11 @@
   edge("file:route-translate", "layer:routes", "in");
   edge("file:dictionary-db", "layer:lib", "in");
   edge("file:llm", "layer:lib", "in");
+  edge("file:layout", "layer:ui", "in");
+  edge("file:admin-page", "layer:ui", "in");
+  edge("file:route-admin", "layer:routes", "in");
+  edge("file:route-billing", "layer:routes", "in");
+  edge("file:accounts", "layer:lib", "in");
 
   global.LECTOR_FLOW_GRAPH = {
     nodes: nodes,
