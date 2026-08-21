@@ -81,6 +81,7 @@ describe('registry pronunciation conformance', () => {
     ['pl', 'pol'],
     ['cs', 'ces'],
     ['id', 'ind'],
+    ['sv', 'swe'],
   ] as const)('%s declares no fold locale and no apostrophe seam', (code, tatoebaCode) => {
     const pack = LANGUAGES[code];
     expect(pack.script.caseFoldLocale).toBeUndefined();

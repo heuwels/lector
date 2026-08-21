@@ -22,6 +22,7 @@ const UK_TATOEBA_IDS = [1001, 1002];
 const PL_TATOEBA_IDS = [1201, 1202];
 const CS_TATOEBA_IDS = [1301, 1302];
 const ID_TATOEBA_IDS = [1401, 1402];
+const SV_TATOEBA_IDS = [1501, 1502];
 const GRC_VERSE_IDS = [40010010, 40030160];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
@@ -408,6 +409,29 @@ mock.module('../lib/sentence-bank-id.json', () => ({
   ],
 }));
 
+mock.module('../lib/sentence-bank-sv.json', () => ({
+  default: [
+    {
+      id: 1501,
+      text: 'Jag köpte en ny bok i går.',
+      translation: 'I bought a new book yesterday.',
+      clozeWord: 'bok',
+      clozeIndex: 4,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 1502,
+      text: 'Här är en röd björn.',
+      translation: 'Here is a red bear.',
+      clozeWord: 'björn',
+      clozeIndex: 4,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -419,7 +443,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...UK_TATOEBA_IDS, ...PL_TATOEBA_IDS, ...CS_TATOEBA_IDS, ...ID_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...UK_TATOEBA_IDS, ...PL_TATOEBA_IDS, ...CS_TATOEBA_IDS, ...ID_TATOEBA_IDS, ...SV_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
   ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -824,6 +848,32 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get() as { c: number };
     expect(csUnderId.c).toBe(0);
+  });
+
+  test('seeds the Swedish bank under sv, isolated from Indonesian', async () => {
+    setActiveLanguage('id');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('sv');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const sv = db
+      .prepare(
+        `SELECT language, clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${SV_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string }[];
+    expect(sv.length).toBe(2);
+    expect(sv.every((r) => r.language === 'sv')).toBe(true);
+    expect(sv.some((r) => r.clozeWord === 'bok')).toBe(true);
+    expect(sv.some((r) => r.clozeWord === 'björn')).toBe(true);
+
+    const idUnderSv = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'sv' AND tatoebaSentenceId IN (${ID_TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(idUnderSv.c).toBe(0);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {

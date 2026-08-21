@@ -203,6 +203,14 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Saya membeli buku baru.', 'beli', id)).toBe(false);
   });
 
+  it('matches Swedish tokens through the default case fold', () => {
+    const sv = LANGUAGES.sv;
+    expect(sentenceContainsWord('Jag köpte en ny bok.', 'bok', sv)).toBe(true);
+    expect(sentenceContainsWord('Här är en röd björn.', 'björn', sv)).toBe(true);
+    expect(sentenceContainsWord('Hon läste tidningen.', 'tidningen', sv)).toBe(true);
+    expect(sentenceContainsWord('Jag köpte en ny bok.', 'bo', sv)).toBe(false);
+  });
+
   it('matches a Ukrainian apostrophe word as one token, in any variant', () => {
     const uk = LANGUAGES.uk;
     expect(sentenceContainsWord("Я з'їв п'ять яблук.", "п'ять", uk)).toBe(true);

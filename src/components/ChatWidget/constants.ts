@@ -77,6 +77,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What\'s the difference between perfective and imperfective verbs like "сделать" vs "делать"?',
     'When do I use "идти" vs "ходить" (verbs of motion)?',
   ],
+  sv: [
+    'How does the definite suffix work, as in "hus" → "huset" → "husen"?',
+    'When do I use "en" vs "ett"?',
+    'What is the difference between "är" and "blir"?',
+  ],
   tr: [
     'How does vowel harmony decide which suffix I use?',
     'In what order do suffixes stack on a word like "evlerimizden"?',
