@@ -53,6 +53,12 @@ npm run gen:openapi:check    # fail if a route has no entry
 
 The generator reads `api/src/routes/registry.ts`. Prose and payload shapes come from `api/src/lib/openapi/annotations.ts`. Mount a new route module in `registry.ts`, never in `api/src/index.ts`. `bun test` in `api/` fails while a route has no entry.
 
+### Flow maps
+
+Maps of every app domain are in [`docs/flows/`](docs/flows/README.md). Open `docs/flows/index.html` to walk the graph. The Lector node has a First walk.
+
+If you change a listed path, update `docs/flows/graph-data.js` and the matching `.md` notes in the same change. Then run `node docs/flows/validate-graph.mjs`.
+
 ### Folder structure
 
 Break a large component into a folder:

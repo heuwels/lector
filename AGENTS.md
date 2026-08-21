@@ -38,6 +38,10 @@ can reach. The scope map in `api/src/lib/auth.ts` decides that set.
 - Tailwind CSS v4 (class-based dark mode via `@custom-variant`)
 - shadcn/ui (Base UI primitives, `base-vega` style, zinc tokens) is initialized — add primitives with `npx shadcn@latest add <component>` into `src/components/ui/` and extend them there. Adoption is gradual: prefer `ui/` components in new/touched code, don't hand-roll buttons/dialogs/menus, and don't mass-migrate existing ones
 
+## Flow maps
+
+Maps of every app domain are in `docs/flows/`. Open `docs/flows/index.html` to walk the graph. The Lector node has a First walk. When you change a listed path, update `docs/flows/graph-data.js` and the matching `.md` notes. Then run `node docs/flows/validate-graph.mjs`.
+
 ## Key Patterns
 
 - Pages use `NavHeader` component for sidebar/bottom nav
