@@ -126,6 +126,12 @@ const CORPUS: Record<
     'Compramos um guarda-chuva na segunda-feira, por volta das 3 horas.',
     '“Você viu a canção número 42?”, perguntou o avô.',
   ],
+  sv: [
+    'Hej! Hur mår du?',
+    'Jag köpte en ny bok för femtio kronor år 1999.',
+    'Hon läste tidningen — sedan drack hon kaffe.',
+    'Han sa: „Det här är mitt hus.“',
+  ],
 };
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
@@ -777,6 +783,40 @@ describe('Indonesian pack (real manifest)', () => {
   it('snaps a mid-word selection to Indonesian word boundaries', () => {
     const text = 'Saya membaca buku';
     expect(snapToWordBoundaries(text, 13, 15, id)).toEqual({ start: 13, end: 17 });
+  });
+});
+
+const sv = LANGUAGES.sv;
+
+describe('Swedish pack (real manifest)', () => {
+  it('keeps å ä ö inside word tokens', () => {
+    expect(tokenizeWords('Här är en röd björn.', sv).map((t) => t.text)).toEqual([
+      'Här',
+      'är',
+      'en',
+      'röd',
+      'björn',
+    ]);
+  });
+
+  it('joins hyphenated compounds', () => {
+    expect(tokenizeWords('Det är ett sjukhus-område.', sv).map((t) => t.text)).toEqual([
+      'Det',
+      'är',
+      'ett',
+      'sjukhus-område',
+    ]);
+  });
+
+  it('folds case with the default Unicode mapping', () => {
+    expect(foldWord('BOK', sv)).toBe('bok');
+    expect(foldWord('Här', sv)).toBe('här');
+    expect(foldWord('BJÖRN', sv)).toBe('björn');
+  });
+
+  it('snaps a mid-word selection to Swedish word boundaries', () => {
+    const text = 'Jag läser boken';
+    expect(snapToWordBoundaries(text, 11, 13, sv)).toEqual({ start: 10, end: 15 });
   });
 });
 

@@ -368,6 +368,22 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-nl.txt',
     glossFilter: true,
   },
+  sv: {
+    // Canonical /Swedish/ URL (kaikki has no /downloads/sv/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Swedish/kaikki.org-dictionary-Swedish.jsonl'],
+    // a-z plus å ä ö. The apostrophe is a token boundary, matching the
+    // runtime tokenizer and the pl/cs/id shape. Hyphen stays a word char for
+    // compounds (sjukhusparkering is written solid; hyphenated loans stay whole).
+    letterClass: 'a-zåäöA-ZÅÄÖ-',
+    // No hand affix rules: the definite suffix (hus → huset) and verb forms
+    // resolve via kaikki form-of entries + the inflections table.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouyåäö',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-sv.txt',
+    glossFilter: true,
+  },
   pl: {
     // Canonical /Polish/ URL (kaikki has no /downloads/pl/ mirror).
     kaikkiUrls: ['https://kaikki.org/dictionary/Polish/kaikki.org-dictionary-Polish.jsonl'],

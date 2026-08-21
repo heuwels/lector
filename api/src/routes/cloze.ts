@@ -183,6 +183,7 @@ const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   pl: () => import('../lib/sentence-bank-pl.json'),
   pt: () => import('../lib/sentence-bank-pt.json'),
   ru: () => import('../lib/sentence-bank-ru.json'),
+  sv: () => import('../lib/sentence-bank-sv.json'),
   tr: () => import('../lib/sentence-bank-tr.json'),
   uk: () => import('../lib/sentence-bank-uk.json'),
   // The first bank that ships `tokens` (#289 4.3). Mandarin has no whitespace,

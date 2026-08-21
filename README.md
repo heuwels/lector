@@ -82,6 +82,7 @@ Language packs ship for:
 - Portuguese
 - Russian
 - Spanish
+- Swedish
 - Turkish
 - Ukrainian
 
