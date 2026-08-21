@@ -68,3 +68,20 @@ can reach. The scope map in `api/src/lib/auth.ts` decides that set.
 ## GitHub text
 
 - Always use an input file for multiline PR bodies and comments: `gh pr create/edit --body-file …` and `gh pr comment --body-file …`. Never embed escaped `\n` sequences in `--body`.
+
+## Public README
+
+`README.md` is the product page for GitHub and for self-hosters. Keep it current.
+
+Update `README.md` in the same change when you:
+
+- add or remove a feature that a user sees. This includes the reader, cloze, Anki, the tutor, import, and listen.
+- add or remove a language pack, or change what a pack includes
+- change deploy: image name, ports, Compose services, or a required env var
+- change auth, `LECTOR_MODE`, backups, or the adopt-local-data flow
+
+Do not put agent-only or contributor-only material in `README.md`. Put the folder styleguide, OpenAPI generation, and the local two-process setup in `CONTRIBUTING.md`. Put long operator notes in `deploy/README.md`.
+
+Lead with Docker Compose. Do not lead with `npm run`. Do not describe Lector as an Afrikaans-only reader. Afrikaans is the first language pack, not the product.
+
+After a README edit, run the STE linter on `README.md`, `CONTRIBUTING.md`, and `deploy/README.md`.

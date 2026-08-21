@@ -1,0 +1,44 @@
+name: Bug
+description: Something is broken.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: P1 is an outage, data loss, or a broken install. P2 is a bug that users hit. P3 is a polish bug.
+      options:
+        - P1
+        - P2
+        - P3
+      default: 1
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you saw. What you expected.
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - selfhost
+        - cloud (app.lector.dev)
+        - cloud (my own host)
+        - not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag, image digest, or commit.
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps
+      description: Numbered steps that reproduce the bug.
