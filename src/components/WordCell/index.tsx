@@ -15,9 +15,15 @@ export interface WordCellProps {
   onActivate?: (text: string, element: HTMLElement) => void;
   /**
    * Pronunciation printed above the word as HTML ruby (#289 4.4) — pinyin for
-   * zh, rule-derived IPA for eo. Omit for no annotation.
+   * zh, furigana for ja. Omit for no annotation.
    */
   reading?: string;
+  /**
+   * Draw the reading out of flow rather than letting ruby layout widen the word
+   * (`pronunciation.annotationOverhang`). True for a script whose annotation is
+   * no wider than the word, false where it is wider and needs the room.
+   */
+  readingOverhangs?: boolean;
   testId?: string;
 }
 
@@ -37,6 +43,7 @@ export default function WordCell({
   isPhraseHighlighted = false,
   onActivate,
   reading,
+  readingOverhangs = false,
   testId = 'reader-word',
 }: WordCellProps) {
   const colorClass = state ? stateClasses[state] : stateClasses.new;
@@ -60,12 +67,13 @@ export default function WordCell({
       }}
       data-phrase-highlighted={isPhraseHighlighted || undefined}
       data-active-word={isActive || undefined}
-      // `relative` anchors the annotation, which is positioned out of flow. An
-      // annotated word also drops its border and tightens its padding: with a
-      // reading above every word, the full chip turned the page into a grid of
-      // buttons instead of prose.
+      // An OVERHANGING annotation needs `relative` to anchor it, and it drops
+      // the border and tightens the padding: with a reading above every word
+      // the full chip turned the page into a grid of buttons instead of prose.
+      // A wide annotation keeps ruby layout and the original padding, because it
+      // needs that room to avoid the neighbouring word.
       className={`cursor-pointer rounded-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${
-        reading ? 'relative border-transparent px-[3px]' : 'px-[7px]'
+        reading && readingOverhangs ? 'relative border-transparent px-[3px]' : 'px-[7px]'
       } ${colorClass} ${isActive ? 'ring-2 ring-[var(--clay)]' : ''}`}
       style={
         isHighlighted
@@ -78,16 +86,28 @@ export default function WordCell({
           {text}
           {/* No <rp> fallback: every browser lector supports renders ruby, and
               the extra nodes would double the text every DOM read has to skip. */}
-          {/* Positioned out of flow, against the word span. Left in ruby layout
-              the browser widens the BASE to fit the annotation, so 勉強 drew as
-              勉 強 while its unannotated neighbours stayed tight and the line
-              read unevenly. Out of flow the base keeps its own width and a long
-              reading overhangs instead.
+          {/* Two layouts, and which one is right depends on the script. See
+              `annotationOverhang`.
+
+              Out of flow (ja): ruby layout widens the BASE to fit the
+              annotation, so 勉強 drew as 勉 強 while its neighbours stayed
+              tight. Kana is no wider than its kanji, so taking it out of flow
+              costs nothing and keeps every word its own width.
+
+              In flow (zh): pinyin IS wider than its hanzi. chángcháng needs more
+              room than 常常 has, so out of flow it collided with the word
+              beside it. Letting the browser widen the base is correct here.
 
               0.58em, not the browser default of 0.5: a tone mark or a small
               kana needs the extra pixel at body size. `select-none` is what
               keeps the reading out of a copied selection. */}
-          <rt className="absolute bottom-full left-1/2 -translate-x-1/2 text-[0.58em] leading-none font-normal tracking-tight whitespace-nowrap opacity-75 select-none">
+          <rt
+            className={`text-[0.58em] leading-none font-normal tracking-tight opacity-75 select-none ${
+              readingOverhangs
+                ? 'absolute bottom-full left-1/2 -translate-x-1/2 whitespace-nowrap'
+                : ''
+            }`}
+          >
             {reading}
           </rt>
         </ruby>

@@ -137,6 +137,23 @@ export interface PronunciationConfig {
    * Chinese word is Han, so zh leaves this unset and annotates all of them.
    */
   annotationRequires?: string;
+  /**
+   * Draw the annotation OUT OF FLOW, above the word, instead of letting ruby
+   * layout widen the word to fit it.
+   *
+   * The right answer differs by script, and it turns on one question: is the
+   * annotation about as wide as the word it sits above?
+   *
+   * Japanese kana is. としょかん is no wider than 図書館, so ruby layout has
+   * nothing to do, and the rare case where it does widens 勉強 into 勉 強 while
+   * its neighbours stay tight. Out of flow keeps every word its own width.
+   *
+   * Chinese pinyin is NOT. chángcháng is half again as wide as 常常, so out of
+   * flow leaves the annotation nowhere to go and it collides with the word
+   * beside it. Ruby layout widening the base is the correct typography there,
+   * and the reason to leave this off.
+   */
+  annotationOverhang?: boolean;
 }
 
 export interface LanguageConfig {
