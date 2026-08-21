@@ -130,9 +130,33 @@ export function japaneseAnalyserReady(): boolean {
 }
 
 /**
+ * Every token of `text`, punctuation included, or null when the analyser is
+ * unavailable.
+ *
+ * This is the RENDERING split, and `analyseJapanese` below is the WORD split.
+ * The two run one `tokenize()` call each over the same grammar, so their word
+ * boundaries agree and only the symbols differ.
+ *
+ * A caller that draws the sentence needs this one, because joining the result
+ * has to reproduce the input exactly. The cloze bank stores `tokens` with each
+ * row and the reader renders a card by joining them (#289 4.3), so dropping 。
+ * would change the sentence the learner reads.
+ */
+export function segmentJapanese(text: string): string[] | null {
+  const instance = getTokenizer();
+  if (!instance) return null;
+  const out: string[] = [];
+  for (const token of instance.tokenize(text)) {
+    if (token.surface_form) out.push(token.surface_form);
+  }
+  return out;
+}
+
+/**
  * Analyse Japanese text, or return null when the analyser is unavailable.
  *
- * Punctuation and symbols are dropped: the caller wants words.
+ * Punctuation and symbols are dropped: the caller wants words. Use
+ * `segmentJapanese` when the result has to rejoin to the input.
  */
 export function analyseJapanese(text: string): JaToken[] | null {
   const instance = getTokenizer();
