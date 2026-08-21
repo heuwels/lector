@@ -91,6 +91,12 @@ const CORPUS: Record<
     "L'eau est belle aujourd'hui, n'est-ce pas ?",
     "C'était l'été où j'ai vu «le grand œuvre» à Noël.",
   ],
+  id: [
+    'Halo! Apa kabar?',
+    'Saya membeli buku-buku di toko buku pada tahun 1999.',
+    'Mereka sedang membaca koran — lalu minum kopi.',
+    'Dia berkata: „Ini rumah saya.“',
+  ],
   it: [
     'Ciao! Come stai?',
     "L'acqua è fresca e un'amica beve il caffè.",
@@ -738,6 +744,39 @@ describe('Czech pack (real manifest)', () => {
     const text = 'Mám novou knihu';
     //                       ^10..12^ inside "knihu" (10..15)
     expect(snapToWordBoundaries(text, 11, 13, cs)).toEqual({ start: 10, end: 15 });
+  });
+});
+
+const id = LANGUAGES.id;
+
+describe('Indonesian pack (real manifest)', () => {
+  it('keeps reduplicated plurals as one token', () => {
+    expect(tokenizeWords('Saya membeli buku-buku baru.', id).map((t) => t.text)).toEqual([
+      'Saya',
+      'membeli',
+      'buku-buku',
+      'baru',
+    ]);
+  });
+
+  it('splits at the apostrophe, like pl and cs', () => {
+    expect(tokenizeWords("foto's di meja", id).map((t) => t.text)).toEqual([
+      'foto',
+      's',
+      'di',
+      'meja',
+    ]);
+  });
+
+  it('folds case with the default Unicode mapping', () => {
+    expect(foldWord('BUKU', id)).toBe('buku');
+    expect(foldWord('Halo', id)).toBe('halo');
+    expect(foldWord('Bahasa', id)).toBe('bahasa');
+  });
+
+  it('snaps a mid-word selection to Indonesian word boundaries', () => {
+    const text = 'Saya membaca buku';
+    expect(snapToWordBoundaries(text, 13, 15, id)).toEqual({ start: 13, end: 17 });
   });
 });
 

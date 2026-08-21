@@ -209,6 +209,13 @@ export interface MorphologyConfig {
    * (하지 holds the stem of 하다).
    */
   minStem: number;
+  /**
+   * Prefixes to peel from the start. The remainder is looked up AS WRITTEN.
+   * Indonesian uses this for meN-/ber-/di-/ter- (membeli → beli).
+   *
+   * Order does not matter. The stripper sorts by length, so meng wins over me.
+   */
+  prefixes?: string[];
 }
 
 export interface LanguageConfig {

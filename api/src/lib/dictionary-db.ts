@@ -1067,7 +1067,8 @@ function resolveWord(
     }
 
     // Step 5-morph: peel what the written form carries and the dictionary does
-    // not key. Pack-driven, and ko is the only pack with a `morphology` slice.
+    // not key. Pack-driven. ko peels postpositions and endings; id peels
+    // possessive clitics and voice prefixes.
     //
     // Korean attaches its grammar with no space. 도서관에서 is 도서관 plus the
     // locative, and 좋아하지 is the stem of 좋아하다 plus a connective. kaikki

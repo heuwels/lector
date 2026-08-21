@@ -69,5 +69,19 @@ export function stemCandidates(word: string, config: MorphologyConfig): StemCand
     }
   }
 
+  if (config.prefixes) {
+    const prefixBases: StemCandidate[] = [{ key: word, peeled: [] }, ...out];
+    for (const base of prefixBases) {
+      for (const prefix of longestFirst(config.prefixes)) {
+        if (!base.key.startsWith(prefix)) continue;
+        const key = base.key.slice(prefix.length);
+        if (key.length < config.minStem) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ key, peeled: [...base.peeled, prefix] });
+      }
+    }
+  }
+
   return out;
 }

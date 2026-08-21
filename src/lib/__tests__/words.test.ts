@@ -195,6 +195,14 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Koupil jsem novou knihu.', 'kni', cs)).toBe(false);
   });
 
+  it('matches Indonesian tokens, including a reduplicated plural', () => {
+    const id = LANGUAGES.id;
+    expect(sentenceContainsWord('Saya membeli buku baru.', 'membeli', id)).toBe(true);
+    expect(sentenceContainsWord('Mereka membaca buku-buku itu.', 'buku-buku', id)).toBe(true);
+    expect(sentenceContainsWord('Mereka membaca buku-buku itu.', 'buku', id)).toBe(false);
+    expect(sentenceContainsWord('Saya membeli buku baru.', 'beli', id)).toBe(false);
+  });
+
   it('matches a Ukrainian apostrophe word as one token, in any variant', () => {
     const uk = LANGUAGES.uk;
     expect(sentenceContainsWord("Я з'їв п'ять яблук.", "п'ять", uk)).toBe(true);
