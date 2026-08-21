@@ -60,7 +60,13 @@ export default function WordCell({
       }}
       data-phrase-highlighted={isPhraseHighlighted || undefined}
       data-active-word={isActive || undefined}
-      className={`cursor-pointer rounded-[7px] px-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${colorClass} ${isActive ? 'ring-2 ring-[var(--clay)]' : ''}`}
+      // `relative` anchors the annotation, which is positioned out of flow. An
+      // annotated word also drops its border and tightens its padding: with a
+      // reading above every word, the full chip turned the page into a grid of
+      // buttons instead of prose.
+      className={`cursor-pointer rounded-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${
+        reading ? 'relative border-transparent px-[3px]' : 'px-[7px]'
+      } ${colorClass} ${isActive ? 'ring-2 ring-[var(--clay)]' : ''}`}
       style={
         isHighlighted
           ? { backgroundColor: 'color-mix(in srgb, var(--clay) 22%, transparent)' }
@@ -72,10 +78,16 @@ export default function WordCell({
           {text}
           {/* No <rp> fallback: every browser lector supports renders ruby, and
               the extra nodes would double the text every DOM read has to skip. */}
-          {/* 0.58em, not the browser default of 0.5: pinyin carries tone marks
-              that need the extra pixel to read at body size. `select-none` is
-              what keeps the reading out of a copied selection. */}
-          <rt className="text-[0.58em] leading-none font-normal tracking-tight opacity-75 select-none">
+          {/* Positioned out of flow, against the word span. Left in ruby layout
+              the browser widens the BASE to fit the annotation, so 勉強 drew as
+              勉 強 while its unannotated neighbours stayed tight and the line
+              read unevenly. Out of flow the base keeps its own width and a long
+              reading overhangs instead.
+
+              0.58em, not the browser default of 0.5: a tone mark or a small
+              kana needs the extra pixel at body size. `select-none` is what
+              keeps the reading out of a copied selection. */}
+          <rt className="absolute bottom-full left-1/2 -translate-x-1/2 text-[0.58em] leading-none font-normal tracking-tight whitespace-nowrap opacity-75 select-none">
             {reading}
           </rt>
         </ruby>

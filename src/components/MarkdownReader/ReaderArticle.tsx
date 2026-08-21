@@ -180,18 +180,18 @@ const ReaderBlock = memo(function ReaderBlock({
   };
 
   const content = renderChildren(children, { i: 0 });
-  // Ruby grows the line box upward, so a paragraph that carries annotations
-  // needs its own headroom. Chromium adds the annotation's height to the line
-  // it sits on and leaves the other lines alone, so raising the leading for the
-  // whole block is what keeps the spacing even instead of only the annotated
-  // lines pushing apart.
+  // An annotated paragraph needs headroom for the reading, which sits above the
+  // word. The annotation is positioned out of flow, so it adds nothing to the
+  // line box and the leading has to reserve the room itself. 2.15 fits a 0.58em
+  // reading with a little air; 2.7 was more than it needed and pulled the
+  // paragraph apart.
   const annotated = annotationMode !== 'off' && readings !== null;
   return Tag === 'p' ? (
-    <p className={`my-5 text-lg sm:text-xl ${annotated ? 'leading-[2.7]' : 'leading-[1.9]'}`}>
+    <p className={`my-5 text-lg sm:text-xl ${annotated ? 'leading-[2.15]' : 'leading-[1.9]'}`}>
       {content}
     </p>
   ) : (
-    <li className={annotated ? 'leading-[2.4]' : 'leading-relaxed'}>{content}</li>
+    <li className={annotated ? 'leading-[2.05]' : 'leading-relaxed'}>{content}</li>
   );
 }, readerBlockPropsEqual);
 
