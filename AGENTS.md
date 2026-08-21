@@ -5,12 +5,14 @@
 ## Testing Requirements
 
 Every new feature MUST be accompanied by:
+
 - **Unit tests** covering the API/logic layer (if applicable)
 - **E2E tests** (Playwright) covering:
   - The happy path (full user journey)
   - Edge cases (empty states, error handling, boundary conditions)
 
 Tests live in:
+
 - `src/**/*.test.ts` - vitest unit tests — run with `npm test`
 - `api/src/**/*.test.ts` - bun:test unit tests — run with `cd api && bun test` (vitest excludes `api/**`; don't mix the two runners)
 - `e2e/` - Playwright end-to-end tests — run with `npm run test:e2e` (boots both servers against an isolated `tmp/e2e-data`, never the real `data/`)
@@ -54,6 +56,7 @@ can reach. The scope map in `api/src/lib/auth.ts` decides that set.
 - Day rollover (daily stats, streaks, review days) uses the `timezone` setting (Settings → Time Zone), falling back to the server's zone — never raw UTC. Server helper: `api/src/lib/dates.ts` (`getTodayDate()`); pure client-side math in `src/lib/dates.ts`.
 - One streak definition app-wide: a day is active if it has any dictionary lookups, cloze practice, or reading minutes. Computed by `computeStreaks` (`src/lib/streak.ts`, mirrored in `api/src/lib/streak.ts`), served by `/api/stats/streak` (current + longest). Pages must not compute their own streaks.
 - Pure helpers used on both sides (e.g. `dates`, `streak`, `stats-derive`) are mirrored between the client `src/lib/` copy and the Hono `api/src/lib/` copy — keep them in sync when editing. The Hono API owns the DB; the client copies are for rendering only.
+
 # Repository instructions for coding agents
 
 ## Formatting
@@ -64,6 +67,28 @@ can reach. The scope map in `api/src/lib/auth.ts` decides that set.
 - Do not run repository-wide formatting during a feature or fix. The legacy tree is not yet fully normalized, so doing so creates unrelated review churn.
 - Before handing off, run `npx prettier --check <touched-files...>` and `git diff --check`.
 - A future formatting-only baseline change should normalize the whole tree before `npm run format:check` becomes a required CI gate.
+
+## Code Comments
+
+Write no comment by default. To test one, delete it. Then ask whether a competent reader can still get this code right. Keep the comment only when the answer is no. This test covers a doc comment as much as a `//` line.
+
+- One comment states one fact, in two lines at most. A third line means the code needs a better name or a smaller function.
+- A comment earns its place only when it records what the code cannot show:
+  - a contract that a caller must honour
+  - an invariant that ties two places together
+  - a unit, or a magic value
+  - a quirk in an external system, or in a data source
+  - a mirrored file that must stay in step
+- Do not editorialise. Cut every word that argues instead of informs. Cut capitals used for emphasis. `Deliberately not a loop` and `the whole point of` give a reader nothing to act on.
+- Do not write the history of the change into the code. Put that in the commit message or the PR. A comment must not record:
+  - how you reached the answer
+  - what the code was before
+  - which bug it closed
+  - what a measurement showed
+  - what a reviewer asked for
+- An issue number is not a reason to add a comment. Add one only inside a comment that already earns its place.
+- These rules beat local convention. Much of this tree is over-commented, so follow the rule and not the neighbours.
+- Apply this to comments you write or change. Leave unrelated comments alone, for the reason `## Formatting` gives against repository-wide reformatting.
 
 ## GitHub text
 
