@@ -4,6 +4,7 @@ import {
   tokenizeWords,
   type LanguageConfig,
 } from './languages';
+import { analyseJapanese } from './ja-morphology';
 
 /**
  * Simple HTML to Markdown converter for Readability output.
@@ -137,11 +138,21 @@ export function countWords(text: string, pack?: LanguageConfig): number {
  */
 export function buildSegmentWords(text: string, pack?: LanguageConfig): string | null {
   if (pack?.script.kind !== 'cjk-unspaced') return null;
+  const normalized = normalizeText(text);
+
+  // Japanese takes a morphological analyser instead of ICU. ICU severs a kanji
+  // stem from its okurigana, so 読んでいました becomes 読 | んで | いま | した and
+  // the reader draws spans that match no dictionary headword. See
+  // ja-morphology.ts. A null answer means the analyser is unavailable, and ICU
+  // serves as it did before.
+  const analysed =
+    pack.code === 'ja' ? analyseJapanese(normalized)?.map((token) => token.surface) : undefined;
+
   const forms = new Set<string>();
-  for (const token of tokenizeWords(normalizeText(text), pack)) {
+  for (const form of analysed ?? tokenizeWords(normalized, pack).map((token) => token.text)) {
     // Single characters are the longest-match fallback anyway, so storing them
     // buys nothing and would dominate the list for a Chinese text.
-    if (token.text.length > 1) forms.add(token.text);
+    if (form.length > 1) forms.add(form);
   }
   if (forms.size === 0) return null;
   return JSON.stringify([...forms]);
