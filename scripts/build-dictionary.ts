@@ -315,6 +315,23 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-fr.txt',
     glossFilter: true,
   },
+  id: {
+    // Canonical /Indonesian/ URL (kaikki has no /downloads/id/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Indonesian/kaikki.org-dictionary-Indonesian.jsonl'],
+    // Plain Latin. Official spelling has no diacritics. Hyphen stays a word
+    // char for reduplicated plurals (buku-buku) and compounds. The apostrophe
+    // is a token boundary, matching the runtime tokenizer and the pl/cs shape.
+    letterClass: 'a-zA-Z-',
+    // No hand affix rules in v1. kaikki carries most meN-/ber-/di-/ter-
+    // derived forms as their own entries. A sandhi-aware prefix strip is the
+    // fallback if the coverage gate shows it is needed.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiou',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-id.txt',
+    glossFilter: true,
+  },
   it: {
     // Canonical /Italian/ URL (kaikki has no /downloads/it/ mirror).
     kaikkiUrls: ['https://kaikki.org/dictionary/Italian/kaikki.org-dictionary-Italian.jsonl'],
@@ -1552,8 +1569,8 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
     }
 
     // Mirror of the runtime morphology step (dictionary-db.ts step 5-morph), so
-    // the gate measures what the live lookup resolves. ko is the only pack with
-    // a `morphology` slice.
+    // the gate measures what the live lookup resolves. ko and id declare a
+    // `morphology` slice.
     if (MORPHOLOGY) {
       for (const candidate of stemCandidates(lower, MORPHOLOGY)) {
         const keyHit = exact.get(candidate.key) as { word: string } | undefined;

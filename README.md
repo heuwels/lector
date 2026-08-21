@@ -72,8 +72,11 @@ Language packs ship for:
 - Esperanto
 - French
 - German
+- Indonesian
 - Italian
+- Japanese
 - Koine Greek
+- Korean
 - Mandarin Chinese
 - Polish
 - Portuguese
@@ -82,7 +85,7 @@ Language packs ship for:
 - Turkish
 - Ukrainian
 
-A pack includes a dictionary, frequency data, and cloze sentences. The reader still works for a language with no pack. Depth is lower without a pack.
+A pack includes a dictionary, frequency data, and cloze sentences. Japanese and Korean have a dictionary. They do not have a cloze bank yet. The reader still works for a language with no pack. Depth is lower without a pack.
 
 Afrikaans was the first pack. It remains the most complete reference set. It is not the product. The product is the reader for any language that you study.
 

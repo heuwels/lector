@@ -90,3 +90,26 @@ describe('stemCandidates', () => {
     expect(stacked.find((c) => c.key === '도서관')?.peeled).toEqual(['는', '에서']);
   });
 });
+
+const id = LANGUAGES.id.morphology as MorphologyConfig;
+
+describe('Indonesian stemCandidates', () => {
+  it('peels a possessive clitic', () => {
+    expect(keys('namanya', id)).toContain('nama');
+    expect(keys('bukuku', id)).toContain('buku');
+  });
+
+  it('peels a voice prefix', () => {
+    expect(keys('membeli', id)).toContain('beli');
+    expect(keys('bertahan', id)).toContain('tahan');
+    expect(keys('mengalami', id)).toContain('alami');
+  });
+
+  it('peels a clitic then a prefix', () => {
+    expect(keys('membelinya', id)).toContain('beli');
+  });
+
+  it('takes the longest prefix first', () => {
+    expect(keys('mengalami', id)[0]).toBe('alami');
+  });
+});

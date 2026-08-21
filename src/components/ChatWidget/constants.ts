@@ -37,6 +37,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What does the aorist tense mean compared to the imperfect?',
     'What\'s the difference between "οὐ" and "μή" for negation?',
   ],
+  id: [
+    'How do the meN- / ber- / di- / ter- verb prefixes work, including nasal sandhi?',
+    'When do I use "tidak" vs "bukan" for negation?',
+    'How does reduplication make a plural, as in "buku-buku"?',
+  ],
   it: [
     'When do I use "essere" vs "avere" in the passato prossimo?',
     'What\'s the difference between "sapere" and "conoscere"?',
