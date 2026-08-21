@@ -11,6 +11,7 @@ import {
   type LanguageConfig,
 } from '../lib/languages';
 import { lookupReadings } from '../lib/dictionary-db';
+import { analyserReadings } from '../lib/ja-morphology';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { audioContentType, deleteAudioFile } from '../lib/audio-files';
@@ -108,7 +109,19 @@ app.get('/:id/readings', (c) => {
   }
 
   const pack = getLanguageConfig(lang);
-  if (!pack.pronunciation.annotation) return c.json({});
+  const source = pack.pronunciation.annotation;
+  if (!source) return c.json({});
+
+  // 'analyser' reads the sentence, so it answers what a dictionary cannot: a
+  // reading that follows the context, and a reading for an inflected form that
+  // is nobody's headword. It stores nothing, so it also applies to a lesson
+  // imported before this shipped.
+  if (source === 'analyser') {
+    const readings = analyserReadings(lesson.textContent, pack);
+    // A null answer means the analyser is unavailable. Fall through to the
+    // dictionary rather than answer nothing, so the reader keeps what it can.
+    if (readings) return c.json(Object.fromEntries(readings));
+  }
 
   return c.json(Object.fromEntries(lookupReadings(lessonReadingWords(lesson, pack), lang)));
 });

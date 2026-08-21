@@ -103,6 +103,13 @@ export interface PronunciationConfig {
    * pinyin there (see `pronunciationSoundTags` in its build profile), which is
    * what a learner actually reads.
    *
+   * 'analyser' asks a morphological analyser instead, per lesson, so the reading
+   * follows the CONTEXT. Japanese needs that and Chinese does not. A dictionary
+   * holds one reading per headword, and Japanese kanji do not work that way: 本
+   * reads ほん in 本を読む and もと in 本を正す. A dictionary also has no headword
+   * for an inflected form, so 読ん gets nothing at all. The analyser answers both
+   * from the sentence it sits in. See api/src/lib/ja-morphology.ts.
+   *
    * Deliberately opt-IN per pack, and today zh only. Two reasons to keep it
    * narrow:
    *
@@ -113,7 +120,7 @@ export interface PronunciationConfig {
    *   layer earns its place where the script HIDES the reading: Han characters,
    *   and Japanese kanji when that pack lands.
    */
-  annotation?: 'dictionary';
+  annotation?: 'dictionary' | 'analyser';
   /**
    * Regex source. A word annotated ONLY when it matches. Absent means annotate
    * every word that has a reading.

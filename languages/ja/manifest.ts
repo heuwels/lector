@@ -139,12 +139,16 @@ export const ja = {
   fallbackTts: ['ja-JP', 'ja'],
   avoidWords: AVOID_WORDS,
   testPhrase: 'こんにちは。日本語を勉強しています。',
-  // Furigana sits in the dictionary's `ipa` column, so the reader prints the
-  // kana reading above each word (#289 4.4). Kanji hide their reading, which is
-  // the same reason Chinese opts in and Esperanto does not.
+  // Furigana above each word (#289 4.4). Kanji hide their reading, which is the
+  // same reason Chinese opts in and Esperanto does not.
+  //
+  // The reading comes from the morphological analyser, not the dictionary,
+  // because a Japanese reading follows the sentence. 本 is ほん in 本を読む and
+  // もと in 本を正す, and a dictionary holds one reading per headword. It also has
+  // no headword for 読ん at all. See annotation.
   pronunciation: {
     audio: ['google'] as const,
-    annotation: 'dictionary' as const,
+    annotation: 'analyser' as const,
     // Han only. A kana word already shows its reading, and several single kana
     // are archaic kanji-words in the dictionary, so a lookup returns something
     // unrelated. See the note on annotationRequires.
