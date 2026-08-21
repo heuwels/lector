@@ -167,15 +167,31 @@ export default function MarkdownReader({
     let live = true;
     // Fails soft. No readings means no ruby, which is the pre-#289 reader — a
     // dictionary outage must not blank the text.
-    getLessonReadings(lesson.id, pack.code)
-      .then((map) => {
-        if (live) setReadings(map);
-      })
-      .catch(() => {
-        if (live) setReadings(null);
-      });
+    const load = () => {
+      getLessonReadings(lesson.id, pack.code)
+        .then((map) => {
+          if (live) setReadings(map);
+        })
+        .catch(() => {
+          if (live) setReadings(null);
+        });
+    };
+    load();
+
+    // Ask again when the tab comes back. Nothing else in this effect can
+    // re-run while the reader sits open, so a reader that loaded before a
+    // language's dictionary shipped, or before a deploy changed where the
+    // readings come from, kept an empty map until it remounted. That looked
+    // exactly like the feature being broken, and a hard refresh was the only
+    // cure.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
       live = false;
+      document.removeEventListener('visibilitychange', onVisible);
     };
     // textContent is a dependency because an edit can introduce words the
     // cached set has no reading for. updateLesson drops the cache entry, so
