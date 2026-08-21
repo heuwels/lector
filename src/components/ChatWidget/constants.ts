@@ -42,6 +42,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What\'s the difference between "sapere" and "conoscere"?',
     "How do Italian elisions work (l', un', dell')?",
   ],
+  ja: [
+    'When do I use は and when do I use が?',
+    'How do the て-form and its compounds work (ている, てある, てしまう)?',
+    'Why does the same kanji read one way alone and another way in a compound?',
+  ],
   nl: [
     'When do I use "de" vs "het" as a noun\'s article?',
     'How do separable verbs work (e.g. "opbellen", "meenemen")?',

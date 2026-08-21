@@ -915,12 +915,22 @@ export function lookupReadings(words: readonly string[], language: string): Map<
   const readings = new Map<string, string>();
   if (words.length === 0) return readings;
 
+  // A pack can require a word to look a certain way before it earns an
+  // annotation. ja asks for a kanji: kana already shows its own reading, and
+  // several single kana are archaic kanji-words in the dictionary, so looking
+  // one up returns something unrelated. を came back as あく and ます as もうす.
+  const pack = getLanguageConfig(isValidLanguageCode(language) ? language : DEFAULT_LANGUAGE);
+  const requires = pack.pronunciation.annotationRequires;
+  const requirePattern = requires ? new RegExp(requires, 'u') : null;
+
   // Fold first, then de-duplicate. A page repeats words heavily, and the folded
   // key is what both the query and the reader use.
   const keys = new Set<string>();
   for (const word of words) {
     const key = foldKey(word, language);
-    if (key) keys.add(key);
+    if (!key) continue;
+    if (requirePattern && !requirePattern.test(key)) continue;
+    keys.add(key);
   }
   if (keys.size === 0) return readings;
 

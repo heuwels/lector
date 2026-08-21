@@ -70,6 +70,10 @@ function TranscriptReader({
 }: TranscriptReaderProps) {
   return (
     <div
+      // See the note on the reader article: the glyph shapes follow the
+      // lesson's language, not the interface language.
+      lang={pack.script.bcp47}
+      dir={pack.script.direction}
       className="mx-auto max-w-[46em] px-4 py-6 text-foreground sm:px-8 sm:py-8"
       data-testid="transcript-reader"
     >

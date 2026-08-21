@@ -238,6 +238,13 @@ function ReaderArticle({
 
   return (
     <article
+      // The lesson's language, not the interface language. Han unification gives
+      // one codepoint different glyph shapes per language: 直, 令, 骨 and 花 draw
+      // differently under ja and zh-Hans. The document is lang="en", so a
+      // browser picked the shapes by its own font order and could draw Japanese
+      // text with Chinese forms.
+      lang={pack.script.bcp47}
+      dir={pack.script.direction}
       className="mx-auto max-w-[38em] px-4 py-8 text-foreground sm:px-8 sm:py-16 print:px-0 print:py-0"
       style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}
     >

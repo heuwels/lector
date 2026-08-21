@@ -170,6 +170,34 @@ interface LangProfile {
    *  Pick words a beginner meets in their first hour, with readings that are
    *  not in dispute. */
   readingInvariants?: Record<string, string>;
+  /** Read the entry's pronunciation from the `ruby` field of the `canonical`
+   *  form row, and not from `sounds[]` (ja only).
+   *
+   *  Furigana is the reading a Japanese learner needs, and `sounds[]` does not
+   *  hold it. Measured on the full dump:
+   *
+   *    - `sounds[]` is a PHONETIC transcription. It answers がくせー for 学生 and
+   *      とーきょー for 東京, where the furigana is がくせい and とうきょう. It
+   *      disagrees in 16.3% of kanji entries.
+   *    - A ja `sounds[]` tag is a REJECT signal, the inverse of zh. 99.3% of
+   *      elements carry no tag, and every tagged one is regional. So
+   *      `pronunciationSoundTags` would select only dialects.
+   *    - `sounds[].ipa` is narrow phonetic IPA, [ɡa̠kɯ̟̊se̞ː], which no learner
+   *      reads.
+   *
+   *  The ruby field resolves 99.95% of glossed content entries. See
+   *  `rubyReading` for the four guards each failure needed. */
+  readingFromRuby?: boolean;
+  /** Drop an entry whose `pos` is in this list, however good its gloss (ja:
+   *  'romanization').
+   *
+   *  22% of the glossed Japanese dump is `pos: 'romanization'`, and its
+   *  headwords are LATIN: `name`, `on`, `A`, `chien`, each glossed 'Rōmaji
+   *  transcription of …'. A learner reads kana and kanji, never these, and they
+   *  would collide with real lookups. zh escaped this by choosing the /Chinese/
+   *  dump over /Mandarin/, which was entirely romanization. Japanese publishes
+   *  one dump, so the filter has to live here. */
+  skipPos?: string[];
   /** Drop an entry that HAS sounds[] but none carrying this tag (zh:
    *  'Mandarin'). 8,145 entries are Cantonese-or-other-variety only — English
    *  loanwords like `book` and `van` — and they are not Mandarin words. An
@@ -580,6 +608,54 @@ const PROFILES: Record<string, LangProfile> = {
       滿: 'mǎn',
     },
   },
+  ja: {
+    // #214. 329 MB, 198,703 lines. Japanese publishes ONE dump, unlike Chinese,
+    // so every filter has to live in this profile.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl'],
+    // Kana AND kanji. Hiragana, katakana with the prolonged sound mark U+30FC,
+    // the iteration mark U+3005, the Han ranges, and Latin for the loanwords the
+    // dump carries. A Han-only class would drop every kana word, and ください and
+    // です are words a learner taps constantly.
+    letterClass:
+      'a-zA-Z\\u3041-\\u309F\\u30A0-\\u30FF\\u3005\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF',
+    // Japanese marks grammar with particles and auxiliaries, not affixes, and
+    // kaikki resolves inflection through `forms`. So the affix heuristics stay
+    // empty, exactly as they are for de.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiou',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-ja.txt',
+    // 54,087 of 198,703 lines carry no English gloss. That is the natural size
+    // lever, as it is for de.
+    glossFilter: true,
+    // A single kanji is a real word: 本, 人, 水. The same reason zh sets 1.
+    minInflectionLength: 1,
+    // An Ideographic Description Character means kaikki is drawing a glyph it
+    // cannot encode, so the string is a picture and never a key. Shared with zh.
+    skipFormPattern: /[⿰-⿻]/u,
+    // 31,912 romaji entries whose headwords are Latin words. See skipPos.
+    skipPos: ['romanization'],
+    // Furigana from the canonical ruby row. See readingFromRuby for why
+    // sounds[] is the wrong source.
+    readingFromRuby: true,
+    // Each of these is a word from a first lesson, and each takes one reading.
+    // 東京 earns its place because sounds[] answers とーきょー for it, which is
+    // exactly what this gate exists to catch.
+    readingInvariants: {
+      日本: 'にほん',
+      東京: 'とうきょう',
+      学生: 'がくせい',
+      図書館: 'としょかん',
+      勉強: 'べんきょう',
+      先生: 'せんせい',
+      毎日: 'まいにち',
+      新しい: 'あたらしい',
+      食べる: 'たべる',
+      読む: 'よむ',
+      お母さん: 'おかあさん',
+    },
+  },
 };
 
 function parseLangArg(): string {
@@ -747,6 +823,9 @@ interface KaikkiForm {
   /** Free-text qualifiers kaikki could not map onto a tag. zh uses it for
    *  'nonstandard simp.', which marks a form that must never become a key. */
   raw_tags?: string[];
+  /** Furigana, on the ja `canonical` row: one [base, reading] pair per kanji
+   *  run. 学生 carries [['学','がく'],['生','せい']]. */
+  ruby?: string[][];
 }
 interface KaikkiRel {
   word?: string;
@@ -760,6 +839,72 @@ interface KaikkiLine {
   forms?: KaikkiForm[];
   derived?: KaikkiRel[];
   related?: KaikkiRel[];
+}
+
+// Kana, the prolonged sound mark, and the punctuation a multi-word reading
+// carries. A reading outside this set did not rebuild cleanly.
+const JA_READING_OK = /^[\u3041-\u309F\u30A0-\u30FF\u30FC\u3000-\u303F.\-\s]+$/u;
+const JA_KANJI = /[\u3400-\u4DBF\u4E00-\u9FFF]/u;
+
+/**
+ * Full kana reading for a headword, from the `ruby` pairs on its `canonical`
+ * form row. Returns undefined when it cannot be rebuilt exactly.
+ *
+ * The walk goes left to right. Where the next pair matches at the cursor, emit
+ * its reading and skip the base. Otherwise emit the character, which is how a
+ * kana tail survives: お母さん with [['母','かあ']] rebuilds to おかあさん.
+ *
+ * Four guards, each from a real failure on the full dump:
+ *
+ *  1. A pair covering the WHOLE headword wins. 主体思想 carries both per-character
+ *     pairs and a whole-word pair, and the per-character walk gives しゅたいしそう
+ *     where the word reads チュチェしそう.
+ *  2. Trim each base. `C++ ` and `π/ ` carry a trailing space.
+ *  3. Allow punctuation. 病は口より入り、禍は口より出ず rebuilds correctly and holds 、.
+ *  4. Reject an unconsumed pair. 繩索 is kyūjitai while its bases are shinjitai,
+ *     so no match is possible. A PARTIAL reading is worse than none, which is
+ *     the lesson the zh pack paid for.
+ *
+ * Measured over 106,756 glossed content entries: 78,336 rebuild here, 28,370
+ * need nothing because the headword is already kana, and 50 resolve to nothing.
+ */
+function rubyReading(word: string, forms: KaikkiForm[] | undefined): string | undefined {
+  const canonical = forms?.find((f) => f.tags?.includes('canonical') && f.ruby);
+  if (!canonical?.ruby) return undefined;
+
+  const pairs: Array<[string, string]> = [];
+  for (const pair of canonical.ruby) {
+    // GUARD 2.
+    const base = (pair[0] ?? '').trim();
+    const reading = (pair[1] ?? '').trim();
+    if (base && reading) pairs.push([base, reading]);
+  }
+  if (pairs.length === 0) return undefined;
+
+  // GUARD 1.
+  for (const [base, reading] of pairs) {
+    if (base === word) return reading;
+  }
+
+  let out = '';
+  let i = 0;
+  let pi = 0;
+  while (i < word.length) {
+    if (pi < pairs.length && word.startsWith(pairs[pi][0], i)) {
+      out += pairs[pi][1];
+      i += pairs[pi][0].length;
+      pi += 1;
+      continue;
+    }
+    out += word[i];
+    i += 1;
+  }
+
+  // GUARD 4.
+  if (pi !== pairs.length) return undefined;
+  // GUARD 3 is the character class. A reading still holding kanji did not resolve.
+  if (!JA_READING_OK.test(out) || JA_KANJI.test(out)) return undefined;
+  return out;
 }
 
 function pickIpa(sounds: KaikkiSound[] | undefined): string | undefined {
@@ -862,6 +1007,9 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
   // entries reach this point in the Chinese dump.
   if (PROFILE.skipFormPattern?.test(raw.word)) return null;
 
+  // A part of speech the pack never wants, however good the gloss. See skipPos.
+  if (raw.pos && PROFILE.skipPos?.includes(raw.pos)) return null;
+
   const headword = foldKey(raw.word);
   if (!headword) return null;
 
@@ -932,10 +1080,13 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
   return {
     word,
     pos: raw.pos,
-    // Keyed on `word`, the Simplified form, because that is the character the
-    // reader shows. Every record for one character then answers the same
-    // reading, so the merge order below stops mattering.
-    ipa: (isSingleChar(word) ? READING_MAP?.[word] : undefined) ?? pickIpa(raw.sounds),
+    // zh: keyed on `word`, the Simplified form, because that is the character
+    // the reader shows, so every record for one character answers the same
+    // reading and the merge order stops mattering.
+    // ja: furigana off the `canonical` ruby row, never sounds[].
+    ipa: PROFILE.readingFromRuby
+      ? rubyReading(raw.word, raw.forms)
+      : ((isSingleChar(word) ? READING_MAP?.[word] : undefined) ?? pickIpa(raw.sounds)),
     etymology: raw.etymology_text,
     senses,
     relatedForms,
