@@ -515,7 +515,12 @@ export async function getLessonReadings(
     activeLanguageQueryKey(READINGS_QUERY_SCOPE, ['lesson', lessonId], language),
     async () => {
       const res = await apiFetch(`/api/lessons/${lessonId}/readings?language=${language}`);
-      if (!res.ok) return {} as Record<string, string>;
+      // THROW rather than answer an empty map. A failure that returns `{}` is
+      // indistinguishable from a lesson that genuinely has no readings, so the
+      // cache stored it as a real result and the reader drew no ruby until it
+      // remounted. A rejection makes `cachedQuery` drop the entry instead, so
+      // the next attempt asks again.
+      if (!res.ok) throw await apiError(res, 'Could not load readings');
       return (await res.json()) as Record<string, string>;
     },
   );
