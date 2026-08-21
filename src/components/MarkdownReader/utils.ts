@@ -3,6 +3,7 @@ import {
   tokenize,
   snapToWordBoundaries as snapOffsetsToWordBoundaries,
   foldWord,
+  parseStoredSegmentWords,
   type LanguageConfig,
   type Token,
   type WordSegmentation,
@@ -14,15 +15,9 @@ import {
  * one bad row must not blank the page.
  */
 export function parseSegmentWords(value: string | null | undefined): string[] | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!Array.isArray(parsed)) return null;
-    const words = parsed.filter((item): item is string => typeof item === 'string');
-    return words.length > 0 ? words : null;
-  } catch {
-    return null;
-  }
+  // Delegates to the shared implementation so the API and the reader cannot
+  // disagree about what a stored segmentation means.
+  return parseStoredSegmentWords(value);
 }
 
 // Ruby annotation elements (#289 4.4). `<rt>` holds the reading; `<rp>` holds

@@ -14,6 +14,7 @@ import type { LanguageConfig, WordSegmentation } from '@/lib/languages';
 import { foldWord, splitSentences } from '@/lib/languages';
 import type { WordState } from '@/types';
 import { collectWords, computePhraseHighlightSet, readableText, splitWords } from './utils';
+import { wordReading, type AnnotationMode } from './annotation';
 import WordCell from '@/components/WordCell';
 
 export interface ActiveReaderWord {
@@ -30,6 +31,15 @@ export interface ReaderBlockProps {
   /** The lesson's stored segmentation (#289 4.2); null falls back to ICU. */
   segmentation: WordSegmentation | null;
   knownWordsMap: Map<string, WordState>;
+  /**
+   * Folded word -> pronunciation, for the ruby layer (#289 4.4). Null when the
+   * pack declares no annotation source or the fetch is still in flight.
+   *
+   * Fetched once per lesson and never patched, so the comparator below can
+   * treat it as immutable and compare it by identity.
+   */
+  readings: Map<string, string> | null;
+  annotationMode: AnnotationMode;
   highlightedPhrase: string[];
   activeWord: ActiveReaderWord | null;
   onWordClick: (word: string, sentence: string) => void;
@@ -61,6 +71,12 @@ export function readerBlockPropsEqual(previous: ReaderBlockProps, next: ReaderBl
     // Identity is enough: MarkdownReader memoizes it on lesson.segmentWords, so
     // a new object means a different segmentation and every span must re-split.
     previous.segmentation !== next.segmentation ||
+    // Both must be here. `annotationMode` is what the toggle changes, and
+    // nothing else about a block changes with it, so a block left out of this
+    // list keeps its old ruby until some unrelated prop moves. `readings` is
+    // immutable per lesson, so identity is enough.
+    previous.annotationMode !== next.annotationMode ||
+    previous.readings !== next.readings ||
     previous.onWordClick !== next.onWordClick ||
     previous.onActivateWord !== next.onActivateWord ||
     previous.onClearPhrase !== next.onClearPhrase
@@ -97,6 +113,8 @@ const ReaderBlock = memo(function ReaderBlock({
   pack,
   segmentation,
   knownWordsMap,
+  readings,
+  annotationMode,
   highlightedPhrase,
   activeWord,
   onWordClick,
@@ -121,7 +139,8 @@ const ReaderBlock = memo(function ReaderBlock({
         }
 
         const wordIndex = context.i++;
-        const state = knownWordsMap.get(foldWord(part.text, pack));
+        const key = foldWord(part.text, pack);
+        const state = knownWordsMap.get(key);
         const isPhraseHighlighted = phraseSet.has(wordIndex);
         const isActiveWord = activeWord?.blockId === blockId && activeWord.wordIndex === wordIndex;
 
@@ -132,6 +151,7 @@ const ReaderBlock = memo(function ReaderBlock({
             state={state}
             isActive={isActiveWord}
             isPhraseHighlighted={isPhraseHighlighted}
+            reading={wordReading(annotationMode, readings, key, state)}
             onActivate={(text, element) => {
               onClearPhrase();
               onActivateWord({ blockId, wordIndex });
@@ -160,10 +180,18 @@ const ReaderBlock = memo(function ReaderBlock({
   };
 
   const content = renderChildren(children, { i: 0 });
+  // Ruby grows the line box upward, so a paragraph that carries annotations
+  // needs its own headroom. Chromium adds the annotation's height to the line
+  // it sits on and leaves the other lines alone, so raising the leading for the
+  // whole block is what keeps the spacing even instead of only the annotated
+  // lines pushing apart.
+  const annotated = annotationMode !== 'off' && readings !== null;
   return Tag === 'p' ? (
-    <p className="my-5 text-lg leading-[1.9] sm:text-xl">{content}</p>
+    <p className={`my-5 text-lg sm:text-xl ${annotated ? 'leading-[2.7]' : 'leading-[1.9]'}`}>
+      {content}
+    </p>
   ) : (
-    <li className="leading-relaxed">{content}</li>
+    <li className={annotated ? 'leading-[2.4]' : 'leading-relaxed'}>{content}</li>
   );
 }, readerBlockPropsEqual);
 
@@ -172,6 +200,8 @@ interface ReaderArticleProps {
   pack: LanguageConfig;
   segmentation: WordSegmentation | null;
   knownWordsMap: Map<string, WordState>;
+  readings: Map<string, string> | null;
+  annotationMode: AnnotationMode;
   highlightedPhrase: string[];
   activeWord: ActiveReaderWord | null;
   onWordClick: (word: string, sentence: string) => void;
@@ -184,6 +214,8 @@ function ReaderArticle({
   pack,
   segmentation,
   knownWordsMap,
+  readings,
+  annotationMode,
   highlightedPhrase,
   activeWord,
   onWordClick,
@@ -195,6 +227,8 @@ function ReaderArticle({
     pack,
     segmentation,
     knownWordsMap,
+    readings,
+    annotationMode,
     highlightedPhrase,
     activeWord,
     onWordClick,

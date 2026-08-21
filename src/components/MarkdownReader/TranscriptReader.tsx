@@ -8,7 +8,8 @@ import type { TranscriptSegment, WordState } from '@/types';
 import type { WordSource } from './types';
 import type { ActiveReaderWord } from './ReaderArticle';
 import { collectWords, computePhraseHighlightSet, splitWords } from './utils';
-import { stateClasses } from './theme';
+import { wordReading, type AnnotationMode } from './annotation';
+import WordCell from '@/components/WordCell';
 
 /** mm:ss / h:mm:ss label for a second offset (mirrors the server helper). */
 function formatTimestamp(totalSeconds: number): string {
@@ -31,6 +32,9 @@ interface TranscriptReaderProps {
    */
   segmentation: WordSegmentation | null;
   knownWordsMap: Map<string, WordState>;
+  /** Folded word -> pronunciation for the ruby layer (#289 4.4). */
+  readings: Map<string, string> | null;
+  annotationMode: AnnotationMode;
   highlightedPhrase: string[];
   activeWord: ActiveReaderWord | null;
   activeSegmentIndex: number | null;
@@ -54,6 +58,8 @@ function TranscriptReader({
   pack,
   segmentation,
   knownWordsMap,
+  readings,
+  annotationMode,
   highlightedPhrase,
   activeWord,
   activeSegmentIndex,
@@ -101,7 +107,11 @@ function TranscriptReader({
               {formatTimestamp(segment.start)}
             </button>
             {/* <p> so the reader's drag-select phrase lookup (closest('p')) works. */}
-            <p className="flex-1 text-lg leading-[1.9] sm:text-xl">
+            <p
+              className={`flex-1 text-lg sm:text-xl ${
+                annotationMode !== 'off' && readings !== null ? 'leading-[2.7]' : 'leading-[1.9]'
+              }`}
+            >
               {splitWords(segment.text, pack, segmentation).map((part, partIndex) => {
                 if (!part.isWord) {
                   return (
@@ -112,44 +122,24 @@ function TranscriptReader({
                 }
                 wordIndex += 1;
                 const thisIndex = wordIndex;
-                const state = knownWordsMap.get(foldWord(part.text, pack));
-                const colorClass = state ? stateClasses[state] : stateClasses.new;
-                const isPhraseHighlighted = phraseSet.has(thisIndex);
-                const isActiveWord =
-                  activeWord?.blockId === segmentIndex && activeWord.wordIndex === thisIndex;
-                const isHighlighted = isPhraseHighlighted || isActiveWord;
+                const key = foldWord(part.text, pack);
+                const state = knownWordsMap.get(key);
                 return (
-                  <span
+                  <WordCell
                     key={partIndex}
-                    data-leaf=""
-                    data-testid="reader-word"
-                    data-word-state={state ?? 'new'}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Look up ${part.text}`}
-                    onClick={() => {
-                      onClearPhrase();
-                      onActivateWord({ blockId: segmentIndex, wordIndex: thisIndex });
-                      onWordClick(part.text, segment.text, source);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter' && event.key !== ' ') return;
-                      event.preventDefault();
-                      onClearPhrase();
-                      onActivateWord({ blockId: segmentIndex, wordIndex: thisIndex });
-                      onWordClick(part.text, segment.text, source);
-                    }}
-                    data-phrase-highlighted={isPhraseHighlighted || undefined}
-                    data-active-word={isActiveWord || undefined}
-                    className={`cursor-pointer rounded-[7px] px-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${colorClass} ${isActiveWord ? 'ring-2 ring-[var(--clay)]' : ''}`}
-                    style={
-                      isHighlighted
-                        ? { backgroundColor: 'color-mix(in srgb, var(--clay) 22%, transparent)' }
-                        : undefined
+                    text={part.text}
+                    state={state}
+                    isActive={
+                      activeWord?.blockId === segmentIndex && activeWord.wordIndex === thisIndex
                     }
-                  >
-                    {part.text}
-                  </span>
+                    isPhraseHighlighted={phraseSet.has(thisIndex)}
+                    reading={wordReading(annotationMode, readings, key, state)}
+                    onActivate={() => {
+                      onClearPhrase();
+                      onActivateWord({ blockId: segmentIndex, wordIndex: thisIndex });
+                      onWordClick(part.text, segment.text, source);
+                    }}
+                  />
                 );
               })}
             </p>

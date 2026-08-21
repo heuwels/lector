@@ -7,4 +7,5 @@ export const SETTINGS_KEYS = {
   THEME: 'lector-theme',
   HIDE_TRANSLATION: 'lector-hide-translation',
   VOCAB_PAGE_SIZE: 'lector-vocab-page-size',
+  ANNOTATION_MODE: 'lector-annotation-mode',
 } as const;

@@ -2,7 +2,15 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
 import { db, LessonRow, TranscriptSegmentRow } from '../db';
 import { buildSegmentWords, countWords } from '../lib/html-to-markdown';
-import { getLanguageConfig, normalizeText } from '../lib/languages';
+import {
+  getLanguageConfig,
+  makeWordSegmentation,
+  normalizeText,
+  parseStoredSegmentWords,
+  tokenizeWords,
+  type LanguageConfig,
+} from '../lib/languages';
+import { lookupReadings } from '../lib/dictionary-db';
 import { resolveLanguage } from '../lib/active-language';
 import { getCurrentUserId } from '../lib/user';
 import { audioContentType, deleteAudioFile } from '../lib/audio-files';
@@ -53,6 +61,56 @@ app.get('/:id/segments', (c) => {
     )
     .all(userId, id) as Pick<TranscriptSegmentRow, 'idx' | 'startMs' | 'endMs' | 'text'>[];
   return c.json(segments);
+});
+
+/**
+ * The words of a lesson, in document order, for the annotation layer (#289 4.4).
+ *
+ * Splits with the lesson's STORED segmentation, so the words asked about are the
+ * words the reader draws (#289 4.2). A lesson with none falls back to the pack's
+ * default engine, which is what the reader falls back to as well.
+ *
+ * Exported for its own test. Splitting any other way keys the readings to words
+ * that no reader span carries, and the reader then prints nothing.
+ */
+export function lessonReadingWords(
+  lesson: Pick<LessonRow, 'textContent' | 'segmentWords'>,
+  pack: LanguageConfig,
+): string[] {
+  return tokenizeWords(
+    lesson.textContent,
+    pack,
+    makeWordSegmentation(parseStoredSegmentWords(lesson.segmentWords)),
+  ).map((token) => token.text);
+}
+
+// GET /api/lessons/:id/readings (#289 4.4)
+// Per-word readings for the reader's annotation layer, keyed by the FOLDED word
+// so the client can look one up with the same key it already folds for word
+// state. `{}` when the language declares no annotation source.
+//
+// The SERVER derives the word list. The client cannot: it tokenizes one
+// markdown AST leaf at a time and never holds the whole lesson's vocabulary, so
+// asking it for a word list would mean collecting across every block first.
+// The lesson row already carries `textContent` and its stored segmentation, so
+// one request replaces what would otherwise be a lookup per unique word.
+app.get('/:id/readings', (c) => {
+  const userId = getCurrentUserId(c);
+  const id = c.req.param('id');
+  const lang = resolveLanguage(c.req.query('language'), userId);
+  const lesson = db
+    .prepare(
+      'SELECT textContent, segmentWords FROM lessons WHERE id = ? AND userId = ? AND language = ?',
+    )
+    .get(id, userId, lang) as Pick<LessonRow, 'textContent' | 'segmentWords'> | undefined;
+  if (!lesson) {
+    return c.json({ error: 'Lesson not found' }, 404);
+  }
+
+  const pack = getLanguageConfig(lang);
+  if (!pack.pronunciation.annotation) return c.json({});
+
+  return c.json(Object.fromEntries(lookupReadings(lessonReadingWords(lesson, pack), lang)));
 });
 
 // GET /api/lessons/:id/audio (#185)

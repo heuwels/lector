@@ -53,6 +53,7 @@ const VOCAB_QUERY_SCOPE = 'vocab';
 const DAILY_STATS_QUERY_SCOPE = 'stats:daily';
 const FLUENCY_STATS_QUERY_SCOPE = 'stats:fluency';
 const READING_STATS_QUERY_SCOPE = 'stats:reading';
+const READINGS_QUERY_SCOPE = 'readings';
 
 function invalidateCollections(): void {
   invalidateActiveScope(COLLECTIONS_QUERY_SCOPE);
@@ -270,6 +271,9 @@ export async function updateLesson(
   });
   await requireOk(res, 'Could not update lesson');
   invalidateReadingStats();
+  // An edit can add words the cached readings have no entry for, so drop them
+  // and let the reader fetch the set for the new text (#289 4.4).
+  if (data.textContent !== undefined) invalidateActiveScope(READINGS_QUERY_SCOPE);
 }
 
 export async function deleteLesson(id: string): Promise<void> {
@@ -486,6 +490,36 @@ export async function getAllVocab(): Promise<VocabEntry[]> {
       createdAt: new Date(v.createdAt as string),
     }));
   });
+}
+
+/**
+ * Per-word readings for one lesson's annotation layer (#289 4.4), keyed by the
+ * FOLDED word so the reader can look one up with the key it already folds for
+ * word state. Empty when the language declares no annotation source.
+ *
+ * `language` is passed explicitly and must be the LESSON's, not the active one.
+ * The reader tokenizes with the lesson's pack (MarkdownReader picks
+ * `lesson.language` over `activeLang` on purpose), so keying this cache on the
+ * active language would serve a zh lesson no readings whenever the client's
+ * active language differs.
+ *
+ * The returned Map is fetched once per lesson and never patched, so callers can
+ * compare it by identity — which is what keeps the reader's per-block memo
+ * comparator cheap.
+ */
+export async function getLessonReadings(
+  lessonId: string,
+  language: string,
+): Promise<Map<string, string>> {
+  const result = await cachedQuery(
+    activeLanguageQueryKey(READINGS_QUERY_SCOPE, ['lesson', lessonId], language),
+    async () => {
+      const res = await apiFetch(`/api/lessons/${lessonId}/readings?language=${language}`);
+      if (!res.ok) return {} as Record<string, string>;
+      return (await res.json()) as Record<string, string>;
+    },
+  );
+  return new Map(Object.entries(result ?? {}));
 }
 
 export async function getVocabEntry(id: string): Promise<VocabEntry | undefined> {

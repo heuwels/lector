@@ -2,8 +2,8 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight, SquarePen } from 'lucide-react';
-import { updateLessonProgress } from '@/lib/data-layer';
+import { ArrowLeft, ChevronLeft, ChevronRight, Languages, SquarePen } from 'lucide-react';
+import { getLessonReadings, updateLessonProgress } from '@/lib/data-layer';
 import { createTrailingThrottle } from './throttle';
 import { snapToWordBoundaries } from './utils';
 import {
@@ -12,12 +12,15 @@ import {
   isValidLanguageCode,
   makeWordSegmentation,
   splitSentences,
+  tokenize,
 } from '@/lib/languages';
 import { parseSegmentWords, readableText } from './utils';
 import { useActiveLanguage } from '@/utils/hooks';
 import { MarkdownReaderProps } from './types';
 import { Button } from '@/components/ui/button';
 import ReaderArticle, { type ActiveReaderWord } from './ReaderArticle';
+import { ANNOTATION_MODES, ANNOTATION_MODE_LABELS, type AnnotationMode } from './annotation';
+import { SETTINGS_KEYS } from '@/app/settings/constants';
 import TranscriptReader from './TranscriptReader';
 import YouTubePlayer, { type SeekTarget } from '@/components/YouTubePlayer';
 import type { TranscriptSegment, YouTubeSourceMeta } from '@/types';
@@ -53,6 +56,13 @@ export default function MarkdownReader({
     () => makeWordSegmentation(parseSegmentWords(lesson.segmentWords)),
     [lesson.segmentWords],
   );
+  // Whether this language has pronunciations worth printing above the words
+  // (#289 4.4). Opt-in per pack: a pack whose dictionary has sparse readings
+  // would show ruby over a few words and nothing over the rest, which reads as
+  // a bug rather than a feature.
+  const supportsAnnotation = Boolean(pack.pronunciation.annotation);
+  const [annotationMode, setAnnotationMode] = useState<AnnotationMode>('learning');
+  const [readings, setReadings] = useState<Map<string, string> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [highlightedPhrase, setHighlightedPhrase] = useState<string[]>([]);
   // The single word the user last clicked (drawer target). Identified by its
@@ -124,6 +134,54 @@ export default function MarkdownReader({
     }
   }, [draftContent, onSaveText, onEditingChange]);
 
+  // Restore the annotation preference after mount, never during render: the
+  // server has no localStorage, so reading it in the initial state would give
+  // the server and the client different markup and React would discard the
+  // whole tree.
+  useEffect(() => {
+    const saved = localStorage.getItem(SETTINGS_KEYS.ANNOTATION_MODE);
+    if (saved && (ANNOTATION_MODES as readonly string[]).includes(saved)) {
+      setAnnotationMode(saved as AnnotationMode);
+    }
+  }, []);
+
+  const cycleAnnotationMode = useCallback(() => {
+    setAnnotationMode((current) => {
+      const next =
+        ANNOTATION_MODES[(ANNOTATION_MODES.indexOf(current) + 1) % ANNOTATION_MODES.length];
+      localStorage.setItem(SETTINGS_KEYS.ANNOTATION_MODE, next);
+      return next;
+    });
+  }, []);
+
+  // Fetch the readings whenever the pack supports them, even while the mode is
+  // 'off', so the toggle prints ruby at once instead of after a round trip.
+  // Deliberately not gated on annotationMode: that would refetch on every
+  // toggle and hand the blocks a new Map identity, which re-renders every one
+  // of them.
+  useEffect(() => {
+    if (!supportsAnnotation) {
+      setReadings(null);
+      return;
+    }
+    let live = true;
+    // Fails soft. No readings means no ruby, which is the pre-#289 reader — a
+    // dictionary outage must not blank the text.
+    getLessonReadings(lesson.id, pack.code)
+      .then((map) => {
+        if (live) setReadings(map);
+      })
+      .catch(() => {
+        if (live) setReadings(null);
+      });
+    return () => {
+      live = false;
+    };
+    // textContent is a dependency because an edit can introduce words the
+    // cached set has no reading for. updateLesson drops the cache entry, so
+    // this re-run fetches rather than reads the stale one.
+  }, [lesson.id, lesson.textContent, pack.code, supportsAnnotation]);
+
   // Restore the last reading position from the lesson itself —
   // progress_scrollPosition is exactly what the scroll handler below saves.
   // (The old code read a `reading-position-*` settings key that nothing ever
@@ -178,16 +236,18 @@ export default function MarkdownReader({
     [pack],
   );
 
-  // Set highlighted phrase words (React state, survives re-renders)
-  const highlightPhrase = useCallback(
-    (text: string) => {
-      if (!text) {
-        setHighlightedPhrase([]);
-        return;
-      }
-      setHighlightedPhrase(text.split(/\s+/).map((w) => foldWord(w, pack)));
-    },
-    [pack],
+  // The words of a selected phrase, folded, in document order.
+  //
+  // Splits with the pack's tokenizer rather than on whitespace. Chinese writes
+  // no spaces, so a whitespace split returned the whole phrase as one token,
+  // computePhraseHighlightSet compared that token against single words, and no
+  // phrase ever highlighted in an unspaced script (#213).
+  const phraseWords = useCallback(
+    (text: string): string[] =>
+      tokenize(text, pack, segmentation)
+        .filter((token) => token.isWord)
+        .map((token) => foldWord(token.text, pack)),
+    [pack, segmentation],
   );
 
   const clearPhraseHighlight = useCallback(() => {
@@ -211,14 +271,18 @@ export default function MarkdownReader({
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return;
 
+    // A phrase means two or more words. Counted with the tokenizer, not by
+    // looking for a space, so the check holds in an unspaced script (#213).
     const rawText = selection.toString().trim();
-    if (!rawText || !rawText.includes(' ')) return;
+    if (!rawText || phraseWords(rawText).length < 2) return;
 
     // Snap to word boundaries
     // Same segmentation the render used, or a phrase drag snaps to boundaries
     // the reader never drew (#289 4.2).
     const snappedText = snapToWordBoundaries(selection, pack, segmentation);
-    if (!snappedText || !snappedText.includes(' ')) return;
+    if (!snappedText) return;
+    const snappedWords = phraseWords(snappedText);
+    if (snappedWords.length < 2) return;
 
     const sentence = findSentence(selection.anchorNode?.parentElement as HTMLElement);
 
@@ -226,10 +290,10 @@ export default function MarkdownReader({
     // single-word active highlight gives way to the phrase highlight.
     selection.removeAllRanges();
     setActiveWord(null);
-    highlightPhrase(snappedText);
+    setHighlightedPhrase(snappedWords);
 
     onWordClick(snappedText, sentence);
-  }, [onWordClick, highlightPhrase, pack, segmentation, findSentence]);
+  }, [onWordClick, phraseWords, pack, segmentation, findSentence]);
 
   return (
     <div className="flex h-full flex-col bg-card print:block print:h-auto">
@@ -266,6 +330,22 @@ export default function MarkdownReader({
         ) : (
           <div className="flex items-center gap-2 print:hidden">
             <div className="text-sm text-muted-foreground">{scrollPercentage}%</div>
+            {supportsAnnotation && (
+              <button
+                onClick={cycleAnnotationMode}
+                data-testid="annotation-mode-button"
+                title={`Pronunciation: ${ANNOTATION_MODE_LABELS[annotationMode]}`}
+                aria-label={`Pronunciation: ${ANNOTATION_MODE_LABELS[annotationMode]}`}
+                className={`flex items-center gap-1.5 rounded-lg p-2 transition-colors hover:bg-accent ${
+                  annotationMode === 'off' ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                }`}
+              >
+                <Languages className="h-5 w-5" />
+                <span className="hidden text-xs sm:inline">
+                  {ANNOTATION_MODE_LABELS[annotationMode]}
+                </span>
+              </button>
+            )}
             {headerAction}
             {canEdit && (
               <button
@@ -332,6 +412,8 @@ export default function MarkdownReader({
               pack={pack}
               segmentation={segmentation}
               knownWordsMap={knownWordsMap}
+              readings={readings}
+              annotationMode={annotationMode}
               highlightedPhrase={highlightedPhrase}
               activeWord={activeWord}
               activeSegmentIndex={activeSegmentIndex}
@@ -347,6 +429,8 @@ export default function MarkdownReader({
             pack={pack}
             segmentation={segmentation}
             knownWordsMap={knownWordsMap}
+            readings={readings}
+            annotationMode={annotationMode}
             highlightedPhrase={highlightedPhrase}
             activeWord={activeWord}
             onWordClick={onWordClick}

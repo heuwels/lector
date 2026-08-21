@@ -95,6 +95,25 @@ export interface PronunciationConfig {
    * model.
    */
   gloss?: 'ipa';
+  /**
+   * Source of the per-word reading the reader prints ABOVE each word, as HTML
+   * ruby (#289 4.4). Absent means the language gets no annotations.
+   *
+   * 'dictionary' reads `entries.ipa` from the on-device dictionary. zh stores
+   * pinyin there (see `pronunciationSoundTags` in its build profile), which is
+   * what a learner actually reads.
+   *
+   * Deliberately opt-IN per pack, and today zh only. Two reasons to keep it
+   * narrow:
+   *
+   * - Most packs store true IPA sparsely. af fills 2,213 of 15,686 entries, so
+   *   the layer would annotate one word in seven and read as a fault.
+   * - A phonemic script does not need it. Esperanto spelling already gives the
+   *   pronunciation letter for letter, so `ˈdomo` above `domo` is noise. The
+   *   layer earns its place where the script HIDES the reading: Han characters,
+   *   and Japanese kanji when that pack lands.
+   */
+  annotation?: 'dictionary';
 }
 
 export interface LanguageConfig {

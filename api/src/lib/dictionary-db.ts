@@ -351,6 +351,7 @@ type Stmts = {
   selectSenses: Statement;
   selectRelated: Statement;
   selectInflectionLemma: Statement;
+  selectReadings: Statement;
 };
 
 const _stmtsByLang = new Map<string, Stmts>();
@@ -375,6 +376,32 @@ function getStmts(language: string): Stmts | null {
          JOIN entries e ON e.word = i.lemma
          WHERE i.inflected_form = ?
          ORDER BY (e.rank IS NULL), e.rank, i.rowid LIMIT 1`,
+      ),
+      // Batch pronunciation reader for the annotation layer (#289 4.4). One
+      // statement for the whole page, driven by a JSON array of folded keys.
+      //
+      // The alias arm is not an optimisation, it is required. zh entries are
+      // keyed on the Simplified form, so a Traditional headword — and some
+      // Simplified ones — exist only in `inflections` with type 'headword'.
+      // 你好 is not a row in `entries` at all. Without the second COALESCE arm
+      // a 500-word sample returned 434 readings; with it, 443, and an
+      // alias-only sample went from 0 to 97.
+      //
+      // Both arms hit an index: entries.word is the PRIMARY KEY, and
+      // inflections is covered by its (inflected_form, lemma) autoindex. The
+      // inflection arm repeats the ORDER BY of selectInflectionLemma so a
+      // surface form claimed by several lemmas resolves identically either way.
+      selectReadings: db.prepare(
+        `SELECT k.value AS word,
+                COALESCE(
+                  (SELECT e.ipa FROM entries e WHERE e.word = k.value),
+                  (SELECT e2.ipa FROM inflections i
+                     JOIN entries e2 ON e2.word = i.lemma
+                    WHERE i.inflected_form = k.value
+                    ORDER BY (e2.rank IS NULL), e2.rank, i.rowid LIMIT 1)
+                ) AS ipa
+           FROM json_each(?) k
+          WHERE ipa IS NOT NULL`,
       ),
     };
     _stmtsByLang.set(language, stmts);
@@ -849,6 +876,71 @@ export function lookupWord(
     if (ipa) entry.ipa = ipa;
   }
   return entry;
+}
+
+/**
+ * Drop the transcription delimiters an IPA string carries.
+ *
+ * `//` marks a phonemic transcription and `[]` a phonetic one. Both belong in a
+ * dictionary entry, and the translation drawer keeps them. Above a word in the
+ * reader they are noise on every single word, so the annotation layer prints
+ * `ˈdomo` and not `/ˈdomo/`. Pinyin carries no delimiters, so this does nothing
+ * to a Chinese reading.
+ */
+function stripTranscriptionDelimiters(ipa: string): string {
+  const trimmed = ipa.trim();
+  const paired =
+    (trimmed.startsWith('/') && trimmed.endsWith('/')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'));
+  // Length 2 or less would be the delimiters alone, and slicing would empty it.
+  if (!paired || trimmed.length <= 2) return trimmed;
+  return trimmed.slice(1, -1).trim();
+}
+
+/**
+ * Pronunciation for MANY words at once, for the reader's annotation layer
+ * (#289 4.4). Keyed by the FOLDED form, which is what the reader looks up.
+ *
+ * Deliberately not `lookupWord` in a loop. That path always reads every sense
+ * and every related form — `related_forms` averages 55 rows per zh word and
+ * peaks at 3,549 — so 500 words cost 7.8 ms of SQL and serialise to 265 KB
+ * where the readings alone are 13 KB. This is one statement, measured at
+ * 0.53 ms warm for 500 keys against the shipped 65 MB zh dictionary.
+ *
+ * It also skips the AI-cache fallthrough on a miss. An annotation is a nicety,
+ * so a word with no dictionary reading simply gets none, and the reader renders
+ * it bare rather than paying up to three extra queries per miss.
+ */
+export function lookupReadings(words: readonly string[], language: string): Map<string, string> {
+  const readings = new Map<string, string>();
+  if (words.length === 0) return readings;
+
+  // Fold first, then de-duplicate. A page repeats words heavily, and the folded
+  // key is what both the query and the reader use.
+  const keys = new Set<string>();
+  for (const word of words) {
+    const key = foldKey(word, language);
+    if (key) keys.add(key);
+  }
+  if (keys.size === 0) return readings;
+
+  const stmts = getStmts(language);
+  if (!stmts) return readings;
+  try {
+    const rows = stmts.selectReadings.all(JSON.stringify([...keys])) as Array<{
+      word: string;
+      ipa: string;
+    }>;
+    for (const row of rows) {
+      const reading = stripTranscriptionDelimiters(row.ipa);
+      if (reading) readings.set(row.word, reading);
+    }
+  } catch (err) {
+    // A missing or unreadable dictionary must not break the reader: the page
+    // renders without annotations instead.
+    console.warn(`[dictionary] batch readings failed for ${language}:`, err);
+  }
+  return readings;
 }
 
 // kaikki tags a form it could not classify as `error-unrecognized-form`, and a
