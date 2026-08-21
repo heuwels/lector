@@ -47,6 +47,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'How do the て-form and its compounds work (ている, てある, てしまう)?',
     'Why does the same kanji read one way alone and another way in a compound?',
   ],
+  ko: [
+    'When do I use 은/는 and when do I use 이/가?',
+    'How do the speech levels work (해, 해요, 합니다)?',
+    'What is the difference between 에 and 에서?',
+  ],
   nl: [
     'When do I use "de" vs "het" as a noun\'s article?',
     'How do separable verbs work (e.g. "opbellen", "meenemen")?',

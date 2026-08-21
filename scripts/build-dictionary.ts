@@ -22,6 +22,8 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 
+import { stemCandidates } from '../languages/morphology';
+import { LANGUAGES, isValidLanguageCode } from '../languages/registry';
 import { stripMarks } from '../languages/text';
 
 // ---------------------------------------------------------------------------
@@ -656,6 +658,37 @@ const PROFILES: Record<string, LangProfile> = {
       お母さん: 'おかあさん',
     },
   },
+  ko: {
+    // #289. 199 MB, 62,970 lines. Korean publishes ONE dump.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Korean/kaikki.org-dictionary-Korean.jsonl'],
+    // Precomposed Hangul syllables and the Han ranges. Hangul is what a reader
+    // meets, and Han earns its place because the dump gives a Sino-Korean noun
+    // its hanja spelling as a form row: 도서관 lists 圖書館.
+    letterClass: '\\uAC00-\\uD7A3\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF',
+    // Korean resolves through the pack's `morphology` slice, not through
+    // these. The coverage lookup reads the pack directly, so the gate and the
+    // runtime peel the same postpositions. See stemCandidates.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiou',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-ko.txt',
+    // 6,686 of 62,970 lines carry no English gloss.
+    glossFilter: true,
+    // 377 entries with pos 'syllable' hold 8,774 senses between them, and every
+    // sense is an index of a Middle Chinese reading rather than a definition.
+    // They key on a bare syllable, so they displace the real word: 눈, 정, 의 and
+    // 기 are all common nouns AND all syllables in that table.
+    skipPos: ['syllable'],
+    // The three romanization schemes kaikki writes as form rows. 15,063 rows of
+    // Latin text that can never be a Korean key. The shared list already drops
+    // the rows tagged 'romanization', which is 58,355 more.
+    extraSkipFormTags: ['revised', 'McCune-Reischauer', 'Yale'],
+    // An Ideographic Description Character means kaikki is drawing a glyph it
+    // cannot encode, so the string is a picture and never a key. Shared with
+    // zh and ja, and it reaches ko through the hanja form rows.
+    skipFormPattern: /[\u2FF0-\u2FFB]/u,
+  },
 };
 
 function parseLangArg(): string {
@@ -732,6 +765,7 @@ function toSimplified(word: string): string {
 // resolve inflections via the kaikki `forms` table instead of affix rules.
 const PREFIXES = PROFILE.prefixes;
 const SUFFIXES = PROFILE.suffixes;
+const MORPHOLOGY = isValidLanguageCode(LANG) ? LANGUAGES[LANG].morphology : undefined;
 const VOWELS = new Set(PROFILE.vowels.split(''));
 const MIN_STEM = 2;
 
@@ -1512,6 +1546,21 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
         const strippedInfl = byInflection.get(stripped) as { lemma: string } | undefined;
         if (strippedInfl) {
           const lemma = exact.get(strippedInfl.lemma) as { word: string } | undefined;
+          if (lemma) return lemma;
+        }
+      }
+    }
+
+    // Mirror of the runtime morphology step (dictionary-db.ts step 5-morph), so
+    // the gate measures what the live lookup resolves. ko is the only pack with
+    // a `morphology` slice.
+    if (MORPHOLOGY) {
+      for (const candidate of stemCandidates(lower, MORPHOLOGY)) {
+        const keyHit = exact.get(candidate.key) as { word: string } | undefined;
+        if (keyHit) return keyHit;
+        const keyInfl = byInflection.get(candidate.key) as { lemma: string } | undefined;
+        if (keyInfl) {
+          const lemma = exact.get(keyInfl.lemma) as { word: string } | undefined;
           if (lemma) return lemma;
         }
       }

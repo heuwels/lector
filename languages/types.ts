@@ -156,6 +156,61 @@ export interface PronunciationConfig {
   annotationOverhang?: boolean;
 }
 
+/**
+ * How the lookup reaches a dictionary key when the written form is not one
+ * (#289). Korean is the pack that needs it, and it needs both halves.
+ *
+ * Korean writes its grammar as postpositions and endings that attach with no
+ * space. 도서관에서 is one written token holding 도서관 plus the locative 에서, and
+ * 좋아하지 holds the stem of 좋아하다 plus the connective 지.
+ *
+ * kaikki gives the Korean dump one half of that. It DOES enumerate finite
+ * conjugation, so 먹었어요 resolves to 먹다 through the inflections table already.
+ * That is the difference from Japanese, which needed a morphological analyser.
+ * It enumerates no postposition and no connective ending.
+ *
+ * Measured against the 5,000-eojeol coverage corpus: the exact key and the
+ * inflections table answer 50.3% of it. Clitics take it to 83.5%, and endings
+ * to 91.4%.
+ *
+ * The lookup runs this LAST, after the exact key and after the inflections
+ * table, so a word that is a headword in its own right keeps its own entry.
+ * 보다 is both the verb "to see" and the comparative particle, and the verb
+ * wins.
+ */
+export interface MorphologyConfig {
+  /**
+   * Postpositions to peel from the end. The stem is then looked up AS WRITTEN,
+   * because a postposition attaches to a finished word.
+   *
+   * Order does not matter. The stripper sorts by length and takes the longest
+   * match first, so 에게서 wins over 에.
+   */
+  clitics: string[];
+  /**
+   * How many postpositions may stack. Korean allows 도서관에서는, which is two.
+   * Three is rare, and the extra pass only adds false matches.
+   */
+  maxClitics: number;
+  /**
+   * Verb and adjective endings to peel. The stem is then looked up with
+   * `citation` appended, because a Korean stem is not a word on its own.
+   *
+   * These are the connective and auxiliary endings kaikki leaves out. A finite
+   * ending does not belong here: 먹었어요 is a form row on 먹다 already, and
+   * peeling it would only find the same entry by a longer road.
+   */
+  endings?: string[];
+  /** Appended to a peeled stem to make the dictionary form. Korean: 다. */
+  citation?: string;
+  /**
+   * Shortest stem either peel may leave. Korean sets 1, because a one-syllable
+   * noun is a common word (집에 holds 집) and so is a one-syllable verb stem
+   * (하지 holds the stem of 하다).
+   */
+  minStem: number;
+}
+
 export interface LanguageConfig {
   /** English name, e.g. "German". */
   name: string;
@@ -181,4 +236,6 @@ export interface LanguageConfig {
   pronunciation: PronunciationConfig;
   /** Script behavior — tokenization, folding, direction (#289). */
   script: ScriptConfig;
+  /** How the lookup reaches a key when the written form is not one (ko). */
+  morphology?: MorphologyConfig;
 }

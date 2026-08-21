@@ -1,0 +1,92 @@
+import { describe, it, expect } from 'vitest';
+
+import { stemCandidates } from './morphology';
+import { LANGUAGES } from './registry';
+import type { MorphologyConfig } from './types';
+
+const ko = LANGUAGES.ko.morphology as MorphologyConfig;
+
+function keys(word: string, config: MorphologyConfig = ko): string[] {
+  return stemCandidates(word, config).map((c) => c.key);
+}
+
+describe('stemCandidates', () => {
+  it('peels one postposition off a noun', () => {
+    expect(keys('도서관에서')).toContain('도서관');
+    expect(keys('학생이')).toContain('학생');
+    expect(keys('것을')).toContain('것');
+  });
+
+  it('takes the longest postposition first at each step', () => {
+    // 에게서 and 에 both end 학생에게서, and only 학생 is the word.
+    expect(keys('학생에게서')[0]).toBe('학생');
+  });
+
+  it('peels a stack, shallow before deep', () => {
+    const all = keys('도서관에서는');
+    expect(all[0]).toBe('도서관에서');
+    expect(all).toContain('도서관');
+    expect(all.indexOf('도서관에서')).toBeLessThan(all.indexOf('도서관'));
+  });
+
+  it('stops at maxClitics', () => {
+    // 은, 에서, 의 would be three peels to reach 도서관.
+    expect(keys('도서관의에서은')).not.toContain('도서관');
+  });
+
+  it('leaves a one-syllable stem, which Korean needs', () => {
+    expect(keys('집에')).toContain('집');
+    expect(keys('눈은')).toContain('눈');
+  });
+
+  it('never proposes an empty key', () => {
+    // A bare postposition peels to nothing, and minStem is what stops it.
+    expect(keys('은')).toEqual([]);
+    for (const word of ['에서', '이다', '입니다', '들', '도서관에서는']) {
+      expect(keys(word).every((key) => key.length > 0)).toBe(true);
+    }
+  });
+
+  it('appends the citation suffix after an ending, not after a postposition', () => {
+    // 좋아하지 is the stem 좋아하 plus 지, and 좋아하다 is the entry.
+    expect(keys('좋아하지')).toContain('좋아하다');
+    // 도서관에서 is a finished word plus a postposition, so no 다 is appended.
+    expect(keys('도서관에서')).not.toContain('도서관다');
+  });
+
+  it('resolves the copula on a noun', () => {
+    expect(keys('사람입니다')).toContain('사람');
+    expect(keys('사람이에요')).toContain('사람');
+    expect(keys('사람이야')).toContain('사람');
+  });
+
+  it('proposes postpositions before endings', () => {
+    // 은 is both a postposition and an adnominal ending, so 좋은 offers the bare
+    // 좋 and 좋다 both. The postposition reading comes first, and the caller is
+    // what decides.
+    const all = keys('좋은');
+    expect(all).toContain('좋');
+    expect(all).toContain('좋다');
+    expect(all.indexOf('좋')).toBeLessThan(all.indexOf('좋다'));
+  });
+
+  it('proposes each key once', () => {
+    const all = keys('학생이나');
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('appends nothing for a pack that declares no endings', () => {
+    const noEndings: MorphologyConfig = { clitics: ['에'], maxClitics: 1, minStem: 1 };
+    expect(keys('집에', noEndings)).toEqual(['집']);
+  });
+
+  it('resolves the plural under a postposition', () => {
+    expect(keys('학생들은')).toContain('학생');
+  });
+
+  it('records what it peeled, innermost first', () => {
+    const stacked = stemCandidates('도서관에서는', ko);
+    expect(stacked[0].peeled).toEqual(['는']);
+    expect(stacked.find((c) => c.key === '도서관')?.peeled).toEqual(['는', '에서']);
+  });
+});
