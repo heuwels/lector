@@ -114,6 +114,22 @@ export interface PronunciationConfig {
    *   and Japanese kanji when that pack lands.
    */
   annotation?: 'dictionary';
+  /**
+   * Regex source. A word annotated ONLY when it matches. Absent means annotate
+   * every word that has a reading.
+   *
+   * Japanese needs it and Chinese does not. An annotation exists to reveal a
+   * reading the script hides, and kana hides nothing: を reads "o" and です
+   * reads "desu", exactly as written. Worse, several single kana are also
+   * archaic kanji-words in the dictionary, so looking one up returns an
+   * unrelated reading. Measured on a first-lesson text, を came back as あく,
+   * へ as ほう and ます as もうす. Printing that above a particle teaches an
+   * error.
+   *
+   * So ja matches Han only, and a word with no kanji gets nothing. Every
+   * Chinese word is Han, so zh leaves this unset and annotates all of them.
+   */
+  annotationRequires?: string;
 }
 
 export interface LanguageConfig {

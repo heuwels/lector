@@ -142,7 +142,14 @@ export const ja = {
   // Furigana sits in the dictionary's `ipa` column, so the reader prints the
   // kana reading above each word (#289 4.4). Kanji hide their reading, which is
   // the same reason Chinese opts in and Esperanto does not.
-  pronunciation: { audio: ['google'] as const, annotation: 'dictionary' as const },
+  pronunciation: {
+    audio: ['google'] as const,
+    annotation: 'dictionary' as const,
+    // Han only. A kana word already shows its reading, and several single kana
+    // are archaic kanji-words in the dictionary, so a lookup returns something
+    // unrelated. See the note on annotationRequires.
+    annotationRequires: '[\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF]',
+  },
   script: {
     // Plain 'ja', not 'ja-JP'. The tag is handed to Intl.Segmenter and to the
     // lang attribute, and neither needs the region. Han unification makes the
