@@ -1,24 +1,9 @@
-// Japanese (#214). The reader needs no new code: #289 Phase 4 built the
-// `cjk-unspaced` path for Chinese, and Intl.Segmenter splits Japanese through
-// the same engine on `script.bcp47` alone.
+// Japanese (#214). Segmented and read by a morphological analyser, not by
+// Intl.Segmenter. See api/src/lib/ja-morphology.ts.
 //
-// Nouns, adjectives, katakana and numerals hold up. 日本語, 図書館, 毎日, 東京,
-// 楽しい and コーヒー all stay whole, and every particle is its own token, so a
-// learner taps 日本語 and not 日本語を.
-//
-// A CONJUGATED VERB DOES NOT. ICU knows noun boundaries and does not model verb
-// morphology, so it severs the kanji stem from its okurigana:
-//
-//   読んでいました   -> 読 | んで | いま | した
-//   食べられなかった -> 食 | べら | れ | なか | っ | た
-//   飲みます        -> 飲 | み | ます
-//
-// 読む survives, but only alone. This costs furigana most: `annotation` keys a
-// reading on the folded span, no dictionary headword matches 読 or んで, and the
-// reader prints nothing above a verb. Nouns still carry their reading.
-//
-// A lesson's stored word list (#289 4.2) overrides ICU at import time, and a
-// morphological analyser is the fix. See #214 for that work.
+// ICU knows noun boundaries and does not model verb morphology, so it severed a
+// kanji stem from its okurigana: 読んでいました became 読 | んで | いま | した.
+// Neither half is a word, so no lookup matched and no reading was drawn.
 
 // Japanese marks grammar with particles and auxiliaries rather than inflection,
 // so those carry the sentence structure. Blanking one in a cloze asks the
