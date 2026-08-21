@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lector flow graph</title>
+    <link rel="stylesheet" href="explore.css" />
+  </head>
+  <body>
+    <header>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="32" height="32" aria-hidden="true">
+        <rect width="80" height="80" rx="16" fill="#b45309" />
+        <path d="M20 18h16c3 0 4 1 4 4v36c0-2-1-3-4-3H20V18z" fill="#fff" opacity="0.9" />
+        <path d="M60 18H44c-3 0-4 1-4 4v36c0-2 1-3 4-3h16V18z" fill="#fff" opacity="0.7" />
+      </svg>
+      <div>
+        <h1>Flow graph</h1>
+        <div class="sub">Stand on a node. Walk to a neighbor.</div>
+      </div>
+      <button type="button" id="btn-home" class="walk-btn" style="width: auto; margin: 0">Lector</button>
+      <button type="button" id="btn-back" class="walk-btn" style="width: auto; margin: 0">Back</button>
+      <div id="search-wrap">
+        <input id="search" type="search" placeholder="Search a flow, file, or function. Press /" autocomplete="off" />
+        <div id="search-hits"></div>
+      </div>
+    </header>
+    <nav id="trail" aria-label="Walk trail"></nav>
+    <main>
+      <aside id="walk" class="panel">
+        <div id="here-card"></div>
+        <div id="path-box"></div>
+        <h2>Walk to</h2>
+        <div id="walk-body"></div>
+      </aside>
+      <section id="graph-wrap">
+        <svg id="graph" role="img" aria-label="Neighborhood of the current node"></svg>
+      </section>
+      <aside id="detail" class="panel">
+        <h2>This node</h2>
+        <div id="detail-body"></div>
+      </aside>
+    </main>
+    <footer>
+      <span><kbd>/</kbd> search</span>
+      <span><kbd>↑</kbd> <kbd>↓</kbd> or <kbd>j</kbd> <kbd>k</kbd> pick a neighbor</span>
+      <span><kbd>Enter</kbd> walk</span>
+      <span><kbd>Backspace</kbd> or <kbd>u</kbd> back</span>
+      <span><kbd>1</kbd> one hop · <kbd>2</kbd> two hops</span>
+    </footer>
+    <script src="graph-data.js"></script>
+    <script src="explore.js"></script>
+  </body>
+</html>
