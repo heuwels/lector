@@ -36,12 +36,12 @@ function legacyWords(text: string): string[] {
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
 // the contract for exactly those packs. Languages added after #289 get their
-// own goldens below instead — ru, grc, uk and zh because the oracle can't see
-// their scripts (zh doubly so: it has no whitespace, so the oracle returns the
-// whole paragraph), and tr because the oracle applies the Afrikaans 'n
+// own goldens below instead — ru, grc, uk, zh and ja because the oracle can't
+// see their scripts (zh and ja doubly so: they have no whitespace, so the oracle
+// returns the whole paragraph), and tr because the oracle applies the Afrikaans 'n
 // alternative to every language, which mis-splits a Turkish suffixed proper
 // noun (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to the af pack.
-const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh'>, string[]> = {
+const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh' | 'ja'>, string[]> = {
   af: [
     'Hallo, hoe gaan dit met jou?',
     '’n Man loop in die straat. Sy sê: „Dit is ’n mooi dag!“',
@@ -120,7 +120,7 @@ const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh'>, s
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
   for (const [code, texts] of Object.entries(CORPUS) as [
-    Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh'>,
+    Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh' | 'ja'>,
     string[],
   ][]) {
     const pack = LANGUAGES[code];
@@ -254,15 +254,10 @@ const zh = synth({
   hasCase: false,
   sentenceTerminators: '。．！？!?',
 });
-// The second `cjk-unspaced` language (#214). It exists here to pin that the
-// engine is script-class generic: the only difference from zh is the bcp47 tag
-// handed to Intl.Segmenter.
-const ja = synth({
-  bcp47: 'ja',
-  kind: 'cjk-unspaced',
-  hasCase: false,
-  sentenceTerminators: '。．！？!?',
-});
+// The second `cjk-unspaced` language (#214), and a real pack now rather than a
+// synthetic one. It pins that the engine is script-class generic: the only
+// difference from zh is the bcp47 tag handed to Intl.Segmenter.
+const ja = LANGUAGES.ja;
 
 describe('multi-script goldens (synthetic packs — no per-language code)', () => {
   it('tokenizes Russian, including hyphenated compounds', () => {
