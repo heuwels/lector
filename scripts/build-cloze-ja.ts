@@ -1,33 +1,38 @@
 /**
  * Build the Japanese cloze sentence bank from Tatoeba's jpn -> eng exports.
  *
- *     cd api && bun run scripts/build-cloze-ja.ts
+ *     npx tsx scripts/build-cloze-ja.ts
  *
- * WHY THIS ONE IS TYPESCRIPT while every other cloze builder is Python. A
- * Japanese bank has to ship a `tokens` array, because the script writes no
- * spaces and the client cannot re-derive the split (#289 4.3). That split has to
- * be the SAME one the reader uses, and the reader uses kuromoji through
- * ../src/lib/ja-morphology. Mandarin shows what the alternative costs: its bank
+ * WHY THIS ONE IS TYPESCRIPT while most cloze builders are Python. A Japanese
+ * bank has to ship a `tokens` array, because the script writes no spaces and the
+ * client cannot re-derive the split (#289 4.3). That split has to be the SAME
+ * one the reader uses, and the reader uses kuromoji through
+ * api/src/lib/ja-morphology. Mandarin shows what the alternative costs: its bank
  * was segmented with jieba while the reader segments with Intl.Segmenter, the
  * two disagree on some boundaries, and a tap can select the wrong word.
  *
- * The file lives under api/scripts rather than scripts/ for the same reason.
- * kuromoji is declared in api/package.json, so a module at the repository root
- * cannot resolve it.
+ * kuromoji is declared in api/package.json and not at the root, and this script
+ * still reaches it. ja-morphology requires it through
+ * `createRequire(import.meta.url)`, which resolves from that module's own
+ * directory inside api/ rather than from whatever imports it.
  *
- * Requires `bunzip2` on PATH. Tatoeba serves bzip2, and Node ships no decoder
- * for it.
+ * Prerequisites:
+ *     npx tsx scripts/build-dictionary.ts --lang ja
+ *
+ * Requires `bunzip2` on PATH. Tatoeba serves bzip2, and Node ships no decoder.
+ *
+ * Downloads are cached in tmp/cloze-ja.
  */
 
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { Database } from 'bun:sqlite';
+import Database from 'better-sqlite3';
 
-import { segmentJapanese, japaneseAnalyserReady } from '../src/lib/ja-morphology';
-import { ja } from '../../languages/ja/manifest';
+import { segmentJapanese, japaneseAnalyserReady } from '../api/src/lib/ja-morphology';
+import { ja } from '../languages/ja/manifest';
 
-const PROJECT_ROOT = path.resolve(import.meta.dir, '..', '..');
+const PROJECT_ROOT = path.resolve(__dirname, '..');
 const TATOEBA = 'https://downloads.tatoeba.org/exports/per_language';
 const LANGUAGE_CODE = 'jpn';
 const ENGLISH_CODE = 'eng';
@@ -102,7 +107,7 @@ function buildCandidates(): Candidate[] {
   if (!fs.existsSync(DICTIONARY)) {
     throw new Error(`${DICTIONARY} does not exist; build the ja dictionary first`);
   }
-  const db = new Database(`file:${DICTIONARY}?immutable=1`, 0x01 | 0x40);
+  const db = new Database(DICTIONARY, { readonly: true });
   const posQuery = db.prepare('SELECT DISTINCT pos FROM senses WHERE word = ?');
 
   // The committed coverage corpus IS the wordfreq top-5000 in frequency order,
