@@ -113,7 +113,7 @@ function TranscriptReader({
             {/* <p> so the reader's drag-select phrase lookup (closest('p')) works. */}
             <p
               className={`flex-1 text-lg sm:text-xl ${
-                annotationMode !== 'off' && readings !== null ? 'leading-[2.7]' : 'leading-[1.9]'
+                annotationMode !== 'off' && readings !== null ? 'leading-[2.15]' : 'leading-[1.9]'
               }`}
             >
               {splitWords(segment.text, pack, segmentation).map((part, partIndex) => {
