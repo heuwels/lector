@@ -23,6 +23,13 @@ export function getActivePack() {
   return getLanguageConfig(isValidLanguageCode(code) ? code : DEFAULT_LANGUAGE);
 }
 
+// Every language-scoped route must carry this, including the by-id routes.
+// The API resolves an absent `language` param from the server-side
+// `targetLanguage` setting, so an omitted param silently swaps the source of
+// truth from this browser's cache to that setting. When the two disagree, the
+// library lists one language and each by-id read 404s under the other — the
+// collection page then bounces back to the library, and the reader, progress
+// writes and lesson edits fail the same way. Send the param and both agree.
 function langParam(prefix: '?' | '&' = '?'): string {
   return `${prefix}language=${getActiveLanguage()}`;
 }
@@ -137,7 +144,7 @@ export async function getAllCollections(): Promise<Collection[]> {
 }
 
 export async function getCollection(id: string): Promise<Collection | undefined> {
-  const res = await apiFetch(`/api/collections/${id}`);
+  const res = await apiFetch(`/api/collections/${id}${langParam()}`);
   if (!res.ok) return undefined;
   return res.json();
 }
@@ -170,7 +177,7 @@ export async function reorderCollections(ids: string[]): Promise<void> {
 }
 
 export async function deleteCollection(id: string): Promise<void> {
-  const res = await apiFetch(`/api/collections/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/collections/${id}${langParam()}`, { method: 'DELETE' });
   await requireOk(res, 'Could not delete collection');
   invalidateCollections();
   invalidateReadingStats();
@@ -180,7 +187,7 @@ export async function updateCollection(
   id: string,
   data: { title?: string; author?: string; groupId?: string | null },
 ): Promise<void> {
-  const res = await apiFetch(`/api/collections/${id}`, {
+  const res = await apiFetch(`/api/collections/${id}${langParam()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -239,7 +246,7 @@ export async function getLessonsForCollection(collectionId: string): Promise<Les
 }
 
 export async function getLesson(id: string): Promise<Lesson | undefined> {
-  const res = await apiFetch(`/api/lessons/${id}`);
+  const res = await apiFetch(`/api/lessons/${id}${langParam()}`);
   if (!res.ok) return undefined;
   return res.json();
 }
@@ -264,7 +271,7 @@ export async function updateLesson(
   id: string,
   data: { title?: string; textContent?: string },
 ): Promise<void> {
-  const res = await apiFetch(`/api/lessons/${id}`, {
+  const res = await apiFetch(`/api/lessons/${id}${langParam()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -277,7 +284,7 @@ export async function updateLesson(
 }
 
 export async function deleteLesson(id: string): Promise<void> {
-  const res = await apiFetch(`/api/lessons/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`/api/lessons/${id}${langParam()}`, { method: 'DELETE' });
   await requireOk(res, 'Could not delete lesson');
   invalidateCollections();
   invalidateReadingStats();
@@ -296,7 +303,7 @@ export async function updateLessonProgress(
   id: string,
   progress: { scrollPosition?: number; percentComplete?: number },
 ): Promise<boolean> {
-  const res = await apiFetch(`/api/lessons/${id}/progress`, {
+  const res = await apiFetch(`/api/lessons/${id}/progress${langParam()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(progress),
@@ -369,18 +376,20 @@ export async function importAudio(
 
 /** Transcript segments for listen-along (#185); empty until transcription is done. */
 export async function getLessonSegments(lessonId: string): Promise<AudioTranscriptSegment[]> {
-  const res = await apiFetch(`/api/lessons/${lessonId}/segments`);
+  const res = await apiFetch(`/api/lessons/${lessonId}/segments${langParam()}`);
   if (!res.ok) return [];
   return res.json();
 }
 
 /** Direct (range-seekable) audio URL for an audio-backed lesson — feed it to <audio src>. */
 export function lessonAudioUrl(lessonId: string): string {
-  return apiUrl(`/api/lessons/${lessonId}/audio`);
+  return apiUrl(`/api/lessons/${lessonId}/audio${langParam()}`);
 }
 
 export async function retryTranscription(lessonId: string): Promise<void> {
-  const res = await apiFetch(`/api/lessons/${lessonId}/retry-transcription`, { method: 'POST' });
+  const res = await apiFetch(`/api/lessons/${lessonId}/retry-transcription${langParam()}`, {
+    method: 'POST',
+  });
   await requireOk(res, 'Could not retry transcription');
   invalidateCollections();
 }
@@ -406,7 +415,7 @@ export async function createStandaloneLesson(data: {
     // The operation spans two legacy endpoints. If the authoritative lesson
     // limit rejects the second half, remove the collection created solely for
     // this import so a capped Free account does not accumulate empty shells.
-    await apiFetch(`/api/collections/${collectionId}`, { method: 'DELETE' });
+    await apiFetch(`/api/collections/${collectionId}${langParam()}`, { method: 'DELETE' });
     invalidateCollections();
     invalidateReadingStats();
     throw await apiError(res, 'Could not create imported lesson');

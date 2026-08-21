@@ -6,6 +6,7 @@ import Analytics from '@/components/Analytics';
 import AuthGuard from '@/components/AuthGuard';
 import BillingGuard from '@/components/BillingGuard';
 import ChatWidget from '@/components/ChatWidget';
+import LanguageSync from '@/components/LanguageSync';
 import SetupGuard from '@/components/SetupGuard';
 import './globals.css';
 import NavHeader from '@/components/NavHeader';
@@ -59,6 +60,9 @@ export default function RootLayout({
       <body
         className={`${nunito.variable} ${literata.variable} flex min-h-screen flex-col bg-background font-sans text-foreground antialiased sm:flex-row`}
       >
+        {/* A language switch in one tab must reach the others. Renders
+            nothing. */}
+        <LanguageSync />
         <NavHeader />
 
         <div className="flex-1">

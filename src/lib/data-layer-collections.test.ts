@@ -8,7 +8,17 @@ vi.mock('./language-cache', () => ({
   readLanguageCache: () => 'af',
 }));
 
-import { createCollection, createStandaloneLesson, getAllCollections } from './data-layer';
+import {
+  createCollection,
+  createStandaloneLesson,
+  deleteLesson,
+  getAllCollections,
+  getCollection,
+  getLesson,
+  updateCollection,
+  updateLesson,
+  updateLessonProgress,
+} from './data-layer';
 import { clearQueryCache } from './query-cache';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -62,6 +72,59 @@ describe('collection query cache', () => {
   });
 });
 
+// The API scopes its by-id routes to a language, and falls back to the
+// server-side `targetLanguage` setting when a request omits the param. A
+// browser whose cached language differs from that setting then lists its
+// library under one language and 404s every by-id read under the other, which
+// bounced the collection page straight back to the library. Every
+// language-scoped call must name the language the library was listed under.
+describe('by-id calls name the active language', () => {
+  beforeEach(() => {
+    apiFetch.mockResolvedValue(jsonResponse({ id: 'x' }));
+  });
+
+  it('sends the language on a collection read', async () => {
+    await getCollection('collection-1');
+    expect(apiFetch).toHaveBeenCalledWith('/api/collections/collection-1?language=af');
+  });
+
+  it('sends the language on a collection update', async () => {
+    await updateCollection('collection-1', { title: 'Renamed' });
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/collections/collection-1?language=af',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+  });
+
+  it('sends the language on a lesson read', async () => {
+    await getLesson('lesson-1');
+    expect(apiFetch).toHaveBeenCalledWith('/api/lessons/lesson-1?language=af');
+  });
+
+  it('sends the language on a lesson update', async () => {
+    await updateLesson('lesson-1', { title: 'Renamed' });
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/lessons/lesson-1?language=af',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+  });
+
+  it('sends the language on a lesson delete', async () => {
+    await deleteLesson('lesson-1');
+    expect(apiFetch).toHaveBeenCalledWith('/api/lessons/lesson-1?language=af', {
+      method: 'DELETE',
+    });
+  });
+
+  it('sends the language on a progress write', async () => {
+    await updateLessonProgress('lesson-1', { percentComplete: 12 });
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/lessons/lesson-1/progress?language=af',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+  });
+});
+
 describe('plan-limited collection creation', () => {
   it('throws instead of returning an undefined id when collection creation is denied', async () => {
     apiFetch.mockResolvedValueOnce(jsonResponse({ error: 'plan_limit' }, 429));
@@ -78,7 +141,11 @@ describe('plan-limited collection creation', () => {
     await expect(
       createStandaloneLesson({ title: 'Large article', author: 'Author', textContent: 'text' }),
     ).rejects.toThrow('plan_limit');
-    expect(apiFetch).toHaveBeenNthCalledWith(3, '/api/collections/collection-1', {
+    // The rollback carries the language param like every other by-id call:
+    // without it the API resolves the language from the server-side setting,
+    // which 404s the rollback whenever that setting and this browser's cached
+    // language disagree.
+    expect(apiFetch).toHaveBeenNthCalledWith(3, '/api/collections/collection-1?language=af', {
       method: 'DELETE',
     });
   });
