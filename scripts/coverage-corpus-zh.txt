@@ -1,5 +1,5 @@
 # Build-time coverage corpus for build-dictionary.ts --lang zh.
-# Top-5000 wordfreq-zh tokens, filtered to Han characters (Latin tokens excluded). Simplified, matching the build's keyOnFormTag. One per line; '#' = comment.
+# Top-5000 wordfreq-zh tokens, filtered to Han characters (Latin tokens excluded). Simplified, matching the build's t2sMapRel keying. One per line; '#' = comment.
 # Regenerate: pip install wordfreq && python scripts/gen-coverage-corpus-zh.py 5000
 的
 是

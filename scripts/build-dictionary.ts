@@ -109,12 +109,29 @@ interface LangProfile {
   /** Extra `tags` values that disqualify a form, on top of the shared list
    *  (zh: 'Second-Round-Simplified-Chinese', a defunct 1977 scheme, 821 rows). */
   extraSkipFormTags?: string[];
-  /** Re-key the entry onto the form carrying this tag, and register the
-   *  headword as an alias (zh: 'Simplified-Chinese'). The Chinese headword is
-   *  NOT reliably Traditional — 煙草 carries both a Traditional-Chinese form
-   *  (菸草) and a Simplified one (烟草) — so keying on the tagged form and
-   *  aliasing the headword is what makes both scripts resolve. */
-  keyOnFormTag?: string;
+  /** Re-key every entry onto its Simplified form, using the generated map at
+   *  this path, and register the headword as an alias (zh only). Text in either
+   *  script then resolves, and the entry itself is keyed on what a learner of
+   *  Mandarin reads.
+   *
+   *  The map is generated from OpenCC by `scripts/gen-zh-t2s-map.py`, NOT read
+   *  off kaikki's `forms` table. kaikki's Simplified rows cannot be trusted for
+   *  a key:
+   *
+   *    - A row tagged ['alternative', 'Simplified-Chinese'] is the Simplified
+   *      spelling of an ALTERNATIVE character, not of the headword. 今 lists
+   *      當/当 as an alternative form, so 今 claimed the key 当 and shipped
+   *      `jīn` for it. 8,358 keys were claimed this way, 儿 气 业 吗 满 码 调
+   *      农 among them.
+   *    - The honest row is often missing. 這, 當, 卻 and 參 carry none at all,
+   *      which is why their keys were left to the first alternative row.
+   *    - Even the rows with no `alternative` tag are unreliable. OpenCC agrees
+   *      with 102,552 of them and disagrees with 1,371, and the disagreements
+   *      are kaikki being wrong: it answers 鲁 for 嚕 (that is 魯) and 辟 for
+   *      僻.
+   *
+   *  So OpenCC decides, and the dump is not consulted for the key at all. */
+  t2sMapRel?: string;
   /** Prefer a `sounds[]` romanisation over `ipa` for the entry's pronunciation
    *  string. An ORDERED list of tag-sets: the first set with a match wins, and
    *  every tag in a set must be present on the element. Ordering is load-bearing
@@ -125,6 +142,19 @@ interface LangProfile {
    *  Standard pinyin writes tone as a diacritic, so a digit means the candidate
    *  is Wade-Giles, Sichuanese or another numbered scheme). */
   rejectPronunciationPattern?: RegExp;
+  /** Readings that MUST come out of the built database, as word -> expected
+   *  pronunciation string. The build fails on a mismatch.
+   *
+   *  This is the guard the zh dictionary lacked. Its keys were claimed by
+   *  unrelated characters through kaikki's alternative-form rows, so it shipped
+   *  `chī` for 这 and `jīn` for 当 to every reader for a whole release. Nothing
+   *  in the build noticed, because the entry count and the coverage score were
+   *  both healthy. Coverage asks whether a word RESOLVES. These ask whether the
+   *  answer is right, which is the question nothing was asking.
+   *
+   *  Pick words a beginner meets in their first hour, with readings that are
+   *  not in dispute. */
+  readingInvariants?: Record<string, string>;
   /** Drop an entry that HAS sounds[] but none carrying this tag (zh:
    *  'Mandarin'). 8,145 entries are Cantonese-or-other-variety only — English
    *  loanwords like `book` and `van` — and they are not Mandarin words. An
@@ -466,10 +496,10 @@ const PROFILES: Record<string, LangProfile> = {
     skipFormPattern: /[\u2ff0-\u2ffb]/u,
     // A defunct 1977 simplification scheme, 821 rows. Nobody reads it.
     extraSkipFormTags: ['Second-Round-Simplified-Chinese'],
-    // Key on Simplified, alias the headword. The headword is NOT reliably
-    // Traditional: \u7159\u8349 carries a Traditional-Chinese form (\u83f8\u8349) AND a
-    // Simplified one (\u70df\u8349), so the script has to be read off the tag.
-    keyOnFormTag: 'Simplified-Chinese',
+    // Key on Simplified, alias the headword, and take the conversion from
+    // OpenCC. See the note on `t2sMapRel` for why the dump's own Simplified
+    // rows cannot be trusted to decide a key.
+    t2sMapRel: 'scripts/zh-t2s-map.json',
     // Pinyin, not Sinological IPA. It is what a learner reads, and the ruby
     // layer (#289 4.4) renders it. 166,940 entries carry it.
     //
@@ -489,6 +519,42 @@ const PROFILES: Record<string, LangProfile> = {
     // 8,145 entries have sounds but no Mandarin one \u2014 other-variety words,
     // mostly Cantonese English loans (`book`, `van`). Not Mandarin vocabulary.
     requireSoundTag: 'Mandarin',
+    // All of these were wrong in the release built before the OpenCC re-key,
+    // apart from 我, 好 and 那. See the note on `t2sMapRel`.
+    //
+    // A true polyphone cannot be an invariant, because it has no single right
+    // answer. 调 is tiáo in 空调 and diào in 调查, and 参 is cān in 参加 and
+    // shēn in 人参. The build answers tiáo and shēn, both of which are real
+    // readings — picking the one a beginner meets first is a separate problem
+    // from keying the entry on the right character, and it is not this lever's
+    // to solve. Every word below reads one way in practice.
+    readingInvariants: {
+      我: 'wǒ',
+      好: 'hǎo',
+      那: 'nà',
+      这: 'zhè',
+      当: 'dāng',
+      却: 'què',
+      业: 'yè',
+      农: 'nóng',
+      气: 'qì',
+      儿: 'ér',
+      众: 'zhòng',
+      马: 'mǎ',
+      满: 'mǎn',
+      码: 'mǎ',
+      吗: 'ma',
+      陆: 'lù',
+      你好: 'nǐ hǎo',
+      // The Traditional spellings, which resolve through a headword alias
+      // rather than an entry of their own. They were wrong for a different
+      // reason than the Simplified keys — an alternative-form row outranked the
+      // alias — so they are worth naming separately.
+      這: 'zhè',
+      當: 'dāng',
+      農: 'nóng',
+      滿: 'mǎn',
+    },
   },
 };
 
@@ -517,6 +583,33 @@ const COVERAGE_CORPUS_PATH = PROFILE.coverageCorpusRel
   ? path.join(PROJECT_ROOT, PROFILE.coverageCorpusRel)
   : null;
 const KAIKKI_URLS = PROFILE.kaikkiUrls;
+
+/**
+ * Traditional-to-Simplified conversion for the entry key (zh). Generated from
+ * OpenCC — see `t2sMapRel` and scripts/gen-zh-t2s-map.py.
+ *
+ * `words` holds the headwords where converting character by character
+ * disagrees with OpenCC on the whole string, which is what OpenCC's phrase
+ * rules are for: 乾 alone is 干, but 乾隆 keeps 乾. So the phrase table is
+ * consulted first and the character table fills in the rest.
+ */
+interface T2sMap {
+  chars: Record<string, string>;
+  words: Record<string, string>;
+}
+
+const T2S_MAP: T2sMap | null = PROFILE.t2sMapRel
+  ? (JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, PROFILE.t2sMapRel), 'utf-8')) as T2sMap)
+  : null;
+
+function toSimplified(word: string): string {
+  if (!T2S_MAP) return word;
+  const phrase = T2S_MAP.words[word];
+  if (phrase) return phrase;
+  let out = '';
+  for (const ch of word) out += T2S_MAP.chars[ch] ?? ch;
+  return out;
+}
 
 // Affix-stripping constants — MUST mirror src/lib/dictionary.ts so the coverage
 // check reflects what the live lookup will see. Empty for languages (de) that
@@ -728,21 +821,16 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
   const headword = foldKey(raw.word);
   if (!headword) return null;
 
-  // Script re-keying (zh). Key on the Simplified form where the dump gives one,
-  // and alias the headword below, so text in either script resolves. The
-  // headword is not reliably Traditional, so this cannot be inferred — it has
-  // to come off the tagged form.
+  // Script re-keying (zh). Convert the headword to Simplified and key on that,
+  // then alias the headword below, so text in either script resolves. A
+  // headword that is already Simplified converts to itself and keeps its key.
+  //
+  // The conversion comes from OpenCC through the generated map, and never from
+  // the dump's own Simplified rows — see the note on `t2sMapRel`.
   let word = headword;
-  if (PROFILE.keyOnFormTag) {
-    const preferred = (raw.forms || []).find(
-      (f) =>
-        f.form &&
-        f.tags?.includes(PROFILE.keyOnFormTag!) &&
-        !f.raw_tags?.some((t) => PROFILE.skipFormRawTags?.includes(t)) &&
-        !PROFILE.skipFormPattern?.test(f.form),
-    );
-    const folded = preferred?.form ? foldKey(preferred.form) : '';
-    if (folded) word = folded;
+  if (T2S_MAP) {
+    const simplified = foldKey(toSimplified(headword));
+    if (simplified) word = simplified;
   }
 
   const senses: Array<{ pos: string; gloss: string }> = [];
@@ -1032,10 +1120,27 @@ function buildDatabase(
     }
 
     for (const [inflected, bucket] of inflectionMap) {
-      for (const ref of bucket) {
+      // A headword alias outranks an alternative-form row for the same surface
+      // string, so when both exist the alternative rows go.
+      //
+      // A headword alias says "this string IS the Traditional headword of that
+      // entry", which is the strongest claim there is. An `alternative` row only
+      // says some other entry can also be spelled this way, usually in an
+      // archaic sense. Both used to land in the table and the lookup resolved
+      // whichever was inserted first, so 這 answered `chī` (from 媸, which lists
+      // 這 as an alternative spelling) rather than `zhè`. 864 surface forms were
+      // resolving to an alternative this way.
+      //
+      // Only the rows that LOSE a contest are dropped. An alternative row with
+      // no competing headword alias is the only path 15,864 surface forms have,
+      // so dropping those wholesale would cost far more than it fixed.
+      const refs = [...bucket];
+      const hasHeadword = refs.some((ref) => ref.endsWith('::headword'));
+      for (const ref of refs) {
         const sep = ref.indexOf('::');
         const lemma = ref.slice(0, sep);
         const type = ref.slice(sep + 2);
+        if (hasHeadword && type !== 'headword' && type.includes('alternative')) continue;
         // Only insert when the lemma is actually in entries (skip orphans)
         if (!entries.has(lemma)) continue;
         const r = insertInflection.run(inflected, lemma, type || null);
@@ -1300,6 +1405,37 @@ function gatherCorpus(): Set<string> {
   return corpus;
 }
 
+/**
+ * Check the readings named in `readingInvariants` against the built database.
+ *
+ * Reads it the way the reader does: the entry first, then the headword aliases
+ * in `inflections`. A word the reader cannot resolve counts as a failure, so a
+ * key that goes missing is caught as well as one that answers wrongly.
+ */
+function checkReadingInvariants(): string[] {
+  const expected = PROFILE.readingInvariants;
+  if (!expected) return [];
+  const db = new Database(DB_PATH, { readonly: true });
+  const selectDirect = db.prepare('SELECT ipa FROM entries WHERE word = ?');
+  const selectAlias = db.prepare(
+    `SELECT e.ipa AS ipa FROM inflections i
+       JOIN entries e ON e.word = i.lemma
+      WHERE i.inflected_form = ?
+      ORDER BY (e.rank IS NULL), e.rank, i.rowid LIMIT 1`,
+  );
+  const failures: string[] = [];
+  for (const [word, want] of Object.entries(expected)) {
+    const direct = selectDirect.get(word) as { ipa: string | null } | undefined;
+    const alias = direct?.ipa
+      ? null
+      : (selectAlias.get(word) as { ipa: string | null } | undefined);
+    const got = direct?.ipa ?? alias?.ipa ?? null;
+    if (got !== want) failures.push(`${word}: expected ${want}, got ${got ?? 'no reading'}`);
+  }
+  db.close();
+  return failures;
+}
+
 function coverageCheck(): { hits: number; total: number; misses: string[] } {
   console.log(`[5/5] Running coverage check ...`);
 
@@ -1459,6 +1595,21 @@ async function main() {
   }
 
   const summary = buildDatabase(entries, inflectionMap);
+
+  // Before coverage, because a wrong reading is worse than a thin one. A
+  // learner can live with a word the dictionary does not know. A word it
+  // answers confidently and wrongly teaches them the wrong thing.
+  const readingFailures = checkReadingInvariants();
+  if (readingFailures.length > 0) {
+    console.error('\nReading invariants failed:');
+    for (const f of readingFailures) console.error('  -', f);
+    process.exit(1);
+  }
+  if (PROFILE.readingInvariants) {
+    const n = Object.keys(PROFILE.readingInvariants).length;
+    console.log(`  reading invariants: ${n}/${n} correct`);
+  }
+
   const { hits, total, misses } = coverageCheck();
 
   console.log('\n=== Build summary ===');
