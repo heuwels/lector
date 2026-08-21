@@ -2,6 +2,7 @@ import '../test-guard';
 import { describe, expect, test } from 'bun:test';
 import {
   analyseJapanese,
+  analyserReadings,
   japaneseAnalyserReady,
   katakanaToHiragana,
 } from './ja-morphology';
@@ -85,5 +86,64 @@ describe('buildSegmentWords with the analyser', () => {
     for (const surface of analysed) {
       if (surface.length > 1) expect(stored.has(surface)).toBe(true);
     }
+  });
+});
+
+describe('analyserReadings (#214)', () => {
+  const readings = () =>
+    analyserReadings(
+      '私は学生です。毎日図書館で日本語を勉強しています。' +
+        '新しい本を買いました。父は東京で働いています。' +
+        '彼は本を読んでいました。友達と話しながら、言葉を覚えました。' +
+        'コーヒーを飲みます。',
+      ja,
+    )!;
+
+  // The whole point of asking the analyser instead of the dictionary. The
+  // dictionary holds one reading per headword and answers もと for 本, which is
+  // right in 本を正す and wrong in every beginner sentence.
+  test('reads a kanji from its context', () => {
+    expect(readings().get('本')).toBe('ほん');
+  });
+
+  // A dictionary has no headword for an inflected form, so a verb carried no
+  // reading at all before this.
+  test('reads an inflected verb', () => {
+    const r = readings();
+    expect(r.get('読ん')).toBe('よん');
+    expect(r.get('働い')).toBe('はたらい');
+    expect(r.get('話し')).toBe('はなし');
+    expect(r.get('覚え')).toBe('おぼえ');
+  });
+
+  test('still reads a plain noun', () => {
+    const r = readings();
+    expect(r.get('図書館')).toBe('としょかん');
+    expect(r.get('東京')).toBe('とうきょう');
+    expect(r.get('日本語')).toBe('にほんご');
+  });
+
+  // annotationRequires keeps kana out. を already reads "o", and the analyser
+  // will happily answer a reading for it, so without the filter the reader
+  // prints は above は.
+  test('never annotates kana', () => {
+    const r = readings();
+    for (const kana of ['を', 'は', 'です', 'ます', 'コーヒー', 'とても']) {
+      expect(r.has(kana), kana).toBe(false);
+    }
+  });
+
+  test('answers every reading in hiragana', () => {
+    for (const [word, reading] of readings()) {
+      expect(reading, word).toMatch(/^[ぁ-ゟー]+$/u);
+    }
+  });
+
+  // The reader holds one reading per folded word, so the map does too. A lesson
+  // that spells one word two ways keeps the first reading rather than flapping.
+  test('holds one reading per word', () => {
+    const r = analyserReadings('本を読む。本を正す。', ja)!;
+    expect(r.get('本')).toBe('ほん');
+    expect([...r.keys()].filter((k) => k === '本')).toHaveLength(1);
   });
 });

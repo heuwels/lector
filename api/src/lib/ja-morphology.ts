@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { gunzipSync } from 'zlib';
 import path from 'path';
 import { createRequire } from 'module';
+import { foldWord, type LanguageConfig } from './languages';
 
 /**
  * Japanese morphological analysis, for the stored word list of #289 4.2.
@@ -34,9 +35,10 @@ export function katakanaToHiragana(value: string): string {
   let out = '';
   for (const char of value) {
     const code = char.codePointAt(0)!;
-    out += code >= KATAKANA_START && code <= KATAKANA_END
-      ? String.fromCodePoint(code + TO_HIRAGANA)
-      : char;
+    out +=
+      code >= KATAKANA_START && code <= KATAKANA_END
+        ? String.fromCodePoint(code + TO_HIRAGANA)
+        : char;
   }
   return out;
 }
@@ -106,12 +108,10 @@ function getTokenizer(): KuromojiTokenizer | null {
 
     let built: KuromojiTokenizer | null = null;
     let buildError: Error | null = null;
-    kuromoji
-      .builder({ dicPath })
-      .build((err: Error | null, instance: KuromojiTokenizer) => {
-        buildError = err;
-        built = instance;
-      });
+    kuromoji.builder({ dicPath }).build((err: Error | null, instance: KuromojiTokenizer) => {
+      buildError = err;
+      built = instance;
+    });
     if (buildError || !built) throw buildError ?? new Error('kuromoji built nothing');
     tokenizer = built;
     return tokenizer;
@@ -143,11 +143,45 @@ export function analyseJapanese(text: string): JaToken[] | null {
     if (token.pos === '記号') continue;
     const surface = token.surface_form;
     if (!surface) continue;
-    const lemma =
-      token.basic_form && token.basic_form !== IPADIC_NULL ? token.basic_form : surface;
+    const lemma = token.basic_form && token.basic_form !== IPADIC_NULL ? token.basic_form : surface;
     const reading =
       token.reading && token.reading !== IPADIC_NULL ? katakanaToHiragana(token.reading) : '';
     out.push({ surface, lemma, reading });
   }
   return out;
+}
+
+/**
+ * Per-word readings for one lesson, keyed the way the reader folds a word.
+ *
+ * Returns null when the analyser is unavailable, so the caller can fall back to
+ * the dictionary.
+ *
+ * A word is skipped when the pack's `annotationRequires` rejects it. For
+ * Japanese that means kana: を already reads "o", and an annotation there says
+ * nothing. The analyser happily answers a reading for every token, so without
+ * this the reader would print は above は.
+ *
+ * The map holds ONE reading per folded word, matching the reader's own model. A
+ * lesson that uses one spelling with two readings keeps the first, which is rare
+ * and strictly better than the dictionary's context-free answer.
+ */
+export function analyserReadings(text: string, pack: LanguageConfig): Map<string, string> | null {
+  const tokens = analyseJapanese(text);
+  if (!tokens) return null;
+
+  const requires = pack.pronunciation.annotationRequires;
+  const requirePattern = requires ? new RegExp(requires, 'u') : null;
+
+  const readings = new Map<string, string>();
+  for (const token of tokens) {
+    if (!token.reading) continue;
+    const key = foldWord(token.surface, pack);
+    if (!key || readings.has(key)) continue;
+    if (requirePattern && !requirePattern.test(key)) continue;
+    // A reading identical to the word teaches nothing. Katakana answers itself.
+    if (token.reading === key) continue;
+    readings.set(key, token.reading);
+  }
+  return readings;
 }
