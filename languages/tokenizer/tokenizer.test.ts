@@ -36,12 +36,16 @@ function legacyWords(text: string): string[] {
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
 // the contract for exactly those packs. Languages added after #289 get their
-// own goldens below instead — ru, grc, uk, zh and ja because the oracle can't
-// see their scripts (zh and ja doubly so: they have no whitespace, so the oracle
-// returns the whole paragraph), and tr because the oracle applies the Afrikaans 'n
-// alternative to every language, which mis-splits a Turkish suffixed proper
-// noun (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to the af pack.
-const CORPUS: Record<Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh' | 'ja'>, string[]> = {
+// own goldens below instead — ru, grc, uk, ko, zh and ja because the oracle
+// can't see their scripts (zh and ja doubly so: they have no whitespace, so the
+// oracle returns the whole paragraph), and tr because the oracle applies the
+// Afrikaans 'n alternative to every language, which mis-splits a Turkish
+// suffixed proper noun (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to
+// the af pack.
+const CORPUS: Record<
+  Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'>,
+  string[]
+> = {
   af: [
     'Hallo, hoe gaan dit met jou?',
     '’n Man loop in die straat. Sy sê: „Dit is ’n mooi dag!“',
@@ -247,7 +251,10 @@ const ru = LANGUAGES.ru;
 const grc = LANGUAGES.grc;
 const ar = synth({ bcp47: 'ar', direction: 'rtl', hasCase: false, sentenceTerminators: '؟.!' });
 const hbo = synth({ bcp47: 'he', direction: 'rtl', hasCase: false });
-const ko = synth({ bcp47: 'ko', kind: 'hangul', hasCase: false });
+// Korean is a real pack now (#289), not a synthetic one. It is the only
+// `hangul` pack, and its goldens below prove the spaced engine needs no
+// per-script code for it.
+const ko = LANGUAGES.ko;
 const zh = synth({
   bcp47: 'zh-Hans',
   kind: 'cjk-unspaced',

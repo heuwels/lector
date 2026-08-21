@@ -15,6 +15,7 @@ import { foldWord, splitSentences } from '@/lib/languages';
 import type { WordState } from '@/types';
 import { collectWords, computePhraseHighlightSet, readableText, splitWords } from './utils';
 import { wordReading, type AnnotationMode } from './annotation';
+import { readerWrapClass } from './wrap';
 import WordCell from '@/components/WordCell';
 
 export interface ActiveReaderWord {
@@ -245,6 +246,8 @@ function ReaderArticle({
     onClearPhrase,
   };
 
+  const wrapClass = readerWrapClass(pack);
+
   return (
     <article
       // The lesson's language, not the interface language. Han unification gives
@@ -254,7 +257,7 @@ function ReaderArticle({
       // text with Chinese forms.
       lang={pack.script.bcp47}
       dir={pack.script.direction}
-      className="mx-auto max-w-[38em] px-4 py-8 text-foreground sm:px-8 sm:py-16 print:px-0 print:py-0"
+      className={`mx-auto max-w-[38em] px-4 py-8 text-foreground sm:px-8 sm:py-16 print:px-0 print:py-0 ${wrapClass}`}
       style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}
     >
       <ReactMarkdown

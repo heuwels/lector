@@ -9,6 +9,7 @@ import type { WordSource } from './types';
 import type { ActiveReaderWord } from './ReaderArticle';
 import { collectWords, computePhraseHighlightSet, splitWords } from './utils';
 import { wordReading, type AnnotationMode } from './annotation';
+import { readerWrapClass } from './wrap';
 import WordCell from '@/components/WordCell';
 
 /** mm:ss / h:mm:ss label for a second offset (mirrors the server helper). */
@@ -77,7 +78,7 @@ function TranscriptReader({
       // lesson's language, not the interface language.
       lang={pack.script.bcp47}
       dir={pack.script.direction}
-      className="mx-auto max-w-[46em] px-4 py-6 text-foreground sm:px-8 sm:py-8"
+      className={`mx-auto max-w-[46em] px-4 py-6 text-foreground sm:px-8 sm:py-8 ${readerWrapClass(pack)}`}
       data-testid="transcript-reader"
     >
       {segments.map((segment, segmentIndex) => {

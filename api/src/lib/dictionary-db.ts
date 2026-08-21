@@ -10,6 +10,7 @@ import {
   stripMarks,
 } from './languages';
 import { esperantoIpa } from '../../../languages/eo/ipa';
+import { stemCandidates } from '../../../languages/morphology';
 import { acceptedDictionaryContentBytes } from './storage-limits';
 
 // x-system fold (#307 §3.4): learners without an Esperanto keyboard type
@@ -1060,6 +1061,39 @@ function resolveWord(
               stem: undoubled,
               label: SUFFIX_LABELS[suffix],
             });
+          }
+        }
+      }
+    }
+
+    // Step 5-morph: peel what the written form carries and the dictionary does
+    // not key. Pack-driven, and ko is the only pack with a `morphology` slice.
+    //
+    // Korean attaches its grammar with no space. 도서관에서 is 도서관 plus the
+    // locative, and 좋아하지 is the stem of 좋아하다 plus a connective. kaikki
+    // enumerates the finite conjugation and neither of those, so steps 1 and 2
+    // answer half a Korean text and this step answers most of the rest.
+    //
+    // It runs last on purpose. 보다 is the verb "to see" and also the
+    // comparative particle, so an exact key has to win before anything is
+    // peeled.
+    if (isValidLanguageCode(language)) {
+      const morphology = getLanguageConfig(language).morphology;
+      if (morphology) {
+        for (const candidate of stemCandidates(lower, morphology)) {
+          const label = `${candidate.peeled.join(' + ')} form of`;
+          const keyRow = stmts.selectEntry.get(candidate.key) as EntryRow | undefined;
+          if (keyRow) {
+            return buildEntry(keyRow, stmts, lower, { stem: keyRow.word, label });
+          }
+          const keyInfl = stmts.selectInflectionLemma.get(candidate.key) as
+            | { lemma: string; type: string | null }
+            | undefined;
+          if (keyInfl) {
+            const lemmaRow = stmts.selectEntry.get(keyInfl.lemma) as EntryRow | undefined;
+            if (lemmaRow) {
+              return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
+            }
           }
         }
       }
