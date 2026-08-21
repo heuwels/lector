@@ -126,6 +126,9 @@ const ReaderBlock = memo(function ReaderBlock({
     highlightedPhrase,
     pack,
   );
+  // Whether the reading sits out of flow above the word, or in the line box
+  // where ruby layout widens the word to fit it. See `annotationOverhang`.
+  const overhangs = pack.pronunciation.annotationOverhang;
 
   const renderChildren = (value: ReactNode, context: { i: number }, keyPrefix = 'r'): ReactNode => {
     if (typeof value === 'string') {
@@ -152,7 +155,7 @@ const ReaderBlock = memo(function ReaderBlock({
             isActive={isActiveWord}
             isPhraseHighlighted={isPhraseHighlighted}
             reading={wordReading(annotationMode, readings, key, state)}
-            readingOverhangs={pack.pronunciation.annotationOverhang === true}
+            readingOverhangs={overhangs}
             onActivate={(text, element) => {
               onClearPhrase();
               onActivateWord({ blockId, wordIndex });
@@ -191,7 +194,6 @@ const ReaderBlock = memo(function ReaderBlock({
   // added its height. The leading only has to keep the lines from crowding, and
   // 2.7 is what Chinese needs to stay legible with pinyin on every word.
   const annotated = annotationMode !== 'off' && readings !== null;
-  const overhangs = pack.pronunciation.annotationOverhang === true;
   const annotatedLeading = overhangs ? 'leading-[2.15]' : 'leading-[2.7]';
   return Tag === 'p' ? (
     <p className={`my-5 text-lg sm:text-xl ${annotated ? annotatedLeading : 'leading-[1.9]'}`}>

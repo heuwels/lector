@@ -68,6 +68,9 @@ function TranscriptReader({
   onClearPhrase,
   onSeek,
 }: TranscriptReaderProps) {
+  // Whether the reading sits out of flow above the word, or in the line box
+  // where ruby layout widens the word to fit it. See `annotationOverhang`.
+  const overhangs = pack.pronunciation.annotationOverhang;
   return (
     <div
       // See the note on the reader article: the glyph shapes follow the
@@ -114,7 +117,7 @@ function TranscriptReader({
             <p
               className={`flex-1 text-lg sm:text-xl ${
                 annotationMode !== 'off' && readings !== null
-                  ? pack.pronunciation.annotationOverhang === true
+                  ? overhangs
                     ? 'leading-[2.15]'
                     : 'leading-[2.7]'
                   : 'leading-[1.9]'
@@ -142,7 +145,7 @@ function TranscriptReader({
                     }
                     isPhraseHighlighted={phraseSet.has(thisIndex)}
                     reading={wordReading(annotationMode, readings, key, state)}
-                    readingOverhangs={pack.pronunciation.annotationOverhang === true}
+                    readingOverhangs={overhangs}
                     onActivate={() => {
                       onClearPhrase();
                       onActivateWord({ blockId: segmentIndex, wordIndex: thisIndex });
