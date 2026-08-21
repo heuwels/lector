@@ -152,6 +152,7 @@ const ReaderBlock = memo(function ReaderBlock({
             isActive={isActiveWord}
             isPhraseHighlighted={isPhraseHighlighted}
             reading={wordReading(annotationMode, readings, key, state)}
+            readingOverhangs={pack.pronunciation.annotationOverhang === true}
             onActivate={(text, element) => {
               onClearPhrase();
               onActivateWord({ blockId, wordIndex });
@@ -180,18 +181,24 @@ const ReaderBlock = memo(function ReaderBlock({
   };
 
   const content = renderChildren(children, { i: 0 });
-  // An annotated paragraph needs headroom for the reading, which sits above the
-  // word. The annotation is positioned out of flow, so it adds nothing to the
-  // line box and the leading has to reserve the room itself. 2.15 fits a 0.58em
-  // reading with a little air; 2.7 was more than it needed and pulled the
-  // paragraph apart.
+  // An annotated paragraph needs headroom for the reading above the word, and
+  // how much depends on the layout.
+  //
+  // An OVERHANGING annotation is out of flow, so it adds nothing to the line box
+  // and the leading reserves the room itself. 2.15 fits a 0.58em reading.
+  //
+  // An IN-FLOW annotation is part of the line box already, so the browser has
+  // added its height. The leading only has to keep the lines from crowding, and
+  // 2.7 is what Chinese needs to stay legible with pinyin on every word.
   const annotated = annotationMode !== 'off' && readings !== null;
+  const overhangs = pack.pronunciation.annotationOverhang === true;
+  const annotatedLeading = overhangs ? 'leading-[2.15]' : 'leading-[2.7]';
   return Tag === 'p' ? (
-    <p className={`my-5 text-lg sm:text-xl ${annotated ? 'leading-[2.15]' : 'leading-[1.9]'}`}>
+    <p className={`my-5 text-lg sm:text-xl ${annotated ? annotatedLeading : 'leading-[1.9]'}`}>
       {content}
     </p>
   ) : (
-    <li className={annotated ? 'leading-[2.05]' : 'leading-relaxed'}>{content}</li>
+    <li className={annotated ? annotatedLeading : 'leading-relaxed'}>{content}</li>
   );
 }, readerBlockPropsEqual);
 

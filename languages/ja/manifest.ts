@@ -149,6 +149,10 @@ export const ja = {
     // are archaic kanji-words in the dictionary, so a lookup returns something
     // unrelated. See the note on annotationRequires.
     annotationRequires: '[\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF]',
+    // Kana is no wider than the kanji beneath it, so the annotation sits above
+    // the word instead of widening it. Pinyin is wider, which is why zh leaves
+    // this off. See annotationOverhang.
+    annotationOverhang: true,
   },
   script: {
     // Plain 'ja', not 'ja-JP'. The tag is handed to Intl.Segmenter and to the
