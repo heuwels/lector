@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import fs from 'fs';
 import path from 'path';
-import { lookupReadings } from './dictionary-db';
+import { lookupReadings, lookupWord } from './dictionary-db';
 
 // Furigana for the reader's annotation layer (#214). The real dictionary-ja.db
 // is a release asset, so this builds a miniature one with the production schema
@@ -31,6 +31,7 @@ beforeAll(() => {
     );
   `);
   const entry = db.prepare('INSERT INTO entries (word, rank, ipa) VALUES (?, ?, ?)');
+  const sense = db.prepare('INSERT INTO senses (word, pos, gloss) VALUES (?, ?, ?)');
   entry.run('図書館', 10, 'としょかん');
   entry.run('東京', 20, 'とうきょう');
   entry.run('新しい', 30, 'あたらしい');
@@ -42,6 +43,19 @@ beforeAll(() => {
   entry.run('ます', 60, 'もうす');
   // A katakana word is its own reading, so it needs no annotation.
   entry.run('コーヒー', 70, 'こーひー');
+  // Verbs and an adjective, for the base-form step. Every one is keyed on its
+  // DICTIONARY form, which is the whole reason a tap on 読ん needed help.
+  for (const [word, gloss] of [
+    ['読む', 'to read'],
+    ['食べる', 'to eat'],
+    ['飲む', 'to drink'],
+    ['書く', 'to write'],
+    ['本', 'book'],
+  ] as const) {
+    entry.run(word, 80, null);
+    sense.run(word, 'verb', gloss);
+  }
+  sense.run('図書館', 'noun', 'library');
   db.close();
   process.env.DICT_DIR = FIXTURE_DIR;
 });
@@ -84,4 +98,42 @@ describe('Japanese furigana lookup (#214)', () => {
   // the process. Touching zh from here caches it as "no dictionary" and fails
   // the zh fixture suite that runs later. dictionary-db.readings.test.ts owns
   // the zh side.
+});
+
+// A Japanese lesson stores the analyser's surfaces as its word list, so these
+// are the strings a reader actually taps. Before the base-form step every one of
+// them missed, which is why a verb showed furigana and defined nothing.
+describe('Japanese base-form lookup (#214)', () => {
+  const USER = 'ja-fixture-user';
+  const resolve = (word: string) => lookupWord(USER, word, 'ja');
+
+  test('answers a conjugated stem with its dictionary form', () => {
+    for (const [surface, lemma, gloss] of [
+      ['読ん', '読む', 'to read'],
+      ['食べ', '食べる', 'to eat'],
+      ['飲み', '飲む', 'to drink'],
+      ['書か', '書く', 'to write'],
+    ] as const) {
+      const entry = resolve(surface);
+      expect(entry?.lemmaInfo, surface).toEqual({ stem: lemma, label: 'base form of' });
+      expect(entry?.senses[0]?.gloss, surface).toBe(gloss);
+    }
+  });
+
+  test('leaves an exact entry alone', () => {
+    const entry = resolve('図書館');
+    expect(entry?.senses[0]?.gloss).toBe('library');
+    expect(entry?.lemmaInfo).toBeUndefined();
+  });
+
+  // The guard. A drag-selected phrase analyses into several tokens, and taking
+  // the first one would define 本 for 本を読ん.
+  test('refuses a phrase rather than defining its first word', () => {
+    expect(resolve('本を読ん')).toBeUndefined();
+    expect(resolve('図書館で読ん')).toBeUndefined();
+  });
+
+  test('answers nothing when the base form is not an entry', () => {
+    expect(resolve('泳が')).toBeUndefined();
+  });
 });

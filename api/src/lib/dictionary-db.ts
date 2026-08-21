@@ -11,6 +11,7 @@ import {
 } from './languages';
 import { esperantoIpa } from '../../../languages/eo/ipa';
 import { stemCandidates } from '../../../languages/morphology';
+import { analyseJapanese } from './ja-morphology';
 import { acceptedDictionaryContentBytes } from './storage-limits';
 
 // x-system fold (#307 §3.4): learners without an Esperanto keyboard type
@@ -1095,6 +1096,36 @@ function resolveWord(
             if (lemmaRow) {
               return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
             }
+          }
+        }
+      }
+    }
+
+    // Step 5-ja: ask the analyser for the base form. Japanese cannot use the
+    // peel above, because its endings are not a list a pack can hold. 読ん, 食べ
+    // and 書か are three stem shapes of one conjugation, and the analyser is
+    // what tells them apart.
+    //
+    // A Japanese lesson stores the analyser's surfaces as its word list (see
+    // buildSegmentWords), so a reader taps 読ん and not 読んでいました. The
+    // dictionary keys 読む and holds no 読ん, which left every verb in the
+    // language with furigana above it and no definition behind it.
+    //
+    // ONE token only. Given a single reader token the analyser answers the stem
+    // it came from, and 読ん gives 読む. Given a drag-selected phrase it answers
+    // the first word instead, so 本を読ん would define 本. That is a confident
+    // wrong answer where a miss is the honest one.
+    if (language === 'ja') {
+      const analysed = analyseJapanese(lower);
+      if (analysed?.length === 1) {
+        const lemma = analysed[0].lemma;
+        if (lemma && lemma !== lower) {
+          const lemmaRow = stmts.selectEntry.get(lemma) as EntryRow | undefined;
+          if (lemmaRow) {
+            return buildEntry(lemmaRow, stmts, lower, {
+              stem: lemmaRow.word,
+              label: 'base form of',
+            });
           }
         }
       }
