@@ -13,7 +13,13 @@ services:
     #         - capabilities: [gpu]
 
   lector:
-    image: ghcr.io/heuwels/lector:${LECTOR_VERSION:-latest}
+    # Pulled through registry.lector.dev, which counts pulls so we have a rough
+    # idea how many installs exist. No IP address is stored — see
+    # https://lector.dev/privacy/
+    image: registry.lector.dev/lector:${LECTOR_VERSION:-latest}
+    # Use this instead if you would rather not be included in rough install
+    # statistics gathering. Identical image, pulled straight from GitHub.
+    # image: ghcr.io/heuwels/lector:${LECTOR_VERSION:-latest}
     container_name: lector
     restart: unless-stopped
     depends_on:
