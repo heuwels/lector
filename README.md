@@ -53,7 +53,16 @@ export ANTHROPIC_API_KEY=sk-ant-...
 docker compose up -d
 ```
 
-The image is `ghcr.io/heuwels/lector:latest`. A production Compose file with health checks lives in [`deploy/`](deploy/). Full environment notes live in [`deploy/README.md`](deploy/README.md).
+The image is `registry.lector.dev/lector:latest`. That is our own address in
+front of GitHub's registry, and pulling through it is the only way we have any
+idea how many installs exist — GitHub publishes no pull statistics. No IP
+address is stored; the [privacy policy](https://lector.dev/privacy/) explains
+what is recorded and how. To stay out of those numbers, pull
+`ghcr.io/heuwels/lector:latest` instead — it is the identical image, and both
+Compose files carry it as a commented-out line.
+
+A production Compose file with health checks lives in [`deploy/`](deploy/). Full
+environment notes live in [`deploy/README.md`](deploy/README.md).
 
 If you do not want to run a server, use the hosted app at [app.lector.dev](https://app.lector.dev). Paid plans start at $5 per month.
 
