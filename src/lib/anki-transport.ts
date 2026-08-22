@@ -5,12 +5,15 @@
  * deployment-mode inference:
  *
  *   - 'ankiconnect' — browser→localhost AnkiConnect (src/lib/anki.ts), the
- *     selfhost default and today's behaviour.
+ *     legacy path. Still the selfhost default, so existing installs keep
+ *     working. Lector retires this path later.
  *   - 'addon'       — server-side queue + the Lector Sync addon
- *     (src/lib/anki-queue.ts). Forced in cloud, where Chrome's Local Network
- *     Access blocks a public HTTPS origin from reaching loopback; opt-in for
- *     self-hosters (Settings → Anki Integration) whose Lector is served over
- *     HTTPS or from another machine — the same constraints bite there.
+ *     (src/lib/anki-queue.ts), published on AnkiWeb as add-on 1098736891.
+ *     This is the recommended transport. Forced in cloud, where Chrome's
+ *     Local Network Access blocks a public HTTPS origin from reaching
+ *     loopback. Opt-in for self-hosters (Settings → Anki Integration) who
+ *     serve Lector over HTTPS or from another machine, where the same
+ *     constraints apply.
  *
  * Selfhost reads the `ankiTransport` setting, failing safe to 'ankiconnect'
  * so existing installs behave exactly as before (plan 010's invariant).
