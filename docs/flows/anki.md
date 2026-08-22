@@ -1,8 +1,10 @@
 # Anki domain
 
-This domain pushes cards out. It also writes the state of reviews back to Lector. Transport is AnkiConnect or the Lector Sync add-on.
+This domain pushes cards out. It also writes the state of reviews back to Lector. Two transports exist. The Lector Sync add-on is the recommended transport. AnkiConnect is the legacy transport.
 
-`useAnkiTransport` in `src/lib/anki-transport.ts` chooses the path. Cloud always uses `addon`. Self-host reads `settings.ankiTransport` and defaults to `ankiconnect`.
+The add-on is on AnkiWeb as [Lector Sync](https://ankiweb.net/shared/info/1098736891). The add-on code is `1098736891`. AnkiConnect stays available for a local self-host until Lector retires it.
+
+`useAnkiTransport` in `src/lib/anki-transport.ts` chooses the path. Cloud always uses `addon`. Self-host reads `settings.ankiTransport`. The self-host default is still `ankiconnect`.
 
 ## Push to Anki
 
@@ -28,7 +30,7 @@ flowchart TD
 | Role | Path | Function |
 | --- | --- | --- |
 | Transport | `src/lib/anki-transport.ts` | `useAnkiTransport` |
-| AnkiConnect | `src/lib/anki.ts` | `addWordCard`, `addClozeCard`, `addBasicCard`, `ankiRequest` |
+| AnkiConnect (legacy) | `src/lib/anki.ts` | `addWordCard`, `addClozeCard`, `addBasicCard`, `ankiRequest` |
 | Queue | `src/lib/anki-queue.ts` | `queueForAnki` |
 | Reader | `src/app/read/[bookId]/page.tsx` | `addWordToAnki`, `addClozeToAnki` |
 | Vocab | `src/app/vocab/page.tsx` | `handleExportToAnki` |

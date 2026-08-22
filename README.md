@@ -70,7 +70,7 @@ If you do not want to run a server, use the hosted app at [app.lector.dev](https
 
 - **Cloze practice.** Frequency-ordered sentences. Choose an answer from a list, or type the missing word. Spaced repetition (SRS) with mastery levels.
 - **Vocabulary.** Save words as you read. Track known and learning states. Save phrases as well as single words.
-- **Anki.** The self-host can push cards to AnkiConnect on the computer that runs Anki. Cloud mode and a remote HTTPS self-host use the [Lector Sync add-on](https://ankiweb.net/shared/info/1098736891) on AnkiWeb. The add-on code is `1098736891`. Reviews in Anki can update mastery in Lector.
+- **Anki.** The [Lector Sync add-on](https://ankiweb.net/shared/info/1098736891) on AnkiWeb is the recommended integration. The add-on code is `1098736891`. Cloud mode and a remote HTTPS self-host always use it. A local self-host can instead push cards to AnkiConnect on the computer that runs Anki. Reviews in Anki can update mastery in Lector.
 - **Tutor and journal.** Ask grammar questions in plain language. Write in the target language. The tutor returns corrections. Use the Claude API or a local model.
 - **Listen.** Optional text-to-speech (TTS). YouTube captions stay timestamped. A podcast upload can become a transcript and a listen-along lesson.
 - **Data.** SQLite on your server. Export and restore from Settings. The self-host does not need a cloud account.
