@@ -18,6 +18,15 @@ inference costs. Lector publishes the payments each year, not the accounts.
 Lector pays once per year, in a single transfer to each recipient. Bank fees and
 administration make small monthly transfers wasteful.
 
+Every payment appears at [lector.dev/funding](https://lector.dev/funding/), with
+the date, the amount, and a receipt.
+
+## Payments so far
+
+| Date | Recipient | Amount | Method |
+| --- | --- | --- | --- |
+| 22 August 2026 | Tatoeba | $600 USD, sent as EUR 513.78 | PayPal |
+
 ## Where the money goes
 
 The annual total at the floor is $1,200.
