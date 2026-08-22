@@ -1,6 +1,11 @@
 # Lector
 
-A self-hosted language reader. Import the text that you want to read. Tap a word for a translation. Save it. Practise it. Send it to Anki.
+Lector is a language-learning reader. It is an open-source alternative to
+LingQ and Clozemaster. Use [Lector Cloud](https://app.lector.dev), or self-host
+it with one Docker Compose file.
+
+Import the text that you want to read. Tap a word for a translation. Save it.
+Practise it. Send it to Anki. A self-host stores data in one SQLite file.
 
 [Try the hosted app](https://app.lector.dev) · [Docs](https://lector.dev) · [Discord](https://discord.gg/XBEnx2ZWd5)
 
@@ -10,13 +15,21 @@ A self-hosted language reader. Import the text that you want to read. Tap a word
 
 ![The Lector reader with colour-coded word states](https://lector.dev/images/reader.png)
 
-One Docker Compose file starts the app.
-
 A local dictionary covers common words with no API key.
 
 Optional local models run through the bundled Ollama service.
 
 Optional cloud models cover rare words and the tutor.
+
+| App | Host | Database | Anki |
+| --- | --- | --- | --- |
+| **Lector** | Lector Cloud, or one Compose file | SQLite | Two-way (beta) |
+| [LingQ](https://lector.dev/vs/lingq/) | Hosted only | Cloud | File export |
+| [Clozemaster](https://lector.dev/vs/clozemaster/) | Hosted only | Cloud | No documented export |
+| [Lute](https://lector.dev/vs/lute/) | pip, Docker, or source | Local files | One-way AnkiConnect |
+| [LinguaCafe](https://lector.dev/vs/linguacafe/) | Four Compose services | MySQL | One-way AnkiConnect |
+
+Full pages live at [lector.dev/vs](https://lector.dev/vs/).
 
 ## Quick start
 
