@@ -18,10 +18,8 @@ COPY . .
 # purpose: next.config stamps it via `new Date()` during `npm run build`.
 ARG APP_VERSION=
 ARG GIT_COMMIT=
-ARG GIT_BRANCH=
 ENV APP_VERSION=$APP_VERSION
 ENV GIT_COMMIT=$GIT_COMMIT
-ENV GIT_BRANCH=$GIT_BRANCH
 RUN npm run build
 
 # ── Dictionary fetch stage ──────────────────────────────────────────────────

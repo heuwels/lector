@@ -176,7 +176,6 @@ jobs:
           local_tag: lector:e2e
           pr_number: ${{ github.event.pull_request.number }}
           git_commit: ${{ github.event.pull_request.head.sha || github.sha }}
-          git_branch: ${{ github.head_ref || github.ref_name }}
       - name: Cloud mode without a secret refuses to boot (fail-closed guard, #242/#218)
         # LECTOR_MODE=cloud runs built-in accounts (#218) and must exit
         # non-zero without BETTER_AUTH_SECRET — never sign sessions with the
@@ -283,4 +282,3 @@ jobs:
           push: true
           pr_number: ${{ github.event.pull_request.number }}
           git_commit: ${{ github.event.pull_request.head.sha || github.sha }}
-          git_branch: ${{ github.head_ref || github.ref_name }}

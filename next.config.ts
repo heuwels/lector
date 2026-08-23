@@ -22,14 +22,10 @@ function git(command: string): string {
 
 const appVersion =
   process.env.APP_VERSION?.trim() ||
-  git("git describe --tags --always --dirty") ||
+  git("git describe --tags --match 'v*' --always --dirty") ||
   "unknown";
 const gitCommit =
   process.env.GIT_COMMIT?.trim() || git("git rev-parse HEAD") || "unknown";
-const gitBranch =
-  process.env.GIT_BRANCH?.trim() ||
-  git("git rev-parse --abbrev-ref HEAD") ||
-  "unknown";
 const buildTime = process.env.BUILD_TIME?.trim() || new Date().toISOString();
 
 const nextConfig: NextConfig = {
@@ -44,7 +40,6 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: appVersion,
     NEXT_PUBLIC_GIT_COMMIT: gitCommit,
-    NEXT_PUBLIC_GIT_BRANCH: gitBranch,
     NEXT_PUBLIC_BUILD_TIME: buildTime,
   },
 };

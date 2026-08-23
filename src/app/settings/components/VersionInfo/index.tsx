@@ -6,6 +6,7 @@ import {
   commitShort,
   commitUrl,
   formatBuildTime,
+  formatBuildVersion,
   isKnown,
   relativeBuildAge,
 } from '@/lib/build-info';
@@ -28,7 +29,7 @@ function Row({
 }
 
 export default function VersionInfo() {
-  const { version, commit, branch, buildTime } = buildInfo;
+  const { version, commit, buildTime } = buildInfo;
   const href = commitUrl(commit);
   const built = formatBuildTime(buildTime);
 
@@ -43,7 +44,12 @@ export default function VersionInfo() {
     <section className="panel p-6">
       <h2 className="mb-4 text-lg font-semibold text-foreground">About</h2>
       <dl className="space-y-3 text-sm">
-        <Row label="Version">{version}</Row>
+        {/*
+          "Build", not "Version". Release images are retagged rather than
+          rebuilt, and deploys go out by commit SHA, so this string names the
+          build the bundle came from. It is not the release the user runs.
+        */}
+        <Row label="Build">{formatBuildVersion(version)}</Row>
         {isKnown(commit) && (
           <Row label="Commit">
             {href ? (
@@ -60,7 +66,6 @@ export default function VersionInfo() {
             )}
           </Row>
         )}
-        {isKnown(branch) && <Row label="Branch">{branch}</Row>}
         {built && (
           <Row label="Built" mono={false}>
             {built}
