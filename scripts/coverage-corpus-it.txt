@@ -1,6 +1,12 @@
 # Build-time coverage corpus for build-dictionary.ts --lang it.
 # Top-5000 wordfreq-it tokens, alpha-filtered to [a-zàèéìíîòóù]+. One per line; '#' = comment.
 # Regenerate: pip install wordfreq && python scripts/gen-coverage-corpus-it.py 5000
+# Extra elision tokens the wordfreq filter drops. The coverage gate needs them
+# so a rebuild can see the tokenizer's new apostrophe-joined shape.
+c'è
+dov'è
+l'italiano
+po'
 di
 e
 che

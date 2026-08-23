@@ -46,7 +46,7 @@ MIN_SENTENCE_WORDS = 4
 MAX_SENTENCE_WORDS = 20
 MAX_OPTIONS_PER_WORD = 80
 CONTENT_PARTS_OF_SPEECH = {'adj', 'adv', 'intj', 'noun', 'num', 'verb'}
-ITALIAN_WORD = re.compile(r'^[a-zàèéìíîòóù]+$')
+ITALIAN_WORD = re.compile(r"^[a-zàèéìíîòóù]+(?:'[a-zàèéìíîòóù]+)*'?$")
 APOSTROPHES = re.compile(r"['‘’ʼ`]+")
 
 # Keep this aligned with languages/it/manifest.ts. The POS filter removes most
@@ -79,6 +79,8 @@ AVOID_WORDS = {
     'più', 'già', 'anche', 'molto',
     "c'è", "c'era", "c'erano", "l'ho", "l'ha", "l'hanno",
     "s'è", "n'è", "cos'è",
+    'l', 'd', 'all', 'dall', 'dell', 'nell', 'sull', 'coll',
+    'c', 'm', 't', 's', 'v', 'gliel', 'quest', 'quell', 'tutt', 'com',
 }
 
 
@@ -263,8 +265,9 @@ def load_english(path: Path, needed_ids: set[int]) -> dict[int, str]:
 
 
 def token_parts(raw_token: str) -> list[str]:
-    # Unicode punctuation/symbols at the outside are display-only. Apostrophes
-    # inside the token are semantic boundaries in the runtime tokenizer.
+    # Unicode punctuation/symbols at the outside are display-only. The whole
+    # token is a candidate (C'è). The split halves still match a wordfreq
+    # content word inside an elision (acqua in L'acqua).
     start = 0
     end = len(raw_token)
     while start < end and unicodedata.category(raw_token[start])[0] in {'P', 'S'}:
@@ -272,7 +275,11 @@ def token_parts(raw_token: str) -> list[str]:
     while end > start and unicodedata.category(raw_token[end - 1])[0] in {'P', 'S'}:
         end -= 1
     clean = normalize(raw_token[start:end]).lower()
-    return [part for part in APOSTROPHES.split(clean) if part]
+    if not clean:
+        return []
+    parts = [clean]
+    parts.extend(part for part in APOSTROPHES.split(clean) if part and part != clean)
+    return parts
 
 
 def sentence_matches(text: str, candidate_words: set[str]) -> dict[str, tuple[str, int]]:

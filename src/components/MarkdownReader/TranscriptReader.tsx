@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import { Play } from 'lucide-react';
 import type { LanguageConfig, WordSegmentation } from '@/lib/languages';
-import { foldWord } from '@/lib/languages';
+import { foldWord, lookupByVocabKeys } from '@/lib/languages';
 import type { TranscriptSegment, WordState } from '@/types';
 import type { WordSource } from './types';
 import type { ActiveReaderWord } from './ReaderArticle';
@@ -135,7 +135,7 @@ function TranscriptReader({
                 wordIndex += 1;
                 const thisIndex = wordIndex;
                 const key = foldWord(part.text, pack);
-                const state = knownWordsMap.get(key);
+                const state = lookupByVocabKeys(knownWordsMap, part.text, pack);
                 return (
                   <WordCell
                     key={partIndex}

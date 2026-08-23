@@ -3,7 +3,7 @@
 // attached (e.g. "haar."), so anything matching, displaying, or persisting a
 // cloze word must strip it first (issues #68, #108).
 
-import { foldWord, tokenizeWords, type LanguageConfig } from './languages';
+import { foldWord, tokenizeWords, vocabKeys, type LanguageConfig } from './languages';
 
 /**
  * Strip surrounding punctuation from a cloze word, returning [cleanWord,
@@ -32,9 +32,10 @@ export function splitTrailingPunctuation(word: string): [string, string] {
  *
  * Tokenization is the pack's (#289): French elisions arrive pre-split
  * (l'eau → l + eau), so the content word matches directly. Italian keeps
- * the elision as one token (l'acqua). A multi-token target (legacy vocab
- * like "l'eau", or a short phrase) matches when its word tokens appear as
- * a consecutive run.
+ * the elision as one token (l'acqua). A single-token target also matches
+ * when either side peels to the same stem, so `acqua` hits `dell'acqua`.
+ * A multi-token target (legacy vocab like "l'eau", or a short phrase)
+ * matches when its word tokens appear as a consecutive run.
  */
 export function sentenceContainsWord(
   sentence: string,
@@ -45,7 +46,12 @@ export function sentenceContainsWord(
   if (targetTokens.length === 0) return false;
 
   const sentenceTokens = tokenizeWords(sentence, pack).map((t) => foldWord(t.text, pack));
-  if (targetTokens.length === 1) return sentenceTokens.includes(targetTokens[0]);
+  if (targetTokens.length === 1) {
+    const targetKeys = new Set(vocabKeys(targetTokens[0], pack));
+    return sentenceTokens.some((token) =>
+      vocabKeys(token, pack).some((key) => targetKeys.has(key)),
+    );
+  }
 
   outer: for (let i = 0; i <= sentenceTokens.length - targetTokens.length; i++) {
     for (let j = 0; j < targetTokens.length; j++) {

@@ -14,8 +14,19 @@ async function switchToItalian(page: Page) {
   await expect(selector).toContainText('Italiano');
 }
 
+async function deleteItalianDemo(page: Page) {
+  const res = await page.request.get(apiUrl('/api/collections'));
+  const collections = await res.json();
+  for (const collection of collections) {
+    if (collection.title === COLLECTION) {
+      await page.request.delete(apiUrl(`/api/collections/${collection.id}`));
+    }
+  }
+}
+
 test.describe('Italian language pack', () => {
   test.afterEach(async ({ page }) => {
+    await deleteItalianDemo(page);
     await page.request.put(apiUrl('/api/settings/targetLanguage'), { data: { value: 'af' } });
   });
 
@@ -53,8 +64,36 @@ test.describe('Italian language pack', () => {
     await expect(drawer.getByText('Italian', { exact: false }).first()).toBeVisible({
       timeout: 10000,
     });
+  });
 
-    await page.request.delete(apiUrl(`/api/collections/${collectionId}`));
+  test("reader defines C'è from the on-device dictionary", async ({ page }) => {
+    await switchToItalian(page);
+
+    const colRes = await page.request.post(apiUrl('/api/collections'), {
+      data: { title: COLLECTION, language: 'it' },
+    });
+    const { id: collectionId } = await colRes.json();
+    await page.request.post(apiUrl(`/api/collections/${collectionId}/lessons`), {
+      data: {
+        title: "C'è",
+        textContent: "C'è un'amica qui.",
+      },
+    });
+    const lessons = await (
+      await page.request.get(apiUrl(`/api/collections/${collectionId}/lessons`))
+    ).json();
+
+    await page.goto(`/read/${lessons[0].id}`);
+    await page.waitForLoadState('networkidle');
+
+    const word = page.getByText("C'è", { exact: true }).first();
+    await expect(word).toBeVisible({ timeout: 10000 });
+    await word.click();
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByText('on-device', { exact: false })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('the live lookup API peels an elision and folds the apostrophe', async ({ page }) => {
@@ -71,5 +110,13 @@ test.describe('Italian language pack', () => {
       )
     ).json();
     expect(curly.entry?.lemmaInfo?.stem ?? curly.entry?.word).toBe('italiano');
+
+    const contraction = await (
+      await page.request.get(
+        apiUrl(`/api/dictionary/lookup?word=${encodeURIComponent("C'è")}&language=it`),
+      )
+    ).json();
+    expect(contraction.entry).toBeTruthy();
+    expect(contraction.entry?.source).toBe('dict');
   });
 });

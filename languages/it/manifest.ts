@@ -185,6 +185,25 @@ const AVOID_WORDS = new Set([
   "s'è",
   "n'è",
   "cos'è",
+  // Fragments still arrive from wordfreq and from older split tokens.
+  'l',
+  'd',
+  'all',
+  'dall',
+  'dell',
+  'nell',
+  'sull',
+  'coll',
+  'c',
+  'm',
+  't',
+  's',
+  'v',
+  'gliel',
+  'quest',
+  'quell',
+  'tutt',
+  'com',
 ]);
 
 export const it = {
@@ -222,7 +241,10 @@ export const it = {
   morphology: {
     clitics: [],
     maxClitics: 0,
-    minStem: 2,
+    // 1 so C'è / dov'è / cos'è peel to è against a dictionary that has no
+    // apostrophe keys (dict-it-2026-07-12). Each prefix carries a literal
+    // apostrophe, so a one-letter stem cannot fire by accident.
+    minStem: 1,
     prefixes: [
       "gliel'",
       "quest'",

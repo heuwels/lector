@@ -1559,6 +1559,13 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
     const hit = exact.get(lower) as { word: string } | undefined;
     if (hit) return hit;
 
+    // Mirror of dictionary-db.ts step 1b: the tokenizer drops a trailing
+    // apostrophe (po'), so retry the keyed form.
+    if (!lower.endsWith("'")) {
+      const clipped = exact.get(`${lower}'`) as { word: string } | undefined;
+      if (clipped) return clipped;
+    }
+
     const infl = byInflection.get(lower) as { lemma: string } | undefined;
     if (infl) {
       const lemma = exact.get(infl.lemma) as { word: string } | undefined;

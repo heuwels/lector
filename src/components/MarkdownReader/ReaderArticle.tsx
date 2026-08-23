@@ -11,7 +11,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import type { LanguageConfig, WordSegmentation } from '@/lib/languages';
-import { foldWord, splitSentences } from '@/lib/languages';
+import { foldWord, lookupByVocabKeys, splitSentences, vocabKeys } from '@/lib/languages';
 import type { WordState } from '@/types';
 import { collectWords, computePhraseHighlightSet, readableText, splitWords } from './utils';
 import { wordReading, type AnnotationMode } from './annotation';
@@ -97,8 +97,8 @@ export function readerBlockPropsEqual(previous: ReaderBlockProps, next: ReaderBl
 
   if (previous.knownWordsMap === next.knownWordsMap) return true;
   const words = new Set(
-    collectWords(previous.children, previous.pack, previous.segmentation).map((word) =>
-      foldWord(word, previous.pack),
+    collectWords(previous.children, previous.pack, previous.segmentation).flatMap((word) =>
+      vocabKeys(word, previous.pack),
     ),
   );
   for (const word of words) {
@@ -144,7 +144,7 @@ const ReaderBlock = memo(function ReaderBlock({
 
         const wordIndex = context.i++;
         const key = foldWord(part.text, pack);
-        const state = knownWordsMap.get(key);
+        const state = lookupByVocabKeys(knownWordsMap, part.text, pack);
         const isPhraseHighlighted = phraseSet.has(wordIndex);
         const isActiveWord = activeWord?.blockId === blockId && activeWord.wordIndex === wordIndex;
 

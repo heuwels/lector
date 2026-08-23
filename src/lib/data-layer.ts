@@ -6,7 +6,13 @@
  * src/types.
  */
 
-import { DEFAULT_LANGUAGE, foldWord, getLanguageConfig, isValidLanguageCode } from './languages';
+import {
+  DEFAULT_LANGUAGE,
+  foldWord,
+  getLanguageConfig,
+  isValidLanguageCode,
+  lookupByVocabKeys,
+} from './languages';
 import { apiFetch, apiUrl } from './api-base';
 import { activeTenantId, readLanguageCache } from './language-cache';
 import { cachedQuery, clearTenantQueries, invalidateQueries, type QueryKey } from './query-cache';
@@ -658,7 +664,7 @@ export async function deleteVocabEntry(id: string): Promise<void> {
 
 export async function getWordState(word: string): Promise<WordState | undefined> {
   const map = await getKnownWordsMap();
-  return map.get(foldWord(word, getActivePack()));
+  return lookupByVocabKeys(map, word, getActivePack());
 }
 
 export async function updateWordState(word: string, state: WordState): Promise<boolean> {

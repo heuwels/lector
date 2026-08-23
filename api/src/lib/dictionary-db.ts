@@ -980,6 +980,16 @@ function resolveWord(
     const exact = stmts.selectEntry.get(lower) as EntryRow | undefined;
     if (exact) return buildEntry(exact, stmts, lower);
 
+    // 1b. Trailing apostrophe (it: po' / de' / va' / da'). The tokenizer
+    // never emits a joiner at a token edge, so the reader token is `po`
+    // while kaikki (and a rebuilt letterClass) keys `po'`.
+    if (!lower.endsWith("'")) {
+      const clipped = stmts.selectEntry.get(`${lower}'`) as EntryRow | undefined;
+      if (clipped) {
+        return buildEntry(clipped, stmts, lower, { stem: clipped.word, label: 'form of' });
+      }
+    }
+
     // 2. Inflection table (e.g. "katte" → "kat")
     const infl = stmts.selectInflectionLemma.get(lower) as
       | { lemma: string; type: string | null }

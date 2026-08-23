@@ -11,7 +11,9 @@ const USER = 'it-fixture-user';
 
 beforeAll(() => {
   fs.mkdirSync(FIXTURE_DIR, { recursive: true });
-  const db = new Database(path.join(FIXTURE_DIR, 'dictionary-it.db'));
+  const dbPath = path.join(FIXTURE_DIR, 'dictionary-it.db');
+  fs.rmSync(dbPath, { force: true });
+  const db = new Database(dbPath);
   db.exec(`
     CREATE TABLE entries (word TEXT PRIMARY KEY, rank INTEGER, ipa TEXT, etymology TEXT);
     CREATE TABLE senses (
@@ -36,6 +38,7 @@ beforeAll(() => {
     ['acqua', 'noun', 'water'],
     ["c'è", 'verb', 'there is'],
     ['è', 'verb', 'is'],
+    ["po'", 'adv', 'a bit'],
   ];
   for (const [word, pos, gloss] of words) {
     entry.run(word, 10);
@@ -84,5 +87,16 @@ describe('Italian elision lookup', () => {
 
   test('folds sentence-initial case on a content word', () => {
     expect(resolved('Italiano').stem).toBe('italiano');
+  });
+
+  test("peels C'è-shaped forms when the contraction is absent", () => {
+    expect(resolved("dov'è").stem).toBe('è');
+    expect(resolved("cos'è").stem).toBe('è');
+  });
+
+  test('retries a trailing apostrophe that the tokenizer dropped', () => {
+    const hit = lookupWord(USER, 'po', 'it');
+    expect(hit?.lemmaInfo?.stem).toBe("po'");
+    expect(hit?.senses?.[0]?.gloss).toBe('a bit');
   });
 });
