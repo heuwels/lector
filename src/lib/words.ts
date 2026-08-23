@@ -30,10 +30,11 @@ export function splitTrailingPunctuation(word: string): [string, string] {
  * carries the sentence of the word the user actually clicked, which may only
  * contain an inflected form.
  *
- * Tokenization is the pack's (#289): elisions arrive pre-split (l'eau →
- * l + eau), so the content word matches directly. A multi-token target
- * (legacy vocab like "l'eau", or a short phrase) matches when its word tokens
- * appear as a consecutive run.
+ * Tokenization is the pack's (#289): French elisions arrive pre-split
+ * (l'eau → l + eau), so the content word matches directly. Italian keeps
+ * the elision as one token (l'acqua). A multi-token target (legacy vocab
+ * like "l'eau", or a short phrase) matches when its word tokens appear as
+ * a consecutive run.
  */
 export function sentenceContainsWord(
   sentence: string,

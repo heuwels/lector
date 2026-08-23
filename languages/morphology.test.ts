@@ -113,3 +113,23 @@ describe('Indonesian stemCandidates', () => {
     expect(keys('mengalami', id)[0]).toBe('alami');
   });
 });
+
+const italianMorph = LANGUAGES.it.morphology as MorphologyConfig;
+
+describe('Italian stemCandidates', () => {
+  it('peels an article elision from the content word', () => {
+    expect(keys("l'italiano", italianMorph)).toContain('italiano');
+    expect(keys("un'amica", italianMorph)).toContain('amica');
+    expect(keys("dell'acqua", italianMorph)).toContain('acqua');
+  });
+
+  it('takes the longest elision prefix first', () => {
+    expect(keys("dell'acqua", italianMorph)[0]).toBe('acqua');
+    expect(keys("dell'acqua", italianMorph)).not.toContain("ell'acqua");
+  });
+
+  it('peels a clitic elision from a verb', () => {
+    expect(keys("gliel'ho", italianMorph)).toContain('ho');
+    expect(keys("c'è", italianMorph)).toEqual([]);
+  });
+});

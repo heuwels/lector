@@ -138,9 +138,11 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord("Ik heb twee auto's.", 'aut', nl)).toBe(false);
   });
 
-  it('matches Italian content words across elisions and preserves accents', () => {
-    expect(sentenceContainsWord("L'acqua è fresca.", 'acqua', italian)).toBe(true);
-    expect(sentenceContainsWord("Arriva un'amica.", 'amica', italian)).toBe(true);
+  it('matches Italian elisions as one token and preserves accents', () => {
+    expect(sentenceContainsWord("L'acqua è fresca.", "l'acqua", italian)).toBe(true);
+    expect(sentenceContainsWord("L'acqua è fresca.", 'acqua', italian)).toBe(false);
+    expect(sentenceContainsWord("Arriva un'amica.", "un'amica", italian)).toBe(true);
+    expect(sentenceContainsWord("Arriva un'amica.", 'amica', italian)).toBe(false);
     expect(sentenceContainsWord('Bevo il caffè.', 'caffè', italian)).toBe(true);
     expect(sentenceContainsWord("L'acqua è fresca.", 'acqu', italian)).toBe(false);
   });

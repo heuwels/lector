@@ -68,8 +68,8 @@ interface LangProfile {
    *  i can't split one word across two keys. */
   caseFoldLocale?: string;
   /** Fold every apostrophe variant to ASCII ' in keys, mirroring the pack's
-   *  `script.foldApostrophes` (uk only). kaikki writes the Ukrainian headwords
-   *  with ASCII ', so this is a no-op for the dump itself — it exists so the
+   *  `script.foldApostrophes` (uk, it). kaikki writes those headwords with
+   *  ASCII ', so this is a no-op for the dump itself — it exists so the
    *  build and the runtime cannot disagree if a variant appears in a form-of
    *  row. */
   foldApostrophes?: boolean;
@@ -335,10 +335,10 @@ const PROFILES: Record<string, LangProfile> = {
   it: {
     // Canonical /Italian/ URL (kaikki has no /downloads/it/ mirror).
     kaikkiUrls: ['https://kaikki.org/dictionary/Italian/kaikki.org-dictionary-Italian.jsonl'],
-    // Italian diacritics found in native text and loanwords. Apostrophe is a
-    // token boundary (NOT a word char): l'acqua -> l + acqua and un'amica ->
-    // un + amica, matching the runtime tokenizer. Hyphen remains a word char.
-    letterClass: 'a-zàèéìíîòóùA-ZÀÈÉÌÍÎÒÓÙ-',
+    // Italian diacritics found in native text and loanwords. The apostrophe
+    // is a word character (C'è, l'italiano, un'amica), matching the runtime
+    // tokenizer's extraJoiners. Hyphen remains a word char.
+    letterClass: "a-zàèéìíîòóùA-ZÀÈÉÌÍÎÒÓÙ'-",
     // No hand affix rules: Italian form-of entries and the inflections table
     // resolve conjugated and plural surface forms, as for de/es/fr/nl.
     prefixes: [],
@@ -347,6 +347,8 @@ const PROFILES: Record<string, LangProfile> = {
     rootsJsonRel: null,
     coverageCorpusRel: 'scripts/coverage-corpus-it.txt',
     glossFilter: true,
+    // Keys carry one apostrophe spelling, matching the pack's script.foldApostrophes.
+    foldApostrophes: true,
   },
   nl: {
     // Canonical /Dutch/ URL (kaikki has no /downloads/nl/ mirror).

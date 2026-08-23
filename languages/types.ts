@@ -46,16 +46,17 @@ export interface ScriptConfig {
    * Extra characters that JOIN two letter runs into one token, on top of the
    * built-in hyphens. A joiner differs from `extraWordChars`: it only counts
    * between two runs, never at a token edge, so it cannot swallow a quote mark.
-   * Ukrainian needs it for the apostrophe, which is a letter-level part of the
-   * word (п'ять, м'ясо, з'їзд) and not the elision mark it is in fr/it/nl —
-   * those packs deliberately split on it and must not set this.
+   * Ukrainian needs it because the apostrophe is a letter of the word (п'ять).
+   * Italian needs it because an elision is one written word (C'è, l'italiano).
+   * French and Dutch still split on the same mark and must not set this.
    */
   extraJoiners?: string;
   /**
    * Fold every apostrophe variant (’ ʼ ‘ `) to ASCII ' in word keys. Set it
    * with `extraJoiners` whenever the apostrophe is part of the spelling: text
    * in the wild carries whichever variant an editor produced, but a key must
-   * be one spelling, and kaikki writes Ukrainian headwords with ASCII '.
+   * be one spelling, and kaikki writes Ukrainian and Italian headwords with
+   * ASCII '.
    */
   foldApostrophes?: boolean;
   /**
@@ -211,7 +212,8 @@ export interface MorphologyConfig {
   minStem: number;
   /**
    * Prefixes to peel from the start. The remainder is looked up AS WRITTEN.
-   * Indonesian uses this for meN-/ber-/di-/ter- (membeli → beli).
+   * Indonesian uses this for meN-/ber-/di-/ter- (membeli → beli). Italian
+   * uses it for elision clitics (l'italiano → italiano).
    *
    * Order does not matter. The stripper sorts by length, so meng wins over me.
    */

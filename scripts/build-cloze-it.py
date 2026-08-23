@@ -77,8 +77,8 @@ AVOID_WORDS = {
     'ho', 'hai', 'ha', 'abbiamo', 'avete', 'hanno', 'aveva', 'avevano',
     'abbia', 'abbiano', 'avrà', 'avranno', 'avuto', 'aver', 'avere',
     'più', 'già', 'anche', 'molto',
-    'l', 'd', 'all', 'dall', 'dell', 'nell', 'sull', 'coll',
-    'c', 'm', 't', 's', 'v', 'gliel', 'quest', 'quell', 'tutt', 'com',
+    "c'è", "c'era", "c'erano", "l'ho", "l'ha", "l'hanno",
+    "s'è", "n'è", "cos'è",
 }
 
 

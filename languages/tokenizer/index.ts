@@ -14,10 +14,10 @@
 // - Only true hyphens join compounds: ASCII '-', U+2010 hyphen, U+2011
 //   non-breaking hyphen. En/em dashes and the Hebrew maqaf (U+05BE) are
 //   boundaries (maqaf-joined words are separate tokens, per #289 Phase 3).
-// - Apostrophes split words (l'eau → l + eau, foto's → foto + s) exactly as
-//   before; packs opt into apostrophe-bearing tokens via
-//   `script.extraTokenPatterns` (af 'n), `script.extraWordChars`, or
-//   `script.extraJoiners` (uk: п'ять is one word).
+// - Apostrophes split words by default (l'eau → l + eau, foto's → foto + s);
+//   packs opt into apostrophe-bearing tokens via `script.extraTokenPatterns`
+//   (af 'n), `script.extraWordChars`, or `script.extraJoiners` (uk: п'ять;
+//   it: C'è, l'italiano).
 // - Combining marks (\p{M}) are word characters so decomposed sequences and
 //   pointed Arabic/Hebrew text keep words whole; NFC at ingress (text.ts)
 //   makes this a no-op for shipped languages.
@@ -306,7 +306,7 @@ function compile(script: ScriptConfig): CompiledScript {
 
   const extra = escapeForCharClass(script.extraWordChars ?? '');
   const wc = `[${WORD_CHAR}${extra}]`;
-  // Hyphens always join; packs add more (uk: the apostrophe in п'ять). A joiner
+  // Hyphens always join; packs add more (uk: п'ять, it: l'italiano). A joiner
   // is only a word character BETWEEN two runs, so a leading or trailing quote
   // mark stays outside the token.
   const joiners = HYPHEN_JOINERS + escapeForCharClass(script.extraJoiners ?? '');

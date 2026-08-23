@@ -48,8 +48,8 @@ export function createBlankedSentence(
 // mapping. The default one leaves a combining dot behind and fails a correct
 // answer.
 //
-// Packs that spell words with an apostrophe (uk) keep it: it is a letter of
-// п'ять, not punctuation, and dropping it would accept the misspelling пять.
+// Packs that spell words with an apostrophe (uk, it) keep it: it is part of
+// п'ять and C'è, not punctuation, and dropping it would accept a misspelling.
 // The variants fold to ASCII ' first, so the answer grades the same whichever
 // apostrophe the keyboard produced.
 // An apostrophe at an edge is a quote mark, never a letter — no Ukrainian word
