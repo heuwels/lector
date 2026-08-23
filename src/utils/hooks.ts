@@ -1,6 +1,7 @@
 import { DEFAULT_LANGUAGE } from '@/constants/languages';
-import { LANGUAGES } from '@/lib/languages';
-import { LanguageConfig } from '@/types/language';
+import { normalizeEnabledLanguages, LANGUAGES } from '@/lib/languages';
+import { LanguageCode, LanguageConfig } from '@/types/language';
+import { getSetting } from '@/lib/data-layer';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getLanguageSnapshot, getStoredTheme, subscribeToStorage } from './storage';
 import { applyTheme, getEffectiveTheme } from './theme';
@@ -25,6 +26,35 @@ export function useActiveLanguage(): LanguageConfig {
     getLanguageSnapshot,
     () => LANGUAGES[DEFAULT_LANGUAGE],
   );
+}
+
+/**
+ * The languages this account opted into (#442). Empty until the setting loads,
+ * and empty for an account that has none — callers add the active language.
+ */
+export function useEnabledLanguages(): LanguageCode[] {
+  const [codes, setCodes] = useState<LanguageCode[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = () => {
+      getSetting<string[]>('enabledLanguages')
+        .then((stored) => {
+          if (!cancelled) setCodes(normalizeEnabledLanguages(stored ?? []));
+        })
+        .catch(() => {});
+    };
+
+    load();
+    const unsubscribe = subscribeToStorage(load);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  return codes;
 }
 
 export function useTheme() {

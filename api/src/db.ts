@@ -9,6 +9,7 @@ import {
   foldWord,
   getLanguageConfig,
   isValidLanguageCode,
+  normalizeEnabledLanguages,
   normalizeText,
   LanguageCode,
 } from './lib/languages';
@@ -627,7 +628,83 @@ function getDb(): Database {
   // migrations so userId/language/domain all exist.
   migrateFoldWordKeys(_db);
 
+  // Runs after migrateCompositeTenantKeys (needs settings.userId) and after
+  // migrateAddLanguageColumn (needs the language columns it reads).
+  migrateEnabledLanguages(_db);
+
   return _db;
+}
+
+// Tables whose rows carry the language they belong to. The backfill below reads
+// them to work out which packs an existing account already studies.
+const LANGUAGE_OWNING_TABLES = [
+  'collections',
+  'lessons',
+  'vocab',
+  'knownWords',
+  'clozeSentences',
+  'journal_entries',
+  'dailyStats',
+];
+
+function tableExists(database: Database, table: string): boolean {
+  return Boolean(
+    database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table),
+  );
+}
+
+/**
+ * Backfill `enabledLanguages` (#442) for accounts that predate the opt-in
+ * picker. Without it those accounts would see one language in a picker that
+ * used to list the whole registry, and would lose sight of packs they study.
+ *
+ * The derived list is the account's target language plus every language its
+ * rows already carry. An account that has no target language has not finished
+ * setup, so setup writes its list instead.
+ */
+export function migrateEnabledLanguages(database: Database) {
+  if (!tableExists(database, 'settings')) return;
+
+  const targets = database
+    .prepare("SELECT userId, value FROM settings WHERE key = 'targetLanguage'")
+    .all() as { userId: string; value: string }[];
+  if (targets.length === 0) return;
+
+  const alreadyChosen = new Set(
+    (
+      database.prepare("SELECT userId FROM settings WHERE key = 'enabledLanguages'").all() as {
+        userId: string;
+      }[]
+    ).map((row) => row.userId),
+  );
+
+  const studied = new Map<string, Set<string>>();
+  for (const table of LANGUAGE_OWNING_TABLES) {
+    if (!tableExists(database, table)) continue;
+    const rows = database.prepare(`SELECT DISTINCT userId, language FROM ${table}`).all() as {
+      userId: string;
+      language: string | null;
+    }[];
+    for (const row of rows) {
+      if (!row.language) continue;
+      const codes = studied.get(row.userId) ?? new Set<string>();
+      codes.add(row.language);
+      studied.set(row.userId, codes);
+    }
+  }
+
+  const write = database.prepare(
+    "INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, 'enabledLanguages', ?)",
+  );
+  database.transaction(() => {
+    for (const target of targets) {
+      if (alreadyChosen.has(target.userId)) continue;
+      const active = target.value.replace(/^"|"$/g, '');
+      const codes = normalizeEnabledLanguages([active, ...(studied.get(target.userId) ?? [])]);
+      if (codes.length === 0) continue;
+      write.run(target.userId, JSON.stringify(codes));
+    }
+  })();
 }
 
 // Merge-priority when two knownWords rows fold onto the same key: the most

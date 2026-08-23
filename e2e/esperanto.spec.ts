@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiUrl } from './api';
+import { pickLanguage } from './language-helpers';
 
 // Esperanto language pack (#307): reader tokenization of the supersignoj,
 // on-device dictionary lookups with the rule-generated IPA gloss, x-system
@@ -20,7 +21,7 @@ async function switchToEsperanto(page: Page) {
   const selector = page.locator('aside').getByTestId('language-selector');
   await expect(selector).toBeVisible();
   await selector.click();
-  await page.getByTestId('language-option-eo').first().click();
+  await pickLanguage(page, 'eo');
   await expect(selector).toContainText('Esperanto');
 }
 

@@ -2,8 +2,17 @@ import { Hono } from 'hono';
 import { getCurrentUserId } from '../lib/user';
 import { db, SettingRow } from '../db';
 import { SENSITIVE_KEYS, validateSettingWrite } from '../lib/settings-keys';
+import { ensureLanguageEnabled } from '../lib/enabled-languages';
+import { isValidLanguageCode } from '../lib/languages';
 
 const app = new Hono();
+
+// Switching language opts the account into it (#442), so the picker always
+// lists the active language even when the write skipped the picker.
+function optInToTargetLanguage(userId: string, value: unknown) {
+  if (typeof value !== 'string' || !isValidLanguageCode(value)) return;
+  ensureLanguageEnabled(userId, value);
+}
 
 // GET /api/settings
 app.get('/', (c) => {
@@ -40,6 +49,7 @@ app.put('/', async (c) => {
     for (const [key, value] of Object.entries(body)) {
       stmt.run(userId, key, JSON.stringify(value));
     }
+    optInToTargetLanguage(userId, body.targetLanguage);
   })();
 
   return c.json({ success: true });
@@ -71,7 +81,15 @@ app.put('/:key', async (c) => {
   const err = validateSettingWrite(key, body.value);
   if (err) return c.json({ error: err }, 400);
 
-  db.prepare('INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)').run(getCurrentUserId(c), key, JSON.stringify(body.value));
+  const userId = getCurrentUserId(c);
+  db.transaction(() => {
+    db.prepare('INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      userId,
+      key,
+      JSON.stringify(body.value),
+    );
+    if (key === 'targetLanguage') optInToTargetLanguage(userId, body.value);
+  })();
 
   return c.json({ success: true });
 });

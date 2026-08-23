@@ -7,7 +7,8 @@ import { REDACTION_SENTINEL, validateSettingWrite } from '../lib/settings-keys';
 import { buildUserExport, USER_EXPORT_FORMAT, USER_EXPORT_VERSION } from '../lib/user-export';
 import { buildSegmentWords, countWords } from '../lib/html-to-markdown';
 import { countTypedWords, foldWord, isValidLanguageCode, normalizeText } from '../lib/languages';
-import { packForLanguage } from '../lib/active-language';
+import { getActiveLanguageCode, packForLanguage } from '../lib/active-language';
+import { ensureLanguageEnabled } from '../lib/enabled-languages';
 import { createHash, randomUUID } from 'crypto';
 import {
   acceptedCacheContentBytes,
@@ -392,7 +393,7 @@ const packFor = packForLanguage;
 // - dictionaries, sentence banks, TTS audio cache — global shared content,
 //   re-derivable on any install (#216); the user's own accepted AI entries DO
 //   travel as acceptedDictionaryEntries
-// - settings — only the portable pair (targetLanguage, timezone); see
+// - settings — only the portable language and time-zone preferences; see
 //   lib/user-export.ts
 app.get('/', (c) => {
   const takeout = buildUserExport(getCurrentUserId(c));
@@ -1576,6 +1577,11 @@ app.post(
         for (const setting of restoreSettings) {
           stmt.run(userId, setting.key, setting.value);
           results.settings++;
+        }
+        // A takeout written before #442 carries no enabledLanguages, so opt the
+        // restored target language in rather than leave the picker without it.
+        if (restoreSettings.some((setting) => setting.key === 'targetLanguage')) {
+          ensureLanguageEnabled(userId, getActiveLanguageCode(userId));
         }
       }
     });

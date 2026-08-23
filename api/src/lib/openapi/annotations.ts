@@ -598,7 +598,8 @@ export const schemas: Record<string, JsonSchema> = {
       learnerEvents: { type: 'array', items: { type: 'object' } },
       settings: {
         type: 'array',
-        description: 'Only the portable pair: `targetLanguage` and `timezone`.',
+        description:
+          'Only the portable preferences: `enabledLanguages`, `targetLanguage` and `timezone`.',
         items: {
           type: 'object',
           properties: { key: { type: 'string' }, value: { type: 'string' } },
@@ -2264,6 +2265,7 @@ const ankiOps: Record<string, OperationDoc> = {
 
 const SETTING_KEYS = [
   'targetLanguage',
+  'enabledLanguages',
   'timezone',
   'llmProvider',
   'openaiPreset',

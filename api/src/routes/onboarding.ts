@@ -8,6 +8,7 @@ import {
 } from '../db';
 import { learnerEventResponse, recordLearnerEvent } from '../lib/learner-events';
 import { getActiveLanguageCode } from '../lib/active-language';
+import { ensureLanguageEnabled } from '../lib/enabled-languages';
 import { isValidLanguageCode, type LanguageCode } from '../lib/languages';
 import { getCurrentUserId } from '../lib/user';
 
@@ -151,6 +152,7 @@ function saveTargetLanguage(userId: string, language: LanguageCode) {
     'targetLanguage',
     JSON.stringify(language),
   );
+  ensureLanguageEnabled(userId, language);
 }
 
 function saveProfile(userId: string, input: ProfileInput, now: string) {

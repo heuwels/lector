@@ -111,6 +111,8 @@ Language packs ship for:
 
 A pack includes a dictionary, frequency data, and cloze sentences. Japanese and Korean have a dictionary. They do not have a cloze bank yet. The reader still works for a language with no pack. Depth is lower without a pack.
 
+The language picker lists only the languages that you study. Open the picker and select **Add a language** to start another one. Open Settings, then Languages, to add a language or to remove one from the list. A language that you remove keeps its words, texts, and cards.
+
 Afrikaans was the first pack. It remains the most complete reference set. It is not the product. The product is the reader for any language that you study.
 
 See [lector.dev/docs/languages](https://lector.dev/docs/languages/) for pack status.

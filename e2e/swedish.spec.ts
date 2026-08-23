@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiUrl } from './api';
+import { pickLanguage } from './language-helpers';
 
 const COLLECTION = 'Swedish E2E';
 
@@ -10,7 +11,7 @@ async function switchToSwedish(page: Page) {
   const selector = page.locator('aside').getByTestId('language-selector');
   await expect(selector).toBeVisible();
   await selector.click();
-  await page.getByTestId('language-option-sv').first().click();
+  await pickLanguage(page, 'sv');
   await expect(selector).toContainText('Svenska');
 }
 

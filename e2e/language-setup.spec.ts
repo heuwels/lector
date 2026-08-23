@@ -45,6 +45,12 @@ test.describe('Language Setup & Switching', () => {
   });
 
   test('should switch language via sidebar selector', async ({ page }) => {
+    // The picker lists the languages the account opted into (#442), so pin the
+    // list rather than assert against whatever an earlier spec added.
+    await page.request.put(apiUrl('/api/settings/enabledLanguages'), {
+      data: { value: ['af', 'de'] },
+    });
+
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
     await page.waitForLoadState('networkidle');
@@ -55,18 +61,17 @@ test.describe('Language Setup & Switching', () => {
     await expect(selector).toBeVisible();
     await selector.click();
 
-    // Should show language options
+    // Should show the opted-in languages, and offer the rest under Add
     await expect(page.getByTestId('language-option-af').first()).toBeVisible();
     await expect(page.getByTestId('language-option-de').first()).toBeVisible();
-    await expect(page.getByTestId('language-option-eo').first()).toBeVisible();
-    await expect(page.getByTestId('language-option-es').first()).toBeVisible();
-    await expect(page.getByTestId('language-option-fr').first()).toBeVisible();
-    await expect(page.getByTestId('language-option-it').first()).toBeVisible();
-    await expect(page.getByTestId('language-option-nl').first()).toBeVisible();
+    await expect(page.getByTestId('language-option-fr')).toHaveCount(0);
+    await expect(page.getByTestId('language-add-toggle').first()).toBeVisible();
 
     // Close with Escape
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('language-option-af').first()).not.toBeVisible();
+
+    await page.request.put(apiUrl('/api/settings/enabledLanguages'), { data: { value: ['af'] } });
   });
 
   test('should show compact language selector on mobile', async ({ browser }) => {
