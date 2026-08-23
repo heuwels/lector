@@ -203,6 +203,21 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Saya membeli buku baru.', 'beli', id)).toBe(false);
   });
 
+  it('matches Latin tokens after macron folding', () => {
+    const la = LANGUAGES.la;
+    expect(sentenceContainsWord('Gallia est omnis divisa in partes tres.', 'partes', la)).toBe(
+      true,
+    );
+    expect(sentenceContainsWord('Gallia est omnis divisa in partes tres.', 'Gallia', la)).toBe(
+      true,
+    );
+    expect(sentenceContainsWord('Amāre est vīvere.', 'amare', la)).toBe(true);
+    expect(sentenceContainsWord('Amare est vivere.', 'amāre', la)).toBe(true);
+    expect(sentenceContainsWord('Gallia est omnis divisa in partes tres.', 'parte', la)).toBe(
+      false,
+    );
+  });
+
   it('matches Swedish tokens through the default case fold', () => {
     const sv = LANGUAGES.sv;
     expect(sentenceContainsWord('Jag köpte en ny bok.', 'bok', sv)).toBe(true);

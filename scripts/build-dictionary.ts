@@ -77,6 +77,8 @@ interface LangProfile {
    *  the lexical-stress acute on headwords and inflected forms — молоко́ — but
    *  runtime text is unstressed, so stressed keys would never be hit). */
   stripFromKeys?: RegExp;
+  /** Unfold æ/œ to ae/oe in keys (la: editions mix ligatures and digraphs). */
+  unfoldLigatures?: boolean;
   /** Also register the е-spelled variant of every ё key as an inflection alias
    *  (ru: ё is routinely written е in real text). Exact entries are looked up
    *  first, so genuine minimal pairs like все/всё keep their own entries. */
@@ -383,6 +385,29 @@ const PROFILES: Record<string, LangProfile> = {
     rootsJsonRel: null,
     coverageCorpusRel: 'scripts/coverage-corpus-sv.txt',
     glossFilter: true,
+  },
+  la: {
+    // Canonical /Latin/ URL. 1.1 GB / ~840k words — Wiktionary's Latin
+    // inflection coverage is near-total, so the streaming path is required.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Latin/kaikki.org-dictionary-Latin.jsonl'],
+    // a-z plus the macronized and ligatured display forms the dump prints
+    // (ā ē ī ō ū æ œ). Keys strip those marks; this class only feeds the
+    // coverage tokenizer. Hyphen stays a word char for editorial compounds.
+    letterClass: 'a-zāēīōūȳăĕĭŏŭæœA-ZĀĒĪŌŪȲĂĔĬŎŬÆŒ-',
+    // No hand affix rules: five declensions and the full verb system resolve
+    // via kaikki form-of entries + the inflections table (#256).
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouyāēīōūȳăĕĭŏŭæœ',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-la.txt',
+    glossFilter: true,
+    // Dictionaries mark vowel length. Running text almost never does.
+    // Strip macrons and breves from keys; keep them out of the popover
+    // display only when the dump stored them on a non-key field.
+    stripFromKeys: /[\u0304\u0306]/g,
+    // æ/œ unfold so Cæsar and Caesar are one key, matching foldLatinKey.
+    unfoldLigatures: true,
   },
   pl: {
     // Canonical /Polish/ URL (kaikki has no /downloads/pl/ mirror).
@@ -1052,8 +1077,11 @@ function foldKey(s: string): string {
     ? s.normalize('NFC').replace(APOSTROPHE_VARIANTS, "'")
     : s.normalize('NFC');
   const folded = lowerForLang(normalized).trim();
-  if (!PROFILE.stripFromKeys) return folded;
-  return folded.normalize('NFD').replace(PROFILE.stripFromKeys, '').normalize('NFC');
+  const stripped = PROFILE.stripFromKeys
+    ? folded.normalize('NFD').replace(PROFILE.stripFromKeys, '').normalize('NFC')
+    : folded;
+  if (!PROFILE.unfoldLigatures) return stripped;
+  return stripped.replace(/æ/g, 'ae').replace(/œ/g, 'oe');
 }
 
 function extractEntry(raw: KaikkiLine): ExtractedEntry | null {

@@ -57,6 +57,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'How do the speech levels work (해, 해요, 합니다)?',
     'What is the difference between 에 and 에서?',
   ],
+  la: [
+    'How do the five Latin noun declensions work?',
+    'What is the difference between the imperfect and the perfect?',
+    'When do I use the ablative versus the accusative?',
+  ],
   nl: [
     'When do I use "de" vs "het" as a noun\'s article?',
     'How do separable verbs work (e.g. "opbellen", "meenemen")?',

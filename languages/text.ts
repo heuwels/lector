@@ -42,8 +42,40 @@ export function normalizeText(text: string): string {
  */
 export function foldWord(text: string, pack: LanguageConfig): string {
   const normalized = foldApostrophesFor(normalizeText(text), pack);
-  if (!pack.script.hasCase) return normalized;
-  return lowerForPack(normalized, pack);
+  const cased = pack.script.hasCase ? lowerForPack(normalized, pack) : normalized;
+  return pack.code === 'la' ? foldLatinKey(cased) : cased;
+}
+
+const LATIN_MACRON_BREVE = /[\u0304\u0306]/g;
+
+/**
+ * Latin vocab key (#256): drop editorial vowel-length marks and unfold
+ * ligatures. Dictionaries print ā ē ī ō ū and æ/œ. Running text almost
+ * never does, so amāre and amare must be one key.
+ */
+export function foldLatinKey(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(LATIN_MACRON_BREVE, '')
+    .normalize('NFC')
+    .replace(/æ/g, 'ae')
+    .replace(/œ/g, 'oe');
+}
+
+/**
+ * Edition variants for a Latin lookup. Texts mix u/v and i/j (uult/vult,
+ * iam/jam). Try the swapped spellings only after the exact key misses.
+ */
+export function latinLookupVariants(key: string): string[] {
+  const variants = new Set<string>();
+  const uv = key.replace(/u/g, 'v');
+  const vu = key.replace(/v/g, 'u');
+  const ij = key.replace(/i/g, 'j');
+  const ji = key.replace(/j/g, 'i');
+  for (const form of [uv, vu, ij, ji, uv.replace(/i/g, 'j'), vu.replace(/i/g, 'j')]) {
+    if (form !== key) variants.add(form);
+  }
+  return [...variants];
 }
 
 /** Every apostrophe variant a keyboard, an editor or an EPUB can produce. */

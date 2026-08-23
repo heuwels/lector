@@ -99,6 +99,7 @@ Language packs ship for:
 - Japanese
 - Koine Greek
 - Korean
+- Latin
 - Mandarin Chinese
 - Polish
 - Portuguese
