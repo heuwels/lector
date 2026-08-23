@@ -645,12 +645,23 @@ const LANGUAGE_OWNING_TABLES = [
   'clozeSentences',
   'journal_entries',
   'dailyStats',
+  'learner_profiles',
+  'onboarding_progress',
 ];
 
 function tableExists(database: Database, table: string): boolean {
   return Boolean(
     database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table),
   );
+}
+
+/** Both columns the backfill selects, so an aged table cannot fail the query. */
+function hasUserAndLanguage(database: Database, table: string): boolean {
+  if (!tableExists(database, table)) return false;
+  const cols = (database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(
+    (col) => col.name,
+  );
+  return cols.includes('userId') && cols.includes('language');
 }
 
 /**
@@ -678,9 +689,15 @@ export function migrateEnabledLanguages(database: Database) {
     ).map((row) => row.userId),
   );
 
+  const pending = targets.filter((target) => !alreadyChosen.has(target.userId));
+  // Every boot runs this. Leave before the scan once no account is left to
+  // backfill, or a large cloud database pays one DISTINCT scan per language
+  // table on every process start.
+  if (pending.length === 0) return;
+
   const studied = new Map<string, Set<string>>();
   for (const table of LANGUAGE_OWNING_TABLES) {
-    if (!tableExists(database, table)) continue;
+    if (!hasUserAndLanguage(database, table)) continue;
     const rows = database.prepare(`SELECT DISTINCT userId, language FROM ${table}`).all() as {
       userId: string;
       language: string | null;
@@ -697,8 +714,7 @@ export function migrateEnabledLanguages(database: Database) {
     "INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, 'enabledLanguages', ?)",
   );
   database.transaction(() => {
-    for (const target of targets) {
-      if (alreadyChosen.has(target.userId)) continue;
+    for (const target of pending) {
       const active = target.value.replace(/^"|"$/g, '');
       const codes = normalizeEnabledLanguages([active, ...(studied.get(target.userId) ?? [])]);
       if (codes.length === 0) continue;

@@ -100,11 +100,10 @@ export function validateSettingWrite(key: string, value: unknown): string | null
     return 'targetLanguage must be a supported language';
   }
   if (key === 'enabledLanguages') {
-    if (!Array.isArray(value) || value.length === 0) {
-      return 'enabledLanguages must list at least one supported language';
-    }
+    if (!Array.isArray(value)) return 'enabledLanguages must be an array of language codes';
+    if (value.length === 0) return 'enabledLanguages must list at least one language';
     if (value.some((code) => typeof code !== 'string' || !isValidLanguageCode(code))) {
-      return 'enabledLanguages must list at least one supported language';
+      return 'enabledLanguages must list supported languages only';
     }
     // No repeats: the byte ceiling above is the registry, and a repeated code
     // would let the value grow past it.

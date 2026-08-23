@@ -10,7 +10,15 @@ interface Seed {
   rows?: Partial<Record<string, Array<{ userId: string; language: string | null }>>>;
 }
 
-const LANGUAGE_TABLES = ['collections', 'lessons', 'vocab', 'knownWords', 'dailyStats'];
+const LANGUAGE_TABLES = [
+  'collections',
+  'lessons',
+  'vocab',
+  'knownWords',
+  'dailyStats',
+  'learner_profiles',
+  'onboarding_progress',
+];
 
 function freshDb(seed: Seed = {}): Database {
   const db = new Database(':memory:');
@@ -118,6 +126,49 @@ describe('migrateEnabledLanguages', () => {
     ).run();
     migrateEnabledLanguages(db);
     expect(enabled(db, 'local')).toEqual(['de']);
+  });
+
+  test('counts a language that only onboarding recorded', () => {
+    const db = freshDb({
+      settings: [{ userId: 'local', key: 'targetLanguage', value: 'af' }],
+      rows: {
+        learner_profiles: [{ userId: 'local', language: 'fr' }],
+        onboarding_progress: [{ userId: 'local', language: 'de' }],
+      },
+    });
+    migrateEnabledLanguages(db);
+    expect(enabled(db, 'local')).toEqual(['af', 'de', 'fr']);
+  });
+
+  test('skips a table that carries no language column', () => {
+    const db = freshDb({ settings: [{ userId: 'local', key: 'targetLanguage', value: 'af' }] });
+    db.exec('DROP TABLE vocab');
+    db.exec('CREATE TABLE vocab (userId TEXT NOT NULL, text TEXT)');
+    db.prepare("INSERT INTO vocab (userId, text) VALUES ('local', 'hallo')").run();
+    migrateEnabledLanguages(db);
+    expect(enabled(db, 'local')).toEqual(['af']);
+  });
+
+  // Every boot calls this. Once no account is left to backfill it must not scan
+  // the language tables, which are the large ones in a cloud database.
+  test('scans no language table once every account has a list', () => {
+    const db = freshDb({
+      settings: [
+        { userId: 'local', key: 'targetLanguage', value: 'af' },
+        { userId: 'local', key: 'enabledLanguages', value: ['af'] },
+      ],
+      rows: { vocab: [{ userId: 'local', language: 'de' }] },
+    });
+
+    const prepared: string[] = [];
+    const realPrepare = db.prepare.bind(db);
+    db.prepare = ((sql: string) => {
+      prepared.push(sql);
+      return realPrepare(sql);
+    }) as typeof db.prepare;
+
+    migrateEnabledLanguages(db);
+    expect(prepared.some((sql) => sql.includes('SELECT DISTINCT'))).toBe(false);
   });
 
   test('is a no-op on a second run', () => {

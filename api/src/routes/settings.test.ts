@@ -121,9 +121,21 @@ describe('opted-in languages (#442)', () => {
   });
 
   test('enabledLanguages rejects an empty list, an unknown pack and a non-array', async () => {
-    expect((await putKey('enabledLanguages', [])).status).toBe(400);
-    expect((await putKey('enabledLanguages', ['af', 'xx'])).status).toBe(400);
-    expect((await putKey('enabledLanguages', 'af')).status).toBe(400);
+    const reason = async (value: unknown) =>
+      ((await (await putKey('enabledLanguages', value)).json()) as { error: string }).error;
+
+    expect(await reason([])).toBe('enabledLanguages must list at least one language');
+    expect(await reason(['af', 'xx'])).toBe('enabledLanguages must list supported languages only');
+    expect(await reason('af')).toBe('enabledLanguages must be an array of language codes');
+    expect(storedValue('enabledLanguages')).toBeUndefined();
+  });
+
+  test('enabledLanguages rejects a repeated language', async () => {
+    const res = await putKey('enabledLanguages', ['af', 'af']);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe(
+      'enabledLanguages must not repeat a language',
+    );
     expect(storedValue('enabledLanguages')).toBeUndefined();
   });
 

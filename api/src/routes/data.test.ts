@@ -848,7 +848,7 @@ describe('export/restore — takeout privacy', () => {
   const clearKeys = () =>
     db
       .prepare(
-        "DELETE FROM settings WHERE userId = 'local' AND key IN ('anthropicApiKey', 'openaiUrl', 'targetLanguage', 'timezone')",
+        "DELETE FROM settings WHERE userId = 'local' AND key IN ('anthropicApiKey', 'openaiUrl', 'enabledLanguages', 'targetLanguage', 'timezone')",
       )
       .run();
   beforeEach(clearKeys);
@@ -864,6 +864,12 @@ describe('export/restore — takeout privacy', () => {
     db.prepare(
       "INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'targetLanguage', ?)",
     ).run(JSON.stringify('de'));
+    // Written here, not left to whatever an earlier test opted this account
+    // into: every targetLanguage write persists a list (#442), and the takeout
+    // carries it.
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'enabledLanguages', ?)",
+    ).run(JSON.stringify(['af', 'de']));
     db.prepare(
       "INSERT OR REPLACE INTO settings (userId, key, value) VALUES ('local', 'timezone', ?)",
     ).run(JSON.stringify('Australia/Sydney'));
@@ -878,6 +884,7 @@ describe('export/restore — takeout privacy', () => {
 
     const data = JSON.parse(raw) as { settings: { key: string; value: string }[] };
     expect(data.settings).toEqual([
+      { key: 'enabledLanguages', value: JSON.stringify(['af', 'de']) },
       { key: 'targetLanguage', value: JSON.stringify('de') },
       { key: 'timezone', value: JSON.stringify('Australia/Sydney') },
     ]);
@@ -909,8 +916,9 @@ describe('export/restore — takeout privacy', () => {
       db.prepare(
         `INSERT INTO settings (userId, key, value)
          VALUES (?, 'targetLanguage', '"de"'),
+                (?, 'enabledLanguages', '["de"]'),
                 (?, 'openaiUrl', '"https://reader:url-secret@example.com/v1"')`,
-      ).run(owner, owner);
+      ).run(owner, owner, owner);
       db.prepare(
         `INSERT INTO user_provider_credentials
           (userId, provider, ciphertext, model, createdAt, updatedAt)
@@ -932,7 +940,10 @@ describe('export/restore — takeout privacy', () => {
       expect(takeout.collections).toEqual([
         expect.objectContaining({ id: 'same-id', title: 'owner-private-title' }),
       ]);
-      expect(takeout.settings).toEqual([{ key: 'targetLanguage', value: '"de"' }]);
+      expect(takeout.settings).toEqual([
+        { key: 'enabledLanguages', value: '["de"]' },
+        { key: 'targetLanguage', value: '"de"' },
+      ]);
       expect(raw).not.toContain(owner);
       expect(raw).not.toContain('victim-private-title');
       expect(raw).not.toContain('url-secret');

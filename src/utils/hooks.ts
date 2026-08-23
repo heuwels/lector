@@ -43,7 +43,11 @@ export function useEnabledLanguages(): LanguageCode[] {
         .then((stored) => {
           if (!cancelled) setCodes(normalizeEnabledLanguages(stored ?? []));
         })
-        .catch(() => {});
+        .catch((error) => {
+          // A failed read is not an empty list. The picker falls back to the
+          // active language alone, which must not look like a deliberate list.
+          console.error('Could not load the opted-in languages:', error);
+        });
     };
 
     load();
