@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 // that the section and its labels render with a non-empty value — never a
 // specific version format, which would break the Docker-image e2e run.
 test.describe('Settings → About', () => {
-  test('shows the version and build information', async ({ page }) => {
+  test('shows the build information', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
@@ -16,12 +16,12 @@ test.describe('Settings → About', () => {
     await expect(about).toBeVisible();
 
     // Labels that always render.
-    await expect(about.getByText('Version', { exact: true })).toBeVisible();
+    await expect(about.getByText('Build', { exact: true })).toBeVisible();
     await expect(about.getByText('Built', { exact: true })).toBeVisible();
 
-    // The version value is always present (at minimum the "unknown" fallback).
-    const version = about.locator('div:has(dt:text-is("Version")) dd');
-    await expect(version).toBeVisible();
-    await expect(version).not.toBeEmpty();
+    // The Build value is always present (at minimum the "unknown" fallback).
+    const build = about.locator('div:has(dt:text-is("Build")) dd');
+    await expect(build).toBeVisible();
+    await expect(build).not.toBeEmpty();
   });
 });
