@@ -101,6 +101,12 @@ describe('normalize', () => {
     // A mark-sensitive pack passes through unchanged.
     expect(normalize('café', LANGUAGES.fr)).toBe('café');
   });
+
+  it('folds Latin macrons under the la pack (fold-marks leniency)', () => {
+    expect(normalize('amāre', LANGUAGES.la)).toBe('amare');
+    expect(normalize('vīvere', LANGUAGES.la)).toBe('vivere');
+    expect(normalize('amāre')).toBe('amāre');
+  });
 });
 
 describe('checkAnswer', () => {
@@ -199,6 +205,8 @@ describe('checkAnswer', () => {
     // Final/medial sigma fold: typing σ for ς is not an error.
     expect(checkAnswer('λόγοσ', 'λόγος', LANGUAGES.grc)).toBe(true);
     expect(checkAnswer('θεον', 'θεόν', LANGUAGES.grc)).toBe(true);
+    expect(checkAnswer('amare', 'amāre', LANGUAGES.la)).toBe(true);
+    expect(checkAnswer('AMARE', 'amāre.', LANGUAGES.la)).toBe(true);
     // Without the pack the comparison stays mark-exact.
     expect(checkAnswer('λογος', 'λόγος')).toBe(false);
     // Wrong letters still fail under leniency.

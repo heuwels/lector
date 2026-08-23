@@ -102,6 +102,12 @@ const CORPUS: Record<
     "L'acqua è fresca e un'amica beve il caffè.",
     "Dov'è l'università? È nell'edificio più antico.",
   ],
+  la: [
+    'Gallia est omnis divisa in partes tres.',
+    'Amāre est vīvere — ā ē ī ō ū stay inside the token.',
+    'In principio creavit Deus caelum et terram.',
+    'Arma virumque cano, Troiae qui primus ab oris.',
+  ],
   nl: [
     'Hallo, hoe gaat het met je?',
     "'t Is zo'n mooie dag, foto's van m'n huis.",
@@ -817,6 +823,29 @@ describe('Swedish pack (real manifest)', () => {
   it('snaps a mid-word selection to Swedish word boundaries', () => {
     const text = 'Jag läser boken';
     expect(snapToWordBoundaries(text, 11, 13, sv)).toEqual({ start: 10, end: 15 });
+  });
+});
+
+const la = LANGUAGES.la;
+
+describe('Latin pack (real manifest)', () => {
+  it('keeps macronized vowels inside word tokens', () => {
+    expect(tokenizeWords('Amāre est vīvere.', la).map((t) => t.text)).toEqual([
+      'Amāre',
+      'est',
+      'vīvere',
+    ]);
+  });
+
+  it('folds macrons and ligatures into the vocab key', () => {
+    expect(foldWord('Amāre', la)).toBe('amare');
+    expect(foldWord('Cæsar', la)).toBe('caesar');
+    expect(foldWord('AMARE', la)).toBe('amare');
+  });
+
+  it('snaps a mid-word selection to Latin word boundaries', () => {
+    const text = 'Gallia est omnis';
+    expect(snapToWordBoundaries(text, 1, 4, la)).toEqual({ start: 0, end: 6 });
   });
 });
 

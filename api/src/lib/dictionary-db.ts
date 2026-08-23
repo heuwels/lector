@@ -7,6 +7,7 @@ import {
   foldWord,
   getLanguageConfig,
   isValidLanguageCode,
+  latinLookupVariants,
   stripMarks,
 } from './languages';
 import { esperantoIpa } from '../../../languages/eo/ipa';
@@ -1025,6 +1026,26 @@ function resolveWord(
                   : 'form of';
               return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
             }
+          }
+        }
+      }
+    }
+
+    // Step 3-la: edition-variant fallback (#256). Running Latin mixes u/v and
+    // i/j (uult/vult, iam/jam). Try the swapped keys only after the exact
+    // and mark-stripped steps miss, so a genuine headword still wins first.
+    if (language === 'la') {
+      for (const variant of latinLookupVariants(lower)) {
+        const exactVariant = stmts.selectEntry.get(variant) as EntryRow | undefined;
+        if (exactVariant) return buildEntry(exactVariant, stmts, lower);
+        const inflVariant = stmts.selectInflectionLemma.get(variant) as
+          | { lemma: string; type: string | null }
+          | undefined;
+        if (inflVariant) {
+          const lemmaRow = stmts.selectEntry.get(inflVariant.lemma) as EntryRow | undefined;
+          if (lemmaRow) {
+            const label = inflectionLabel(inflVariant.type);
+            return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
           }
         }
       }

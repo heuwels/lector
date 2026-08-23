@@ -16,6 +16,7 @@ export default function TTSSettings() {
   // Languages without a Google voice (eo) always speak through the server's
   // self-hosted eSpeak NG engine — no engine choice, no plan gating, no
   // browser fallback (#307 §3.2c). The picker below absents itself.
+  const noAudio = activeLang.pronunciation.audio === 'none';
   const espeakOnly =
     activeLang.pronunciation.audio !== 'none' && !activeLang.pronunciation.audio.includes('google');
 
@@ -69,6 +70,18 @@ export default function TTSSettings() {
     // Every pack carries a sample sentence — no per-language switch needed.
     speak(activeLang.testPhrase, ttsSpeed);
   }, [activeLang, ttsSpeed]);
+
+  if (noAudio) {
+    return (
+      <section className="panel space-y-4 p-6" data-testid="tts-settings">
+        <h2 className="text-lg font-semibold text-foreground">Text-to-Speech</h2>
+        <p className="text-xs text-muted-foreground" data-testid="no-audio-note">
+          {activeLang.name} has no synthesized voice. Pronunciation is disputed, so Lector stays
+          silent.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="panel space-y-4 p-6" data-testid="tts-settings">

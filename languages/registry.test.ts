@@ -39,6 +39,19 @@ describe('registry pronunciation conformance', () => {
     expect(grc.script.sentenceTerminators).toBe('.;·');
   });
 
+  it('latin is audio-none with macron folding and no voice fields', () => {
+    const la = LANGUAGES.la;
+    expect(la.pronunciation.audio).toBe('none');
+    expect(la.ttsCode).toBeUndefined();
+    expect(la.ttsVoice).toBeUndefined();
+    expect(la.tatoebaCode).toBe('lat');
+    expect(la.script.bcp47).toBe('la');
+    expect(la.script.kind).toBe('alpha-spaced');
+    expect(la.script.hasCase).toBe(true);
+    expect(la.script.practiceLeniency).toBe('fold-marks');
+    expect(la.flag).toBe('\u{1F3DB}\u{FE0F}');
+  });
+
   // A fold locale changes how every vocab and dictionary key is written, so it
   // must stay opt-in: one pack declares it, and the dictionary build mirrors
   // the same value in its tr profile.

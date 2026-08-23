@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeText, foldWord } from './text';
+import { normalizeText, foldWord, latinLookupVariants } from './text';
 import { LANGUAGES } from './registry';
 import type { LanguageConfig } from './types';
 
@@ -160,5 +160,33 @@ describe('foldWord', () => {
       expect(foldWord('L’EAU', LANGUAGES.fr)).toBe('l’eau');
       expect(foldWord('Türkiye’nin', LANGUAGES.tr)).toBe('türkiye’nin');
     });
+  });
+
+  describe('Latin macron and ligature keys (#256)', () => {
+    const la = LANGUAGES.la;
+
+    it('strips macrons so amāre and amare are one key', () => {
+      expect(foldWord('amāre', la)).toBe('amare');
+      expect(foldWord('Amāre', la)).toBe('amare');
+      expect(foldWord('AMĀRE', la)).toBe('amare');
+    });
+
+    it('unfolds æ and œ', () => {
+      expect(foldWord('Cæsar', la)).toBe('caesar');
+      expect(foldWord('cœlum', la)).toBe('coelum');
+    });
+
+    it('is idempotent', () => {
+      const once = foldWord('Amāre', la);
+      expect(foldWord(once, la)).toBe(once);
+    });
+  });
+});
+
+describe('latinLookupVariants', () => {
+  it('swaps u/v and i/j after the exact key misses', () => {
+    expect(latinLookupVariants('vult')).toContain('uult');
+    expect(latinLookupVariants('iam')).toContain('jam');
+    expect(latinLookupVariants('amare')).toEqual([]);
   });
 });

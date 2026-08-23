@@ -195,6 +195,7 @@ const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   // was built with a different segmenter than the reader, and the two disagree.
   ja: () => import('../lib/sentence-bank-ja.json'),
   ko: () => import('../lib/sentence-bank-ko.json'),
+  la: () => import('../lib/sentence-bank-la.json'),
 };
 
 async function loadSentenceBank(lang: string): Promise<BankEntry[]> {
