@@ -333,6 +333,12 @@
     summary: "SetupGuard, seed starter, guided lesson, three cloze cards, complete Onboarding.",
     steps: ["file:setup-guard", "file:setup-page", "fn:seedStarterContent", "fn:startOnboarding", "route:onboarding-start"],
   });
+  N("flow:add-language", "flow", "Add a language", {
+    domain: "onboarding",
+    md: "onboarding.md#add-a-language",
+    summary: "The picker lists opted-in languages only. Add a language switches to it and the API opts the account in.",
+    steps: ["file:language-selector", "fn:setSetting", "route:settings-put", "file:languages-settings", "table:settings"],
+  });
   N("flow:daily-stats", "flow", "Daily stats", {
     domain: "stats",
     md: "stats.md#daily-stats",
@@ -500,6 +506,8 @@
   N("file:auth-client", "file", "auth-client.ts", { path: "src/lib/auth-client.ts", domain: "auth" });
   N("file:accounts", "file", "accounts.ts", { path: "api/src/lib/accounts.ts", domain: "auth" });
   N("file:settings-page", "file", "Settings page", { path: "src/app/settings/page.tsx", domain: "settings" });
+  N("file:language-selector", "file", "LanguageSelector", { path: "src/components/LanguageSelector/index.tsx", domain: "onboarding" });
+  N("file:languages-settings", "file", "LanguagesSettings", { path: "src/app/settings/components/LanguagesSettings/index.tsx", domain: "settings" });
   N("file:llm-settings", "file", "LLMSettings", { path: "src/app/settings/components/LLMSettings/index.tsx", domain: "settings" });
   N("file:byok-settings", "file", "BYOKSettings", { path: "src/app/settings/components/BYOKSettings.tsx", domain: "settings" });
   N("file:api-tokens", "file", "APITokens", { path: "src/app/settings/components/APITokens/index.tsx", domain: "settings" });
@@ -513,6 +521,7 @@
   N("file:user-export", "file", "user-export.ts", { path: "api/src/lib/user-export.ts", domain: "data" });
   N("file:byok-lib", "file", "byok.ts", { path: "api/src/lib/byok.ts", domain: "settings" });
   N("file:route-settings", "file", "settings.ts (API)", { path: "api/src/routes/settings.ts", domain: "settings" });
+  N("file:enabled-languages", "file", "enabled-languages.ts", { path: "api/src/lib/enabled-languages.ts", domain: "onboarding" });
   N("file:route-data", "file", "data.ts", { path: "api/src/routes/data.ts", domain: "data" });
   N("file:route-billing", "file", "billing.ts (API)", { path: "api/src/routes/billing.ts", domain: "billing" });
   N("file:route-admin", "file", "admin.ts (API)", { path: "api/src/routes/admin.ts", domain: "admin" });
@@ -813,7 +822,7 @@
   domainFlows("tutor", ["flow:tutor-chat", "flow:cloze-explain"]);
   domainFlows("listen", ["flow:speak-word", "flow:listen-along", "flow:youtube-captions"]);
   domainFlows("anki", ["flow:anki-push", "flow:anki-sync"]);
-  domainFlows("onboarding", ["flow:language-setup"]);
+  domainFlows("onboarding", ["flow:language-setup", "flow:add-language"]);
   domainFlows("stats", ["flow:daily-stats", "flow:fluency-radar"]);
   domainFlows("auth", ["flow:sign-in", "flow:sign-up", "flow:session-gate"]);
   domainFlows("settings", ["flow:save-settings", "flow:configure-llm", "flow:api-tokens", "flow:delete-account"]);
@@ -1153,6 +1162,13 @@
   // ── Onboarding ────────────────────────────────────────────────────────────
 
   edge("flow:language-setup", "file:setup-guard", "starts");
+  edge("flow:add-language", "file:language-selector", "starts");
+  edge("file:language-selector", "fn:setSetting", "calls");
+  edge("file:language-selector", "fn:seedStarterContent", "calls");
+  edge("file:languages-settings", "fn:setSetting", "calls");
+  edge("file:settings-page", "file:languages-settings", "opens");
+  edge("file:enabled-languages", "table:settings", "reads");
+  edge("file:route-settings", "file:enabled-languages", "uses");
   edge("file:setup-guard", "file:setup-page", "then");
   edge("file:setup-page", "fn:seedStarterContent", "calls");
   edge("fn:seedStarterContent", "file:data-layer", "in");

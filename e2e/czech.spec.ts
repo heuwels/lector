@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiUrl } from './api';
+import { pickLanguage } from './language-helpers';
 
 // Czech language pack: reader tokenization of the háček, acute and kroužek
 // letters, on-device dictionary lookups that resolve seven cases and stem
@@ -21,7 +22,7 @@ async function switchToCzech(page: Page) {
   const selector = page.locator('aside').getByTestId('language-selector');
   await expect(selector).toBeVisible();
   await selector.click();
-  await page.getByTestId('language-option-cs').first().click();
+  await pickLanguage(page, 'cs');
   await expect(selector).toContainText('Čeština');
 }
 

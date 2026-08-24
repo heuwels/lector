@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiUrl } from './api';
+import { pickLanguage } from './language-helpers';
 
 // Ruby pronunciation annotations in the reader (#289 4.4). Mandarin is the only
 // pack that declares an annotation source, because Han characters hide the
@@ -27,7 +28,7 @@ async function switchToMandarin(page: Page) {
   const selector = page.locator('aside').getByTestId('language-selector');
   await expect(selector).toBeVisible();
   await selector.click();
-  await page.getByTestId('language-option-zh').first().click();
+  await pickLanguage(page, 'zh');
   // The selector shows the native name, not the English one.
   await expect(selector).toContainText('中文');
 }

@@ -8,10 +8,19 @@ const { default: app } = await import('../routes/settings');
 // allowlist, and URL-shaped keys must parse as http(s) — their values become
 // fetch targets that receive stored credentials.
 
-const TEST_KEYS = ['timezone', 'openaiUrl', 'openaiApiKey', 'ankiTransport'];
+const TEST_KEYS = [
+  'timezone',
+  'openaiUrl',
+  'openaiApiKey',
+  'ankiTransport',
+  'targetLanguage',
+  'enabledLanguages',
+];
 
 function clear() {
-  db.prepare(`DELETE FROM settings WHERE key IN (${TEST_KEYS.map(() => '?').join(', ')})`).run(...TEST_KEYS);
+  db.prepare(`DELETE FROM settings WHERE key IN (${TEST_KEYS.map(() => '?').join(', ')})`).run(
+    ...TEST_KEYS,
+  );
 }
 
 function putBulk(body: unknown) {
@@ -99,5 +108,58 @@ describe('settings write validation (#233)', () => {
     const bulk = await app.request('/');
     const all = (await bulk.json()) as Record<string, unknown>;
     expect(all.openaiApiKey).toBe(true);
+  });
+});
+
+describe('opted-in languages (#442)', () => {
+  beforeEach(clear);
+  afterEach(clear);
+
+  test('enabledLanguages accepts a list of supported languages', async () => {
+    expect((await putKey('enabledLanguages', ['de', 'af'])).status).toBe(200);
+    expect(storedValue('enabledLanguages')).toBe(JSON.stringify(['de', 'af']));
+  });
+
+  test('enabledLanguages rejects an empty list, an unknown pack and a non-array', async () => {
+    const reason = async (value: unknown) =>
+      ((await (await putKey('enabledLanguages', value)).json()) as { error: string }).error;
+
+    expect(await reason([])).toBe('enabledLanguages must list at least one language');
+    expect(await reason(['af', 'xx'])).toBe('enabledLanguages must list supported languages only');
+    expect(await reason('af')).toBe('enabledLanguages must be an array of language codes');
+    expect(storedValue('enabledLanguages')).toBeUndefined();
+  });
+
+  test('enabledLanguages rejects a repeated language', async () => {
+    const res = await putKey('enabledLanguages', ['af', 'af']);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe(
+      'enabledLanguages must not repeat a language',
+    );
+    expect(storedValue('enabledLanguages')).toBeUndefined();
+  });
+
+  test('switching language opts the account into it', async () => {
+    expect((await putKey('targetLanguage', 'de')).status).toBe(200);
+    expect(storedValue('enabledLanguages')).toBe(JSON.stringify(['de']));
+
+    expect((await putKey('targetLanguage', 'af')).status).toBe(200);
+    expect(storedValue('enabledLanguages')).toBe(JSON.stringify(['af', 'de']));
+  });
+
+  test('switching to an opted-in language leaves the list alone', async () => {
+    await putKey('enabledLanguages', ['af', 'de']);
+    expect((await putKey('targetLanguage', 'de')).status).toBe(200);
+    expect(storedValue('enabledLanguages')).toBe(JSON.stringify(['af', 'de']));
+  });
+
+  test('a bulk write of both keys keeps the new language listed', async () => {
+    expect((await putBulk({ enabledLanguages: ['af'], targetLanguage: 'fr' })).status).toBe(200);
+    expect(storedValue('enabledLanguages')).toBe(JSON.stringify(['af', 'fr']));
+  });
+
+  test('a write of another key does not touch the list', async () => {
+    expect((await putKey('timezone', 'Australia/Sydney')).status).toBe(200);
+    expect(storedValue('enabledLanguages')).toBeUndefined();
   });
 });

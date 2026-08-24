@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiUrl } from './api';
+import { pickLanguage } from './language-helpers';
 
 // Polish language pack: reader tokenization of the nine diacritic letters,
 // on-device dictionary lookups that resolve seven cases and consonant
@@ -21,7 +22,7 @@ async function switchToPolish(page: Page) {
   const selector = page.locator('aside').getByTestId('language-selector');
   await expect(selector).toBeVisible();
   await selector.click();
-  await page.getByTestId('language-option-pl').first().click();
+  await pickLanguage(page, 'pl');
   await expect(selector).toContainText('Polski');
 }
 

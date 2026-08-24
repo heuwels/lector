@@ -1,23 +1,27 @@
 'use client';
 
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getFluencyStats, seedStarterContent, setSetting } from '@/lib/data-layer';
-import { LANGUAGES } from '@/lib/languages';
+import { availableLanguages, LANGUAGES, normalizeEnabledLanguages } from '@/lib/languages';
 import { LanguageCode } from '@/types/language';
-import { useActiveLanguage } from '@/utils/hooks';
+import { useActiveLanguage, useEnabledLanguages } from '@/utils/hooks';
 import { setLanguageInStorage } from '@/utils/storage';
 import { toast } from 'sonner';
 
 export default function LanguageSelector({ compact = false }: { compact?: boolean }) {
   const activeLang = useActiveLanguage();
+  const enabledCodes = useEnabledLanguages();
   const [knownWordsCount, setKnownWordsCount] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +47,8 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
 
   async function handleSwitch(code: LanguageCode) {
     try {
+      // The API opts the account into whatever language it switches to (#442),
+      // so adding a language and switching to one are the same write.
       await setSetting('targetLanguage', code);
       setLanguageInStorage(code);
       // First-ever switch to a language seeds its starter content before the
@@ -63,22 +69,62 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
     </span>
   ) : null;
 
-  const menuItems = Object.values(LANGUAGES).map((lang) => (
+  // The active language is always listed, whatever the stored list says.
+  const listed = normalizeEnabledLanguages([...enabledCodes, activeLang.code]);
+  const addable = availableLanguages(listed);
+
+  const menuItems = listed.map((code) => (
     <DropdownMenuItem
-      key={lang.code}
-      onClick={() => handleSwitch(lang.code)}
-      data-testid={`language-option-${lang.code}`}
-      className={lang.code === activeLang.code ? 'font-medium' : undefined}
+      key={code}
+      onClick={() => handleSwitch(code)}
+      data-testid={`language-option-${code}`}
+      className={code === activeLang.code ? 'font-medium' : undefined}
     >
-      <span className="text-lg">{lang.flag}</span>
-      <span>{lang.native}</span>
-      {lang.code === activeLang.code && <Check className="ml-auto size-4" />}
+      <span className="text-lg">{LANGUAGES[code].flag}</span>
+      <span>{LANGUAGES[code].native}</span>
+      {code === activeLang.code && <Check className="ml-auto size-4" />}
     </DropdownMenuItem>
   ));
 
+  const addItems = addOpen
+    ? addable.map((code) => (
+        <DropdownMenuItem
+          key={code}
+          onClick={() => handleSwitch(code)}
+          data-testid={`language-add-option-${code}`}
+        >
+          <span className="text-lg">{LANGUAGES[code].flag}</span>
+          <span>{LANGUAGES[code].native}</span>
+        </DropdownMenuItem>
+      ))
+    : null;
+
+  const addSection =
+    addable.length > 0 ? (
+      <>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          closeOnClick={false}
+          onClick={() => setAddOpen((wasOpen) => !wasOpen)}
+          data-testid="language-add-toggle"
+          aria-expanded={addOpen}
+          className="text-muted-foreground"
+        >
+          <Plus className="size-4" />
+          <span>Add a language</span>
+        </DropdownMenuItem>
+        {addItems}
+      </>
+    ) : null;
+
+  function onOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) setAddOpen(false);
+  }
+
   if (compact) {
     return (
-      <DropdownMenu>
+      <DropdownMenu open={open} onOpenChange={onOpenChange}>
         <DropdownMenuTrigger
           data-testid="language-selector"
           aria-label={`Language: ${activeLang.native}`}
@@ -91,6 +137,7 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" aria-label="Select language" className="w-44">
           {menuItems}
+          {addSection}
         </DropdownMenuContent>
       </DropdownMenu>
     );
@@ -98,7 +145,7 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
 
   return (
     <div className="mx-3">
-      <DropdownMenu>
+      <DropdownMenu open={open} onOpenChange={onOpenChange}>
         <DropdownMenuTrigger
           data-testid="language-selector"
           aria-label={`Language: ${activeLang.native}`}
@@ -111,6 +158,7 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" aria-label="Select language" className="min-w-44">
           {menuItems}
+          {addSection}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiUrl } from './api';
+import { pickLanguage } from './language-helpers';
 
 const COLLECTION = 'Latin E2E';
 
@@ -10,7 +11,7 @@ async function switchToLatin(page: Page) {
   const selector = page.locator('aside').getByTestId('language-selector');
   await expect(selector).toBeVisible();
   await selector.click();
-  await page.getByTestId('language-option-la').first().click();
+  await pickLanguage(page, 'la');
   await expect(selector).toContainText('Latina');
 }
 

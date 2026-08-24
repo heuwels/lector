@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiUrl } from './api';
+import { pickLanguage } from './language-helpers';
 
 // Turkish language pack: reader tokenization of the Turkish letters, on-device
 // dictionary lookups that resolve stacked suffixes back to the lemma, the
@@ -20,7 +21,7 @@ async function switchToTurkish(page: Page) {
   const selector = page.locator('aside').getByTestId('language-selector');
   await expect(selector).toBeVisible();
   await selector.click();
-  await page.getByTestId('language-option-tr').first().click();
+  await pickLanguage(page, 'tr');
   await expect(selector).toContainText('Türkçe');
 }
 

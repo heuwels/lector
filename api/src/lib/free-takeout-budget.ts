@@ -1,6 +1,6 @@
 import type { PlanLimits } from './entitlements';
 import { CACHE_ACCEPTED_LIMITS } from './dictionary-db';
-import { KNOWN_SETTING_KEYS, MAX_SETTING_VALUE_BYTES } from './settings-keys';
+import { KNOWN_SETTING_KEYS, settingValueByteLimit } from './settings-keys';
 import { MAX_PERSISTED_ID_BYTES } from './storage-limits';
 import { LANGUAGES } from './languages';
 
@@ -247,7 +247,8 @@ export function calculateFreeTakeoutUpperBound(limits: PlanLimits) {
     requiredLimit(limits, 'maxLearnerEventBytes') * counts.learnerEvents;
   const escapedLearnerTextBytes = learnerTextBytes * JSON_ESCAPE_FACTOR;
   const escapedSettingValueBytes =
-    KNOWN_SETTING_KEYS.size * MAX_SETTING_VALUE_BYTES * JSON_ESCAPE_FACTOR;
+    [...KNOWN_SETTING_KEYS].reduce((total, key) => total + settingValueByteLimit(key), 0) *
+    JSON_ESCAPE_FACTOR;
 
   return {
     counts,

@@ -20,6 +20,14 @@ export function setLanguageInStorage(code: string) {
   window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT));
 }
 
+/**
+ * Tell every mounted picker that the opted-in language list changed (#442).
+ * Shares the language-change channel, which is what those pickers subscribe to.
+ */
+export function notifyLanguageListChanged() {
+  window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT));
+}
+
 export function getLanguageSnapshot(): LanguageConfig {
   const stored = readLanguageCache() as keyof typeof LANGUAGES | null;
   if (stored && isValidLanguageCode(stored)) return LANGUAGES[stored];

@@ -35,7 +35,7 @@ export interface UserExport {
 // the restore envelope. Ownership is also transport metadata, not learner data.
 const NON_PORTABLE_TEXT_CONTROLS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g;
 
-const PORTABLE_SETTING_KEYS = ['targetLanguage', 'timezone'] as const;
+const PORTABLE_SETTING_KEYS = ['enabledLanguages', 'targetLanguage', 'timezone'] as const;
 
 function portableValue(value: unknown): unknown {
   if (typeof value === 'string') return value.replace(NON_PORTABLE_TEXT_CONTROLS, '');
@@ -54,13 +54,16 @@ function portableRows(rows: unknown[]): unknown[] {
 
 /**
  * Portable learning records owned by `userId`, in restore-ready shape. Only
- * language and timezone preferences travel with the data; provider settings,
+ * language and time-zone preferences travel with the data; provider settings,
  * endpoint URLs, credentials, billing state and other operational data do not.
  */
 export function buildUserExport(userId: string): UserExport {
   const settings = (
     db
-      .prepare('SELECT key, value FROM settings WHERE userId = ? AND key IN (?, ?) ORDER BY key')
+      .prepare(
+        `SELECT key, value FROM settings WHERE userId = ?
+           AND key IN (${PORTABLE_SETTING_KEYS.map(() => '?').join(', ')}) ORDER BY key`,
+      )
       .all(userId, ...PORTABLE_SETTING_KEYS) as SettingRow[]
   ).map(({ key, value }) => ({ key, value: value.replace(NON_PORTABLE_TEXT_CONTROLS, '') }));
 

@@ -8380,6 +8380,7 @@
                 "propertyNames": {
                   "enum": [
                     "targetLanguage",
+                    "enabledLanguages",
                     "timezone",
                     "llmProvider",
                     "openaiPreset",
@@ -12271,7 +12272,7 @@
           },
           "settings": {
             "type": "array",
-            "description": "Only the portable pair: `targetLanguage` and `timezone`.",
+            "description": "Only the portable preferences: `enabledLanguages`, `targetLanguage` and `timezone`.",
             "items": {
               "type": "object",
               "properties": {
