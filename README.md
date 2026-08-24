@@ -113,14 +113,9 @@ A pack includes a dictionary, frequency data, and cloze sentences. Japanese and 
 
 The language picker lists only the languages that you study. Open the picker and select **Add a language** to start another one. Open Settings, then Languages, to add a language or to remove one from the list. A language that you remove keeps its words, texts, and cards.
 
-The image holds no dictionaries. Lector downloads the dictionary for a language when you add that language, and it keeps the file in the `lector-dict` volume. The download runs in the background. The language works at once, because a word with no dictionary entry yet goes to the AI lookup. Two settings control this:
+The image holds no dictionaries. Lector downloads the dictionary for a language when you add that language. It keeps the file in the `lector-dict` volume, so an image update does not remove it. The download runs in the background. The language works at once, because a word with no dictionary entry yet goes to the AI lookup.
 
-| Variable | Purpose |
-| --- | --- |
-| `DICT_LANGS` | Languages to download at start. Use `all` for every language. Leave it unset to download only what you add in the picker. |
-| `DICT_FETCH` | Set to `0` to never download. Use it with the `:full` image for an install with no internet. |
-
-The `ghcr.io/heuwels/lector:full` tag holds every dictionary. It is about 2.6 GB larger. Use it for an air-gapped install.
+The `ghcr.io/heuwels/lector:full` tag holds every dictionary. It is about 2.6 GB larger. Use it for an air-gapped install. Set `DICT_FETCH=0` with it.
 
 Afrikaans was the first pack. It remains the most complete reference set. It is not the product. The product is the reader for any language that you study.
 
@@ -152,6 +147,9 @@ If you want a file, copy `.env.example` to `.env`. Compose also reads the proces
 | `LLM_PROVIDER` | `anthropic` (default) or an OpenAI-compatible backend. |
 | `OPENAI_COMPAT_URL` | Local model endpoint. The bundled Ollama service is `http://ollama:11434`. |
 | `CLASSIFY_WORKER` | Set to `1` to fill the fluency radar. Compose sets this for you. |
+| `DICT_LANGS` | Dictionaries to download at start. Use `all` for every language. Unset downloads only what you add in the picker. |
+| `DICT_FETCH` | Set to `0` to never download a dictionary. Use it with the `:full` image. |
+| `DICT_DIR` | Where the dictionaries live. The default is the `lector-dict` volume. |
 | `TRANSCRIBE_WORKER` | Set to `1` to transcribe podcast uploads. Needs a Whisper endpoint. See [`deploy/README.md`](deploy/README.md). |
 
 The app runs with no API keys. Claude is only required for rare words, phrase translation, and the tutor.

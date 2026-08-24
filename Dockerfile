@@ -48,9 +48,19 @@ ARG DICT_URL=
 ARG DICT_SHA256=
 ARG DICT_LANG=af
 ARG BAKE_DICTS=
+# DICT_LANGS was the build arg that chose which dictionaries to bake. It is a
+# RUNTIME variable now (#438), and a build that still passes it would silently
+# produce a slim image. Fail instead, and say what replaced it.
+ARG DICT_LANGS=
 RUN apk add --no-cache curl
 COPY dict.env /tmp/dict.env
 RUN set -e; \
+    if [ -n "${DICT_LANGS}" ]; then \
+      echo "ERROR: --build-arg DICT_LANGS is gone (#438). Dictionaries are fetched at runtime now." >&2; \
+      echo "       To bake them into the image, use --build-arg BAKE_DICTS=\"${DICT_LANGS}\" (or BAKE_DICTS=all)." >&2; \
+      echo "       To choose languages on a running box, set the DICT_LANGS environment variable." >&2; \
+      exit 1; \
+    fi; \
     BAKE="${BAKE_DICTS}"; \
     mkdir -p /dict; \
     if [ -n "${DICT_URL}" ]; then \
@@ -61,6 +71,8 @@ RUN set -e; \
       else \
         echo "WARNING: no SHA-256 to verify against — skipping integrity check"; \
       fi; \
+      printf '{"%s":{"version":"unmanaged","sha256":"","installedAt":""}}\n' \
+        "${DICT_LANG}" > /dict/installed.json; \
     elif [ -z "${BAKE}" ]; then \
       echo "Slim image: no dictionaries baked. The runtime fetches them into DICT_DIR (#438)."; \
       printf '%s\n' \
@@ -73,6 +85,7 @@ RUN set -e; \
       . /tmp/dict.env; \
       if [ "${BAKE}" = "all" ]; then LANGS="${DICT_LANGS}"; else LANGS="${BAKE}"; fi; \
       echo "Baking dictionaries for: ${LANGS}"; \
+      ENTRIES=""; \
       for L in ${LANGS}; do \
         U=$(echo "$L" | tr a-z A-Z); \
         eval "VER=\${DICT_VERSION_${U}:-}"; \
@@ -89,7 +102,10 @@ RUN set -e; \
         else \
           echo "WARNING: no SHA-256 for ${L} — skipping integrity check"; \
         fi; \
+        if [ -n "${ENTRIES}" ]; then ENTRIES="${ENTRIES},"; fi; \
+        ENTRIES="${ENTRIES}\"${L}\":{\"version\":\"${VER}\",\"sha256\":\"${DSHA}\",\"installedAt\":\"\"}"; \
       done; \
+      printf '{%s}\n' "${ENTRIES}" > /dict/installed.json; \
     fi
 
 # ── Bun API build stage ──

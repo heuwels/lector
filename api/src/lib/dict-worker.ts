@@ -27,7 +27,13 @@ import type { Database } from 'bun:sqlite';
 import { Sentry } from './sentry';
 import { db } from '../db';
 import { dictPins } from './dict-pins';
-import { installDictionary, isInstalled, readInstalledManifest } from './dict-install';
+import {
+  adoptUnrecorded,
+  installDictionary,
+  isInstalled,
+  readInstalledManifest,
+  sweepPartFiles,
+} from './dict-install';
 import { dictionaryDir } from './dictionary-db';
 import { isValidLanguageCode, normalizeEnabledLanguages } from './languages';
 
@@ -40,9 +46,23 @@ export interface DictStatus {
   version?: string;
   error?: string;
   attempts: number;
+  /** Epoch ms before which a failed language is not retried. */
+  retryAfter?: number;
 }
 
-const MAX_ATTEMPTS = 3;
+/**
+ * Failures back off, they never stop. A language that fails is retried after
+ * `RETRY_BACKOFF_MS[attempts]`, and the last entry repeats forever.
+ *
+ * A permanent give-up was wrong here. A short GitHub outage at boot would park
+ * a language on the AI lookup for the life of the process, which on a cloud box
+ * means until the next deploy. Nothing else ever retries it.
+ */
+const RETRY_BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
+
+/** Failures before the shortfall is reported as an error rather than a warning. */
+const ALERT_AFTER_ATTEMPTS = 3;
+
 const statuses = new Map<string, DictStatus>();
 
 function status(language: string): DictStatus {
@@ -123,12 +143,23 @@ export function missingLanguages(dir = dictionaryDir(), database: Database = db)
  * One reconcile pass. Downloads the missing languages one at a time, so a box
  * that wants twenty of them does not open twenty sockets to GitHub.
  */
-export async function reconcileDictionaries(signal?: AbortSignal): Promise<void> {
+export async function reconcileDictionaries(
+  signal?: AbortSignal,
+  now = () => Date.now(),
+): Promise<void> {
   const dir = dictionaryDir();
+
+  // A container killed mid-download leaves its part file behind, under a pid
+  // this process will never reuse. Clear those before adding more.
+  sweepPartFiles(dir);
+  // Record anything already on disk that the manifest does not name, so a pin
+  // change can replace it later.
+  adoptUnrecorded(dictPins().pins, dir);
+
   for (const language of missingLanguages(dir)) {
     if (signal?.aborted) return;
     const entry = status(language);
-    if (entry.state === 'error' && entry.attempts >= MAX_ATTEMPTS) continue;
+    if (entry.retryAfter && now() < entry.retryAfter) continue;
     entry.state = 'downloading';
     try {
       const installed = await installDictionary(language, { dir, signal });
@@ -136,16 +167,22 @@ export async function reconcileDictionaries(signal?: AbortSignal): Promise<void>
       entry.version = installed.version;
       entry.error = undefined;
       entry.attempts = 0;
+      entry.retryAfter = undefined;
       console.log(`[dict-worker] installed ${language} (${installed.version})`);
     } catch (err) {
+      if (signal?.aborted) return; // Shutdown, not a failure worth counting.
       entry.attempts += 1;
       entry.state = 'error';
       entry.error = String(err);
-      const giveUp = entry.attempts >= MAX_ATTEMPTS;
+      const backoff =
+        RETRY_BACKOFF_MS[Math.min(entry.attempts - 1, RETRY_BACKOFF_MS.length - 1)]!;
+      entry.retryAfter = now() + backoff;
       console.warn(
-        `[dict-worker] ${language} failed (attempt ${entry.attempts}/${MAX_ATTEMPTS}): ${entry.error}`,
+        `[dict-worker] ${language} failed (attempt ${entry.attempts}, retry in ${Math.round(backoff / 1000)}s): ${entry.error}`,
       );
-      if (giveUp) Sentry.captureException(err);
+      // Report once, at the point where this stops looking like a blip. Every
+      // later attempt keeps retrying without adding noise.
+      if (entry.attempts === ALERT_AFTER_ATTEMPTS) Sentry.captureException(err);
     }
   }
 }
@@ -157,18 +194,61 @@ export async function reconcileDictionaries(signal?: AbortSignal): Promise<void>
  */
 export function reportShortfall(): string[] {
   const missing = missingLanguages();
-  if (missing.length > 0) {
-    console.warn(
-      `[dict-worker] requested but not installed: ${missing.join(', ')} — those languages use the AI lookup path until the download lands`,
-    );
-  }
+  if (missing.length === 0) return missing;
+
+  const message = `requested but not installed: ${missing.join(', ')} — those languages use the AI lookup path until the download lands`;
+  console.warn(`[dict-worker] ${message}`);
+
+  // #438 asked for an alert on requested-vs-installed, not just a log line. At
+  // boot every requested language is legitimately missing, so this is a
+  // breadcrumb rather than an error. The error is raised by the retry loop,
+  // once a language has failed enough times to mean something is wrong.
+  Sentry.addBreadcrumb({
+    category: 'dict',
+    level: 'warning',
+    message,
+    data: { missing, requested: wantedLanguages().length },
+  });
+  return missing;
+}
+
+/**
+ * Languages still missing once the loop has had time to work through the queue.
+ *
+ * This is the requested-vs-installed alert #438 asked for, and it is separate
+ * from the per-failure report above. A language can be missing without ever
+ * failing, because it is simply queued behind nineteen others. Still missing
+ * much later means the box is paying for every lookup in that language through
+ * the AI path, whatever the reason.
+ */
+export function reportPersistentShortfall(): string[] {
+  const missing = missingLanguages();
+  if (missing.length === 0) return [];
+  Sentry.captureMessage(
+    `[dict-worker] still missing ${missing.length} requested dictionar${missing.length === 1 ? 'y' : 'ies'}: ${missing.join(', ')}`,
+    'error',
+  );
+  console.error(
+    `[dict-worker] still missing after the settle window: ${missing.join(', ')} — every lookup in those languages uses the AI path`,
+  );
   return missing;
 }
 
 let loopTimer: ReturnType<typeof setInterval> | null = null;
 let kickTimer: ReturnType<typeof setTimeout> | null = null;
+let settleTimer: ReturnType<typeof setTimeout> | null = null;
 let controller: AbortController | null = null;
 let ticking = false;
+
+/**
+ * How long the loop gets to work through the queue before a still-missing
+ * dictionary counts as a problem. A first cloud boot fetches twenty of them in
+ * sequence, so this has to be generous.
+ */
+function settleWindowMs(): number {
+  const raw = parseInt(process.env.DICT_SETTLE_MS || '', 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 60 * 60 * 1000;
+}
 
 /**
  * True when this process fetches dictionaries at runtime.
@@ -227,6 +307,9 @@ export function startDictWorker(): boolean {
   // First pass shortly after boot, so the API starts serving straight away.
   kickTimer = setTimeout(tick, 1000);
   kickTimer.unref?.();
+  // One alert, once the loop has had time to drain the queue.
+  settleTimer = setTimeout(reportPersistentShortfall, settleWindowMs());
+  settleTimer.unref?.();
   console.log(`[dict-worker] enabled (every ${intervalMs}ms, DICT_DIR=${dictionaryDir()})`);
   return true;
 }
@@ -240,6 +323,10 @@ export function stopDictWorker(): void {
   if (kickTimer) {
     clearTimeout(kickTimer);
     kickTimer = null;
+  }
+  if (settleTimer) {
+    clearTimeout(settleTimer);
+    settleTimer = null;
   }
   controller?.abort();
   controller = null;

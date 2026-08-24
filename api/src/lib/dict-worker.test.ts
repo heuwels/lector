@@ -6,9 +6,12 @@ import { join } from 'node:path';
 import { reloadDictPins } from './dict-pins';
 import {
   accountLanguages,
+  dictStatuses,
   dictWorkerEnabled,
   missingLanguages,
+  reconcileDictionaries,
   requestedLanguages,
+  resetDictStatuses,
   wantedLanguages,
 } from './dict-worker';
 
@@ -165,6 +168,65 @@ describe('missingLanguages', () => {
       JSON.stringify({ af: { version: 'dict-af-0', sha256: 'a'.repeat(64), installedAt: '' } }),
     );
     expect(missingLanguages(dir, db)).toEqual(['af']);
+  });
+});
+
+describe('a language that fails to download', () => {
+  let server: ReturnType<typeof Bun.serve>;
+  let attempts = 0;
+
+  beforeEach(() => {
+    attempts = 0;
+    server = Bun.serve({
+      port: 0,
+      fetch: () => {
+        attempts += 1;
+        return new Response('nope', { status: 500 });
+      },
+    });
+    process.env.DICT_RELEASE_BASE = `http://localhost:${server.port}`;
+    process.env.DICT_DIR = dir;
+    process.env.DICT_LANGS = 'af';
+    // Keep the real settings table out of it.
+    process.env.DICT_AUTO_INSTALL = '0';
+    resetDictStatuses();
+  });
+
+  afterEach(() => {
+    server.stop(true);
+    delete process.env.DICT_RELEASE_BASE;
+    delete process.env.DICT_DIR;
+    resetDictStatuses();
+  });
+
+  test('backs off instead of retrying every tick', async () => {
+    const clock = 1_000_000;
+    const now = () => clock;
+
+    await reconcileDictionaries(undefined, now);
+    expect(attempts).toBe(1);
+    expect(dictStatuses()[0]).toMatchObject({ language: 'af', state: 'error', attempts: 1 });
+
+    // The very next tick must not hammer the endpoint again.
+    await reconcileDictionaries(undefined, now);
+    expect(attempts).toBe(1);
+  });
+
+  test('retries for good once the backoff expires', async () => {
+    let clock = 1_000_000;
+    const now = () => clock;
+
+    await reconcileDictionaries(undefined, now);
+    expect(attempts).toBe(1);
+
+    // A permanent give-up after three failures used to park the language on
+    // the AI path for the life of the process. It must keep trying.
+    for (let i = 0; i < 5; i += 1) {
+      clock += 60 * 60 * 1000;
+      await reconcileDictionaries(undefined, now);
+    }
+    expect(attempts).toBe(6);
+    expect(dictStatuses()[0]!.attempts).toBe(6);
   });
 });
 

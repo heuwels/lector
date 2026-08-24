@@ -26,6 +26,15 @@ services:
       - ollama
     volumes:
       - ${DATA_PATH:-./data}:/app/data
+      # On-device dictionaries (#438). The image ships none of them, so this
+      # volume must outlive an image pull. Without it every `docker compose
+      # pull && up -d` throws the files away and downloads them again.
+      #
+      # A named volume, not a path under DATA_PATH: the dictionaries are large
+      # and re-downloadable, so they stay out of whatever backs up your data
+      # directory. Set DICT_DIR=/app/data/dict instead if you would rather keep
+      # one directory for everything.
+      - lector-dict:/app/dict
     ports:
       - "${WEB_PORT:-3400}:3000"
       # The Hono API is published on a fixed host :3457; the browser is told
@@ -59,6 +68,16 @@ services:
       # GlitchTip. Unset → Sentry stays off.
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-}
+      # On-device dictionaries (#438). Unset downloads a dictionary when you
+      # add its language in the picker. Name languages to pre-fetch them at
+      # boot, or use `all` for every published language.
+      - DICT_LANGS=${DICT_LANGS:-}
+      # Set to 0 to never download. Use it with the `:full` image tag, which
+      # bakes every dictionary, for an install with no internet.
+      - DICT_FETCH=${DICT_FETCH:-}
+      # Move the dictionaries under your data directory instead of the named
+      # volume above. Both paths must agree.
+      - DICT_DIR=${DICT_DIR:-/app/dict}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -68,3 +87,4 @@ services:
 
 volumes:
   ollama-data:
+  lector-dict:

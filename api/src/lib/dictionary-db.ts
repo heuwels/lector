@@ -50,9 +50,14 @@ function foldKey(word: string, language: string): string {
  * then the AI cache (lector.db). The affix heuristics are Afrikaans-specific.
  */
 
-// The dictionary is read-only application data shipped with the image. Prefer
-// DICT_DIR so it stays put when the user mounts a volume on DATA_DIR for their
-// (mutable) data; fall back to DATA_DIR, then '../data'. The default mirrors
+// A dictionary is read-only to THIS module: every connection below opens with
+// immutable=1. The files are no longer shipped with the image, though. The
+// runtime downloads them into DICT_DIR (#438, dict-install.ts), which is why
+// that directory needs a volume of its own and why a download must invalidate
+// the caches below rather than assume the set never changes.
+//
+// Prefer DICT_DIR so the dictionaries stay put when the user mounts a volume on
+// DATA_DIR for their own data; fall back to DATA_DIR, then '../data'. The default mirrors
 // db.ts (which also defaults to '../data') because the API runs from ./api in
 // local dev (`cd api && bun run …`) — a bare './data' resolved to the
 // nonexistent ./api/data, so every dictionary lookup silently missed and every
