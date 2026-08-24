@@ -113,6 +113,15 @@ A pack includes a dictionary, frequency data, and cloze sentences. Japanese and 
 
 The language picker lists only the languages that you study. Open the picker and select **Add a language** to start another one. Open Settings, then Languages, to add a language or to remove one from the list. A language that you remove keeps its words, texts, and cards.
 
+The image holds no dictionaries. Lector downloads the dictionary for a language when you add that language, and it keeps the file in the `lector-dict` volume. The download runs in the background. The language works at once, because a word with no dictionary entry yet goes to the AI lookup. Two settings control this:
+
+| Variable | Purpose |
+| --- | --- |
+| `DICT_LANGS` | Languages to download at start. Use `all` for every language. Leave it unset to download only what you add in the picker. |
+| `DICT_FETCH` | Set to `0` to never download. Use it with the `:full` image for an install with no internet. |
+
+The `ghcr.io/heuwels/lector:full` tag holds every dictionary. It is about 2.6 GB larger. Use it for an air-gapped install.
+
 Afrikaans was the first pack. It remains the most complete reference set. It is not the product. The product is the reader for any language that you study.
 
 See [lector.dev/docs/languages](https://lector.dev/docs/languages/) for pack status.

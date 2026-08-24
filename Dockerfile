@@ -24,32 +24,34 @@ RUN npm run build
 
 # ── Dictionary fetch stage ──────────────────────────────────────────────────
 # On-device dictionaries are read-only application data. Pins live once in
-# dict.env (single source of truth, shared with the CI workflows): per language
-# DICT_VERSION_<LANG> + DICT_SHA256_<LANG>, with DICT_LANGS listing the published
-# set. ALL selected languages are fetched (GitHub release, sha256-verified) and
-# baked into the SAME image — one image serves every bundled language at runtime.
+# dict.env (single source of truth, shared with the CI workflows and now with
+# the runtime): per language DICT_VERSION_<LANG> + DICT_SHA256_<LANG>, with
+# DICT_LANGS listing the published set.
 #
-# Select which languages to bake with --build-arg DICT_LANGS="…" (space-separated;
-# must be a subset of the languages pinned in dict.env). Defaults to dict.env's
-# DICT_LANGS = every published language. Override a single DB with
-# --build-arg DICT_URL=... (+ optional DICT_SHA256=, DICT_LANG=; lang defaults to af).
+# This stage bakes NOTHING by default (#438). The published image ships dict.env
+# and downloads the databases the box actually asks for, into a volume on
+# DICT_DIR. Twenty pinned languages are about 2.6 GB, and a learner studies one
+# or two of them.
 #
-# Examples:
-#   docker build .                                   # all published dicts (af + de + es + fr + it + nl)
-#   docker build --build-arg DICT_LANGS="de" .       # German-only image (smaller)
-#   docker build --build-arg DICT_LANGS="af de" .    # explicit subset
+# Set the BAKE_DICTS build arg to put databases back in the image:
+#   docker build .                                   # slim: no databases (default)
+#   docker build --build-arg BAKE_DICTS=all .        # the `:full` tag, every language
+#   docker build --build-arg BAKE_DICTS="af de" .    # explicit subset
 #   docker build \
 #     --build-arg DICT_URL=https://cdn.example.com/lector/my-dict.db \
 #     --build-arg DICT_SHA256=$(sha256sum my-dict.db | awk '{print $1}') .
+#
+# A baked image is self-sufficient offline. Pair it with DICT_FETCH=0 so the
+# runtime loop never reaches for GitHub.
 FROM alpine:3 AS dict
 ARG DICT_URL=
 ARG DICT_SHA256=
 ARG DICT_LANG=af
-ARG DICT_LANGS=
+ARG BAKE_DICTS=
 RUN apk add --no-cache curl
 COPY dict.env /tmp/dict.env
 RUN set -e; \
-    OVERRIDE_LANGS="${DICT_LANGS}"; \
+    BAKE="${BAKE_DICTS}"; \
     mkdir -p /dict; \
     if [ -n "${DICT_URL}" ]; then \
       echo "Fetching override ${DICT_LANG} dictionary from: ${DICT_URL}"; \
@@ -59,9 +61,17 @@ RUN set -e; \
       else \
         echo "WARNING: no SHA-256 to verify against — skipping integrity check"; \
       fi; \
+    elif [ -z "${BAKE}" ]; then \
+      echo "Slim image: no dictionaries baked. The runtime fetches them into DICT_DIR (#438)."; \
+      printf '%s\n' \
+        'This image ships no dictionaries. The API downloads the ones this box' \
+        'asks for into DICT_DIR and records them in installed.json (#438).' \
+        'Set DICT_LANGS to pre-fetch at boot, or use the :full tag for an' \
+        'offline install. This file only keeps the directory non-empty.' \
+        > /dict/README-slim.txt; \
     else \
       . /tmp/dict.env; \
-      LANGS="${OVERRIDE_LANGS:-${DICT_LANGS}}"; \
+      if [ "${BAKE}" = "all" ]; then LANGS="${DICT_LANGS}"; else LANGS="${BAKE}"; fi; \
       echo "Baking dictionaries for: ${LANGS}"; \
       for L in ${LANGS}; do \
         U=$(echo "$L" | tr a-z A-Z); \
@@ -114,8 +124,10 @@ RUN apk add --no-cache espeak-ng ffmpeg
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATA_DIR=/app/data
-# Dictionary lives outside DATA_DIR so a user volume mount on /app/data
-# doesn't shadow the read-only DB shipped with the image.
+# Dictionaries live outside DATA_DIR so a user volume mount on /app/data does
+# not shadow them. They are no longer read-only image content: the runtime
+# downloads them here (#438), so mount a volume on /app/dict or they are lost
+# on every image pull. docker-compose.yml does that with a named volume.
 ENV DICT_DIR=/app/dict
 
 # Create non-root user
@@ -126,8 +138,15 @@ RUN adduser --system --uid 1001 nextjs
 RUN mkdir -p /app/data/books /app/dict \
  && chown -R nextjs:nodejs /app/data /app/dict
 
-# Pull in the dictionaries fetched in the `dict` stage (one per DICT_LANGS entry)
+# Pull in whatever the `dict` stage produced. The slim default is one README,
+# because a COPY needs a source that is not empty. Docker seeds a fresh named
+# volume from this directory on first run, so a `:full` image hands its baked
+# dictionaries to the volume and the runtime then leaves them alone.
 COPY --from=dict /dict/ /app/dict/
+
+# The pin manifest the runtime fetch verifies against (#438). It resolves as
+# /app/dict.env, one level up from the API's working directory.
+COPY dict.env ./dict.env
 
 # Copy Next.js standalone build
 COPY --from=builder /app/public ./public
