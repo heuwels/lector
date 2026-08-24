@@ -13,6 +13,7 @@ import { getAuthEngine, runAuthMigrations, resolveTrustedOrigins } from './lib/a
 import { HTTPException } from 'hono/http-exception';
 import { startClassifyWorker } from './lib/classify-worker';
 import { startTranscribeWorker } from './lib/transcribe-worker';
+import { startDictWorker } from './lib/dict-worker';
 import { isByokAvailable } from './lib/byok';
 import { defaultRequestBodyLimit } from './lib/request-body-limit';
 // Aliased: this file's Bun.serve export below is also named `config`.
@@ -185,6 +186,12 @@ startClassifyWorker();
 // TRANSCRIBE_WORKER=1 — same opt-in shape as the classifier, so it never runs
 // under test/e2e.
 startTranscribeWorker();
+
+// Runtime dictionary fetch (#438). The image ships no databases, so this loop
+// downloads the ones DICT_LANGS and the opted-in accounts ask for. It runs
+// after the server is up and never gates readiness — a language with no
+// dictionary yet still works through the AI lookup path.
+startDictWorker();
 
 const config = {
   port,

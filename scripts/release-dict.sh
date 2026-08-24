@@ -88,10 +88,13 @@ DICT_LANGS="$NEW_LANGS"
 
 {
   echo '# Pinned on-device dictionary releases — single source of truth.'
-  echo '# Sourced by the Dockerfile (dict stage) and the CI workflows. Per language:'
+  echo '# Sourced by the Dockerfile (dict stage), the CI workflows, and the running'
+  echo '# app (api/src/lib/dict-pins.ts). Per language:'
   echo '#   DICT_VERSION_<LANG>  release tag holding dictionary-<lang>.db'
   echo '#   DICT_SHA256_<LANG>   sha256 of that asset'
-  echo '# DICT_LANGS lists which languages are baked into the image / fetched by CI.'
+  echo '# DICT_LANGS lists every published language. The image bakes none of them'
+  echo '# by default: the app downloads what a box asks for and checks it against'
+  echo '# the sha256 here (#438).'
   echo '# Regenerate a language with: scripts/release-dict.sh <lang>'
   echo "DICT_LANGS=\"${DICT_LANGS}\""
   for L in $DICT_LANGS; do

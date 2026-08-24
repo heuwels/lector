@@ -42,24 +42,36 @@ function foldKey(word: string, language: string): string {
 
 /**
  * Read-only SQLite-backed bilingual dictionary, selected by the active language.
- * Mirrored from src/lib/server/dictionary-db.ts (better-sqlite3 → bun:sqlite);
- * keep the lookup algorithm and affix heuristics in sync.
+ * This file is the only implementation. The `src/lib/server/dictionary-db.ts`
+ * mirror it was ported from went away with the Hono/Bun replatform (#180).
  *
  * Built by `scripts/build-dictionary.ts` from the kaikki.org Wiktionary dump.
  * Lookup order: exact → inflections → prefix → suffix → affix-strip fallback,
  * then the AI cache (lector.db). The affix heuristics are Afrikaans-specific.
  */
 
-// The dictionary is read-only application data shipped with the image. Prefer
-// DICT_DIR so it stays put when the user mounts a volume on DATA_DIR for their
-// (mutable) data; fall back to DATA_DIR, then '../data'. The default mirrors
+// A dictionary is read-only to THIS module: every connection below opens with
+// immutable=1. The files are no longer shipped with the image, though. The
+// runtime downloads them into DICT_DIR (#438, dict-install.ts), which is why
+// that directory needs a volume of its own and why a download must invalidate
+// the caches below rather than assume the set never changes.
+//
+// Prefer DICT_DIR so the dictionaries stay put when the user mounts a volume on
+// DATA_DIR for their own data; fall back to DATA_DIR, then '../data'. The default mirrors
 // db.ts (which also defaults to '../data') because the API runs from ./api in
 // local dev (`cd api && bun run …`) — a bare './data' resolved to the
 // nonexistent ./api/data, so every dictionary lookup silently missed and every
 // word fell through to the (slow) AI path.
+export function dictionaryDir(): string {
+  return process.env.DICT_DIR || process.env.DATA_DIR || '../data';
+}
+
+export function dictionaryPath(language: string): string {
+  return path.join(dictionaryDir(), `dictionary-${language}.db`);
+}
+
 function getDbPath(language: string): string {
-  const dir = process.env.DICT_DIR || process.env.DATA_DIR || '../data';
-  return path.join(dir, `dictionary-${language}.db`);
+  return dictionaryPath(language);
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +370,24 @@ type Stmts = {
 };
 
 const _stmtsByLang = new Map<string, Stmts>();
+
+/**
+ * Forget both caches for one language (#438).
+ *
+ * `getDb` caches a `null` when the file is absent, so a dictionary that arrives
+ * after the first lookup stays invisible until a restart. The runtime installer
+ * calls this when a download lands.
+ *
+ * It drops the entries and does NOT close the old connection. A request can
+ * hold that connection mid-lookup, and closing it under the request crashes the
+ * query. The installer renames the new file into place, so an open handle keeps
+ * reading the old inode until the garbage collector takes it. The next lookup
+ * opens the new file.
+ */
+export function invalidateDictionaryCache(language: string): void {
+  _dbs.delete(language);
+  _stmtsByLang.delete(language);
+}
 
 function getStmts(language: string): Stmts | null {
   const cached = _stmtsByLang.get(language);

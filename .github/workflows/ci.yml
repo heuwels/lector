@@ -229,15 +229,24 @@ jobs:
           docker rm -f lector-canary
           echo "$BODY" | grep -q '"mode":"cloud"'
 
+      # The published image ships no dictionaries (#438). The specs that assert
+      # the on-device lookup path need them, so seed DICT_DIR from the cached
+      # download instead. That also keeps this job off GitHub's release
+      # endpoint: DICT_FETCH=0 below turns the runtime fetch off, so a release
+      # outage can never flake the e2e suite.
+      - uses: ./.github/actions/fetch-dicts
       - name: Start container
-        # No volume mount: /app/data starts empty, matching the fresh DB the
-        # dev-mode webServer guarantees. Container :3000 maps to host :3456 (the
+        # /app/data has no volume mount: it starts empty, matching the fresh DB
+        # the dev-mode webServer guarantees. /app/dict is mounted read-only from
+        # the seeded dictionaries above. Container :3000 maps to host :3456 (the
         # UI origin the specs hardcode); :3457 maps to host :3457 (the Hono API —
         # the browser client and the specs' page.request calls hit it directly
         # now that the Next /api proxy is gone, #188). host-gateway lets the
         # in-container Bun API reach test stubs on the runner (lmstudio-chat.spec.ts).
         run: |
           docker run -d --name lector-e2e -p 3456:3000 -p 3457:3457 \
+            -e DICT_FETCH=0 \
+            -v "$PWD/data:/app/dict:ro" \
             --add-host=host.docker.internal:host-gateway lector:e2e
       - run: npm ci
       - uses: ./.github/actions/setup-playwright

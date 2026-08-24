@@ -94,6 +94,12 @@ export default defineConfig({
           timeout: 60_000,
           env: {
             DATA_DIR: '../tmp/e2e-data',
+            // Never fetch a dictionary during a test run (#438). The dev
+            // webServer copies data/dictionary-*.db into DATA_DIR above, so
+            // the suite already has what it asserts on. Without this a spec
+            // that opts into a language with no local copy starts a real
+            // download from GitHub, mid-suite.
+            DICT_FETCH: '0',
             PORT: apiPort,
             // Fixture starter pack for the seeding specs (#315) — a relative path
             // resolved against this server's cwd (./api). Real packs ship none yet;
@@ -119,6 +125,12 @@ export default defineConfig({
           timeout: 60_000,
           env: {
             DATA_DIR: '../tmp/e2e-data-cloud',
+            // Never fetch a dictionary during a test run (#438). The dev
+            // webServer copies data/dictionary-*.db into DATA_DIR above, so
+            // the suite already has what it asserts on. Without this a spec
+            // that opts into a language with no local copy starts a real
+            // download from GitHub, mid-suite.
+            DICT_FETCH: '0',
             PORT: authApiPort,
             LECTOR_MODE: 'cloud',
             BETTER_AUTH_SECRET: 'e2e-only-secret-0123456789abcdef',
@@ -143,6 +155,12 @@ export default defineConfig({
           timeout: 60_000,
           env: {
             DATA_DIR: '../tmp/e2e-cloud-data',
+            // Never fetch a dictionary during a test run (#438). The dev
+            // webServer copies data/dictionary-*.db into DATA_DIR above, so
+            // the suite already has what it asserts on. Without this a spec
+            // that opts into a language with no local copy starts a real
+            // download from GitHub, mid-suite.
+            DICT_FETCH: '0',
             PORT: isolationApiPort,
             LECTOR_MODE: 'cloud',
             BETTER_AUTH_SECRET: 'e2e-only-secret-0000000000000000',
@@ -167,6 +185,12 @@ export default defineConfig({
           timeout: 60_000,
           env: {
             DATA_DIR: '../tmp/e2e-billing-data',
+            // Never fetch a dictionary during a test run (#438). The dev
+            // webServer copies data/dictionary-*.db into DATA_DIR above, so
+            // the suite already has what it asserts on. Without this a spec
+            // that opts into a language with no local copy starts a real
+            // download from GitHub, mid-suite.
+            DICT_FETCH: '0',
             PORT: billingApiPort,
             LECTOR_MODE: 'cloud',
             BETTER_AUTH_SECRET: 'e2e-only-secret-1111111111111111',
@@ -202,6 +226,12 @@ export default defineConfig({
           timeout: 60_000,
           env: {
             DATA_DIR: '../tmp/e2e-admin-data',
+            // Never fetch a dictionary during a test run (#438). The dev
+            // webServer copies data/dictionary-*.db into DATA_DIR above, so
+            // the suite already has what it asserts on. Without this a spec
+            // that opts into a language with no local copy starts a real
+            // download from GitHub, mid-suite.
+            DICT_FETCH: '0',
             PORT: adminApiPort,
             LECTOR_MODE: 'cloud',
             BETTER_AUTH_SECRET: 'e2e-only-secret-2222222222222222',
@@ -226,6 +256,12 @@ export default defineConfig({
           env: {
             NODE_ENV: 'test',
             DATA_DIR: '../tmp/e2e-free-data',
+            // Never fetch a dictionary during a test run (#438). The dev
+            // webServer copies data/dictionary-*.db into DATA_DIR above, so
+            // the suite already has what it asserts on. Without this a spec
+            // that opts into a language with no local copy starts a real
+            // download from GitHub, mid-suite.
+            DICT_FETCH: '0',
             PORT: freeApiPort,
             LECTOR_MODE: 'cloud',
             BETTER_AUTH_SECRET: 'e2e-only-secret-3333333333333333',

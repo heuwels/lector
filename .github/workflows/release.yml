@@ -116,13 +116,21 @@ jobs:
           src="ghcr.io/heuwels/lector:release-${{ github.ref_name }}-${{ github.sha }}-amd64"
           docker pull "$src"
           docker tag "$src" lector:e2e
+      # The release image ships no dictionaries (#438). The specs that assert
+      # the on-device lookup path need them, so seed DICT_DIR from the cached
+      # download, exactly as ci.yml's e2e-docker job does.
+      - uses: ./.github/actions/fetch-dicts
       - name: Start container
-        # Mirrors ci.yml's e2e-docker job: no volume mount, so /app/data starts
-        # empty. Container :3000 maps to host :3456 (the UI origin the specs
-        # hardcode) and :3457 maps to host :3457 (the Hono API the browser
-        # calls directly).
+        # Mirrors ci.yml's e2e-docker job: /app/data has no volume mount, so it
+        # starts empty, and /app/dict is mounted read-only from the seeded
+        # dictionaries above. Container :3000 maps to host :3456 (the UI origin
+        # the specs hardcode) and :3457 maps to host :3457 (the Hono API the
+        # browser calls directly). DICT_FETCH=0 keeps the job off GitHub's
+        # release endpoint, so an outage there cannot fail a release.
         run: |
           docker run -d --name lector-e2e -p 3456:3000 -p 3457:3457 \
+            -e DICT_FETCH=0 \
+            -v "$PWD/data:/app/dict:ro" \
             --add-host=host.docker.internal:host-gateway lector:e2e
       - run: npm ci
       - uses: ./.github/actions/setup-playwright
@@ -195,6 +203,98 @@ jobs:
             fi
           done
           TAG_ARGS=""
+          while IFS= read -r TAG; do
+            TAG_ARGS="$TAG_ARGS -t $TAG"
+          done <<< "${{ steps.meta.outputs.tags }}"
+          docker buildx imagetools create $TAG_ARGS \
+            "${repo}:${base}-amd64" \
+            "${repo}:${base}-arm64"
+
+  # The offline image (#438). Every other tag is slim and downloads its
+  # dictionaries at boot. This one bakes all of them, for an air-gapped install
+  # or a box that must never reach GitHub.
+  #
+  # It runs on a version tag only. The baked data is about 2.6 GB per
+  # architecture, so a build on every merge spends most of the CI budget on
+  # bytes that did not change.
+  #
+  # The tag base carries `full-`, so a baked image never lands on the slim
+  # image's tag. It also carries the commit, so a re-run of a failed release
+  # reuses its own image.
+  build-full-amd64:
+    runs-on: ubuntu-latest
+    needs: [e2e-tests]
+    permissions:
+      contents: read
+      packages: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/build-image
+        with:
+          platform: linux/amd64
+          push: true
+          bake_dicts: all
+          image_tag: full-${{ github.ref_name }}-${{ github.sha }}
+
+  build-full-arm64:
+    runs-on: ubuntu-24.04-arm
+    needs: [e2e-tests]
+    permissions:
+      contents: read
+      packages: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/build-image
+        with:
+          platform: linux/arm64
+          push: true
+          bake_dicts: all
+          image_tag: full-${{ github.ref_name }}-${{ github.sha }}
+
+  # Join the two baked images under `:full` and the versioned `-full` tags. The
+  # slim `publish` job gates this one, so an offline image only ships after the
+  # suite passed against the artifact that carries the same app code.
+  publish-full:
+    runs-on: ubuntu-latest
+    needs: [publish, build-full-amd64, build-full-arm64]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: ghcr.io/heuwels/lector
+          flavor: |
+            latest=false
+            suffix=-full
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - name: Publish the multi-arch full manifest
+        run: |
+          set -euo pipefail
+          repo="ghcr.io/heuwels/lector"
+          base="full-${{ github.ref_name }}-${{ github.sha }}"
+          for arch in amd64 arm64; do
+            if ! docker buildx imagetools inspect "${repo}:${base}-${arch}" >/dev/null 2>&1; then
+              echo "No baked image at ${repo}:${base}-${arch}." >&2
+              exit 1
+            fi
+          done
+          TAG_ARGS="-t ${repo}:full"
           while IFS= read -r TAG; do
             TAG_ARGS="$TAG_ARGS -t $TAG"
           done <<< "${{ steps.meta.outputs.tags }}"

@@ -431,6 +431,15 @@ services:
       # fills and the radar reads "pending classification" forever. It uses
       # the instance-level provider above, not per-user BYOK keys (#220).
       - CLASSIFY_WORKER=1
+      # Cloud takes every published dictionary (#438). The image ships none of
+      # them, and a paying learner must never fall to the slower, costlier AI
+      # lookup because nobody opted into that language on this box yet.
+      - DICT_LANGS=all
+      # Point DICT_DIR into the EBS data volume instead of the image's
+      # /app/dict. The dictionaries are downloaded now, so they must outlive an
+      # image pull: a deploy then moves tens of MB of app code instead of
+      # ~2.6 GB of unchanged data, and only a pin change costs a download.
+      - DICT_DIR=/app/data/dict
     env_file:
       - /srv/lector/.env
     volumes:

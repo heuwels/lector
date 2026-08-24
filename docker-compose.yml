@@ -49,8 +49,16 @@ services:
       # forever. Runs on the provider above; set 0 to disable, or point
       # CLASSIFY_LLM_URL at a dedicated OpenAI-compatible endpoint.
       - CLASSIFY_WORKER=${CLASSIFY_WORKER:-1}
+      # On-device dictionaries (#438). The image ships none of them. Leave this
+      # unset and Lector downloads a dictionary when you add its language in
+      # the picker. Name languages here to pre-fetch them at boot, or use `all`
+      # for every published language. Set DICT_FETCH=0 to never download.
+      - DICT_LANGS=${DICT_LANGS:-}
     volumes:
       - ./data:/app/data
+      # Dictionaries are downloaded, not shipped, so they need to outlive an
+      # image pull. Fetched once per host instead of once per upgrade.
+      - lector-dict:/app/dict
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -60,3 +68,4 @@ services:
 
 volumes:
   ollama-data:
+  lector-dict:

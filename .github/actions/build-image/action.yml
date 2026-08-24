@@ -35,6 +35,14 @@ inputs:
     description: Also write the registry BuildKit cache
     required: false
     default: 'false'
+  bake_dicts:
+    description: >
+      BAKE_DICTS build-arg (#438). Empty builds the slim image, which ships no
+      dictionaries. `all` bakes every pinned language for the offline `:full`
+      tag. Pass image_tag with this, or the baked image overwrites the slim
+      image under the same tag.
+    required: false
+    default: ''
 outputs:
   tree:
     description: Git tree SHA of HEAD
@@ -127,6 +135,7 @@ runs:
         build-args: |
           APP_VERSION=${{ steps.meta.outputs.version }}
           GIT_COMMIT=${{ steps.meta.outputs.commit }}
+          BAKE_DICTS=${{ inputs.bake_dicts }}
         cache-from: |
           type=gha,scope=lector-${{ steps.meta.outputs.arch }}
           type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }}
@@ -146,6 +155,7 @@ runs:
         build-args: |
           APP_VERSION=${{ steps.meta.outputs.version }}
           GIT_COMMIT=${{ steps.meta.outputs.commit }}
+          BAKE_DICTS=${{ inputs.bake_dicts }}
         cache-from: |
           type=gha,scope=lector-${{ steps.meta.outputs.arch }}
           type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }}
