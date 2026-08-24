@@ -24,6 +24,13 @@ inputs:
     description: GIT_COMMIT build-arg. Defaults to HEAD.
     required: false
     default: ''
+  image_tag:
+    description: >
+      Tag base, which the action suffixes with the arch. Defaults to
+      `tree-<tree>`. A release passes its own base so the build runs again at
+      the tag, because the tree tag already holds the master build.
+    required: false
+    default: ''
   write_registry_cache:
     description: Also write the registry BuildKit cache
     required: false
@@ -44,6 +51,7 @@ runs:
       env:
         PLATFORM: ${{ inputs.platform }}
         INPUT_COMMIT: ${{ inputs.git_commit }}
+        INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
         PR_NUMBER: ${{ inputs.pr_number }}
         LOCAL_TAG: ${{ inputs.local_tag }}
         DO_LOAD: ${{ inputs.load }}
@@ -52,7 +60,11 @@ runs:
         tree=$(git rev-parse 'HEAD^{tree}')
         arch="${PLATFORM#linux/}"
         repo="ghcr.io/heuwels/lector"
-        image="${repo}:tree-${tree}-${arch}"
+        # A release passes its own base. The reuse check below then inspects
+        # that tag rather than the tree tag, so the build runs again and stamps
+        # the release version into the bundle.
+        base="${INPUT_IMAGE_TAG:-tree-${tree}}"
+        image="${repo}:${base}-${arch}"
         commit="${INPUT_COMMIT:-$(git rev-parse HEAD)}"
         # Describe the commit we report, not the checkout. On pull_request the
         # checkout is an ephemeral merge commit that is in no branch, so

@@ -14,11 +14,13 @@ export interface BuildInfo {
    * `git describe --tags --match 'v*' --always` of the built commit, e.g.
    * "v1.34.0" or "v1.34.0-3-gabc1234".
    *
-   * This names a *build*, not a release. Release images are retagged, not
-   * rebuilt (see release.yml), so the semver tag never reaches the bundle.
-   * Deploys go out by `sha-<commit>` image tag and have no semver at all.
-   * The About panel labels this "Build" for that reason. Do not present it
-   * as the release the user runs.
+   * On a release image this is the tag exactly, e.g. "v3.10.0", because
+   * release.yml builds the image again at the tag (it used to retag the master
+   * image, which left the semver out of the bundle).
+   *
+   * A cloud deploy is not a release. It goes out by `sha-<commit>` image tag,
+   * so this reads as a describe string like "v3.10.0-3-gabc1234". The About
+   * panel labels the row "Build" to cover both cases.
    */
   version: string;
   /** Full commit SHA, or "unknown" when it couldn't be determined. */
