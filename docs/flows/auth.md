@@ -67,6 +67,42 @@ The register page calls `authClient.signUp.email`. Better Auth sends a confirmat
 
 Reset password and two-factor live in `src/app/(auth)/reset-password/` and `src/app/(auth)/two-factor/`. They use the same Better Auth handler.
 
+## Lifecycle email
+
+**App domain:** Auth
+
+Cloud sends each Resend template once. Self-host does not send these templates.
+
+| Role | Path | Function |
+| --- | --- | --- |
+| Hook | `api/src/lib/accounts.ts` | `afterEmailVerification` |
+| Rules | `api/src/lib/lifecycle-email.ts` | `sendWelcomeEmail`, `sweepLifecycleEmails` |
+| Transport | `api/src/lib/email.ts` | `sendEmail` |
+| Log | `api/src/db.ts` | `email_sends` |
+
+### Send rules
+
+- Welcome: the user confirms email. An OAuth user with a confirmed email gets this email on create.
+- Day 1: the account is 24 hours old. The user has no saved word.
+- Day 3: the account is 72 hours old. The user has no real use.
+- Anki: the user has 10 saved words. Ignored words do not count.
+- Gloss cap: a free-plan user reaches the monthly gloss limit.
+
+Real use is a saved word, a learner event, or progress on a lesson above zero. A starter lesson with `lastReadAt` is not real use.
+
+### Skip rules
+
+The send does not run when:
+
+- The app is not cloud.
+- `RESEND_API_KEY` is absent.
+- The user did not confirm the email.
+- The user already has that template.
+
+The app sends `verify`, `reset`, and `delete` mails as plain text. A transport error does not fail signup or login.
+
+`api/src/lib/lifecycle-email.test.ts` and `api/src/lib/email.test.ts` cover the rules.
+
 ## Session gate
 
 **App domain:** Auth

@@ -45,6 +45,7 @@ const SEEDED_TABLES = [
   'anki_pending',
   'admin_account_flags',
   'billing_subscriptions',
+  'email_sends',
 ] as const;
 
 function clearAll() {
@@ -136,6 +137,11 @@ function seed(userId: string, email: string, customerId: string) {
   db.prepare(
     'INSERT INTO billing_subscriptions (paddleSubscriptionId, paddleCustomerId, userId, status, occurredAt, updatedAt) VALUES (?,?,?,?,?,?)',
   ).run(`sub-${userId}`, customerId, userId, 'active', NOW, NOW);
+  db.prepare('INSERT INTO email_sends (userId, templateAlias, sentAt) VALUES (?,?,?)').run(
+    userId,
+    'welcome-on-account-create',
+    NOW,
+  );
 }
 
 function customerCount(paddleCustomerId: string): number {

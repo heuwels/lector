@@ -1,6 +1,6 @@
 /**
- * Outbound email for account flows (#218): verification links and password
- * resets. The transport is resolved from env at first send:
+ * Outbound email for account flows (#218) and lifecycle templates (#558).
+ * The transport is resolved from env at first send:
  *
  *   - `EMAIL_FILE` set → append one JSON line per message to that path.
  *     For the e2e suites (specs read verification/reset links back out — a
@@ -19,16 +19,26 @@
 import { appendFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 
+export interface EmailTemplate {
+  id: string;
+  variables?: Record<string, string | number>;
+}
+
 export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
+  /** Resend template. The HTML stays on Resend. Auth mail omits this. */
+  template?: EmailTemplate;
 }
 
 export type EmailTransport = (message: EmailMessage) => Promise<void>;
 
-const consoleTransport: EmailTransport = async ({ to, subject, text }) => {
-  console.log(`[email → console] to=${to} subject="${subject}"\n${text}`);
+const consoleTransport: EmailTransport = async (message) => {
+  const template = message.template ? ` template=${message.template.id}` : '';
+  console.log(
+    `[email → console] to=${message.to} subject="${message.subject}"${template}\n${message.text}`,
+  );
 };
 
 function fileTransport(path: string): EmailTransport {
@@ -38,19 +48,38 @@ function fileTransport(path: string): EmailTransport {
   };
 }
 
+/** Body for Resend. A template send must not include text or HTML. */
+export function resendPayload(from: string, message: EmailMessage): Record<string, unknown> {
+  if (message.template) {
+    return {
+      from,
+      to: message.to,
+      template: {
+        id: message.template.id,
+        variables: message.template.variables ?? {},
+      },
+    };
+  }
+  return { from, to: message.to, subject: message.subject, text: message.text };
+}
+
+function senderFor(message: EmailMessage): string {
+  if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
+  return message.template ? 'Support <support@lector.dev>' : 'Lector <no-reply@lector.dev>';
+}
+
 function resendTransport(apiKey: string): EmailTransport {
-  const from = process.env.EMAIL_FROM || 'Lector <no-reply@lector.dev>';
-  return async ({ to, subject, text }) => {
+  return async (message) => {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from, to, subject, text }),
+      body: JSON.stringify(resendPayload(senderFor(message), message)),
     });
     if (!res.ok) {
-      throw new Error(`Resend rejected email to ${to}: ${res.status} ${await res.text()}`);
+      throw new Error(`Resend rejected email to ${message.to}: ${res.status} ${await res.text()}`);
     }
   };
 }

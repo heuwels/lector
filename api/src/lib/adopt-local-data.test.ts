@@ -248,6 +248,7 @@ describe('TENANT_TABLES ratchet', () => {
   //   - admin_account_flags: operator-set support state (#221) keyed by the
   //     account userId; a migrating self-hoster's 'local' user has none, and
   //     suspension must not travel with adopted data.
+  //   - email_sends: cloud lifecycle mail log (#558). Self-host never writes it.
   // Subtracted here so the assertion stays meaningful even on a DB that has
   // them (a fresh getDb() schema omits Better Auth's, but not billing's).
   const NON_TENANT_USERID_TABLES = new Set([
@@ -256,6 +257,7 @@ describe('TENANT_TABLES ratchet', () => {
     'billing_subscriptions',
     'admin_account_flags',
     'twoFactor',
+    'email_sends',
   ]);
 
   test('every table with a userId column is covered by adoption', () => {

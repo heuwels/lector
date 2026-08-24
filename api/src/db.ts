@@ -331,6 +331,15 @@ function getDb(): Database {
       PRIMARY KEY (userId, metric, period)
     );
 
+    -- Lifecycle mail (#558). One row per user and template alias. Cloud only
+    -- writes this. Erasure deletes it. Adoption skips it.
+    CREATE TABLE IF NOT EXISTS email_sends (
+      userId TEXT NOT NULL,
+      templateAlias TEXT NOT NULL,
+      sentAt TEXT NOT NULL,
+      PRIMARY KEY (userId, templateAlias)
+    );
+
     -- Guided onboarding + learner activity (#331). The profile is deliberately
     -- small but durable: it is the first slice of the shared learner model
     -- planned in #125. Progress is one non-restartable v1 journey per account;

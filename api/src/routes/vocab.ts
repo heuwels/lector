@@ -23,6 +23,7 @@ import {
   validateSafeInteger,
   validateWordKey,
 } from '../lib/persisted-input';
+import { notifyVocabSaved } from '../lib/lifecycle-email';
 
 const app = new Hono();
 const VOCAB_TYPES = new Set(['word', 'phrase'] as const);
@@ -198,6 +199,7 @@ app.post('/', async (c) => {
   });
   if (!verdict.allowed) return planLimitResponse(c, verdict);
 
+  void notifyVocabSaved(userId);
   return c.json({ id });
 });
 

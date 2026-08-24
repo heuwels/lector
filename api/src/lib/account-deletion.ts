@@ -17,6 +17,7 @@
  *     tombstoning is a follow-up (tracked on #227).
  *   - admin_account_flags — operator suspension/comp state, meaningless once
  *     the account is gone.
+ *   - email_sends — cloud lifecycle mail log (#558). Not learning data.
  *   - twoFactor — Better Auth's TOTP secret + backup codes. Its own deleteUser
  *     removes only user/session/account, and FKs are off app-wide, so this
  *     would otherwise outlive the account.
@@ -44,6 +45,7 @@ export const ERASURE_TABLES = [
   'billing_subscriptions',
   'admin_account_flags',
   'twoFactor',
+  'email_sends',
 ] as const;
 
 /**

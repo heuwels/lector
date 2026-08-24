@@ -115,7 +115,7 @@
     md: "stats.md",
   });
   N("domain:auth", "domain", "Auth", {
-    summary: "Cloud session gate. Login, register, and Better Auth. Selfhost skips this domain.",
+    summary: "Cloud session gate. Login, register, Better Auth, and lifecycle mail. Selfhost skips this domain.",
     md: "auth.md",
   });
   N("domain:settings", "domain", "Settings", {
@@ -370,6 +370,12 @@
     summary: "Register page. Better Auth sends a verify email. The account is not a session until verify.",
     steps: ["file:register-page", "fn:sign-up-email", "route:auth-handler", "file:accounts"],
   });
+  N("flow:lifecycle-email", "flow", "Lifecycle email", {
+    domain: "auth",
+    md: "auth.md#lifecycle-email",
+    summary: "Cloud only. The API sends each Resend template once after signup or idle return.",
+    steps: ["file:accounts", "file:lifecycle-email", "file:email", "table:email_sends"],
+  });
   N("flow:session-gate", "flow", "Session gate", {
     domain: "auth",
     md: "auth.md#session-gate",
@@ -505,6 +511,8 @@
   N("file:subscribe-page", "file", "Subscribe page", { path: "src/app/(auth)/subscribe/page.tsx", domain: "billing" });
   N("file:auth-client", "file", "auth-client.ts", { path: "src/lib/auth-client.ts", domain: "auth" });
   N("file:accounts", "file", "accounts.ts", { path: "api/src/lib/accounts.ts", domain: "auth" });
+  N("file:lifecycle-email", "file", "lifecycle-email.ts", { path: "api/src/lib/lifecycle-email.ts", domain: "auth" });
+  N("file:email", "file", "email.ts", { path: "api/src/lib/email.ts", domain: "auth" });
   N("file:settings-page", "file", "Settings page", { path: "src/app/settings/page.tsx", domain: "settings" });
   N("file:language-selector", "file", "LanguageSelector", { path: "src/components/LanguageSelector/index.tsx", domain: "onboarding" });
   N("file:languages-settings", "file", "LanguagesSettings", { path: "src/app/settings/components/LanguagesSettings/index.tsx", domain: "settings" });
@@ -655,6 +663,9 @@
   N("fn:suspendUser", "fn", "suspendUser", { path: "src/lib/admin-client.ts" });
   N("fn:startImpersonation", "fn", "startImpersonation", { path: "src/lib/admin-client.ts" });
   N("fn:createAuthEngine", "fn", "createAuthEngine", { path: "api/src/lib/accounts.ts" });
+  N("fn:sendWelcomeEmail", "fn", "sendWelcomeEmail", { path: "api/src/lib/lifecycle-email.ts" });
+  N("fn:sweepLifecycleEmails", "fn", "sweepLifecycleEmails", { path: "api/src/lib/lifecycle-email.ts" });
+  N("fn:sendEmail", "fn", "sendEmail", { path: "api/src/lib/email.ts" });
   N("fn:requireAdmin", "fn", "makeRequireAdmin", { path: "api/src/lib/admin.ts" });
 
   // ── Routes ────────────────────────────────────────────────────────────────
@@ -741,6 +752,7 @@
   N("table:api_tokens", "table", "api_tokens", { path: "api/src/db.ts" });
   N("table:user_provider_credentials", "table", "user_provider_credentials", { path: "api/src/db.ts" });
   N("table:session", "table", "session", { path: "api/src/lib/accounts.ts" });
+  N("table:email_sends", "table", "email_sends", { path: "api/src/db.ts" });
   N("table:billing_subscriptions", "table", "billing_subscriptions", { path: "api/src/db.ts" });
   N("table:billing_customers", "table", "billing_customers", { path: "api/src/db.ts" });
   N("table:admin_audit_log", "table", "admin_audit_log", { path: "api/src/db.ts" });
@@ -824,7 +836,7 @@
   domainFlows("anki", ["flow:anki-push", "flow:anki-sync"]);
   domainFlows("onboarding", ["flow:language-setup", "flow:add-language"]);
   domainFlows("stats", ["flow:daily-stats", "flow:fluency-radar"]);
-  domainFlows("auth", ["flow:sign-in", "flow:sign-up", "flow:session-gate"]);
+  domainFlows("auth", ["flow:sign-in", "flow:sign-up", "flow:lifecycle-email", "flow:session-gate"]);
   domainFlows("settings", ["flow:save-settings", "flow:configure-llm", "flow:api-tokens", "flow:delete-account"]);
   domainFlows("data", ["flow:export-data", "flow:restore-data"]);
   domainFlows("billing", ["flow:subscribe", "flow:entitlements", "flow:plan-change"]);
@@ -1235,6 +1247,17 @@
   edge("fn:sign-up-email", "route:auth-handler", "http");
   edge("flow:sign-in", "flow:session-gate", "then");
   edge("flow:sign-up", "flow:sign-in", "then");
+  edge("flow:sign-up", "flow:lifecycle-email", "then");
+  edge("flow:lifecycle-email", "file:accounts", "starts");
+  edge("file:accounts", "fn:sendWelcomeEmail", "calls");
+  edge("fn:sendWelcomeEmail", "file:lifecycle-email", "in");
+  edge("file:lifecycle-email", "fn:sweepLifecycleEmails", "calls");
+  edge("fn:sweepLifecycleEmails", "file:lifecycle-email", "in");
+  edge("file:lifecycle-email", "fn:sendEmail", "calls");
+  edge("fn:sendEmail", "file:email", "in");
+  edge("file:lifecycle-email", "table:email_sends", "writes");
+  edge("file:email", "layer:lib", "in");
+  edge("file:lifecycle-email", "layer:lib", "in");
   edge("flow:session-gate", "flow:language-setup", "then");
   edge("flow:session-gate", "flow:subscribe", "then");
 
