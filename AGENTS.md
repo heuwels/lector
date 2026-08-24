@@ -19,6 +19,8 @@ Tests live in:
 
 CI runs all of these, plus the e2e suite a second time against the production Docker image (`E2E_EXTERNAL_SERVER=1` with the container mapped to :3456 for the UI and :3457 for the Hono API the browser calls directly) to cover the standalone build and `docker-entrypoint.sh`. That e2e image is the amd64 image that a merge to master publishes. The workflow applies a new tag to it. It does not build it again.
 
+A release tag is the one exception. `release.yml` builds the image again at the tag, because `git describe` must resolve to the tag for the About panel to report it. The release e2e job then runs against that rebuilt image, so the artifact that ships is the artifact that CI tested.
+
 ## API Documentation
 
 `api/openapi.json` is generated from the route table, and it must stay complete.

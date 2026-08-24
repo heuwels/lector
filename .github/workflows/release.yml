@@ -39,27 +39,116 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  # Build the release image again, at the tag. `git describe --match 'v*'` here
+  # resolves to the tag exactly, so APP_VERSION reaches the bundle and the
+  # About panel reports the release. A retagged master image cannot carry it,
+  # because the tag did not exist when that image was built.
+  #
+  # The tree tag already holds the master build of this same tree, so pass a
+  # release-specific tag base. Without it the action reuses that image and
+  # skips the build.
+  #
+  # The base carries the tag AND the commit. A re-run of a failed release then
+  # reuses its own image, and a tag that moves to a new commit builds again. A
+  # base of the tag alone would reuse an image stamped from the old commit.
+  build-release-amd64:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, build]
+    permissions:
+      contents: read
+      packages: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history + tags so `git describe` can stamp APP_VERSION.
+          fetch-depth: 0
+      - uses: ./.github/actions/build-image
+        with:
+          platform: linux/amd64
+          push: true
+          image_tag: release-${{ github.ref_name }}-${{ github.sha }}
+          write_registry_cache: true
+
+  build-release-arm64:
+    runs-on: ubuntu-24.04-arm
+    needs: [lint, typecheck, build]
+    permissions:
+      contents: read
+      packages: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/build-image
+        with:
+          platform: linux/arm64
+          push: true
+          image_tag: release-${{ github.ref_name }}-${{ github.sha }}
+          write_registry_cache: true
+
+  # Run the suite against the image that ships, not against `next dev`. The
+  # release image is built here rather than promoted, so nothing else has
+  # exercised it. This job is the only gate that does.
   e2e-tests:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build-release-amd64]
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - uses: oven-sh/setup-bun@v2
-      # eSpeak NG backs the espeak TTS engine (#307 §3.2c) — the Esperanto e2e
-      # spec synthesizes through the real binary, exactly as in ci.yml. Keep
-      # the two e2e jobs' system deps in lockstep or a release tag fails on
-      # specs that passed PR CI.
-      - name: Install eSpeak NG
-        run: sudo apt-get update && sudo apt-get install -y espeak-ng
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # eSpeak NG backs the espeak TTS engine (#307 §3.2c). The binary lives in
+      # the image, so the runner needs no package of its own.
+      - name: Pull the release image
+        run: |
+          set -euo pipefail
+          src="ghcr.io/heuwels/lector:release-${{ github.ref_name }}-${{ github.sha }}-amd64"
+          docker pull "$src"
+          docker tag "$src" lector:e2e
+      - name: Start container
+        # Mirrors ci.yml's e2e-docker job: no volume mount, so /app/data starts
+        # empty. Container :3000 maps to host :3456 (the UI origin the specs
+        # hardcode) and :3457 maps to host :3457 (the Hono API the browser
+        # calls directly).
+        run: |
+          docker run -d --name lector-e2e -p 3456:3000 -p 3457:3457 \
+            --add-host=host.docker.internal:host-gateway lector:e2e
       - run: npm ci
-      - run: cd api && bun install --frozen-lockfile
-      - uses: ./.github/actions/fetch-dicts
       - uses: ./.github/actions/setup-playwright
-      - run: npm run test:e2e
+      - name: Wait for app
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3456 > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "App did not become ready in 60s" >&2
+          docker logs lector-e2e
+          exit 1
+      - name: Run e2e suite against the release image
+        run: E2E_EXTERNAL_SERVER=1 npm run test:e2e
+      - name: Assert the bundle carries the release version
+        # The whole point of the rebuild. next.config.ts inlines APP_VERSION
+        # into the client chunks, so the tag must appear in /app/.next/static.
+        # Fail here rather than ship an image that reports the wrong build.
+        run: |
+          set -euo pipefail
+          want="${{ github.ref_name }}"
+          if ! docker exec lector-e2e grep -rq -- "$want" .next/static; then
+            echo "APP_VERSION did not reach the bundle. Expected $want." >&2
+            exit 1
+          fi
+          echo "The bundle carries $want."
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
@@ -67,11 +156,15 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  # The commit already has a multi-arch sha-<commit> image from docker.yml.
-  # Apply the semver tags to that image. Do not build it again.
+  # Join the two release images into one multi-arch manifest, under the semver
+  # tags. The e2e job above tested the amd64 half of exactly these images.
+  #
+  # The semver tags carry no `v` prefix, so the git tag v3.10.0 publishes the
+  # image tags 3.10.0 and 3.10. deploy/.env.example records that difference,
+  # because LECTOR_VERSION takes the image tag.
   publish:
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, build, e2e-tests]
+    needs: [e2e-tests, build-release-arm64]
     permissions:
       contents: read
       packages: write
@@ -90,16 +183,21 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
-      - name: Retag the published image
+      - name: Publish the multi-arch manifest
         run: |
           set -euo pipefail
-          src="ghcr.io/heuwels/lector:sha-${{ github.sha }}"
-          if ! docker buildx imagetools inspect "$src" >/dev/null 2>&1; then
-            echo "No published image at $src. Tag a commit that docker.yml already published." >&2
-            exit 1
-          fi
+          repo="ghcr.io/heuwels/lector"
+          base="release-${{ github.ref_name }}-${{ github.sha }}"
+          for arch in amd64 arm64; do
+            if ! docker buildx imagetools inspect "${repo}:${base}-${arch}" >/dev/null 2>&1; then
+              echo "No release image at ${repo}:${base}-${arch}." >&2
+              exit 1
+            fi
+          done
           TAG_ARGS=""
           while IFS= read -r TAG; do
             TAG_ARGS="$TAG_ARGS -t $TAG"
           done <<< "${{ steps.meta.outputs.tags }}"
-          docker buildx imagetools create $TAG_ARGS "$src"
+          docker buildx imagetools create $TAG_ARGS \
+            "${repo}:${base}-amd64" \
+            "${repo}:${base}-arm64"

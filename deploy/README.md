@@ -26,7 +26,7 @@ Compose injects environment variables at runtime. The image contains no secrets.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | Optional | Enables AI translation for uncommon words |
-| `LECTOR_VERSION` | No | Image tag (default: `latest`) |
+| `LECTOR_VERSION` | No | Image tag (default: `latest`). A pinned version carries no `v` prefix. Write `3.10.0`, not `v3.10.0`. The git tag keeps the prefix. The image tag drops it. |
 | `WEB_PORT` | No | Host port for the UI (default: `3400`) |
 | `API_URL` | **Remote** | Browser-facing API origin, for example `http://<host>:3457`. The API is published on host port 3457. The web app calls Hono directly, so the browser must reach it. Default `http://localhost:3457` is correct only on the host. |
 | `DATA_PATH` | No | Persistent data directory (default: `./data`) |

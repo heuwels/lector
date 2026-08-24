@@ -45,9 +45,9 @@ export default function VersionInfo() {
       <h2 className="mb-4 text-lg font-semibold text-foreground">About</h2>
       <dl className="space-y-3 text-sm">
         {/*
-          "Build", not "Version". Release images are retagged rather than
-          rebuilt, and deploys go out by commit SHA, so this string names the
-          build the bundle came from. It is not the release the user runs.
+          "Build", not "Version", because one row covers two cases. A release
+          image reads as the tag exactly, e.g. "v3.10.0". A cloud deploy goes
+          out by commit SHA, so it reads as "v3.10.0 +3".
         */}
         <Row label="Build">{formatBuildVersion(version)}</Row>
         {isKnown(commit) && (
