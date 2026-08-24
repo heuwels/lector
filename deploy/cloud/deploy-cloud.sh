@@ -66,19 +66,34 @@ ensure_sentry_environment() {
   local environment=$1
   local tmp
   tmp=$(mktemp "${COMPOSE}.XXXXXX")
+  # The file is read TWICE on purpose. The insertion anchor (LECTOR_MODE) sits
+  # ABOVE the key it inserts (SENTRY_ENVIRONMENT), so a single streaming pass
+  # reaches the anchor before it can know the key is already there. It appended
+  # a duplicate on every run, and a long-lived box collected one line per
+  # deploy. The first pass answers "does the key exist anywhere", the second
+  # pass rewrites.
   if ! awk -v environment="$environment" '
+    NR == FNR {
+      if ($0 ~ /^[[:space:]]+- SENTRY_ENVIRONMENT=/) exists = 1
+      next
+    }
     /^[[:space:]]+- SENTRY_ENVIRONMENT=/ {
+      # Keep the first occurrence and drop the rest, so a box that already
+      # collected duplicates heals itself on the next deploy.
+      if (seen++) next
       sub(/SENTRY_ENVIRONMENT=[^[:space:]]+/, "SENTRY_ENVIRONMENT=" environment)
       found = 1
+      print
+      next
     }
     { print }
-    /^[[:space:]]+- LECTOR_MODE=cloud[[:space:]]*$/ && !found {
+    /^[[:space:]]+- LECTOR_MODE=cloud[[:space:]]*$/ && !exists && !found {
       match($0, /^[[:space:]]*/)
       print substr($0, RSTART, RLENGTH) "- SENTRY_ENVIRONMENT=" environment
       found = 1
     }
     END { if (!found) exit 1 }
-  ' "$COMPOSE" > "$tmp"; then
+  ' "$COMPOSE" "$COMPOSE" > "$tmp"; then
     rm -f "$tmp"
     echo "could not set SENTRY_ENVIRONMENT in $COMPOSE" >&2
     return 1

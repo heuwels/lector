@@ -86,6 +86,13 @@ export LECTOR_IMAGE_TAG=sha-2222222222222222222222222222222222222222
 bash deploy/cloud/deploy-cloud.sh >/dev/null
 grep -q "image: ghcr.io/heuwels/lector:$LECTOR_IMAGE_TAG" "$ROOT/lector/docker-compose.yml"
 grep -q -- '- SENTRY_ENVIRONMENT=staging' "$ROOT/lector/docker-compose.yml"
+# Exactly one, and still exactly one after a second deploy. The insertion
+# anchor sits above the key, so the old single-pass awk added another line on
+# every run. A box with a hundred deploys behind it held a hundred copies.
+[ "$(grep -c -- '- SENTRY_ENVIRONMENT=' "$ROOT/lector/docker-compose.yml")" -eq 1 ]
+bash deploy/cloud/deploy-cloud.sh >/dev/null
+[ "$(grep -c -- '- SENTRY_ENVIRONMENT=' "$ROOT/lector/docker-compose.yml")" -eq 1 ]
+grep -q -- '- SENTRY_ENVIRONMENT=staging' "$ROOT/lector/docker-compose.yml"
 while read -r env_key parameter_suffix; do
   grep -q "^put $env_key $parameter_suffix$" "$ROOT/lector/refresh-env.sh"
   [ "$(grep -c "^put $env_key " "$ROOT/lector/refresh-env.sh")" -eq 1 ]
@@ -131,5 +138,29 @@ if bash deploy/cloud/deploy-cloud.sh >/dev/null 2>&1; then
   echo 'expected mutable tag rejection' >&2
   exit 1
 fi
+
+# A box that already collected duplicates heals on the next deploy, and a
+# compose file shaped like the real one (the key BELOW the anchor) keeps one
+# copy. This is the shape the CDK user-data writes, which is why staging held
+# roughly one SENTRY_ENVIRONMENT line per deploy it had ever taken.
+cat > "$ROOT/lector/docker-compose.yml" <<'EOF'
+services:
+  lector:
+    image: ghcr.io/heuwels/lector:sha-1111111111111111111111111111111111111111
+    environment:
+      - NODE_ENV=production
+      - LECTOR_MODE=cloud
+      - API_URL=https://staging.lector.dev
+      - SENTRY_ENVIRONMENT=production
+      - SENTRY_ENVIRONMENT=production
+      - SENTRY_ENVIRONMENT=production
+EOF
+unset UPDATE_EXIT
+export LECTOR_IMAGE_TAG=sha-5555555555555555555555555555555555555555
+bash deploy/cloud/deploy-cloud.sh >/dev/null
+[ "$(grep -c -- '- SENTRY_ENVIRONMENT=' "$ROOT/lector/docker-compose.yml")" -eq 1 ]
+grep -q -- '- SENTRY_ENVIRONMENT=staging' "$ROOT/lector/docker-compose.yml"
+# The surviving copy keeps its original position, below the anchor.
+grep -q -A3 -- '- LECTOR_MODE=cloud' "$ROOT/lector/docker-compose.yml"
 
 echo 'deploy-cloud tests passed'
