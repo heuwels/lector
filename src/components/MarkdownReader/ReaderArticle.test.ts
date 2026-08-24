@@ -42,6 +42,24 @@ describe('readerBlockPropsEqual', () => {
     expect(readerBlockPropsEqual(previous, next)).toBe(false);
   });
 
+  it('re-renders an Italian elision when the peeled stem changes state', () => {
+    const pack = getLanguageConfig('it');
+    const previous = props({
+      children: "Bevo dell'acqua.",
+      contentVersion: "Bevo dell'acqua.",
+      pack,
+      knownWordsMap: new Map(),
+    });
+    const next = props({
+      children: "Bevo dell'acqua.",
+      contentVersion: "Bevo dell'acqua.",
+      pack,
+      knownWordsMap: new Map([['acqua', 'known']]),
+    });
+
+    expect(readerBlockPropsEqual(previous, next)).toBe(false);
+  });
+
   it('re-renders the block that gains the active-word highlight', () => {
     const previous = props();
     const next = props({ activeWord: { blockId: 10, wordIndex: 1 } });

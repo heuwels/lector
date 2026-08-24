@@ -232,7 +232,7 @@ export const uk = {
     // The apostrophe is a letter-level part of Ukrainian spelling: it marks a
     // hard consonant before я/ю/є/ї (п'ять, м'ясо, з'їзд, В'ячеслав) and every
     // dictionary headword carries it. It must NOT split the word the way the
-    // elision apostrophe does in fr/it/nl, so it joins instead — which also
+    // elision apostrophe does in fr/nl, so it joins instead — which also
     // keeps it out of a token when it is really a quote mark.
     extraJoiners: "'‘’ʼʹ`´",
     // Running text uses whichever variant its source produced; kaikki writes

@@ -64,25 +64,27 @@ describe('registry pronunciation conformance', () => {
   });
 
   // The apostrophe seam is the same kind of opt-in as the fold locale: it moves
-  // a token boundary and changes how keys are written, so exactly one pack may
-  // declare it, and the dictionary build mirrors the flag in its uk profile.
-  it('only the Ukrainian pack joins and folds the apostrophe', () => {
+  // a token boundary and changes how keys are written. uk (letter) and it
+  // (elision) declare it; fr/nl still split. Every variant the fold maps
+  // must also join, or a curly-apostrophe word would tokenize as two words
+  // and then key as one.
+  it('Ukrainian and Italian join and fold the apostrophe; French and Dutch do not', () => {
     const withJoiners = getAllLanguages().filter((lang) => lang.script.extraJoiners);
-    expect(withJoiners.map((lang) => lang.code)).toEqual(['uk']);
+    expect(withJoiners.map((lang) => lang.code)).toEqual(['it', 'uk']);
     const withFold = getAllLanguages().filter((lang) => lang.script.foldApostrophes);
-    expect(withFold.map((lang) => lang.code)).toEqual(['uk']);
+    expect(withFold.map((lang) => lang.code)).toEqual(['it', 'uk']);
 
-    const uk = LANGUAGES.uk;
-    expect(uk.tatoebaCode).toBe('ukr');
-    expect(uk.script.bcp47).toBe('uk');
-    expect(uk.script.hasCase).toBe(true);
-    // Every variant the fold maps must also join, or a curly-apostrophe word
-    // would tokenize as two words and then key as one.
-    expect(uk.script.extraJoiners).toContain("'");
-    for (const variant of ['‘', '’', 'ʼ', 'ʹ', '`', '´']) {
-      expect(uk.script.extraJoiners, `variant ${variant} must join`).toContain(variant);
+    for (const code of ['it', 'uk'] as const) {
+      const joiners = LANGUAGES[code].script.extraJoiners;
+      expect(joiners).toContain("'");
+      for (const variant of ['‘', '’', 'ʼ', 'ʹ', '`', '´']) {
+        expect(joiners, `${code} variant ${variant} must join`).toContain(variant);
+      }
     }
-    // Russian is the pack this was confused with — it must be unaffected.
+    expect(LANGUAGES.fr.script.extraJoiners).toBeUndefined();
+    expect(LANGUAGES.fr.script.foldApostrophes).toBeUndefined();
+    expect(LANGUAGES.nl.script.extraJoiners).toBeUndefined();
+    expect(LANGUAGES.nl.script.foldApostrophes).toBeUndefined();
     expect(LANGUAGES.ru.script.extraJoiners).toBeUndefined();
     expect(LANGUAGES.ru.script.foldApostrophes).toBeUndefined();
   });

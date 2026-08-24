@@ -154,6 +154,13 @@ describe('foldWord', () => {
       expect(foldWord(once, uk)).toBe(once);
     });
 
+    it('folds Italian elisions to the ASCII apostrophe', () => {
+      expect(foldWord("C'è", LANGUAGES.it)).toBe("c'è");
+      expect(foldWord('C’è', LANGUAGES.it)).toBe("c'è");
+      expect(foldWord("L'ITALIANO", LANGUAGES.it)).toBe("l'italiano");
+      expect(foldWord('un’amica', LANGUAGES.it)).toBe("un'amica");
+    });
+
     it('leaves packs without the flag alone', () => {
       // French spells l'eau with an apostrophe too, but the pack splits on it
       // and never folds — its keys must stay byte-stable.

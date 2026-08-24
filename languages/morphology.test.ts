@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { stemCandidates } from './morphology';
+import { stemCandidates, vocabKeys } from './morphology';
 import { LANGUAGES } from './registry';
 import type { MorphologyConfig } from './types';
 
@@ -111,5 +111,41 @@ describe('Indonesian stemCandidates', () => {
 
   it('takes the longest prefix first', () => {
     expect(keys('mengalami', id)[0]).toBe('alami');
+  });
+});
+
+const italianMorph = LANGUAGES.it.morphology as MorphologyConfig;
+
+describe('Italian stemCandidates', () => {
+  it('peels an article elision from the content word', () => {
+    expect(keys("l'italiano", italianMorph)).toContain('italiano');
+    expect(keys("un'amica", italianMorph)).toContain('amica');
+    expect(keys("dell'acqua", italianMorph)).toContain('acqua');
+  });
+
+  it('takes the longest elision prefix first', () => {
+    expect(keys("dell'acqua", italianMorph)[0]).toBe('acqua');
+    expect(keys("dell'acqua", italianMorph)).not.toContain("ell'acqua");
+  });
+
+  it('peels a clitic elision from a verb', () => {
+    expect(keys("gliel'ho", italianMorph)).toContain('ho');
+    expect(keys("c'è", italianMorph)).toContain('è');
+    expect(keys("dov'è", italianMorph)).toContain('è');
+    expect(keys("cos'è", italianMorph)).toContain('è');
+  });
+});
+
+describe('vocabKeys', () => {
+  it('puts the folded surface first, then the peeled stem', () => {
+    expect(vocabKeys("l'acqua", LANGUAGES.it)).toEqual(["l'acqua", 'acqua']);
+  });
+
+  it('is just the folded word when the pack has no morphology', () => {
+    expect(vocabKeys("l'eau", LANGUAGES.fr)).toEqual(["l'eau"]);
+  });
+
+  it('does not treat an Indonesian prefix peel as the same spelling', () => {
+    expect(vocabKeys('membeli', LANGUAGES.id)).toEqual(['membeli']);
   });
 });

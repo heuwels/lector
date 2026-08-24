@@ -175,8 +175,17 @@ const AVOID_WORDS = new Set([
   'già',
   'anche',
   'molto',
-  // Elision fragments left when apostrophes split l'acqua, un'amica,
-  // dell'Italia, c'è and gliel'ho. Bare clitics are never useful blanks.
+  // Joined elisions that are function words, not content (c'è = ci è).
+  "c'è",
+  "c'era",
+  "c'erano",
+  "l'ho",
+  "l'ha",
+  "l'hanno",
+  "s'è",
+  "n'è",
+  "cos'è",
+  // Fragments still arrive from wordfreq and from older split tokens.
   'l',
   'd',
   'all',
@@ -217,7 +226,58 @@ export const it = {
     direction: 'ltr' as const,
     kind: 'alpha-spaced' as const,
     hasCase: true,
-    // Apostrophes deliberately remain boundaries: l'acqua -> l + acqua and
-    // un'amica -> un + amica, keeping the content word independently tappable.
+    // The elision apostrophe is part of the written word: C'è, l'italiano,
+    // un'amica, dell'acqua. Splitting it left a bare clitic and a content
+    // half, and neither half is what the reader tapped. A joiner only
+    // counts between two letter runs, so a quote mark at an edge stays out.
+    extraJoiners: "'‘’ʼʹ`´",
+    // Running text uses whichever apostrophe variant its source produced;
+    // fold them to ASCII ' so l'acqua and l’acqua are one key.
+    foldApostrophes: true,
+  },
+  // The written form carries the clitic (l'italiano) and the dictionary
+  // keys the content word (italiano). Peel the elision prefix after the
+  // exact key misses, so a tap on the whole token still defines it.
+  morphology: {
+    clitics: [],
+    maxClitics: 0,
+    // 1 so C'è / dov'è / cos'è peel to è against a dictionary that has no
+    // apostrophe keys (dict-it-2026-07-12). Each prefix carries a literal
+    // apostrophe, so a one-letter stem cannot fire by accident.
+    minStem: 1,
+    prefixes: [
+      "gliel'",
+      "quest'",
+      "quell'",
+      "dell'",
+      "dall'",
+      "all'",
+      "nell'",
+      "sull'",
+      "coll'",
+      "tutt'",
+      "grand'",
+      "sant'",
+      "buon'",
+      "bell'",
+      "nient'",
+      "anch'",
+      "quand'",
+      "mezz'",
+      "poc'",
+      "com'",
+      "dov'",
+      "cos'",
+      "un'",
+      "ch'",
+      "l'",
+      "d'",
+      "c'",
+      "m'",
+      "t'",
+      "s'",
+      "v'",
+      "n'",
+    ],
   },
 };

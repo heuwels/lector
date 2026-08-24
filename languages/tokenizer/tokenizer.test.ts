@@ -98,9 +98,11 @@ const CORPUS: Record<
     'Dia berkata: „Ini rumah saya.“',
   ],
   it: [
+    // Apostrophe-free only. Elisions join now (C'è, l'italiano), so those
+    // sentences live in the Italian goldens below, not against the legacy
+    // oracle that splits on the apostrophe.
     'Ciao! Come stai?',
-    "L'acqua è fresca e un'amica beve il caffè.",
-    "Dov'è l'università? È nell'edificio più antico.",
+    'Bevo il caffè caldo.',
   ],
   la: [
     'Gallia est omnis divisa in partes tres.',
@@ -229,13 +231,11 @@ describe('tokenize — byte-identical with the legacy reader for shipped languag
     expect(tokenizeWords(withNbHyphen, de).map((t) => t.text)).toEqual([withNbHyphen]);
   });
 
-  it('splits Italian elisions into clitic and content tokens', () => {
+  it('keeps Italian elisions as one token', () => {
     expect(tokenizeWords("L'acqua e un'amica", LANGUAGES.it).map((token) => token.text)).toEqual([
-      'L',
-      'acqua',
+      "L'acqua",
       'e',
-      'un',
-      'amica',
+      "un'amica",
     ]);
   });
 
@@ -517,7 +517,7 @@ describe('Koine Greek pack (real manifest)', () => {
     ]);
   });
 
-  it('splits elisions at the apostrophe like fr/it (δι’ ἐμοῦ → δι + ἐμοῦ)', () => {
+  it('splits elisions at the apostrophe like fr (δι’ ἐμοῦ → δι + ἐμοῦ)', () => {
     expect(tokenizeWords('δι’ ἐμοῦ καὶ κατ’ αὐτόν', grc).map((t) => t.text)).toEqual([
       'δι',
       'ἐμοῦ',
@@ -928,8 +928,7 @@ describe('Ukrainian pack (real manifest)', () => {
   });
 
   it('splits the same apostrophe for packs that call it an elision (ru, fr)', () => {
-    // Deliberate per-pack behavior, the mirror of the af 'n case: only uk
-    // declares the apostrophe a joiner.
+    // Deliberate per-pack behavior: uk and it join; ru and fr still split.
     expect(tokenizeWords("з'їв", LANGUAGES.ru).map((t) => t.text)).toEqual(['з', 'їв']);
     expect(tokenizeWords("l'eau", LANGUAGES.fr).map((t) => t.text)).toEqual(['l', 'eau']);
   });
@@ -938,6 +937,74 @@ describe('Ukrainian pack (real manifest)', () => {
     const text = "Він з'їв яблуко";
     //                ^5..7^ inside "з'їв" (4..8)
     expect(snapToWordBoundaries(text, 5, 7, uk)).toEqual({ start: 4, end: 8 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Italian pack goldens — an elision apostrophe joins, it does not split
+// ---------------------------------------------------------------------------
+
+const italian = LANGUAGES.it;
+
+const IT_CORPUS = [
+  'Ciao! Come stai?',
+  "C'è l'italiano qui, e un'amica beve il caffè.",
+  "Dov'è l'università? È nell'edificio più antico.",
+  "Dell'acqua fresca e gliel'ho detto ieri.",
+];
+
+describe('Italian pack (real manifest)', () => {
+  it('reassembles Italian text byte-for-byte with correct offsets', () => {
+    for (const text of IT_CORPUS) {
+      const tokens = tokenize(text, italian);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps an elision as one token, in every apostrophe variant', () => {
+    // The user-reported bug: C'è and l'italiano must be one token each.
+    // Splitting them produced C + è and l + italiano.
+    for (const apostrophe of ["'", '’', 'ʼ']) {
+      const text = `C${apostrophe}è l${apostrophe}italiano`;
+      expect(tokenizeWords(text, italian).map((t) => t.text)).toEqual([
+        `C${apostrophe}è`,
+        `l${apostrophe}italiano`,
+      ]);
+    }
+  });
+
+  it('keeps the common elision shapes whole', () => {
+    expect(
+      tokenizeWords("C'è un'amica nell'edificio. Dov'è l'università?", italian).map((t) => t.text),
+    ).toEqual(["C'è", "un'amica", "nell'edificio", "Dov'è", "l'università"]);
+  });
+
+  it('folds every apostrophe variant onto one dictionary key', () => {
+    expect(foldWord("C'è", italian)).toBe("c'è");
+    expect(foldWord('C’è', italian)).toBe("c'è");
+    expect(foldWord("L'ITALIANO", italian)).toBe("l'italiano");
+    expect(foldWord('l’italiano', italian)).toBe("l'italiano");
+  });
+
+  it('leaves an apostrophe used as a quote outside the token', () => {
+    expect(tokenizeWords("'ciao'", italian).map((t) => t.text)).toEqual(['ciao']);
+  });
+
+  it('still joins hyphenated compounds', () => {
+    expect(tokenizeWords('italo-americano', italian).map((t) => t.text)).toEqual([
+      'italo-americano',
+    ]);
+  });
+
+  it('snaps a mid-word selection across the elision apostrophe', () => {
+    const text = "C'è l'italiano";
+    //            ^1^ inside "C'è" (0..3)
+    expect(snapToWordBoundaries(text, 1, 2, italian)).toEqual({ start: 0, end: 3 });
+    //                 ^6^ inside "l'italiano" (4..14)
+    expect(snapToWordBoundaries(text, 6, 7, italian)).toEqual({ start: 4, end: 14 });
   });
 });
 

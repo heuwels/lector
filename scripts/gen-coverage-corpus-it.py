@@ -4,8 +4,8 @@
 Writes scripts/coverage-corpus-it.txt: the top-N most frequent Italian tokens
 (alpha-filtered), used by the builder's >=85% coverage gate as the "typical
 Italian reading" proxy. Italian is supported natively by wordfreq. Elisions
-(l', un', dell'...) split into fragments; the alpha filter keeps both sides so
-the measured corpus matches the runtime tokenizer.
+(l', un', dell'...) stay one token in the runtime tokenizer. The alpha filter
+still drops them, so coverage-corpus-it.txt also lists a few by hand.
 
     pip install wordfreq
     python scripts/gen-coverage-corpus-it.py [N]   # default N=5000

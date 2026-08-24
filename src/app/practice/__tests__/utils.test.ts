@@ -80,9 +80,10 @@ describe('normalize', () => {
   });
 
   it('keeps the Ukrainian apostrophe as a letter under the uk pack', () => {
-    // Every other pack treats an apostrophe as punctuation and drops it. For
-    // Ukrainian that would accept пять, which is a misspelling of п'ять — so
-    // the pack keeps it, and only folds the variant spellings together.
+    // Packs without foldApostrophes treat an apostrophe as punctuation and
+    // drop it. For Ukrainian that would accept пять, which is a misspelling
+    // of п'ять — so the pack keeps it, and only folds the variant spellings
+    // together.
     expect(normalize("П'ять!", LANGUAGES.uk)).toBe("п'ять");
     expect(normalize('«п’ять»', LANGUAGES.uk)).toBe("п'ять");
     expect(normalize('Здоров’я.', LANGUAGES.uk)).toBe("здоров'я");
@@ -162,6 +163,14 @@ describe('checkAnswer', () => {
     expect(checkAnswer('perché', 'Perché?')).toBe(true);
     expect(checkAnswer('caffe', 'caffè')).toBe(false);
     expect(checkAnswer('perchè', 'perché')).toBe(false);
+  });
+
+  it('grades an Italian elision whichever apostrophe was typed', () => {
+    expect(checkAnswer("c'è", "C'è.", LANGUAGES.it)).toBe(true);
+    expect(checkAnswer('c’è', "c'è", LANGUAGES.it)).toBe(true);
+    expect(checkAnswer("l'italiano", "L'italiano!", LANGUAGES.it)).toBe(true);
+    expect(checkAnswer('ce', "c'è", LANGUAGES.it)).toBe(false);
+    expect(checkAnswer('italiano', "l'italiano", LANGUAGES.it)).toBe(false);
   });
 
   it('matches Russian words through case and punctuation, distinguishing е vs ё', () => {

@@ -237,7 +237,7 @@ export const grc = {
     // Unicode-property engine covers it: breathings, accents and iota
     // subscripts are \p{L} (precomposed, Greek Extended) or \p{M}. The
     // elision apostrophe stays a boundary (κατ᾽ → κατ + the next word),
-    // matching the fr/it elision shape.
+    // matching the French elision shape.
     kind: 'alpha-spaced' as const,
     hasCase: true,
     // Koine punctuation: the erotimatiko ; is the question mark and the ano

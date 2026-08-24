@@ -3,7 +3,8 @@
 // gate (scripts/build-dictionary.ts), so the gate measures what the lookup
 // resolves.
 
-import type { MorphologyConfig } from './types';
+import { foldWord } from './text';
+import type { LanguageConfig, MorphologyConfig } from './types';
 
 /** A key to try, with what was peeled to reach it. */
 export interface StemCandidate {
@@ -84,4 +85,37 @@ export function stemCandidates(word: string, config: MorphologyConfig): StemCand
   }
 
   return out;
+}
+
+/**
+ * Folded key plus stems reached by peeling an apostrophe prefix. Used
+ * anywhere a written token has to find a stored key (known-word colour,
+ * sentence context). `l'acqua` and `acqua` share a key. An Indonesian
+ * prefix peel (membeli → beli) does not: that is a different word, not
+ * another spelling of the same token. The surface form comes first.
+ */
+export function vocabKeys(word: string, pack: LanguageConfig): string[] {
+  const folded = foldWord(word, pack);
+  if (!pack.morphology) return [folded];
+  const keys = [folded];
+  const seen = new Set(keys);
+  for (const candidate of stemCandidates(folded, pack.morphology)) {
+    if (!candidate.peeled.some((part) => part.includes("'"))) continue;
+    if (seen.has(candidate.key)) continue;
+    seen.add(candidate.key);
+    keys.push(candidate.key);
+  }
+  return keys;
+}
+
+/** First state stored under any of the word's vocab keys. */
+export function lookupByVocabKeys<T>(
+  map: Map<string, T>,
+  word: string,
+  pack: LanguageConfig,
+): T | undefined {
+  for (const key of vocabKeys(word, pack)) {
+    const hit = map.get(key);
+    if (hit !== undefined) return hit;
+  }
 }

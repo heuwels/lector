@@ -83,11 +83,11 @@ const APOSTROPHE_VARIANTS = /[‘’ʼʹ`´]/g;
 
 /**
  * Map apostrophe variants to ASCII ' for packs that spell words with one
- * (uk: п'ять). Running text carries whichever variant its source used —
- * straight from a keyboard, curly from a word processor, U+02BC from a
- * standards-minded typesetter — and all three must key to the one dictionary
- * headword. A no-op for every pack that leaves `foldApostrophes` unset, so
- * fr/it/nl keys stay byte-stable.
+ * (uk: п'ять, it: l'italiano). Running text carries whichever variant its
+ * source used — straight from a keyboard, curly from a word processor,
+ * U+02BC from a standards-minded typesetter — and all three must key to the
+ * one dictionary headword. A no-op for every pack that leaves
+ * `foldApostrophes` unset, so fr/nl keys stay byte-stable.
  */
 export function foldApostrophesFor(text: string, pack: LanguageConfig): string {
   if (!pack.script.foldApostrophes) return text;
