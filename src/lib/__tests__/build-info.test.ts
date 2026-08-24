@@ -5,6 +5,7 @@ import {
   commitUrl,
   formatBuildTime,
   relativeBuildAge,
+  formatBuildVersion,
 } from '@/lib/build-info';
 
 describe('isKnown', () => {
@@ -62,6 +63,31 @@ describe('formatBuildTime', () => {
   it('returns an empty string for empty or invalid input', () => {
     expect(formatBuildTime('')).toBe('');
     expect(formatBuildTime('not-a-date')).toBe('');
+  });
+});
+
+describe('formatBuildVersion', () => {
+  it('drops the -g<sha> and shows the commit distance', () => {
+    expect(formatBuildVersion('v3.9.0-12-g40b68c4')).toBe('v3.9.0 +12');
+  });
+
+  it('marks a dirty tree', () => {
+    expect(formatBuildVersion('v3.9.0-12-g40b68c4-dirty')).toBe('v3.9.0 +12 (dirty)');
+    expect(formatBuildVersion('v3.9.0-dirty')).toBe('v3.9.0 (dirty)');
+  });
+
+  it('passes an exact tag through', () => {
+    expect(formatBuildVersion('v3.9.0')).toBe('v3.9.0');
+  });
+
+  it('passes a bare SHA through (the --always fallback, no v* tag in history)', () => {
+    expect(formatBuildVersion('40b68c4')).toBe('40b68c4');
+    expect(formatBuildVersion('40b68c4-dirty')).toBe('40b68c4 (dirty)');
+  });
+
+  it('passes the fallback sentinels through unchanged', () => {
+    expect(formatBuildVersion('unknown')).toBe('unknown');
+    expect(formatBuildVersion('')).toBe('');
   });
 });
 

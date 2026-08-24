@@ -10,12 +10,19 @@
 export const REPO_SLUG = 'heuwels/lector';
 
 export interface BuildInfo {
-  /** `git describe --tags --always --dirty`, e.g. "v1.34.0" or "v1.34.0-3-gabc1234". */
+  /**
+   * `git describe --tags --match 'v*' --always` of the built commit, e.g.
+   * "v1.34.0" or "v1.34.0-3-gabc1234".
+   *
+   * This names a *build*, not a release. Release images are retagged, not
+   * rebuilt (see release.yml), so the semver tag never reaches the bundle.
+   * Deploys go out by `sha-<commit>` image tag and have no semver at all.
+   * The About panel labels this "Build" for that reason. Do not present it
+   * as the release the user runs.
+   */
   version: string;
   /** Full commit SHA, or "unknown" when it couldn't be determined. */
   commit: string;
-  /** Branch the build was cut from, or "unknown". */
-  branch: string;
   /** ISO-8601 build timestamp, or "" when unavailable. */
   buildTime: string;
 }
@@ -23,7 +30,6 @@ export interface BuildInfo {
 export const buildInfo: BuildInfo = {
   version: process.env.NEXT_PUBLIC_APP_VERSION || 'unknown',
   commit: process.env.NEXT_PUBLIC_GIT_COMMIT || 'unknown',
-  branch: process.env.NEXT_PUBLIC_GIT_BRANCH || 'unknown',
   buildTime: process.env.NEXT_PUBLIC_BUILD_TIME || '',
 };
 
@@ -35,6 +41,29 @@ export function isKnown(value: string): boolean {
 /** Abbreviate a commit SHA to 7 chars; passes through "unknown"/empty unchanged. */
 export function commitShort(commit: string): string {
   return isKnown(commit) ? commit.slice(0, 7) : commit;
+}
+
+/**
+ * Rewrite a `git describe` string for display, e.g.
+ * "v3.9.0-12-g40b68c4-dirty" → "v3.9.0 +12 (dirty)".
+ *
+ * The `-g<sha>` part is dropped, because the Commit row below it already shows
+ * that SHA. Input that is not a describe string (an exact tag, a bare SHA from
+ * `--always`, or the "unknown" sentinel) passes through, minus any "-dirty".
+ */
+export function formatBuildVersion(version: string): string {
+  if (!isKnown(version)) return version;
+
+  let base = version;
+  let dirty = false;
+  if (base.endsWith('-dirty')) {
+    base = base.slice(0, -'-dirty'.length);
+    dirty = true;
+  }
+
+  const described = /^(.+)-(\d+)-g[0-9a-f]+$/.exec(base);
+  const label = described ? `${described[1]} +${described[2]}` : base;
+  return dirty ? `${label} (dirty)` : label;
 }
 
 /**

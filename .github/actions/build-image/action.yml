@@ -24,10 +24,6 @@ inputs:
     description: GIT_COMMIT build-arg. Defaults to HEAD.
     required: false
     default: ''
-  git_branch:
-    description: GIT_BRANCH build-arg. Defaults to the current branch.
-    required: false
-    default: ''
   write_registry_cache:
     description: Also write the registry BuildKit cache
     required: false
@@ -48,7 +44,6 @@ runs:
       env:
         PLATFORM: ${{ inputs.platform }}
         INPUT_COMMIT: ${{ inputs.git_commit }}
-        INPUT_BRANCH: ${{ inputs.git_branch }}
         PR_NUMBER: ${{ inputs.pr_number }}
         LOCAL_TAG: ${{ inputs.local_tag }}
         DO_LOAD: ${{ inputs.load }}
@@ -58,9 +53,12 @@ runs:
         arch="${PLATFORM#linux/}"
         repo="ghcr.io/heuwels/lector"
         image="${repo}:tree-${tree}-${arch}"
-        version=$(git describe --tags --always --dirty)
         commit="${INPUT_COMMIT:-$(git rev-parse HEAD)}"
-        branch="${INPUT_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
+        # Describe the commit we report, not the checkout. On pull_request the
+        # checkout is an ephemeral merge commit that is in no branch, so
+        # describing HEAD gave a version whose -g<sha> disagreed with the
+        # commit beside it in Settings -> About.
+        version=$(git describe --tags --match 'v*' --always "$commit")
 
         {
           echo "tree=$tree"
@@ -68,7 +66,6 @@ runs:
           echo "image=$image"
           echo "version=$version"
           echo "commit=$commit"
-          echo "branch=$branch"
         } >>"$GITHUB_OUTPUT"
 
         {
@@ -118,7 +115,6 @@ runs:
         build-args: |
           APP_VERSION=${{ steps.meta.outputs.version }}
           GIT_COMMIT=${{ steps.meta.outputs.commit }}
-          GIT_BRANCH=${{ steps.meta.outputs.branch }}
         cache-from: |
           type=gha,scope=lector-${{ steps.meta.outputs.arch }}
           type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }}
@@ -138,7 +134,6 @@ runs:
         build-args: |
           APP_VERSION=${{ steps.meta.outputs.version }}
           GIT_COMMIT=${{ steps.meta.outputs.commit }}
-          GIT_BRANCH=${{ steps.meta.outputs.branch }}
         cache-from: |
           type=gha,scope=lector-${{ steps.meta.outputs.arch }}
           type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }}

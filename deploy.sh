@@ -8,7 +8,7 @@ set -e
 # This script looks personal/stale; prefer the CI pipeline for real releases.
 REGISTRY="ghcr.io/3stacks"
 IMAGE_NAME="lector"
-VERSION="${1:-$(git describe --tags --always --dirty)}"
+VERSION="${1:-$(git describe --tags --match 'v*' --always --dirty)}"
 
 # Full image name
 FULL_IMAGE="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
@@ -20,7 +20,6 @@ echo "Building ${FULL_IMAGE}..."
 docker build \
   --build-arg APP_VERSION="${VERSION}" \
   --build-arg GIT_COMMIT="$(git rev-parse HEAD)" \
-  --build-arg GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)" \
   -t "${FULL_IMAGE}" -t "${LATEST_IMAGE}" .
 
 echo "Pushing to registry..."

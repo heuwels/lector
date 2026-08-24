@@ -131,7 +131,7 @@ After an automatic staging deploy, test at minimum:
 - entitlement limits and soft upsells;
 - data export/import and admin support actions;
 - Sentry events carry `environment=staging`;
-- the Version panel reports the SHA waiting for promotion.
+- the About panel shows the commit SHA that waits for promotion.
 
 Open the workflow run and approve the pending `production` job only after UAT. Reject
 or leave it pending when staging is not acceptable; a later green master build will
