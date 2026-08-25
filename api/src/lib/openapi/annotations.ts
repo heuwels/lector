@@ -2742,7 +2742,7 @@ const serviceOps: Record<string, OperationDoc> = {
  */
 const internalOps: Record<string, OperationDoc> = {
   'GET /api/email/unsubscribe': {
-    summary: 'Stop product emails',
+    summary: 'Show the stop-mail confirm page',
     tag: 'Service',
     auth: 'none',
   },

@@ -579,6 +579,7 @@ export interface BillingGateOptions {
  *     requests carry no tenant to check).
  *   - /api/billing/* — the webhook is how an account BECOMES paid, and the
  *     status endpoint is what the /subscribe screen polls.
+ *   - /api/email/unsubscribe — signed stop-mail link on product mail.
  *   - GET /api/data — data takeout. #216's lapse contract: a locked account
  *     can always export everything and walk away. (POST /api/data — import —
  *     stays locked.)

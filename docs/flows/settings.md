@@ -74,7 +74,7 @@ The raw token shows once. The table stores a hash. Scope `*` is the default.
 
 **App domain:** Settings
 
-Cloud only. The user types `DELETE`. Better Auth sends a confirm email. The click erases the tenant.
+Cloud only. The user types `DELETE`. Better Auth sends a confirm email. The click erases the tenant data. Erasure keeps the product-mail opt-out row. That row stores a hash of the address.
 
 | Role | Path | Function |
 | --- | --- | --- |

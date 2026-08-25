@@ -216,6 +216,12 @@ async function sendOnce(
   }
 }
 
+/**
+ * Welcome is hook-only. The sweep does not send it. If the app is not
+ * cloud, or RESEND_API_KEY is absent, sendOnce returns skipped and writes
+ * no email_sends row. That send does not retry later. That is a decision,
+ * not a gap.
+ */
 export async function sendWelcomeEmail(
   userId: string,
   overrides?: Partial<LifecycleDeps>,

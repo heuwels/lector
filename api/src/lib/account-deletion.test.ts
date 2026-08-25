@@ -217,6 +217,7 @@ describe('ERASURE_TABLES completeness ratchet', () => {
   // Auth itself; twoFactor is in ERASURE_TABLES for the real cloud DB where it
   // exists. admin_audit_log is keyed by actor/targetUserId (not `userId`), so
   // it is correctly not enumerated here and is retained on purpose.
+  // email_unsubscribes has no userId. Erasure keeps that hash on purpose.
   // Better Auth deletes session/account rows itself on user deletion, and
   // neither is a getDb migration — they only appear in the shared .test-data
   // DB when a file that fabricates them (admin.test.ts) runs first. Subtract

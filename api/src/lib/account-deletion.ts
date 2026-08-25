@@ -31,6 +31,9 @@
  *   - classify_batches — a singleton in-flight job row with no userId column;
  *     any (userId, word) tuples inside its `requests` JSON are transient (≤1
  *     row, cleared when the batch completes).
+ *   - email_unsubscribes — product-mail opt-out keyed on a hash of the
+ *     address, not userId. A later account on the same address must stay
+ *     quiet. The ratchet cannot see this table. It has no userId column.
  *
  * A ratchet test (account-deletion.test.ts) asserts every userId-carrying table
  * in a freshly migrated DB is covered here, so a future tenant table cannot

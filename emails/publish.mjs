@@ -1,14 +1,21 @@
 /**
  * Publish Lector onboarding and retention templates to Resend.
  *
- * Loads RESEND_API_KEY from ~/personal/.env or the environment.
- * Upserts by alias, then publishes. Does not print the key.
+ * Loads RESEND_API_KEY from the environment, then emails/.env, then .env
+ * in the current directory. Does not print the key.
+ * A publish replaces the live Resend copy. Pass one alias to limit the blast.
  *
  *   node emails/publish.mjs
+ *   node emails/publish.mjs welcome-on-account-create
+ *   node emails/publish.mjs --dry-run
+ *   node emails/publish.mjs --delete-extras
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+const PAGE_SIZE = 100;
 
 const FROM = 'Support <support@lector.dev>';
 const REPLY_TO = 'support@lector.dev';
@@ -28,12 +35,29 @@ const COLORS = {
   border: '#e9e1d0',
 };
 
+const DOCS = {
+  reading: 'https://lector.dev/docs/features/',
+  anki: 'https://lector.dev/docs/anki/',
+  ankiAddon: 'https://lector.dev/docs/features/#anki-addon',
+  pricing: 'https://lector.dev/pricing/',
+};
+
 const VARIABLES = [
   { key: 'USER_NAME', type: 'string', fallbackValue: 'there' },
   { key: 'LANGUAGE', type: 'string', fallbackValue: 'your language' },
   { key: 'APP_URL', type: 'string', fallbackValue: 'https://app.lector.dev' },
   { key: 'STOP_URL', type: 'string', fallbackValue: 'mailto:support@lector.dev' },
 ];
+
+function link(href, label) {
+  return `<a href="${href}" style="color:${COLORS.sage};text-decoration:underline;">${label}</a>`;
+}
+
+function toPlain(html) {
+  return html
+    .replace(/<a href="([^"]+)"[^>]*>(.*?)<\/a>/g, '$2 ($1)')
+    .replace(/<[^>]+>/g, '');
+}
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return;
@@ -138,7 +162,7 @@ function layout({ preheader, title, paragraphs, ctaLabel, ctaHref, unsubscribe, 
 }
 
 function textBody(paragraphs, ctaLabel, ctaHref, unsubscribe, video) {
-  const lines = [...paragraphs];
+  const lines = paragraphs.map(toPlain);
   if (video) lines.push('', `${video.label}: ${video.href}`);
   lines.push('', `${ctaLabel}: ${ctaHref}`, '', 'Lector · https://lector.dev', 'Questions: support@lector.dev');
   if (unsubscribe) lines.push('Stop these emails: {{{STOP_URL}}}');
@@ -149,16 +173,16 @@ const TEMPLATES = [
   {
     alias: 'welcome-on-account-create',
     name: 'Welcome - on account create',
-    subject: 'Your Lector library is ready',
+    subject: 'Welcome to Lector',
     unsubscribe: false,
-    title: 'Your library is ready',
-    preheader: 'Watch Getting started. Then pick a language.',
+    title: 'Welcome to Lector',
+    preheader: 'A short video if you want a hand getting started.',
     paragraphs: [
       'Hi {{{USER_NAME}}}.',
-      'You have an account on Lector Cloud. There is no card on file.',
-      'Watch Getting started. Then pick a language.',
-      'The app adds a starter series for that language. The library is not empty on day one.',
-      'Open a lesson. Click a word you do not know. Save it.',
+      'Thank you for signing up for Lector.',
+      `Your library starts empty. When you are ready, add a lesson of your own: an EPUB, a page from the web, or text you paste. ${link(DOCS.reading, 'The reading guide')} covers that.`,
+      "If you'd like a walkthrough of the learning loop, the Getting started video is below.",
+      'Reply to this mail if you get stuck. I read it.',
     ],
     video: START_VIDEO,
     ctaLabel: 'Open Lector',
@@ -167,15 +191,15 @@ const TEMPLATES = [
   {
     alias: 'day-1-registered-no-word-saved',
     name: 'Day 1 — registered, no word saved',
-    subject: 'Save one word to start the list',
+    subject: 'Need a hand with your first lesson?',
     unsubscribe: true,
-    title: 'Save one word',
-    preheader: 'Open the first lesson. Save one unknown word.',
+    title: 'Your first lesson',
+    preheader: 'No rush. Here is how to add something to read.',
     paragraphs: [
-      'You created an account yesterday. The starter series is in your library.',
-      'Open the first lesson. Click a word you do not know. Save it.',
-      'That word goes into Practice and Anki later.',
-      'If the app failed, reply to this mail.',
+      "You created an account yesterday but it seems that you haven't created any lessons yet.",
+      `We are working on adding starter content for each language, but for now your library may be looking a little empty. Add an EPUB, a URL, or paste text when you have a moment. ${link(DOCS.reading, 'The reading guide')} walks through each option.`,
+      'The video below shows the loop after that: open a lesson, click a word you do not know, and save it.',
+      'If something broke, or you want a hand picking a first text, please reply to this email.',
     ],
     video: START_VIDEO,
     ctaLabel: 'Open the library',
@@ -184,15 +208,15 @@ const TEMPLATES = [
   {
     alias: 'day-3-registered-no-real-use',
     name: 'Day 3 — registered, no real use',
-    subject: 'Open Lector for five minutes',
+    subject: 'Just checking in',
     unsubscribe: true,
-    title: 'Give it five minutes',
-    preheader: 'Pick a language. Open the first starter text.',
+    title: 'How is it going?',
+    preheader: 'No rush. I am here if you want a hand.',
     paragraphs: [
-      'This account has no real use after three days.',
-      'If you did not pick a language, pick one now.',
-      'Open the first starter text. Read for five minutes.',
-      'Cloud has no card. You can also self-host.',
+      "It's been a few days since you signed up. If you have not had a chance to add a text yet, no rush.",
+      `The usual first step is to pick a language, then add something you actually want to read. ${link(DOCS.reading, 'The reading guide')} covers EPUB, web pages, and paste.`,
+      'The Getting started video below is a short walkthrough if that helps.',
+      'If you got stuck, or the app did something odd, reply to this mail and I will help.',
     ],
     video: START_VIDEO,
     ctaLabel: 'Open Lector',
@@ -201,35 +225,33 @@ const TEMPLATES = [
   {
     alias: 'anki-after-10-saved-words',
     name: 'Anki — after ~10 saved words',
-    subject: 'Your words can live in Anki',
+    subject: 'Want these words in Anki?',
     unsubscribe: true,
-    title: 'Send words to Anki',
-    preheader: 'You saved enough words for a first deck.',
+    title: 'Anki, if you use it',
+    preheader: 'Optional. Your word list can sync with Anki.',
     paragraphs: [
-      'You saved enough words for a first deck.',
-      'Install the Lector Sync add-on. The AnkiWeb code is 1098736891.',
-      'Create a token under Settings, then API Tokens. Use the anki scope. Sync once.',
-      'Reviews you grade in Anki come back into Lector. The add-on is beta.',
-      'If sync fails, reply with the error text.',
+      "Congratulations on your study. You have built a modest word list now. If you already use Anki, you can send those words over. Anki's spaced-repetition system can help you retain the vocabulary you encounter while you read.",
+      `You can read the ${link(DOCS.anki, 'Getting started with Anki')} guide if Anki is new to you. ${link(DOCS.ankiAddon, 'The Lector add-on guide')} covers the two-way sync.`,
+      'If a sync looks wrong, reply with the error text and I will take a look.',
     ],
     ctaLabel: 'Read the Anki guide',
-    ctaHref: 'https://lector.dev/docs/features/#anki-addon',
+    ctaHref: DOCS.anki,
   },
   {
     alias: 'gloss-cap-free-tier-limit-hit',
     name: 'Gloss cap — free tier limit hit',
-    subject: 'Free translations used up this month',
+    subject: "This month's free translations are used up",
     unsubscribe: true,
-    title: 'The free gloss limit is full',
-    preheader: 'The offline dictionary and Practice still work.',
+    title: 'A note on translations',
+    preheader: 'The dictionary, Practice, and your word list still work.',
     paragraphs: [
-      'You used the free Cloud limit for AI glosses this month.',
-      'The offline dictionary, Practice, and your word list still work. The model taps pause.',
-      'Cloud is $5 each month if you want the glosses now. Or wait for the month reset.',
-      'Export at any time from Settings.',
+      "You have used this month's free AI translations on Cloud.",
+      'The offline dictionary, Practice, and your word list still work. Only the AI model-backed taps pause until the month resets.',
+      `This will reset next month, but if you want the AI glosses back now, ${link(DOCS.pricing, 'Cloud starts at $5 a month')}. You can also export your data any time from Settings if you would like to convert to self-hosted. You can also bring your own AI key via our OpenRouter or Anthropic providers if you prefer.`,
+      'Reply if you have questions about the limit, or if something looks off.',
     ],
     ctaLabel: 'See Cloud plans',
-    ctaHref: 'https://lector.dev/pricing/',
+    ctaHref: DOCS.pricing,
   },
 ];
 
@@ -272,12 +294,12 @@ async function listTemplates(apiKey) {
   const out = [];
   let after;
   for (;;) {
-    const q = after ? `?limit=100&after=${after}` : '?limit=100';
+    const q = after ? `?limit=${PAGE_SIZE}&after=${after}` : `?limit=${PAGE_SIZE}`;
     const page = await resend(apiKey, 'GET', `/templates${q}`);
     const rows = page.data ?? page;
     const list = Array.isArray(rows) ? rows : rows.data ?? [];
     out.push(...list);
-    if (!page.has_more || list.length === 0) break;
+    if (list.length === 0 || list.length < PAGE_SIZE) break;
     after = list[list.length - 1].id;
   }
   return out;
@@ -293,10 +315,23 @@ function findExisting(existing, t) {
 }
 
 async function main() {
-  loadEnvFile(join(homedir(), 'personal', '.env'));
+  loadEnvFile(join(SCRIPT_DIR, '.env'));
+  loadEnvFile(join(process.cwd(), '.env'));
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.error('RESEND_API_KEY is not set. Add it to ~/personal/.env');
+    console.error('RESEND_API_KEY is not set');
+    process.exit(1);
+  }
+
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run');
+  const deleteExtras = args.includes('--delete-extras');
+  const onlyAlias = args.find((arg) => !arg.startsWith('--'));
+  const toPublish = onlyAlias
+    ? TEMPLATES.filter((t) => t.alias === onlyAlias)
+    : TEMPLATES;
+  if (onlyAlias && toPublish.length === 0) {
+    console.error(`Unknown alias: ${onlyAlias}`);
     process.exit(1);
   }
 
@@ -306,9 +341,13 @@ async function main() {
     console.log(`  - ${row.name}  alias=${row.alias ?? 'none'}  status=${row.status}  id=${row.id}`);
   }
 
-  for (const t of TEMPLATES) {
+  for (const t of toPublish) {
     const payload = toPayload(t);
     const found = findExisting(existing, t);
+    if (dryRun) {
+      console.log(`Dry run ${t.alias} (${found ? found.id : 'create'})`);
+      continue;
+    }
     let id;
     if (found) {
       await resend(apiKey, 'PATCH', `/templates/${found.id}`, payload);
@@ -323,6 +362,8 @@ async function main() {
     console.log(`Published ${t.alias}`);
   }
 
+  if (!deleteExtras) return;
+
   const extraAliases = new Set([
     'onboarding-welcome',
     'onboarding-first-practice',
@@ -332,6 +373,10 @@ async function main() {
   ]);
   const extras = (await listTemplates(apiKey)).filter((row) => extraAliases.has(row.alias));
   for (const row of extras) {
+    if (dryRun) {
+      console.log(`Dry run delete ${row.alias} (${row.id})`);
+      continue;
+    }
     await resend(apiKey, 'DELETE', `/templates/${row.id}`);
     console.log(`Deleted extra ${row.alias} (${row.id})`);
   }

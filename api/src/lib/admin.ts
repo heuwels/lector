@@ -120,6 +120,7 @@ export interface AccountStatusOptions {
  * lapse contract from #224 applied to a manual admin suspension:
  *   - /api/auth/*        — sign-in/out must work,
  *   - /api/billing/*     — status/checkout/webhook,
+ *   - /api/email/unsubscribe — signed stop-mail link on product mail,
  *   - /api/admin/*       — the operator managing accounts is never self-locked
  *                          by this gate (requireAdmin still guards it),
  *   - GET /api/data      — data takeout stays open (no lock-in),
