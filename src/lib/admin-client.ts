@@ -22,7 +22,8 @@ export interface AdminLanguageStat {
   code: string;
   name: string;
   flag: string;
-  users: number;
+  optedIn: number;
+  contentUsers: number;
   targetUsers: number;
   lessons: number;
   vocab: number;

@@ -59,9 +59,7 @@ function reset() {
   }
   for (const id of [ADMIN, ALICE, BOB]) {
     db.prepare('DELETE FROM settings WHERE userId = ?').run(id);
-    if (db.prepare("SELECT name FROM sqlite_master WHERE name='onboarding_progress'").get()) {
-      db.prepare('DELETE FROM onboarding_progress WHERE userId = ?').run(id);
-    }
+    db.prepare('DELETE FROM onboarding_progress WHERE userId = ?').run(id);
   }
   if (db.prepare("SELECT name FROM sqlite_master WHERE name='usage_counters'").get()) {
     db.prepare('DELETE FROM usage_counters').run();
@@ -398,7 +396,8 @@ describe('GET /api/admin/summary', () => {
     const body = (await res.json()) as {
       languages: Array<{
         code: string;
-        users: number;
+        optedIn: number;
+        contentUsers: number;
         targetUsers: number;
         lessons: number;
         vocab: number;
@@ -412,8 +411,14 @@ describe('GET /api/admin/summary', () => {
 
     const af = body.languages.find((l) => l.code === 'af')!;
     const de = body.languages.find((l) => l.code === 'de')!;
-    expect(af).toMatchObject({ users: 1, targetUsers: 1, lessons: 1, wordsRead: 40 });
-    expect(de).toMatchObject({ users: 2, targetUsers: 1, vocab: 1 });
+    expect(af).toMatchObject({
+      optedIn: 1,
+      contentUsers: 1,
+      targetUsers: 1,
+      lessons: 1,
+      wordsRead: 40,
+    });
+    expect(de).toMatchObject({ optedIn: 2, contentUsers: 1, targetUsers: 1, vocab: 1 });
     expect(body.activeLast7Days).toBe(1);
     expect(body.activeLast30Days).toBe(1);
     expect(body.withLibrary).toBe(1);
@@ -462,6 +467,69 @@ describe('GET /api/admin/users languages', () => {
 
     const bob = users.find((u) => u.id === BOB)!;
     expect(bob.languages).toEqual([]);
+  });
+
+  test('reads a raw targetLanguage value the same as a JSON-encoded one', async () => {
+    db.prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+      ALICE,
+      'targetLanguage',
+      'de',
+    );
+
+    const res = await buildApp().request('/api/admin/users', asUser(ADMIN));
+    const { users } = (await res.json()) as {
+      users: Array<{ id: string; languages: Array<{ code: string; target: boolean }> }>;
+    };
+    const alice = users.find((u) => u.id === ALICE)!;
+    expect(alice.languages).toEqual([expect.objectContaining({ code: 'de', target: true })]);
+
+    const summary = await buildApp().request('/api/admin/summary', asUser(ADMIN));
+    const body = (await summary.json()) as {
+      languages: Array<{ code: string; targetUsers: number }>;
+    };
+    expect(body.languages.find((l) => l.code === 'de')?.targetUsers).toBe(1);
+  });
+
+  test('keeps a content-only unknown language and sorts target first', async () => {
+    seedSetting(ALICE, 'targetLanguage', 'de');
+    db.prepare(
+      "INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, language, createdAt, lastReadAt, userId) VALUES ('l-xx',NULL,'T',0,'x','xx','x','x',?)",
+    ).run(ALICE);
+    db.prepare(
+      "INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, language, createdAt, lastReadAt, userId) VALUES ('l-af',NULL,'T',0,'y','af','x','x',?)",
+    ).run(ALICE);
+    db.prepare(
+      "INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, language, createdAt, userId) VALUES ('v-fr','mot','word','s','t','level1','x','fr','x',?)",
+    ).run(ALICE);
+
+    const res = await buildApp().request('/api/admin/users', asUser(ADMIN));
+    const { users } = (await res.json()) as {
+      users: Array<{
+        id: string;
+        languages: Array<{
+          code: string;
+          name: string;
+          flag: string;
+          target: boolean;
+          enabled: boolean;
+          lessons: number;
+        }>;
+      }>;
+    };
+    const langs = users.find((u) => u.id === ALICE)!.languages;
+    expect(langs[0]).toMatchObject({ code: 'de', target: true, enabled: true, lessons: 0 });
+    expect(langs.map((l) => l.code)).toEqual(['de', 'af', 'xx', 'fr']);
+    expect(langs.find((l) => l.code === 'xx')).toMatchObject({
+      name: 'xx',
+      flag: '',
+      target: false,
+      enabled: false,
+      lessons: 1,
+    });
+    expect(langs.find((l) => l.code === 'fr')).toMatchObject({
+      enabled: false,
+      target: false,
+    });
   });
 });
 

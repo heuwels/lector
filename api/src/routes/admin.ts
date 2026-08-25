@@ -64,7 +64,8 @@ export interface AdminLanguageStat {
   code: string;
   name: string;
   flag: string;
-  users: number;
+  optedIn: number;
+  contentUsers: number;
   targetUsers: number;
   lessons: number;
   vocab: number;
@@ -201,33 +202,36 @@ function languageMeta(code: string): { code: string; name: string; flag: string 
   return { code, name: code, flag: '' };
 }
 
-function parseSetting(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
-/** Setting values keyed by userId. Missing table or bad JSON is an empty map. */
-function settingsByUser(key: string): Map<string, unknown> {
+/** Raw setting strings keyed by userId. */
+function rawSettingsByUser(key: string): Map<string, string> {
   const rows = db.prepare('SELECT userId, value FROM settings WHERE key = ?').all(key) as {
     userId: string;
     value: string;
   }[];
-  const out = new Map<string, unknown>();
-  for (const row of rows) out.set(row.userId, parseSetting(row.value));
-  return out;
+  return new Map(rows.map((row) => [row.userId, row.value]));
 }
 
-/** Counts keyed userId → language → n. Empty language codes are dropped. */
+/** JSON-encoded (`"af"`) or raw (`af`) — see active-language.ts. */
+function parseSettingLanguage(value: string | undefined): LanguageCode | null {
+  if (!value) return null;
+  const raw = value.replace(/^"|"$/g, '');
+  return isValidLanguageCode(raw) ? raw : null;
+}
+
+function parseEnabledLanguages(value: string | undefined): LanguageCode[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? normalizeEnabledLanguages(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Counts keyed userId → language → n. */
 function countByUserLanguage(table: string): Map<string, Map<string, number>> {
   const rows = db
-    .prepare(
-      `SELECT userId, language, COUNT(*) AS n FROM ${table}
-       WHERE language IS NOT NULL AND language != ''
-       GROUP BY userId, language`,
-    )
+    .prepare(`SELECT userId, language, COUNT(*) AS n FROM ${table} GROUP BY userId, language`)
     .all() as { userId: string; language: string; n: number }[];
   return foldUserLanguageCounts(rows);
 }
@@ -236,11 +240,20 @@ function wordsReadByUserLanguage(): Map<string, Map<string, number>> {
   const rows = db
     .prepare(
       `SELECT userId, language, COALESCE(SUM(wordsRead), 0) AS n FROM dailyStats
-       WHERE language IS NOT NULL AND language != ''
        GROUP BY userId, language`,
     )
     .all() as { userId: string; language: string; n: number }[];
   return foldUserLanguageCounts(rows);
+}
+
+function totalsFrom(byLang: Map<string, Map<string, number>>): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [userId, langs] of byLang) {
+    let n = 0;
+    for (const count of langs.values()) n += count;
+    out.set(userId, n);
+  }
+  return out;
 }
 
 function foldUserLanguageCounts(
@@ -259,15 +272,14 @@ function foldUserLanguageCounts(
 }
 
 function assembleUserLanguages(
-  targetRaw: unknown,
-  enabledRaw: unknown,
+  target: LanguageCode | null,
+  enabled: readonly LanguageCode[],
   lessons: Map<string, number> | undefined,
   vocab: Map<string, number> | undefined,
   knownWords: Map<string, number> | undefined,
   wordsRead: Map<string, number> | undefined,
 ): AdminUserLanguage[] {
-  const target = typeof targetRaw === 'string' && isValidLanguageCode(targetRaw) ? targetRaw : null;
-  const enabled = Array.isArray(enabledRaw) ? normalizeEnabledLanguages(enabledRaw) : [];
+  const enabledSet = new Set<string>(enabled);
   const codes = new Set<string>();
   if (target) codes.add(target);
   for (const code of enabled) codes.add(code);
@@ -277,11 +289,10 @@ function assembleUserLanguages(
   }
 
   const rows = [...codes].map((code) => {
-    const enabledHere = target === code || enabled.includes(code as LanguageCode);
     return {
       ...languageMeta(code),
       target: code === target,
-      enabled: enabledHere,
+      enabled: enabledSet.has(code) || code === target,
       lessons: lessons?.get(code) ?? 0,
       vocab: vocab?.get(code) ?? 0,
       knownWords: knownWords?.get(code) ?? 0,
@@ -305,7 +316,8 @@ function rollupLanguages(users: Array<{ languages: AdminUserLanguage[] }>): Admi
           code: lang.code,
           name: lang.name,
           flag: lang.flag,
-          users: 0,
+          optedIn: 0,
+          contentUsers: 0,
           targetUsers: 0,
           lessons: 0,
           vocab: 0,
@@ -314,7 +326,8 @@ function rollupLanguages(users: Array<{ languages: AdminUserLanguage[] }>): Admi
         };
         byCode.set(lang.code, stat);
       }
-      stat.users += 1;
+      if (lang.enabled) stat.optedIn += 1;
+      if (lang.lessons + lang.vocab + lang.wordsRead > 0) stat.contentUsers += 1;
       if (lang.target) stat.targetUsers += 1;
       stat.lessons += lang.lessons;
       stat.vocab += lang.vocab;
@@ -323,12 +336,18 @@ function rollupLanguages(users: Array<{ languages: AdminUserLanguage[] }>): Admi
     }
   }
   return [...byCode.values()].sort(
-    (a, b) => b.users - a.users || b.lessons - a.lessons || a.name.localeCompare(b.name),
+    (a, b) =>
+      b.contentUsers - a.contentUsers ||
+      b.optedIn - a.optedIn ||
+      b.lessons - a.lessons ||
+      a.name.localeCompare(b.name),
   );
 }
 
 const DAY_MS = 86_400_000;
 
+// lastActiveAt is a session updatedAt (full ISO) or a dailyStats.date
+// (YYYY-MM-DD, UTC midnight). The date-only branch can be up to a day stale.
 function isActiveSince(iso: string | null, cutoffMs: number): boolean {
   if (!iso) return false;
   const t = Date.parse(iso);
@@ -336,10 +355,6 @@ function isActiveSince(iso: string | null, cutoffMs: number): boolean {
 }
 
 function onboardingCounts(): { completed: number; inProgress: number; skipped: number } {
-  const present = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='onboarding_progress'")
-    .get();
-  if (!present) return { completed: 0, inProgress: 0, skipped: 0 };
   const rows = db
     .prepare(
       `SELECT o.status, COUNT(*) AS n
@@ -429,15 +444,15 @@ export function makeAdminRoutes(
     }
 
     const collections = countBy('collections');
-    const lessons = countBy('lessons');
-    const vocab = countBy('vocab');
-    const knownWords = countBy('knownWords');
     const lessonsByLang = countByUserLanguage('lessons');
     const vocabByLang = countByUserLanguage('vocab');
     const knownWordsByLang = countByUserLanguage('knownWords');
+    const lessons = totalsFrom(lessonsByLang);
+    const vocab = totalsFrom(vocabByLang);
+    const knownWords = totalsFrom(knownWordsByLang);
     const wordsReadByLang = wordsReadByUserLanguage();
-    const targetByUser = settingsByUser('targetLanguage');
-    const enabledByUser = settingsByUser('enabledLanguages');
+    const targetByUser = rawSettingsByUser('targetLanguage');
+    const enabledByUser = rawSettingsByUser('enabledLanguages');
 
     // Storage proxy: bytes of stored lesson text per user (the dominant
     // user-owned payload; dictionaries/banks are shared, not counted).
@@ -517,8 +532,8 @@ export function makeAdminRoutes(
           storageBytes: storage.get(u.id) ?? 0,
         },
         languages: assembleUserLanguages(
-          targetByUser.get(u.id),
-          enabledByUser.get(u.id),
+          parseSettingLanguage(targetByUser.get(u.id)),
+          parseEnabledLanguages(enabledByUser.get(u.id)),
           lessonsByLang.get(u.id),
           vocabByLang.get(u.id),
           knownWordsByLang.get(u.id),

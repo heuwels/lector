@@ -268,7 +268,7 @@ export default function AdminPage() {
       u.status.includes(q) ||
       (u.compedPlan ?? '').includes(q) ||
       (u.languages ?? []).some(
-        (lang) => lang.code.toLowerCase().includes(q) || lang.name.toLowerCase().includes(q),
+        (lang) => lang.code.toLowerCase() === q || lang.name.toLowerCase().includes(q),
       )
     );
   });
@@ -364,21 +364,21 @@ export default function AdminPage() {
         </div>
       )}
 
-      {summary && (
+      {summary && summary.activeLast7Days !== undefined && summary.withLibrary !== undefined && (
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <StatCard
             label="Active (7 days)"
-            value={summary.activeLast7Days ?? '—'}
+            value={summary.activeLast7Days}
             hint={`${summary.activeLast30Days ?? 0} in the last 30 days`}
           />
           <StatCard
             label="With library"
-            value={summary.withLibrary ?? '—'}
-            hint={`${summary.users - (summary.withLibrary ?? 0)} with no lessons`}
+            value={summary.withLibrary}
+            hint={`${summary.users - summary.withLibrary} with no lessons`}
           />
           <StatCard
             label="Onboarding done"
-            value={summary.onboarding?.completed ?? '—'}
+            value={summary.onboarding?.completed ?? 0}
             hint={`${summary.onboarding?.inProgress ?? 0} in progress · ${summary.onboarding?.skipped ?? 0} skipped`}
           />
         </div>
@@ -390,12 +390,13 @@ export default function AdminPage() {
             Languages
           </h2>
           <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-border bg-card text-left text-xs tracking-wide text-muted-foreground uppercase">
                   <th className="px-4 py-3 font-medium">Language</th>
                   <th className="px-4 py-3 font-medium">Target</th>
-                  <th className="px-4 py-3 font-medium">Users</th>
+                  <th className="px-4 py-3 font-medium">Opted in</th>
+                  <th className="px-4 py-3 font-medium">With content</th>
                   <th className="px-4 py-3 font-medium">Lessons</th>
                   <th className="px-4 py-3 font-medium">Vocab</th>
                   <th className="px-4 py-3 font-medium">Known</th>
@@ -413,7 +414,8 @@ export default function AdminPage() {
                       <span className="ml-1.5 text-xs text-muted-foreground">{lang.code}</span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{lang.targetUsers}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{lang.users}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{lang.optedIn}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{lang.contentUsers}</td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {lang.lessons.toLocaleString()}
                     </td>
