@@ -55,14 +55,18 @@ b { color: #16a34a; }
 # FIELDS are appended), so this reaches new installs and anyone who has not
 # created the note types yet. That is deliberate: rebuilding a template would
 # throw away a user's own customizations.
+# The isolation wraps the <b>, never the text inside it. lector's own AnkiConnect
+# path reads a word back out of a card with /<b>([^<]+)<\/b>/, and that class
+# stops at the first <, so <b><bdi>word</bdi></b> would break the round trip.
+# Keep the two nestings the same shape here and in src/lib/anki.ts.
 BASIC_FRONT = (
     "{{#Sentence}}<bdi>{{Sentence}}</bdi><br><br>"
-    "<small>Word: <b><bdi>{{Word}}</bdi></b></small>{{/Sentence}}"
-    "{{^Sentence}}<b><bdi>{{Word}}</bdi></b>{{/Sentence}}"
+    "<small>Word: <bdi><b>{{Word}}</b></bdi></small>{{/Sentence}}"
+    "{{^Sentence}}<b>{{Word}}</b>{{/Sentence}}"
 )
 BASIC_BACK = (
     "{{FrontSide}}<hr id=answer>{{Translation}}"
-    "{{#Meaning}}<br><br><b><bdi>{{Word}}</bdi></b> = {{Meaning}}{{/Meaning}}"
+    "{{#Meaning}}<br><br><bdi><b>{{Word}}</b></bdi> = {{Meaning}}{{/Meaning}}"
     "{{#Source}}<br><br><small>{{Source}}</small>{{/Source}}"
 )
 CLOZE_FRONT = (
@@ -72,7 +76,7 @@ CLOZE_FRONT = (
 CLOZE_BACK = (
     "<bdi>{{cloze:Text}}</bdi>"
     "{{#Translation}}<br><br><small>{{Translation}}</small>{{/Translation}}"
-    "{{#Meaning}}<br><br><b><bdi>{{Word}}</bdi></b> = {{Meaning}}{{/Meaning}}"
+    "{{#Meaning}}<br><br><bdi><b>{{Word}}</b></bdi> = {{Meaning}}{{/Meaning}}"
     "{{#Source}}<br><br><small>{{Source}}</small>{{/Source}}"
 )
 

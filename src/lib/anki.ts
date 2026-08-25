@@ -256,8 +256,8 @@ export async function addBasicCard(
       deckName,
       modelName: 'Basic',
       fields: {
-        Front: `${bdi(highlightedSentence)}<br><br><small>Word: <b>${bdi(cleanTarget)}</b></small>`,
-        Back: `${translation}<br><br><b>${bdi(cleanTarget)}</b> = ${wordMeaning}`,
+        Front: `${bdi(highlightedSentence)}<br><br><small>Word: ${bdi(`<b>${cleanTarget}</b>`)}</small>`,
+        Back: `${translation}<br><br>${bdi(`<b>${cleanTarget}</b>`)} = ${wordMeaning}`,
       },
       options: {
         allowDuplicate: true, // Allow duplicates - same word from different sentences is fine
@@ -298,8 +298,14 @@ export async function addWordCard(
       deckName,
       modelName: 'Basic',
       fields: {
-        Front: `<b>${bdi(cleanTarget)}</b>`,
-        Back: `${translation}<br><br><b>${bdi(cleanTarget)}</b> = ${wordMeaning}${sourceLine}`,
+        // No <bdi> on this one. The field holds the word and nothing else, so
+        // there is no neighbouring run for the bidi algorithm to resolve it
+        // against — a lone Arabic word takes its own direction — and
+        // `cleanTarget` has already had its punctuation split off. #197 pins
+        // this field to exactly `<b>word</b>`, which is what the round-trip
+        // reader matches on.
+        Front: `<b>${cleanTarget}</b>`,
+        Back: `${translation}<br><br>${bdi(`<b>${cleanTarget}</b>`)} = ${wordMeaning}${sourceLine}`,
       },
       options: { allowDuplicate: true },
       tags: ['lector', 'vocabulary'],
@@ -374,7 +380,7 @@ export async function addClozeCard(
       modelName: 'Cloze',
       fields: {
         Text: `${bdi(clozeText)}<br><br><small>Translation: ${translation}</small>`,
-        Extra: `<b>${bdi(cleanTarget)}</b> = ${wordMeaning}${sourceLine}`,
+        Extra: `${bdi(`<b>${cleanTarget}</b>`)} = ${wordMeaning}${sourceLine}`,
       },
       options: {
         allowDuplicate: true, // Allow duplicates - user may want the same word from different sentences
@@ -407,8 +413,11 @@ export async function addClozeCard(
  * and its default `dir="auto"` reads the direction off the run's own first
  * strong character. Left-to-right packs are unaffected.
  *
- * Safe for the readers below: `stripHtml` drops every tag, and the
- * `<b>([^<]+)</b>` word probe still matches inside a `<bdi>`.
+ * WRAP THE EMPHASIS, never the text inside it. `syncWordStates` reads the word
+ * back out of a card with `/<b>([^<]+)<\/b>/`, and that class stops at the
+ * first `<`. So `<b><bdi>word</bdi></b>` makes the probe return null and a
+ * lector card stops reporting its review state. `<bdi><b>word</b></bdi>` keeps
+ * the probe intact, and `stripHtml` drops the extra tag like any other.
  */
 function bdi(text: string): string {
   return `<bdi>${text}</bdi>`;
