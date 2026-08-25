@@ -2741,6 +2741,17 @@ const serviceOps: Record<string, OperationDoc> = {
  * `--include-internal` produces a complete document for our own use.
  */
 const internalOps: Record<string, OperationDoc> = {
+  'GET /api/email/unsubscribe': {
+    summary: 'Show the stop-mail confirm page',
+    tag: 'Service',
+    auth: 'none',
+  },
+  'POST /api/email/unsubscribe': {
+    summary: 'Stop product emails in one click',
+    tag: 'Service',
+    auth: 'none',
+  },
+
   'POST /api/tokens': { summary: 'Create a personal access token', tag: 'Settings' },
   'GET /api/tokens': { summary: 'List personal access tokens', tag: 'Settings' },
   'POST /api/tokens/verify': { summary: 'Verify the current token', tag: 'Settings' },

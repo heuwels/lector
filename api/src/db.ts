@@ -340,6 +340,14 @@ function getDb(): Database {
       PRIMARY KEY (userId, templateAlias)
     );
 
+    -- Product-mail opt-out (#558). Keyed on a hash of the address, not
+    -- userId, so a later account on the same address stays quiet. Erasure
+    -- does not drop it. The column is named email; the value is a hash.
+    CREATE TABLE IF NOT EXISTS email_unsubscribes (
+      email TEXT PRIMARY KEY,
+      unsubscribedAt TEXT NOT NULL
+    );
+
     -- Guided onboarding + learner activity (#331). The profile is deliberately
     -- small but durable: it is the first slice of the shared learner model
     -- planned in #125. Progress is one non-restartable v1 journey per account;

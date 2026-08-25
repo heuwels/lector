@@ -15,6 +15,7 @@ import {
   sweepLifecycleEmails,
   type LifecycleDeps,
 } from './lifecycle-email';
+import { recordUnsubscribe } from './email-unsubscribe';
 import type { EmailMessage } from './email';
 
 const NOW = new Date('2026-08-25T12:00:00.000Z');
@@ -35,6 +36,10 @@ function createSchema(): Database {
       templateAlias TEXT NOT NULL,
       sentAt TEXT NOT NULL,
       PRIMARY KEY (userId, templateAlias)
+    );
+    CREATE TABLE email_unsubscribes (
+      email TEXT PRIMARY KEY,
+      unsubscribedAt TEXT NOT NULL
     );
     CREATE TABLE settings (
       userId TEXT NOT NULL,
@@ -132,7 +137,12 @@ function deps(
 
 afterEach(() => {
   stopLifecycleEmailWorker();
+  delete process.env.EMAIL_UNSUB_SECRET;
 });
+
+function withUnsubSecret(): void {
+  process.env.EMAIL_UNSUB_SECRET = 'test-unsub-secret';
+}
 
 describe('sendWelcomeEmail', () => {
   test('sends the welcome template once to a verified cloud user', async () => {
@@ -282,25 +292,30 @@ describe('hasRealUse', () => {
 
 describe('sweepLifecycleEmails', () => {
   test('sends day-1 after 24 hours with no saved word', async () => {
+    withUnsubSecret();
     const database = createSchema();
     const inbox: EmailMessage[] = [];
     const userId = insertUser(database, {
       createdAt: new Date(NOW.getTime() - 25 * HOUR).toISOString(),
     });
     const first = await sweepLifecycleEmails(deps(database, inbox));
-    expect(first.sent).toBe(2);
-    expect(inbox.map((m) => m.template?.id).sort()).toEqual([
-      LIFECYCLE_TEMPLATES.day1,
-      LIFECYCLE_TEMPLATES.welcome,
-    ]);
+    expect(first.sent).toBe(1);
+    expect(inbox.map((m) => m.template?.id)).toEqual([LIFECYCLE_TEMPLATES.day1]);
+    expect(String(inbox[0].template?.variables?.STOP_URL)).toContain('/api/email/unsubscribe?token=');
+    expect(inbox[0].headers?.['List-Unsubscribe']).toMatch(/^<https?:\/\/.+>$/);
 
     const second = await sweepLifecycleEmails(deps(database, inbox));
     expect(second.sent).toBe(0);
-    expect(inbox).toHaveLength(2);
-    expect(sentAliases(database, userId)).toEqual([
-      LIFECYCLE_TEMPLATES.day1,
-      LIFECYCLE_TEMPLATES.welcome,
-    ]);
+    expect(inbox).toHaveLength(1);
+    expect(sentAliases(database, userId)).toEqual([LIFECYCLE_TEMPLATES.day1]);
+  });
+
+  test('does not send welcome from the sweep', async () => {
+    const database = createSchema();
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: NOW.toISOString() });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
   });
 
   test('does not send day-1 before 24 hours', async () => {
@@ -308,7 +323,7 @@ describe('sweepLifecycleEmails', () => {
     const inbox: EmailMessage[] = [];
     insertUser(database, { createdAt: new Date(NOW.getTime() - 23 * HOUR).toISOString() });
     await sweepLifecycleEmails(deps(database, inbox));
-    expect(inbox.map((m) => m.template?.id)).toEqual([LIFECYCLE_TEMPLATES.welcome]);
+    expect(inbox).toHaveLength(0);
   });
 
   test('does not send day-1 when a word is saved', async () => {
@@ -319,10 +334,11 @@ describe('sweepLifecycleEmails', () => {
     });
     insertWords(database, userId, 1);
     await sweepLifecycleEmails(deps(database, inbox));
-    expect(inbox.map((m) => m.template?.id)).toEqual([LIFECYCLE_TEMPLATES.welcome]);
+    expect(inbox).toHaveLength(0);
   });
 
-  test('sends day-3 after 72 hours with no real use', async () => {
+  test('sends day-3 after 72 hours and does not also send day-1', async () => {
+    withUnsubSecret();
     const database = createSchema();
     const inbox: EmailMessage[] = [];
     const userId = insertUser(database, {
@@ -334,11 +350,8 @@ describe('sweepLifecycleEmails', () => {
       )
       .run('les-starter', userId, 0, 0, NOW.toISOString());
     await sweepLifecycleEmails(deps(database, inbox));
-    expect(inbox.map((m) => m.template?.id).sort()).toEqual([
-      LIFECYCLE_TEMPLATES.day1,
-      LIFECYCLE_TEMPLATES.day3,
-      LIFECYCLE_TEMPLATES.welcome,
-    ]);
+    expect(inbox.map((m) => m.template?.id)).toEqual([LIFECYCLE_TEMPLATES.day3]);
+    expect(sentAliases(database, userId)).toEqual([LIFECYCLE_TEMPLATES.day3]);
   });
 
   test('does not send day-3 when the user has real use', async () => {
@@ -349,7 +362,28 @@ describe('sweepLifecycleEmails', () => {
     });
     insertWords(database, userId, 1);
     await sweepLifecycleEmails(deps(database, inbox));
-    expect(inbox.map((m) => m.template?.id)).toEqual([LIFECYCLE_TEMPLATES.welcome]);
+    expect(inbox).toHaveLength(0);
+  });
+
+  test('does not send day-1 or day-3 to an old unused account', async () => {
+    const database = createSchema();
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: new Date(NOW.getTime() - 10 * 24 * HOUR).toISOString() });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+  });
+
+  test('does not send after the address stops product mail', async () => {
+    withUnsubSecret();
+    const database = createSchema();
+    const inbox: EmailMessage[] = [];
+    insertUser(database, {
+      email: 'ada@example.com',
+      createdAt: new Date(NOW.getTime() - 25 * HOUR).toISOString(),
+    });
+    recordUnsubscribe(database, 'ada@example.com', NOW.toISOString());
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
   });
 
   test('skips the whole sweep when not cloud or the key is absent', async () => {
