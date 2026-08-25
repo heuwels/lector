@@ -85,6 +85,7 @@ Cloud sends each Resend template once. Self-host does not send these templates.
 - Welcome: the user confirms email. An OAuth user with a confirmed email gets this email on create. The sweep does not send welcome. If `RESEND_API_KEY` is absent when the user confirms, the send does not run. That send does not retry.
 - Day 1: the account age is 24 hours to 72 hours. The user has no saved word.
 - Day 3: the account age is 72 hours to 7 days. The user has no real use.
+- The sweep skips an account older than 7 days. The sweep does not send welcome, Anki, or gloss-cap.
 - Anki: the user has 10 saved words. Ignored words do not count.
 - Gloss cap: a free-plan user reaches the monthly gloss limit.
 
@@ -100,7 +101,7 @@ The send does not run when:
 - The user already has that template.
 - The user asked to stop product emails.
 
-Stop-mail tokens use `EMAIL_UNSUB_SECRET` when that variable is set. If it is absent, the tokens use `BETTER_AUTH_SECRET`. Verify accepts both secrets.
+If `EMAIL_UNSUB_SECRET` is set, stop-mail tokens use that secret. If it is absent, the tokens use `BETTER_AUTH_SECRET`. A check accepts both secrets.
 
 The app sends `verify`, `reset`, and `delete` mails as plain text. A transport error does not fail signup or login.
 

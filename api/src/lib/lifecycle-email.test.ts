@@ -4,6 +4,7 @@ import { Database } from 'bun:sqlite';
 import {
   ANKI_WORD_THRESHOLD,
   LIFECYCLE_TEMPLATES,
+  createdAtMs,
   hasRealUse,
   languageLabel,
   notifyGlossCapHit,
@@ -146,6 +147,7 @@ function withUnsubSecret(): void {
 
 describe('sendWelcomeEmail', () => {
   test('sends the welcome template once to a verified cloud user', async () => {
+    withUnsubSecret();
     const database = createSchema();
     const inbox: EmailMessage[] = [];
     const userId = insertUser(database);
@@ -156,14 +158,14 @@ describe('sendWelcomeEmail', () => {
     expect(await sendWelcomeEmail(userId, deps(database, inbox))).toBe('sent');
     expect(await sendWelcomeEmail(userId, deps(database, inbox))).toBe('skipped');
     expect(inbox).toHaveLength(1);
-    expect(inbox[0].template).toEqual({
-      id: LIFECYCLE_TEMPLATES.welcome,
-      variables: {
-        USER_NAME: 'Ada',
-        LANGUAGE: 'Afrikaans',
-        APP_URL: 'https://app.lector.dev',
-      },
+    expect(inbox[0].template?.id).toBe(LIFECYCLE_TEMPLATES.welcome);
+    expect(inbox[0].template?.variables).toMatchObject({
+      USER_NAME: 'Ada',
+      LANGUAGE: 'Afrikaans',
+      APP_URL: 'https://app.lector.dev',
     });
+    expect(String(inbox[0].template?.variables?.STOP_URL)).toContain('/api/email/unsubscribe?token=');
+    expect(inbox[0].headers).toBeUndefined();
     expect(sentAliases(database, userId)).toEqual([LIFECYCLE_TEMPLATES.welcome]);
   });
 
@@ -203,7 +205,7 @@ describe('sendWelcomeEmail', () => {
     expect(inbox).toHaveLength(0);
   });
 
-  test('a transport error does not throw and keeps the send row', async () => {
+  test('a transport error does not throw and releases the send row', async () => {
     const database = createSchema();
     const userId = insertUser(database);
     const result = await sendWelcomeEmail(
@@ -215,7 +217,7 @@ describe('sendWelcomeEmail', () => {
       }),
     );
     expect(result).toBe('skipped');
-    expect(sentAliases(database, userId)).toEqual([LIFECYCLE_TEMPLATES.welcome]);
+    expect(sentAliases(database, userId)).toEqual([]);
   });
 });
 
@@ -373,6 +375,23 @@ describe('sweepLifecycleEmails', () => {
     expect(inbox).toHaveLength(0);
   });
 
+  test('does not send when createdAt is unix seconds for an old account', async () => {
+    const database = createSchema();
+    const inbox: EmailMessage[] = [];
+    const created = Math.floor((NOW.getTime() - 10 * 24 * HOUR) / 1000);
+    insertUser(database, { createdAt: String(created) });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+  });
+
+  test('skips a user whose createdAt cannot be parsed', async () => {
+    const database = createSchema();
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: 'not-a-date' });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+  });
+
   test('does not send after the address stops product mail', async () => {
     withUnsubSecret();
     const database = createSchema();
@@ -399,6 +418,16 @@ describe('sweepLifecycleEmails', () => {
       skipped: 0,
     });
     expect(inbox).toHaveLength(0);
+  });
+});
+
+describe('createdAtMs', () => {
+  test('reads ISO, Date, milliseconds, and unix seconds', () => {
+    expect(createdAtMs('2026-08-25T12:00:00.000Z')).toBe(NOW.getTime());
+    expect(createdAtMs(NOW)).toBe(NOW.getTime());
+    expect(createdAtMs(NOW.getTime())).toBe(NOW.getTime());
+    expect(createdAtMs(Math.floor(NOW.getTime() / 1000))).toBe(NOW.getTime());
+    expect(createdAtMs('not-a-date')).toBeNull();
   });
 });
 
