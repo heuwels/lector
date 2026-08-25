@@ -36,14 +36,14 @@ function legacyWords(text: string): string[] {
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
 // the contract for exactly those packs. Languages added after #289 get their
-// own goldens below instead — ru, grc, uk, ko, zh and ja because the oracle
+// own goldens below instead — ar, ru, grc, uk, ko, zh and ja because the oracle
 // can't see their scripts (zh and ja doubly so: they have no whitespace, so the
 // oracle returns the whole paragraph), and tr because the oracle applies the
 // Afrikaans 'n alternative to every language, which mis-splits a Turkish
 // suffixed proper noun (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to
 // the af pack.
 const CORPUS: Record<
-  Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'>,
+  Exclude<LanguageCode, 'ar' | 'ru' | 'grc' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'>,
   string[]
 > = {
   af: [
@@ -144,7 +144,7 @@ const CORPUS: Record<
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
   for (const [code, texts] of Object.entries(CORPUS) as [
-    Exclude<LanguageCode, 'ru' | 'grc' | 'tr' | 'uk' | 'zh' | 'ja'>,
+    Exclude<LanguageCode, 'ar' | 'ru' | 'grc' | 'tr' | 'uk' | 'zh' | 'ja'>,
     string[],
   ][]) {
     const pack = LANGUAGES[code];
@@ -267,7 +267,12 @@ function synth(script: Partial<ScriptConfig> & Pick<ScriptConfig, 'bcp47'>): Lan
 // engine needs no per-script code for them.
 const ru = LANGUAGES.ru;
 const grc = LANGUAGES.grc;
-const ar = synth({ bcp47: 'ar', direction: 'rtl', hasCase: false, sentenceTerminators: '؟.!' });
+// ar (#253) graduated from a synthetic pack to a real registry entry, like ru,
+// grc, ko and ja before it. The goldens that were written against the synthetic
+// script now run against the shipped manifest, which is what proves the spaced
+// engine needs no per-script code for Arabic: the pack adds a direction, a
+// terminator and a fold, and no character ranges at all.
+const ar = LANGUAGES.ar;
 const hbo = synth({ bcp47: 'he', direction: 'rtl', hasCase: false });
 // Korean is a real pack now (#289), not a synthetic one. It is the only
 // `hangul` pack, and its goldens below prove the spaced engine needs no
@@ -846,6 +851,103 @@ describe('Latin pack (real manifest)', () => {
   it('snaps a mid-word selection to Latin word boundaries', () => {
     const text = 'Gallia est omnis';
     expect(snapToWordBoundaries(text, 1, 4, la)).toEqual({ start: 0, end: 6 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Arabic pack goldens (#253) — the first rtl pack, and the first whose written
+// form and dictionary form differ by default
+// ---------------------------------------------------------------------------
+
+const AR_CORPUS = [
+  'مرحبا! كيف حالك؟',
+  'ذهب الولد إلى المدرسة، ثم عاد إلى البيت.',
+  'قرأ ٢٠ صفحة من الكتاب في اليوم الأوّل.',
+  'قال: «هذا كتابي»، وأخذه معه.',
+  'كَتَبَ الطّالبُ الدَّرْسَ بِقَلَمٍ أَحْمَر.',
+  'زرت مدينة London في عام 1999.',
+];
+
+describe('Arabic pack (real manifest)', () => {
+  it('reassembles Arabic text byte-for-byte with correct offsets', () => {
+    for (const text of AR_CORPUS) {
+      const tokens = tokenize(text, ar);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps tashkeel inside the word token', () => {
+    // The marks are \p{M}, which the engine already treats as word characters,
+    // so vocalized text tokenizes as words rather than as letters and marks.
+    expect(tokenizeWords('كَتَبَ الطّالبُ الدَّرْسَ', ar).map((t) => t.text)).toEqual([
+      'كَتَبَ',
+      'الطّالبُ',
+      'الدَّرْسَ',
+    ]);
+  });
+
+  it('keeps the tatweel inside the token, and the fold removes it', () => {
+    // U+0640 is \p{Lm}, a letter, so the tokenizer cannot drop it — which is
+    // right, because a token has to reassemble to the source. The KEY is where
+    // it goes.
+    expect(tokenizeWords('مــدرسة كبيرة', ar).map((t) => t.text)).toEqual(['مــدرسة', 'كبيرة']);
+    expect(foldWord('مــدرسة', ar)).toBe('مدرسة');
+  });
+
+  it('treats Arabic-Indic digits and Arabic punctuation as boundaries', () => {
+    expect(tokenizeWords('كتب الولد ٢٠ رسالة، ماذا؟', ar).map((t) => t.text)).toEqual([
+      'كتب',
+      'الولد',
+      'رسالة',
+      'ماذا',
+    ]);
+    expect(tokenizeWords('واحد؛ اثنان', ar).map((t) => t.text)).toEqual(['واحد', 'اثنان']);
+  });
+
+  it('keeps a Latin word and an ASCII year whole inside Arabic prose', () => {
+    // Arabic-Indic digits are boundaries; ASCII digits stay word characters,
+    // exactly as they are for every other pack.
+    expect(tokenizeWords('زرت مدينة London في عام 1999.', ar).map((t) => t.text)).toEqual([
+      'زرت',
+      'مدينة',
+      'London',
+      'في',
+      'عام',
+      '1999',
+    ]);
+  });
+
+  it('splits sentences on the Arabic question mark, and not on the comma', () => {
+    expect(splitSentences('كيف حالك؟ أنا بخير.', ar)).toEqual(['كيف حالك؟', 'أنا بخير.']);
+    expect(splitSentences('ذهب الولد، ثم عاد.', ar)).toEqual(['ذهب الولد، ثم عاد.']);
+  });
+
+  it('snaps a mid-word selection outward, on logical offsets', () => {
+    // Selection math is logical, not visual: the reader's own dir attribute
+    // handles display order, and a right-to-left run must not invert these.
+    const text = 'ذهب الولد إلى المدرسة';
+    //                 ^5..7^ inside "الولد" (4..9)
+    expect(snapToWordBoundaries(text, 5, 7, ar)).toEqual({ start: 4, end: 9 });
+  });
+
+  it('counts words with no per-script code', () => {
+    expect(countWords('ذهب الولد إلى المدرسة', ar)).toBe(4);
+  });
+
+  it('declares rtl, and it is the only pack that does', () => {
+    expect(ar.script.direction).toBe('rtl');
+    const rtl = Object.values(LANGUAGES).filter((pack) => pack.script.direction === 'rtl');
+    expect(rtl.map((pack) => pack.code)).toEqual(['ar']);
+  });
+
+  it('is a spaced pack, so it needs no segmenter', () => {
+    // The reason #253 is independent of the Mandarin spike: the whitespace word
+    // model holds, so clozeIndex stays a whitespace-token index.
+    expect(ar.script.kind).toBe('alpha-spaced');
+    expect(clozeTokenSeparator('ذهب الولد', clozeTokens('ذهب الولد', ar))).toBe(' ');
   });
 });
 

@@ -65,7 +65,16 @@ export interface ScriptConfig {
    * <apostrophe>n article). Compiled with 'giu' flags.
    */
   extraTokenPatterns?: string[];
-  /** Phase 3 (#289): 'fold-marks' accepts mark-stripped practice answers. Defaults to 'exact'. */
+  /**
+   * Phase 3 (#289): 'fold-marks' accepts mark-stripped practice answers.
+   * Defaults to 'exact'.
+   *
+   * This says the POLICY, not the mark set. `foldForComparison` decides which
+   * marks a given script may drop, and the sets differ: Greek drops every
+   * combining mark, Arabic drops only its own diacritics. A new pack that sets
+   * this must add its script's fold there — the Greek one is not a default that
+   * travels, and for Arabic it graded two different words as equal (#253).
+   */
   practiceLeniency?: 'exact' | 'fold-marks';
   /** Phase 1 (#289): per-script reading font class resolved in the reader. */
   fontClass?: string;
@@ -218,6 +227,16 @@ export interface MorphologyConfig {
    * Order does not matter. The stripper sorts by length, so meng wins over me.
    */
   prefixes?: string[];
+  /**
+   * How many prefixes may stack. Defaults to 1, which is what id and it need:
+   * a voice prefix and an elision clitic each appear once.
+   *
+   * Arabic needs more. It writes its conjunctions, prepositions and article as
+   * proclitics with no space, and they stack in a fixed order: وبالقلم is و +
+   * ب + ال + قلم, three peels deep. A one-pass peel answers و and stops at
+   * بالقلم, which is not a key.
+   */
+  maxPrefixes?: number;
 }
 
 export interface LanguageConfig {

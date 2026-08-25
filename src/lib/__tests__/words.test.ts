@@ -39,6 +39,18 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation('¡Hola!')).toEqual(['Hola', '!']);
   });
 
+  it('splits the Arabic comma, semicolon and question mark', () => {
+    // Arabic writes its own three (#253). Without them the cloze blank printed
+    // كتاب؟ as the word to fill, and the mark landed inside the answer.
+    expect(splitTrailingPunctuation('كتاب؟')).toEqual(['كتاب', '؟']);
+    expect(splitTrailingPunctuation('عام،')).toEqual(['عام', '،']);
+    expect(splitTrailingPunctuation('واحد؛')).toEqual(['واحد', '؛']);
+    // The Arabic full stop is the ASCII one, and it already split.
+    expect(splitTrailingPunctuation('البيت.')).toEqual(['البيت', '.']);
+    // A bare Arabic word is untouched, tashkeel and all.
+    expect(splitTrailingPunctuation('كَتَبَ')).toEqual(['كَتَبَ', '']);
+  });
+
   it('strips French guillemets but keeps an elided clitic token intact', () => {
     expect(splitTrailingPunctuation('«Où»')[0]).toBe('Où');
     expect(splitTrailingPunctuation('café.')).toEqual(['café', '.']);

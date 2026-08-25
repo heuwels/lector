@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import Markdown from 'react-markdown';
 import { getActiveLanguage } from '@/lib/data-layer';
 import { apiFetch } from '@/lib/api-base';
+import TargetText from '@/components/TargetText';
 
 export default function ClozeFeedback({
   isCorrect,
@@ -98,14 +99,20 @@ export default function ClozeFeedback({
         {!isCorrect && (
           <div className="flex items-center gap-2 text-sm">
             <span className="font-medium text-muted-foreground">Your answer:</span>
-            <span className="rounded bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] px-2 py-0.5 font-medium text-destructive line-through">
+            {/* Target-language text on the same line as an English label, so
+                the chip needs its own direction (#253). */}
+            <TargetText
+              as="span"
+              className="rounded bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] px-2 py-0.5 font-medium text-destructive line-through"
+            >
               {userAnswer}
-            </span>
+            </TargetText>
           </div>
         )}
         <div className="flex items-center gap-2 text-sm">
           <span className="font-medium text-muted-foreground">Correct answer:</span>
-          <span
+          <TargetText
+            as="span"
             className={`rounded px-2 py-0.5 font-bold ${
               isCorrect
                 ? 'bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary'
@@ -113,7 +120,7 @@ export default function ClozeFeedback({
             }`}
           >
             {correctWord}
-          </span>
+          </TargetText>
         </div>
       </div>
 

@@ -136,6 +136,68 @@ describe('Italian stemCandidates', () => {
   });
 });
 
+const arabicMorph = LANGUAGES.ar.morphology as MorphologyConfig;
+
+describe('Arabic stemCandidates (#253)', () => {
+  it('peels one proclitic', () => {
+    expect(keys('وكتاب', arabicMorph)).toContain('كتاب');
+    expect(keys('بقلم', arabicMorph)).toContain('قلم');
+    expect(keys('الكتاب', arabicMorph)).toContain('كتاب');
+  });
+
+  it('peels a stack of three proclitics', () => {
+    // و + ب + ال + قلم. This is the case a one-pass peel cannot reach: it
+    // answers بالقلم, which is not a key.
+    expect(keys('وبالقلم', arabicMorph)).toContain('قلم');
+  });
+
+  it('peels the fused لل, which is ل + ال with the alef elided', () => {
+    expect(keys('للمدرسة', arabicMorph)).toContain('مدرسة');
+    expect(keys('وللمدرسة', arabicMorph)).toContain('مدرسة');
+  });
+
+  it('peels a pronoun enclitic', () => {
+    expect(keys('كتابه', arabicMorph)).toContain('كتاب');
+    expect(keys('كتابها', arabicMorph)).toContain('كتاب');
+    expect(keys('بيتنا', arabicMorph)).toContain('بيت');
+  });
+
+  it('peels an enclitic and a proclitic together', () => {
+    expect(keys('وكتابه', arabicMorph)).toContain('كتاب');
+    expect(keys('بكتابها', arabicMorph)).toContain('كتاب');
+  });
+
+  it('offers the shallowest peel first', () => {
+    // Least work to explain wins, so a reader is told "و form of" before it is
+    // told "و + ب + ال form of".
+    const candidates = keys('وبالقلم', arabicMorph);
+    expect(candidates.indexOf('بالقلم')).toBeLessThan(candidates.indexOf('قلم'));
+  });
+
+  it('leaves a two-letter stem, which a three-letter floor would refuse', () => {
+    // The commonest shape in the language: a proclitic on a function word.
+    expect(keys('وهو', arabicMorph)).toContain('هو');
+    expect(keys('ومن', arabicMorph)).toContain('من');
+    expect(keys('ففي', arabicMorph)).toContain('في');
+    expect(keys('بكل', arabicMorph)).toContain('كل');
+  });
+
+  it('never peels a stem below two letters', () => {
+    for (const key of keys('في', arabicMorph)) expect(key.length).toBeGreaterThanOrEqual(2);
+    for (const key of keys('وفي', arabicMorph)) expect(key.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('maxPrefixes defaults to one pass', () => {
+  it('does not stack prefixes for a pack that never asked to', () => {
+    // id peels ONE voice prefix. `memberi` must not lose `mem` and then `beri`'s
+    // own leading `ber`, which stacking would do.
+    expect(LANGUAGES.id.morphology?.maxPrefixes).toBeUndefined();
+    expect(keys('memberikan', id)).toContain('berikan');
+    expect(keys('memberikan', id)).not.toContain('ikan');
+  });
+});
+
 describe('vocabKeys', () => {
   it('puts the folded surface first, then the peeled stem', () => {
     expect(vocabKeys("l'acqua", LANGUAGES.it)).toEqual(["l'acqua", 'acqua']);

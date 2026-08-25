@@ -17,7 +17,14 @@ export function splitTrailingPunctuation(word: string): [string, string] {
   const noLead = word.replace(/^[„“”"«»‹›(\[{¿¡]+/u, '');
   // The ano teleia · is Greek's strong colon (#254); the Greek question mark
   // is the ASCII-lookalike ; already in the class.
-  const match = noLead.match(/^(.+?)([.,!?;:·'"„“”«»‹›)\]}…]+)$/u);
+  //
+  // Arabic writes its own comma ،, semicolon ؛ and question mark ؟ (#253).
+  // Without them a sentence-final cloze answer keeps its punctuation: the bank
+  // stores كتاب؟ as the answer, so the blank printed كتاب؟ and a learner who
+  // typed the word was marked wrong. 195 of the 7,126 Arabic bank rows end in
+  // one of these. They cannot collide with another script — no Latin, Cyrillic
+  // or Greek text writes them.
+  const match = noLead.match(/^(.+?)([.,!?;:·،؛؟'"„“”«»‹›)\]}…]+)$/u);
   if (match) return [match[1], match[2]];
   return [noLead, ''];
 }

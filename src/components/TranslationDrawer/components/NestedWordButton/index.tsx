@@ -1,3 +1,5 @@
+import TargetText from '@/components/TargetText';
+
 /** Link-styled word inside an entry — clicking re-targets the drawer (issue #106). */
 export default function NestedWordButton({
   word,
@@ -16,7 +18,7 @@ export default function NestedWordButton({
       className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
       title={`Look up ${word}`}
     >
-      {word}
+      <TargetText>{word}</TargetText>
     </button>
   );
 }
