@@ -57,6 +57,12 @@ function reset() {
   ]) {
     db.prepare(`DELETE FROM ${t}`).run();
   }
+  for (const id of [ADMIN, ALICE, BOB]) {
+    db.prepare('DELETE FROM settings WHERE userId = ?').run(id);
+    if (db.prepare("SELECT name FROM sqlite_master WHERE name='onboarding_progress'").get()) {
+      db.prepare('DELETE FROM onboarding_progress WHERE userId = ?').run(id);
+    }
+  }
   if (db.prepare("SELECT name FROM sqlite_master WHERE name='usage_counters'").get()) {
     db.prepare('DELETE FROM usage_counters').run();
   }
@@ -72,6 +78,14 @@ function seedUser(id: string, opts: { verified?: boolean; createdAt?: string } =
     opts.verified ? 1 : 0,
     opts.createdAt ?? '2026-06-01T00:00:00Z',
     '2026-06-01T00:00:00Z',
+  );
+}
+
+function seedSetting(userId: string, key: string, value: unknown) {
+  db.prepare('INSERT OR REPLACE INTO settings (userId, key, value) VALUES (?, ?, ?)').run(
+    userId,
+    key,
+    JSON.stringify(value),
   );
 }
 
@@ -189,6 +203,10 @@ describe('GET /api/admin/users', () => {
     expect((alice.library as { collections: number }).collections).toBe(1);
     expect((alice.library as { lessons: number }).lessons).toBe(1);
     expect((alice.library as { storageBytes: number }).storageBytes).toBe('hello world'.length);
+    const aliceLangs = alice.languages as Array<{ code: string; lessons: number; target: boolean }>;
+    expect(aliceLangs).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'af', lessons: 1, target: false })]),
+    );
 
     const bob = users.find((u) => u.id === BOB)!;
     expect(bob.plan).toBeNull();
@@ -349,6 +367,101 @@ describe('GET /api/admin/summary', () => {
       phraseTranslationsPerDay: 3,
       contextTranslationsPerDay: 2,
     });
+  });
+
+  test('rolls up languages and recency from library, settings, and last-active', async () => {
+    seedSetting(ALICE, 'targetLanguage', 'af');
+    seedSetting(ALICE, 'enabledLanguages', ['af', 'de']);
+    seedSetting(BOB, 'targetLanguage', 'de');
+    db.prepare(
+      "INSERT INTO collections (id, title, author, language, createdAt, lastReadAt, userId) VALUES ('c1','T','A','af','x','x',?)",
+    ).run(ALICE);
+    db.prepare(
+      "INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, language, createdAt, lastReadAt, userId) VALUES ('l1','c1','T',0,'hello','af','x','x',?)",
+    ).run(ALICE);
+    db.prepare(
+      "INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, language, createdAt, userId) VALUES ('v1','Wort','word','s','t','level1','x','de','x',?)",
+    ).run(ALICE);
+    db.prepare(
+      "INSERT INTO dailyStats (userId, date, language, wordsRead) VALUES (?, '2026-07-10', 'af', 40)",
+    ).run(ALICE);
+    db.prepare(
+      "INSERT INTO session (id, userId, expiresAt, token, createdAt, updatedAt) VALUES ('s-alice', ?, '2999-01-01', 't', '2026-07-10T00:00:00Z', '2026-07-10T12:00:00Z')",
+    ).run(ALICE);
+    db.prepare(
+      "INSERT INTO onboarding_progress (userId, version, status, currentStep, language, startedAt, updatedAt) VALUES (?, 1, 'completed', 'summary', 'af', 'x', 'x')",
+    ).run(ALICE);
+
+    const res = await buildApp(gate, {
+      now: () => new Date('2026-07-11T12:00:00Z'),
+    }).request('/api/admin/summary', asUser(ADMIN));
+    const body = (await res.json()) as {
+      languages: Array<{
+        code: string;
+        users: number;
+        targetUsers: number;
+        lessons: number;
+        vocab: number;
+        wordsRead: number;
+      }>;
+      activeLast7Days: number;
+      activeLast30Days: number;
+      withLibrary: number;
+      onboarding: { completed: number; inProgress: number; skipped: number };
+    };
+
+    const af = body.languages.find((l) => l.code === 'af')!;
+    const de = body.languages.find((l) => l.code === 'de')!;
+    expect(af).toMatchObject({ users: 1, targetUsers: 1, lessons: 1, wordsRead: 40 });
+    expect(de).toMatchObject({ users: 2, targetUsers: 1, vocab: 1 });
+    expect(body.activeLast7Days).toBe(1);
+    expect(body.activeLast30Days).toBe(1);
+    expect(body.withLibrary).toBe(1);
+    expect(body.onboarding).toEqual({ completed: 1, inProgress: 0, skipped: 0 });
+  });
+});
+
+describe('GET /api/admin/users languages', () => {
+  test('lists target, enabled, and content languages per account', async () => {
+    seedSetting(ALICE, 'targetLanguage', 'de');
+    seedSetting(ALICE, 'enabledLanguages', ['af', 'de']);
+    db.prepare(
+      "INSERT INTO lessons (id, collectionId, title, sortOrder, textContent, language, createdAt, lastReadAt, userId) VALUES ('l-af',NULL,'T',0,'hi','af','x','x',?)",
+    ).run(ALICE);
+    db.prepare(
+      "INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, language, createdAt, userId) VALUES ('v-de','Wort','word','s','t','level1','x','de','x',?)",
+    ).run(ALICE);
+
+    const res = await buildApp().request('/api/admin/users', asUser(ADMIN));
+    const { users } = (await res.json()) as {
+      users: Array<{
+        id: string;
+        languages: Array<{
+          code: string;
+          name: string;
+          target: boolean;
+          enabled: boolean;
+          lessons: number;
+          vocab: number;
+        }>;
+      }>;
+    };
+    const alice = users.find((u) => u.id === ALICE)!;
+    expect(alice.languages[0]).toMatchObject({
+      code: 'de',
+      name: 'German',
+      target: true,
+      enabled: true,
+      vocab: 1,
+    });
+    expect(alice.languages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'af', target: false, enabled: true, lessons: 1 }),
+      ]),
+    );
+
+    const bob = users.find((u) => u.id === BOB)!;
+    expect(bob.languages).toEqual([]);
   });
 });
 

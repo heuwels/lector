@@ -266,7 +266,10 @@ export default function AdminPage() {
       (u.name ?? '').toLowerCase().includes(q) ||
       (u.plan ?? '').includes(q) ||
       u.status.includes(q) ||
-      (u.compedPlan ?? '').includes(q)
+      (u.compedPlan ?? '').includes(q) ||
+      (u.languages ?? []).some(
+        (lang) => lang.code.toLowerCase().includes(q) || lang.name.toLowerCase().includes(q),
+      )
     );
   });
 
@@ -361,12 +364,82 @@ export default function AdminPage() {
         </div>
       )}
 
+      {summary && (
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <StatCard
+            label="Active (7 days)"
+            value={summary.activeLast7Days ?? '—'}
+            hint={`${summary.activeLast30Days ?? 0} in the last 30 days`}
+          />
+          <StatCard
+            label="With library"
+            value={summary.withLibrary ?? '—'}
+            hint={`${summary.users - (summary.withLibrary ?? 0)} with no lessons`}
+          />
+          <StatCard
+            label="Onboarding done"
+            value={summary.onboarding?.completed ?? '—'}
+            hint={`${summary.onboarding?.inProgress ?? 0} in progress · ${summary.onboarding?.skipped ?? 0} skipped`}
+          />
+        </div>
+      )}
+
+      {summary && (summary.languages ?? []).length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+            Languages
+          </h2>
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="border-b border-border bg-card text-left text-xs tracking-wide text-muted-foreground uppercase">
+                  <th className="px-4 py-3 font-medium">Language</th>
+                  <th className="px-4 py-3 font-medium">Target</th>
+                  <th className="px-4 py-3 font-medium">Users</th>
+                  <th className="px-4 py-3 font-medium">Lessons</th>
+                  <th className="px-4 py-3 font-medium">Vocab</th>
+                  <th className="px-4 py-3 font-medium">Known</th>
+                  <th className="px-4 py-3 font-medium">Words read</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(summary.languages ?? []).map((lang) => (
+                  <tr key={lang.code} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3">
+                      <span className="mr-1.5" aria-hidden>
+                        {lang.flag}
+                      </span>
+                      <span className="font-medium text-foreground">{lang.name}</span>
+                      <span className="ml-1.5 text-xs text-muted-foreground">{lang.code}</span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{lang.targetUsers}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{lang.users}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {lang.lessons.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {lang.vocab.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {lang.knownWords.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {lang.wordsRead.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <div className="mb-3 flex items-center justify-between gap-3">
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search email, name, plan, status…"
+          placeholder="Search email, name, plan, language…"
           className="w-72 max-w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring"
         />
         <span className="text-xs text-muted-foreground">
@@ -375,11 +448,12 @@ export default function AdminPage() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[980px] text-sm">
           <thead>
             <tr className="border-b border-border bg-card text-left text-xs tracking-wide text-muted-foreground uppercase">
               <th className="px-4 py-3 font-medium">Account</th>
               <th className="px-4 py-3 font-medium">Plan</th>
+              <th className="px-4 py-3 font-medium">Languages</th>
               <th className="px-4 py-3 font-medium">Signed up</th>
               <th className="px-4 py-3 font-medium">Last active</th>
               <th className="px-4 py-3 font-medium">Library</th>
@@ -408,6 +482,41 @@ export default function AdminPage() {
                     >
                       {badge.label}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {(u.languages ?? []).length === 0 ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      <div className="flex flex-col gap-0.5">
+                        {(u.languages ?? []).map((lang) => (
+                          <div
+                            key={lang.code}
+                            className="flex items-center gap-1.5 whitespace-nowrap"
+                          >
+                            <span aria-hidden>{lang.flag}</span>
+                            <span
+                              className={
+                                lang.target
+                                  ? 'font-medium text-foreground'
+                                  : 'text-muted-foreground'
+                              }
+                            >
+                              {lang.name}
+                            </span>
+                            {lang.target && (
+                              <span className="rounded bg-muted px-1 text-[10px] tracking-wide text-muted-foreground uppercase">
+                                target
+                              </span>
+                            )}
+                            {(lang.lessons > 0 || lang.vocab > 0) && (
+                              <span className="text-xs text-muted-foreground">
+                                {lang.lessons} L · {lang.vocab} V
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                     {formatDate(u.createdAt)}
