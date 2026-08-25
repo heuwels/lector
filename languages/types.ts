@@ -218,6 +218,16 @@ export interface MorphologyConfig {
    * Order does not matter. The stripper sorts by length, so meng wins over me.
    */
   prefixes?: string[];
+  /**
+   * How many prefixes may stack. Defaults to 1, which is what id and it need:
+   * a voice prefix and an elision clitic each appear once.
+   *
+   * Arabic needs more. It writes its conjunctions, prepositions and article as
+   * proclitics with no space, and they stack in a fixed order: وبالقلم is و +
+   * ب + ال + قلم, three peels deep. A one-pass peel answers و and stops at
+   * بالقلم, which is not a key.
+   */
+  maxPrefixes?: number;
 }
 
 export interface LanguageConfig {

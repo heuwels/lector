@@ -8,6 +8,7 @@ import { useActiveLanguage } from '@/utils/hooks';
 import { TranslationDrawerProps } from './types';
 import { wordStateColors, wordStateLabels } from './constants';
 import { ChevronRight, RefreshCw, Sparkles, Volume2, X, Zap } from 'lucide-react';
+import TargetText from '@/components/TargetText';
 import NestedWordButton from './components/NestedWordButton';
 import Gloss from './components/Gloss';
 import { lookupAnnouncement } from './lookup-announcement';
@@ -136,7 +137,9 @@ export default function TranslationDrawer({
                 className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${stateColors.dot}`}
                 title={wordStateLabels[currentState]}
               />
-              <h2 className="text-xl font-semibold break-words text-foreground">{word}</h2>
+              <h2 className="text-xl font-semibold break-words text-foreground">
+                <TargetText>{word}</TargetText>
+              </h2>
               {speakable && (
                 <button
                   onClick={handleSpeakWord}
@@ -148,7 +151,14 @@ export default function TranslationDrawer({
                 </button>
               )}
               {entry?.ipa && (
-                <span className="font-mono text-sm text-muted-foreground">{entry.ipa}</span>
+                <TargetText
+                  className={`text-sm text-muted-foreground ${
+                    pack.script.direction === 'rtl' ? '' : 'font-mono'
+                  }`}
+                  as="span"
+                >
+                  {entry.ipa}
+                </TargetText>
               )}
             </div>
             {entry?.lemmaInfo && (
@@ -161,7 +171,9 @@ export default function TranslationDrawer({
                     testId="lemma-stem-link"
                   />
                 ) : (
-                  <span className="font-medium text-foreground">{entry.lemmaInfo.stem}</span>
+                  <TargetText className="font-medium text-foreground" as="span">
+                    {entry.lemmaInfo.stem}
+                  </TargetText>
                 )}
               </p>
             )}
@@ -454,9 +466,12 @@ export default function TranslationDrawer({
         {sentence && (
           <section className="border-b border-border px-4 py-3">
             <div className="flex items-start gap-2">
-              <p className="flex-1 text-sm leading-relaxed text-muted-foreground italic">
+              <TargetText
+                className="flex-1 text-sm leading-relaxed text-muted-foreground italic"
+                as="p"
+              >
                 {sentence}
-              </p>
+              </TargetText>
               {speakable && (
                 <button
                   onClick={handleSpeakSentence}

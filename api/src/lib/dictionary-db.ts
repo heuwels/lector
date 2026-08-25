@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { db as userDb } from '../db';
 import {
+  arabicLooseKey,
   DEFAULT_LANGUAGE,
   foldWord,
   getLanguageConfig,
@@ -1047,25 +1048,65 @@ function resolveWord(
     // The build registers mark-stripped alias rows in the inflections table
     // (type 'unaccented'); retry both steps with the stripped key. Only after
     // the exact steps missed, so genuine minimal pairs (ἡ/ἥ/ἤ) stay exact.
-    if (isValidLanguageCode(language)) {
-      const pack = getLanguageConfig(language);
-      if (pack.script.practiceLeniency === 'fold-marks') {
-        const stripped = stripMarks(lower);
-        if (stripped !== lower) {
-          const exactStripped = stmts.selectEntry.get(stripped) as EntryRow | undefined;
-          if (exactStripped) return buildEntry(exactStripped, stmts, lower);
-          const inflStripped = stmts.selectInflectionLemma.get(stripped) as
-            | { lemma: string; type: string | null }
-            | undefined;
-          if (inflStripped) {
-            const lemmaRow = stmts.selectEntry.get(inflStripped.lemma) as EntryRow | undefined;
-            if (lemmaRow) {
-              const label =
-                inflStripped.type && inflStripped.type !== 'unaccented'
-                  ? `${inflStripped.type.replace(/,/g, ' ')} form of`
-                  : 'form of';
-              return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
-            }
+    //
+    // Gated on the LANGUAGE, not on `practiceLeniency` (#253). The two are
+    // unrelated: leniency is about what a typed practice answer may omit, and
+    // this step needs the `markStrippedAliases` rows, which only the grc build
+    // profile writes. Reading the practice setting as the trigger silently
+    // handed this step to every pack that relaxed its practice input, and for
+    // Arabic that was actively wrong. NFD splits ؤ into و + U+0654 and ئ into
+    // ي + U+0654, so stripping every \p{M} rewrites the hamza carriers: 817 ar
+    // entries change under it and 51 of them land on a DIFFERENT real entry.
+    // A lookup of رؤية ("seeing") would have been answered by روية
+    // ("deliberation"), and برئ ("to be innocent") by برية ("wild"). ar has its
+    // own fallback in step 3-ar, over alias rows built for the two letter pairs
+    // Arabic actually confuses.
+    if (language === 'grc') {
+      const stripped = stripMarks(lower);
+      if (stripped !== lower) {
+        const exactStripped = stmts.selectEntry.get(stripped) as EntryRow | undefined;
+        if (exactStripped) return buildEntry(exactStripped, stmts, lower);
+        const inflStripped = stmts.selectInflectionLemma.get(stripped) as
+          | { lemma: string; type: string | null }
+          | undefined;
+        if (inflStripped) {
+          const lemmaRow = stmts.selectEntry.get(inflStripped.lemma) as EntryRow | undefined;
+          if (lemmaRow) {
+            const label =
+              inflStripped.type && inflStripped.type !== 'unaccented'
+                ? `${inflStripped.type.replace(/,/g, ' ')} form of`
+                : 'form of';
+            return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
+          }
+        }
+      }
+    }
+
+    // Step 3-ar: loose-spelling fallback (#253). Two letter pairs are confused
+    // in real Arabic text and never in a dictionary: ta marbuta against ha
+    // (مدرسة typed مدرسه) and alef maqsura against ya (على typed علي, في typed
+    // فى). The build registers arabicLooseKey of every key as an alias row
+    // (type 'unpointed'); retry both steps with the loose key.
+    //
+    // Only after the exact steps missed. The fold merges genuine pairs as well
+    // as spelling variants, and a dictionary that answers the wrong headword is
+    // worse than one that answers nothing.
+    if (language === 'ar') {
+      const loose = arabicLooseKey(lower);
+      if (loose !== lower) {
+        const looseExact = stmts.selectEntry.get(loose) as EntryRow | undefined;
+        if (looseExact) return buildEntry(looseExact, stmts, lower);
+        const looseInfl = stmts.selectInflectionLemma.get(loose) as
+          | { lemma: string; type: string | null }
+          | undefined;
+        if (looseInfl) {
+          const lemmaRow = stmts.selectEntry.get(looseInfl.lemma) as EntryRow | undefined;
+          if (lemmaRow) {
+            const label =
+              looseInfl.type && looseInfl.type !== 'unpointed'
+                ? `${looseInfl.type.replace(/,/g, ' ')} form of`
+                : 'form of';
+            return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
           }
         }
       }

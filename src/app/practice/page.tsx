@@ -1160,7 +1160,15 @@ export default function PracticePage() {
                           />
                         )}
                       </div>
-                      <p className="text-xl leading-loose font-medium text-foreground">
+                      {/* Same as the feedback screen (#253): the sentence needs
+                          its own base direction, or an Arabic clause renders
+                          with its blank and its punctuation at the wrong end. */}
+                      <p
+                        dir={getActivePack().script.direction}
+                        lang={getActivePack().script.bcp47}
+                        className="text-xl leading-loose font-medium text-foreground"
+                        style={{ unicodeBidi: 'isolate' }}
+                      >
                         {words.map((word, i) => (
                           <span key={i}>
                             {i > 0 && wordGap}
@@ -1186,6 +1194,8 @@ export default function PracticePage() {
                                     autoCorrect="off"
                                     spellCheck={false}
                                     placeholder="..."
+                                    dir={getActivePack().script.direction}
+                                    lang={getActivePack().script.bcp47}
                                     className={`inline-block w-32 rounded-lg border-2 px-2 py-1 text-center text-xl font-medium transition-all outline-none focus:ring-2 focus:ring-offset-1 ${inputColorClass} ${fuzzyStatus === 'match' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'partial' ? 'text-primary focus:ring-ring' : ''} ${fuzzyStatus === 'wrong' ? 'text-destructive focus:ring-destructive' : ''} ${fuzzyStatus === 'empty' ? 'text-foreground focus:ring-ring' : ''} `}
                                     style={{
                                       minWidth: `${Math.max(graphemeLength(clozeBase) * 0.7, 4)}ch`,

@@ -30,6 +30,10 @@ function longestFirst(items: string[]): string[] {
  * needs the least work to explain. Within one depth the longest match wins, so
  * 에게서 beats 에.
  *
+ * A prefix peel also runs shallow-first, and it may stack up to `maxPrefixes`
+ * deep. Arabic needs the depth: وبالقلم carries three proclitics before the
+ * noun, and a one-pass peel stops at بالقلم, which is not a key.
+ *
  * This function only proposes. The caller decides which key resolves, because
  * whether 나 is the pronoun or 나 with a peeled 는 is a question about the
  * dictionary and not about the string.
@@ -71,16 +75,27 @@ export function stemCandidates(word: string, config: MorphologyConfig): StemCand
   }
 
   if (config.prefixes) {
-    const prefixBases: StemCandidate[] = [{ key: word, peeled: [] }, ...out];
-    for (const base of prefixBases) {
-      for (const prefix of longestFirst(config.prefixes)) {
-        if (!base.key.startsWith(prefix)) continue;
-        const key = base.key.slice(prefix.length);
-        if (key.length < config.minStem) continue;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push({ key, peeled: [...base.peeled, prefix] });
+    const prefixes = longestFirst(config.prefixes);
+    // Stacking is opt-in, and one pass is what id and it want. Arabic sets 3:
+    // وبالقلم needs و, then ب, then ال before it reaches a key.
+    const maxPrefixes = config.maxPrefixes ?? 1;
+    let prefixFrontier: StemCandidate[] = [{ key: word, peeled: [] }, ...out];
+    for (let depth = 0; depth < maxPrefixes; depth++) {
+      const next: StemCandidate[] = [];
+      for (const base of prefixFrontier) {
+        for (const prefix of prefixes) {
+          if (!base.key.startsWith(prefix)) continue;
+          const key = base.key.slice(prefix.length);
+          if (key.length < config.minStem) continue;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const candidate = { key, peeled: [...base.peeled, prefix] };
+          out.push(candidate);
+          next.push(candidate);
+        }
       }
+      if (next.length === 0) break;
+      prefixFrontier = next;
     }
   }
 

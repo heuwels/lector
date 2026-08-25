@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import ClozeFeedback from '@/components/ClozeFeedback';
 import { splitTrailingPunctuation } from '@/lib/words';
+import TargetText from '@/components/TargetText';
 import { addClozeCard } from '@/lib/anki';
 import { queueForAnki } from '@/lib/anki-queue';
 import { useAnkiTransport } from '@/lib/anki-transport';
@@ -131,7 +132,11 @@ export default function Feedback({
             </Button>
           )}
         </div>
-        <p className="text-xl leading-relaxed font-medium text-foreground">
+        {/* The sentence lays out in its own direction (#253): the tokens have to
+            read right to left for Arabic, and the sentence-final full stop
+            belongs at the end of the run and not at the paragraph's left edge.
+            The English translation below stays ltr because the run is isolated. */}
+        <TargetText className="text-xl leading-relaxed font-medium text-foreground" as="p">
           {current &&
             resolveClozeTokens(current.sentence.sentence, current.sentence.tokens).map(
               (word, i, all) => (
@@ -176,7 +181,7 @@ export default function Feedback({
                 </span>
               ),
             )}
-        </p>
+        </TargetText>
         <p className="mt-2 text-base text-muted-foreground italic">
           {current && current.sentence.translation}
         </p>

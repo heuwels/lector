@@ -24,7 +24,7 @@ import readline from 'readline';
 
 import { stemCandidates } from '../languages/morphology';
 import { LANGUAGES, isValidLanguageCode } from '../languages/registry';
-import { stripMarks } from '../languages/text';
+import { arabicLooseKey, foldArabicKey, stripMarks } from '../languages/text';
 
 // ---------------------------------------------------------------------------
 // Paths & constants
@@ -207,6 +207,50 @@ interface LangProfile {
    *  loanwords like `book` and `van` — and they are not Mandarin words. An
    *  entry with no sounds at all is kept, since absence proves nothing. */
   requireSoundTag?: string;
+
+  // --- Arabic-script levers (#253). Measured against the kaikki Arabic dump;
+  // --- see the comments on the `ar` profile.
+
+  /** Fold every key with `foldArabicKey` (ar): drop tashkeel and tatweel, and
+   *  fold the alef spellings أ إ آ ٱ onto bare ا. Mirrors the runtime foldWord,
+   *  which is the only reason a key can be hit at all — 8,991 headwords in the
+   *  dump are spelled with أ where running text writes ا. */
+  foldArabicKeys?: boolean;
+  /** Read the entry's pronunciation from the `form` of its `canonical` form
+   *  row, and not from `sounds[]` (ar).
+   *
+   *  Arabic runs the ja arrangement in reverse. The HEADWORD is unvocalized —
+   *  only 30 of 77,339 carry a diacritic — and the vocalized spelling sits on
+   *  the canonical row: أنا carries أَنَا, مرأة carries مَرْأَة. That vocalized
+   *  spelling is the one thing an Arabic learner most needs from a lookup,
+   *  because the script hides every short vowel, and it resolves 35,655 of the
+   *  35,941 glossed entries (99.2%).
+   *
+   *  `sounds[]` cannot do this job: it covers 20,695 entries, and its tags are
+   *  dialectal (Hijazi, Moroccan, Egyptian, Kuwaiti), so selecting from it
+   *  would ship a regional reading for a Modern Standard Arabic pack. */
+  readingFromCanonicalForm?: boolean;
+  /** Which lemma's senses lead a folded key, as `key -> vocalized canonical
+   *  form`, JSON relative to PROJECT_ROOT (ar).
+   *
+   *  Unvocalized Arabic spells several words the same way, so the senses of
+   *  every colliding lemma merge under one key. Nothing is lost, but the ORDER
+   *  is kaikki's etymology order, and for a short list of very frequent words
+   *  that order leads with a rare verb: `لم` led with لَمَّ "to gather" instead
+   *  of the negator لَمْ, `قد` with قَدَّ "to cut into strips" instead of the
+   *  particle, and `ان` — the fourth most frequent word in the language — with
+   *  آن "time" instead of the conjunction أَنْ.
+   *
+   *  A matching record moves to the FRONT and its reading wins. The build fails
+   *  if a key here matches no record, so the map cannot rot silently against a
+   *  later dump. See scripts/ar-lead-forms.json for what belongs in it. */
+  leadFormsRel?: string;
+  /** Register a leniently-folded variant of every key as an inflection alias,
+   *  for the runtime fallback to hit ('arabic': arabicLooseKey, type
+   *  'unpointed'). The Arabic sibling of markStrippedAliases, and the same
+   *  mechanism: exact keys always win first, so this only answers a word that
+   *  nothing else resolved. */
+  looseAliases?: 'arabic';
 }
 
 const PROFILES: Record<string, LangProfile> = {
@@ -222,6 +266,66 @@ const PROFILES: Record<string, LangProfile> = {
     rootsJsonRel: 'src/lib/dictionary-roots.json',
     coverageCorpusRel: null,
     glossFilter: false,
+  },
+  ar: {
+    // Canonical /Arabic/ URL (kaikki has no /downloads/ar/ mirror; verified
+    // 2026-08-25). 512 MB, 77,339 lines.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Arabic/kaikki.org-dictionary-Arabic.jsonl'],
+    // The Arabic block, letters and marks: U+0621-U+063A is hamza through
+    // ghain, U+0641-U+064A is fa through ya, U+064B-U+065F is the tashkeel and
+    // the Quranic marks, U+0640 is the tatweel, U+0670 the superscript alef and
+    // U+0671 the alef wasla. The Arabic-Indic digits U+0660-U+0669 are LEFT OUT
+    // so they act as boundaries, matching the runtime tokenizer, and so are the
+    // Arabic comma, semicolon and question mark. The marks are in the class
+    // even though no key keeps one: a vocalized token out of a book has to pass
+    // the letter test BEFORE the fold removes them.
+    letterClass: '\\u0621-\\u063A\\u0640-\\u065F\\u0670\\u0671',
+    // Arabic resolves through the pack's `morphology` slice, not through these.
+    // The coverage lookup reads the pack directly, so the gate and the runtime
+    // peel the same proclitics. See stemCandidates.
+    prefixes: [],
+    suffixes: [],
+    // The three long vowels. Only the af-style affix machinery reads this, and
+    // ar declares no affix rules, so nothing consults it.
+    vowels: '\u0627\u0648\u064A',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-ar.txt',
+    // 41,398 of 77,339 lines carry no English gloss, including the thesaurus
+    // pages whose headwords are ENGLISH (`overweight`, glossed by a synonym
+    // list and nothing else).
+    glossFilter: true,
+    // Tashkeel, tatweel and the alef spellings. This is the lever the whole
+    // pack turns on: without it 8,991 أ-initial headwords key under a spelling
+    // running text does not use.
+    foldArabicKeys: true,
+    // The vocalized spelling off the canonical row. 99.2% of glossed entries
+    // have one, and it is what the script hides.
+    readingFromCanonicalForm: true,
+    // ة/ه and ى/ي, as alias rows rather than as keys.
+    looseAliases: 'arabic',
+    // Which lemma leads the dozen frequent keys where the dump leads with a
+    // rare homograph.
+    leadFormsRel: 'scripts/ar-lead-forms.json',
+    // The guard the zh dictionary lacked, on the words this pack is most likely
+    // to get wrong: a folded key with several lemmas behind it. Every one of
+    // these is a first-hour word whose vocalization is not in dispute.
+    readingInvariants: {
+      ان: 'أَنْ',
+      لم: 'لَمْ',
+      قد: 'قَدْ',
+      بعد: 'بَعْدَ',
+      قبل: 'قَبْلَ',
+      و: 'وَ',
+      في: 'فِي',
+      من: 'مِنْ',
+      على: 'عَلَى',
+      لا: 'لَا',
+      هذا: 'هٰذَا',
+      كان: 'كَانَ',
+      كل: 'كُلّ',
+      هو: 'هُوَ',
+      هي: 'هِيَ',
+    },
   },
   cs: {
     // Canonical /Czech/ URL (kaikki has no /downloads/cs/ mirror; verified 2026-08-08).
@@ -805,6 +909,26 @@ const READING_MAP: Record<string, string> | null = PROFILE.readingMapRel
     >)
   : null;
 
+/**
+ * Which lemma leads a folded key (ar). See `leadFormsRel`. Keys prefixed with
+ * `_` are documentation inside the JSON and are not lookup keys.
+ */
+const LEAD_FORMS: Record<string, string> | null = PROFILE.leadFormsRel
+  ? Object.fromEntries(
+      Object.entries(
+        JSON.parse(
+          fs.readFileSync(path.join(PROJECT_ROOT, PROFILE.leadFormsRel), 'utf-8'),
+        ) as Record<string, unknown>,
+      ).filter(([key, value]) => !key.startsWith('_') && typeof value === 'string') as Array<
+        [string, string]
+      >,
+    )
+  : null;
+
+/** Keys from LEAD_FORMS that actually matched a record. Checked after the
+ *  stream, because a key that matches nothing is a map gone stale. */
+const leadsMatched = new Set<string>();
+
 /** True for a string of exactly one codepoint, astral characters included. */
 function isSingleChar(word: string): boolean {
   const chars = [...word];
@@ -898,6 +1022,8 @@ interface ExtractedEntry {
   senses: Array<{ pos: string; gloss: string }>;
   relatedForms: Array<{ form: string; relation: string }>;
   inflections: Array<{ inflected: string; type: string }>;
+  /** ar: this record is the lemma `leadFormsRel` names for its key. */
+  leads?: boolean;
 }
 
 interface KaikkiSound {
@@ -1001,6 +1127,47 @@ function rubyReading(word: string, forms: KaikkiForm[] | undefined): string | un
   return out;
 }
 
+// Arabic tashkeel. A canonical row without one of these is not a vocalization,
+// so there is nothing for a learner to read off it.
+const AR_TASHKEEL = /[\u064B-\u0652]/u;
+
+/** A vocalized Arabic word and nothing else: letters, tashkeel, tatweel. */
+const AR_WORD_ONLY = /^[\u0621-\u065F\u0670\u0671]+$/u;
+
+/**
+ * The vocalized spelling of the headword, from the `form` of its `canonical`
+ * form row (ar). See `readingFromCanonicalForm` for why this and not sounds[].
+ *
+ * Three guards, each from the dump:
+ *
+ *  1. Take the FIRST canonical row. 1,177 entries carry more than one, and the
+ *     extras are gender or number variants of the same lemma rather than rival
+ *     readings, so first is the citation form.
+ *  2. Take the first WHITESPACE-SEPARATED token of it, and require the token to
+ *     be Arabic. 30 canonical rows have kaikki's own annotations leaked into
+ *     them: قبل carries `قَبْلَ Audio:`, يتم carries `يَتِمَ I يَتُمَ I يَتَمَ`
+ *     and one row is the bare string `IPA⁽ᵏᵉʸ⁾:`. قبل is a top-30 word, so this
+ *     is not an edge case a learner never reaches.
+ *  3. Require a diacritic. 286 glossed entries carry no canonical row at all,
+ *     and the letter-name entries carry an unvocalized one (`و / و`), which
+ *     would print the word above itself and tell the learner nothing.
+ *
+ * What this cannot fix is genuine ambiguity across ENTRIES. جهاد is two
+ * entries, جِهَاد and جَهَاد, whose senses merge under one unvocalized key, and
+ * the merge keeps the first reading it meets. That is inherent to a script
+ * that omits its vowels, and it is the reason this pack ships no reader ruby
+ * annotation: one vocalization printed above every word would state a reading
+ * the text does not fix. In the lookup it sits beside every merged sense,
+ * where it reads as one candidate and not as the answer. `leadFormsRel` decides
+ * WHICH candidate leads for the words where the dump's order is wrong.
+ */
+function canonicalForm(forms: KaikkiForm[] | undefined): string | undefined {
+  const canonical = forms?.find((f) => f.tags?.includes('canonical') && f.form);
+  const form = canonical?.form?.trim().split(/\s+/)[0];
+  if (!form || !AR_WORD_ONLY.test(form) || !AR_TASHKEEL.test(form)) return undefined;
+  return form;
+}
+
 function pickIpa(sounds: KaikkiSound[] | undefined): string | undefined {
   if (!sounds) return undefined;
   // A romanisation beats the IPA where the profile asks for one (zh: pinyin is
@@ -1082,6 +1249,12 @@ function foldKey(s: string): string {
   const stripped = PROFILE.stripFromKeys
     ? folded.normalize('NFD').replace(PROFILE.stripFromKeys, '').normalize('NFC')
     : folded;
+  // ar cannot use stripFromKeys for this. That lever strips on the NFD form,
+  // and NFD takes أ apart into ا + U+0654 — but it also takes ؤ apart into
+  // و + U+0654 and ئ into ي + U+0654. A strip wide enough to fold the alef
+  // would silently fold the waw and the ya as well, so foldArabicKey names the
+  // four alef spellings instead.
+  if (PROFILE.foldArabicKeys) return foldArabicKey(stripped);
   if (!PROFILE.unfoldLigatures) return stripped;
   return stripped.replace(/æ/g, 'ae').replace(/œ/g, 'oe');
 }
@@ -1183,7 +1356,15 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
     // ja: furigana off the `canonical` ruby row, never sounds[].
     ipa: PROFILE.readingFromRuby
       ? rubyReading(raw.word, raw.forms)
-      : ((isSingleChar(word) ? READING_MAP?.[word] : undefined) ?? pickIpa(raw.sounds)),
+      : PROFILE.readingFromCanonicalForm
+        ? canonicalForm(raw.forms)
+        : ((isSingleChar(word) ? READING_MAP?.[word] : undefined) ?? pickIpa(raw.sounds)),
+    // ar: whether this record is the one leadFormsRel names for its key.
+    // Compare against the canonical form, which for this pack IS what `ipa`
+    // holds. The named-key test is separate on purpose: a bare equality check
+    // reads `undefined === undefined` as a match, which made every one of the
+    // 21,924 records with no canonical row claim the lead.
+    leads: LEAD_FORMS?.[word] !== undefined && LEAD_FORMS[word] === canonicalForm(raw.forms),
     etymology: raw.etymology_text,
     senses,
     relatedForms,
@@ -1198,6 +1379,9 @@ interface MergedEntry {
   etymology?: string;
   senses: Array<{ pos: string; gloss: string }>;
   relatedForms: Array<{ form: string; relation: string }>;
+  /** How many senses at the front came from a `leadFormsRel` match, so a second
+   *  matching record lands after the first instead of ahead of it. */
+  leadSenses?: number;
 }
 
 async function parseDump(dumpPath: string): Promise<{
@@ -1241,7 +1425,19 @@ async function parseDump(dumpPath: string): Promise<{
       if (!merged.ipa && ex.ipa) merged.ipa = ex.ipa;
       if (!merged.etymology && ex.etymology) merged.etymology = ex.etymology;
     }
-    merged.senses.push(...ex.senses);
+    if (ex.leads) {
+      // The lemma leadFormsRel names goes to the FRONT of the merged key, and
+      // its reading overrides whatever a record met earlier had. Several
+      // records can share the named form (إِلَّا is both a conj and a prep), so
+      // they queue behind each other rather than each jumping to position 0.
+      const at = merged.leadSenses ?? 0;
+      merged.senses.splice(at, 0, ...ex.senses);
+      merged.leadSenses = at + ex.senses.length;
+      if (ex.ipa) merged.ipa = ex.ipa;
+      leadsMatched.add(ex.word);
+    } else {
+      merged.senses.push(...ex.senses);
+    }
     merged.relatedForms.push(...ex.relatedForms);
 
     for (const inf of ex.inflections) {
@@ -1582,7 +1778,11 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
   );
 
   return function lookup(w: string): LookupShape | undefined {
-    const lower = lowerForLang(w);
+    // ar folds its keys past the case fold (tashkeel, tatweel, alef), so the
+    // corpus word has to travel the same road or the gate would measure a
+    // spelling the database never stored.
+    const cased = lowerForLang(w);
+    const lower = PROFILE.foldArabicKeys ? foldArabicKey(cased) : cased;
 
     const hit = exact.get(lower) as { word: string } | undefined;
     if (hit) return hit;
@@ -1616,6 +1816,21 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
         const strippedInfl = byInflection.get(stripped) as { lemma: string } | undefined;
         if (strippedInfl) {
           const lemma = exact.get(strippedInfl.lemma) as { word: string } | undefined;
+          if (lemma) return lemma;
+        }
+      }
+    }
+
+    // Mirror of the runtime loose-Arabic fallback (dictionary-db.ts step 3-ar):
+    // retry with the ة→ه, ى→ي key against the alias rows.
+    if (PROFILE.looseAliases === 'arabic') {
+      const loose = arabicLooseKey(lower);
+      if (loose !== lower) {
+        const looseHit = exact.get(loose) as { word: string } | undefined;
+        if (looseHit) return looseHit;
+        const looseInfl = byInflection.get(loose) as { lemma: string } | undefined;
+        if (looseInfl) {
+          const lemma = exact.get(looseInfl.lemma) as { word: string } | undefined;
           if (lemma) return lemma;
         }
       }
@@ -1898,6 +2113,36 @@ async function main() {
     console.log(`  mark-stripped aliases (${LANG}): ${aliased} keys registered`);
   }
 
+  if (PROFILE.looseAliases === 'arabic') {
+    // The ar sibling of markStrippedAliases (#253). Register arabicLooseKey of
+    // every key as an extra inflection row, type 'unpointed', so the runtime
+    // fallback has something to hit when a text spells مدرسه for مدرسة or علي
+    // for على. Exact keys always win first, so a real minimal pair keeps its
+    // own entry and this only answers a word nothing else resolved.
+    const addAlias = (alias: string, ref: string) => {
+      let bucket = inflectionMap.get(alias);
+      if (!bucket) {
+        bucket = new Set<string>();
+        inflectionMap.set(alias, bucket);
+      }
+      bucket.add(ref);
+    };
+    let aliased = 0;
+    for (const word of entries.keys()) {
+      const loose = arabicLooseKey(word);
+      if (loose === word || !loose) continue;
+      addAlias(loose, `${word}::unpointed`);
+      aliased++;
+    }
+    for (const [inflected, bucket] of [...inflectionMap]) {
+      const loose = arabicLooseKey(inflected);
+      if (loose === inflected || !loose) continue;
+      for (const ref of bucket) addAlias(loose, ref);
+      aliased++;
+    }
+    console.log(`  loose Arabic aliases (${LANG}): ${aliased} keys registered`);
+  }
+
   if (PROFILE.glossFilter) {
     let dropped = 0;
     for (const [w, e] of entries) {
@@ -1912,6 +2157,19 @@ async function main() {
   }
 
   const summary = buildDatabase(entries, inflectionMap);
+
+  // A lead form that matches nothing is a map written against an older dump,
+  // and it fails SILENTLY: the key keeps whatever the dump leads with, which is
+  // the wrong answer the map existed to fix.
+  if (LEAD_FORMS) {
+    const stale = Object.keys(LEAD_FORMS).filter((key) => !leadsMatched.has(key));
+    if (stale.length > 0) {
+      console.error('\nLead forms that matched no record:');
+      for (const key of stale) console.error(`  - ${key} -> ${LEAD_FORMS[key]}`);
+      process.exit(1);
+    }
+    console.log(`  lead forms: ${leadsMatched.size}/${Object.keys(LEAD_FORMS).length} matched`);
+  }
 
   // Before coverage, because a wrong reading is worse than a thin one. A
   // learner can live with a word the dictionary does not know. A word it

@@ -7,6 +7,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'When do I use "het" vs "is" for past tense?',
     'How do diminutives work in Afrikaans?',
   ],
+  ar: [
+    'How does the definite article ال attach, and when does its ل assimilate (الشمس vs القمر)?',
+    'What is the difference between كتب and يكتب, and how do I recognise the tense?',
+    'How do the verb patterns (أوزان) change the meaning of a root like ك-ت-ب?',
+  ],
   cs: [
     'How do the seven Czech cases work, and when do I use the instrumental?',
     'What is the difference between "být" and "byt"?',

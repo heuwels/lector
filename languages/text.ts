@@ -43,7 +43,9 @@ export function normalizeText(text: string): string {
 export function foldWord(text: string, pack: LanguageConfig): string {
   const normalized = foldApostrophesFor(normalizeText(text), pack);
   const cased = pack.script.hasCase ? lowerForPack(normalized, pack) : normalized;
-  return pack.code === 'la' ? foldLatinKey(cased) : cased;
+  if (pack.code === 'la') return foldLatinKey(cased);
+  if (pack.code === 'ar') return foldArabicKey(cased);
+  return cased;
 }
 
 const LATIN_MACRON_BREVE = /[\u0304\u0306]/g;
@@ -76,6 +78,61 @@ export function latinLookupVariants(key: string): string[] {
     if (form !== key) variants.add(form);
   }
   return [...variants];
+}
+
+// Arabic short-vowel and gemination marks (tashkeel), the superscript alef,
+// and the Quranic annotation marks. Every one of them is a NONSPACING mark that
+// unvocalized prose simply omits, so a key that keeps them can never be hit:
+// kaikki writes كَتَبَ and a newspaper writes كتب.
+const ARABIC_MARKS = /[\u064B-\u065F\u0670\u06D6-\u06ED]/g;
+
+// Tatweel (kashida) is a justification glyph, not a letter: مــدرسة is مدرسة
+// stretched to fill a line. It is \p{Lm}, so the tokenizer keeps it inside the
+// token and the fold has to remove it.
+const ARABIC_TATWEEL = /\u0640/g;
+
+// The four alef spellings that carry a hamza or a wasla. Real text writes the
+// hamza inconsistently — wordfreq's Arabic list holds both أن and ان in its top
+// thirty tokens, one word under two spellings — so the key folds them to bare
+// alef. Standard practice for Arabic retrieval, and the same normalization the
+// dump's own headwords need.
+const ARABIC_ALEF_VARIANTS = /[\u0622\u0623\u0625\u0671]/g;
+
+/**
+ * Arabic vocab key (#253): drop the diacritics running text omits, drop the
+ * tatweel, and fold the alef spellings.
+ *
+ * Nothing folds the hamza on waw or ya (ؤ, ئ). Those two are precomposed
+ * single code points that NFC never takes apart, and they are written
+ * consistently, so folding them would only merge unrelated keys.
+ *
+ * Two spellings this deliberately leaves alone are handled one step later, as
+ * lookup aliases rather than as keys: see arabicLooseKey.
+ */
+export function foldArabicKey(text: string): string {
+  return text
+    .replace(ARABIC_MARKS, '')
+    .replace(ARABIC_TATWEEL, '')
+    .replace(ARABIC_ALEF_VARIANTS, '\u0627');
+}
+
+/**
+ * The lenient Arabic key, for the last-resort lookup and for the alias rows the
+ * dictionary build registers alongside every entry (#253).
+ *
+ * Two letter pairs are confused in real text and never in a dictionary:
+ *
+ * - Ta marbuta ة against ha ه. مدرسة is routinely typed مدرسه.
+ * - Alef maqsura ى against ya ي. على is routinely typed علي, and في is typed فى.
+ *
+ * Folding both in the KEY would be wrong: في (in) and فى are one word, but the
+ * fold also merges genuine pairs, and a dictionary that answers the wrong
+ * headword is worse than one that answers nothing. So the exact key wins first
+ * and this runs only after it misses. Applied to both sides of the comparison,
+ * which is why the build stores the folded form as an alias.
+ */
+export function arabicLooseKey(key: string): string {
+  return key.replace(/\u0629/g, '\u0647').replace(/\u0649/g, '\u064A');
 }
 
 /** Every apostrophe variant a keyboard, an editor or an EPUB can produce. */

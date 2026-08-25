@@ -12,6 +12,7 @@
 
 import type { LanguageConfig } from './types';
 import { af } from './af/manifest';
+import { ar } from './ar/manifest';
 import { cs } from './cs/manifest';
 import { de } from './de/manifest';
 import { eo } from './eo/manifest';
@@ -38,6 +39,7 @@ export type { LanguageConfig } from './types';
 // `LanguageConfig`, which keeps types.ts ⇄ registry.ts free of a type cycle.
 const MANIFESTS = {
   af,
+  ar,
   cs,
   de,
   eo,

@@ -256,8 +256,8 @@ export async function addBasicCard(
       deckName,
       modelName: 'Basic',
       fields: {
-        Front: `${highlightedSentence}<br><br><small>Word: <b>${cleanTarget}</b></small>`,
-        Back: `${translation}<br><br><b>${cleanTarget}</b> = ${wordMeaning}`,
+        Front: `${bdi(highlightedSentence)}<br><br><small>Word: <b>${bdi(cleanTarget)}</b></small>`,
+        Back: `${translation}<br><br><b>${bdi(cleanTarget)}</b> = ${wordMeaning}`,
       },
       options: {
         allowDuplicate: true, // Allow duplicates - same word from different sentences is fine
@@ -298,8 +298,8 @@ export async function addWordCard(
       deckName,
       modelName: 'Basic',
       fields: {
-        Front: `<b>${cleanTarget}</b>`,
-        Back: `${translation}<br><br><b>${cleanTarget}</b> = ${wordMeaning}${sourceLine}`,
+        Front: `<b>${bdi(cleanTarget)}</b>`,
+        Back: `${translation}<br><br><b>${bdi(cleanTarget)}</b> = ${wordMeaning}${sourceLine}`,
       },
       options: { allowDuplicate: true },
       tags: ['lector', 'vocabulary'],
@@ -373,8 +373,8 @@ export async function addClozeCard(
       deckName,
       modelName: 'Cloze',
       fields: {
-        Text: `${clozeText}<br><br><small>Translation: ${translation}</small>`,
-        Extra: `<b>${cleanTarget}</b> = ${wordMeaning}${sourceLine}`,
+        Text: `${bdi(clozeText)}<br><br><small>Translation: ${translation}</small>`,
+        Extra: `<b>${bdi(cleanTarget)}</b> = ${wordMeaning}${sourceLine}`,
       },
       options: {
         allowDuplicate: true, // Allow duplicates - user may want the same word from different sentences
@@ -392,6 +392,26 @@ export async function addClozeCard(
 
   console.log(`[Anki] Successfully added note with ID: ${noteId}`);
   return noteId;
+}
+
+/**
+ * Isolate a run of target-language text inside a card field (#253).
+ *
+ * An Anki card puts target-language text and English on one line, separated by
+ * neutral characters (`Word: `, ` = `). The bidi algorithm resolves a neutral
+ * against the surrounding paragraph, so an Arabic word after "Word: " drags the
+ * colon to the wrong side, and a sentence-final full stop renders at the card's
+ * left edge instead of at the end of the sentence.
+ *
+ * `<bdi>` fixes both and needs no per-language branching: it isolates the run,
+ * and its default `dir="auto"` reads the direction off the run's own first
+ * strong character. Left-to-right packs are unaffected.
+ *
+ * Safe for the readers below: `stripHtml` drops every tag, and the
+ * `<b>([^<]+)</b>` word probe still matches inside a `<bdi>`.
+ */
+function bdi(text: string): string {
+  return `<bdi>${text}</bdi>`;
 }
 
 /** Strip HTML tags and trim whitespace. */

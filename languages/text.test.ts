@@ -1,13 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeText, foldWord, latinLookupVariants } from './text';
+import {
+  arabicLooseKey,
+  foldArabicKey,
+  foldWord,
+  latinLookupVariants,
+  normalizeText,
+} from './text';
 import { LANGUAGES } from './registry';
 import type { LanguageConfig } from './types';
 
 const af = LANGUAGES.af;
 const de = LANGUAGES.de;
 
-// Synthetic caseless pack (ar-shaped) — no registered pack is caseless yet;
-// this is exactly how the #253/#255 packs will configure it.
+// Synthetic caseless pack, af's data under an ar-shaped script. Deliberately
+// NOT the real ar pack: `code` stays 'af', so foldWord takes the caseless path
+// WITHOUT the Arabic fold, which is what these cases are about. The Arabic fold
+// has its own block below.
 const caseless: LanguageConfig = {
   ...af,
   script: { bcp47: 'ar', direction: 'rtl', kind: 'alpha-spaced', hasCase: false },
@@ -187,6 +195,89 @@ describe('foldWord', () => {
       const once = foldWord('Amāre', la);
       expect(foldWord(once, la)).toBe(once);
     });
+  });
+});
+
+const ar = LANGUAGES.ar;
+
+describe('Arabic keys (#253)', () => {
+  it('strips the tashkeel a newspaper never writes', () => {
+    // The dump's own canonical form against the same word in running text.
+    expect(foldWord('كَتَبَ', ar)).toBe('كتب');
+    expect(foldWord('مَدْرَسَة', ar)).toBe('مدرسة');
+    // Shadda and sukun too, not only the short vowels.
+    expect(foldWord('كُلّ', ar)).toBe('كل');
+    expect(foldWord('مِنْ', ar)).toBe('من');
+  });
+
+  it('strips the tatweel, which is a justification glyph and not a letter', () => {
+    expect(foldWord('مــدرسة', ar)).toBe('مدرسة');
+    expect(foldWord('كتـــاب', ar)).toBe('كتاب');
+  });
+
+  it('folds every alef spelling onto bare alef', () => {
+    // Real text writes the hamza inconsistently: wordfreq's Arabic top thirty
+    // holds both أن and ان, which is one word under two spellings.
+    expect(foldWord('أن', ar)).toBe('ان');
+    expect(foldWord('إلى', ar)).toBe('الى');
+    expect(foldWord('آخر', ar)).toBe('اخر');
+    expect(foldWord('ٱلله', ar)).toBe('الله');
+    expect(foldWord('أن', ar)).toBe(foldWord('ان', ar));
+  });
+
+  it('leaves the hamza on waw and ya alone', () => {
+    // Those two are precomposed single code points that NFC never takes apart,
+    // and they are written consistently. Folding them would merge unrelated
+    // keys for no gain.
+    expect(foldWord('مؤخرا', ar)).toBe('مؤخرا');
+    expect(foldWord('شئ', ar)).toBe('شئ');
+  });
+
+  it('does not lowercase, because Arabic has no case', () => {
+    expect(ar.script.hasCase).toBe(false);
+    expect(foldWord('Wi-Fi', ar)).toBe('Wi-Fi');
+  });
+
+  it('folds a decomposed alef through NFC first', () => {
+    // NFD splits أ into ا + U+0654. normalizeText recomposes it, and only then
+    // does the alef fold see a single code point to map.
+    const decomposed = 'أن'.normalize('NFD');
+    expect(decomposed).not.toBe('أن');
+    expect(foldWord(decomposed, ar)).toBe('ان');
+  });
+
+  it('is idempotent', () => {
+    const once = foldArabicKey('إِلَى');
+    expect(foldArabicKey(once)).toBe(once);
+  });
+});
+
+describe('arabicLooseKey (#253)', () => {
+  it('folds ta marbuta onto ha', () => {
+    expect(arabicLooseKey('مدرسة')).toBe('مدرسه');
+  });
+
+  it('folds alef maqsura onto ya', () => {
+    expect(arabicLooseKey('على')).toBe('علي');
+    expect(arabicLooseKey('فى')).toBe('في');
+  });
+
+  it('brings the two spellings of one word together', () => {
+    // The whole point: مدرسه typed for مدرسة has to reach the same row, and it
+    // does because the build stores this form as an alias.
+    expect(arabicLooseKey('مدرسة')).toBe(arabicLooseKey('مدرسه'));
+    expect(arabicLooseKey('فى')).toBe(arabicLooseKey('في'));
+  });
+
+  it('leaves a word with neither letter untouched', () => {
+    expect(arabicLooseKey('كتاب')).toBe('كتاب');
+  });
+
+  it('is not applied to the key itself', () => {
+    // foldWord must NOT fold these, or a genuine minimal pair would lose its
+    // own entry. The loose form exists only as a fallback.
+    expect(foldWord('مدرسة', ar)).toBe('مدرسة');
+    expect(foldWord('على', ar)).toBe('على');
   });
 });
 

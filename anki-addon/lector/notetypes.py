@@ -39,19 +39,40 @@ b { color: #16a34a; }
 # {{#Sentence}} conditionals collapse the same model onto both card shapes the
 # browser used to build: a sentence card (bolded context + word beneath) and a
 # word-only card (bare word front) when the queue item has no sentence.
+#
+# Every target-language field is wrapped in <bdi> (heuwels/lector#253). A card
+# puts target-language text and English on one line, separated by neutral
+# characters — `Word: `, ` = `, an <hr> — and the bidi algorithm resolves those
+# neutrals against the paragraph. So an Arabic sentence followed by
+# "Word: <b>كتاب</b>" renders the colon on the wrong side of the label, and a
+# sentence-final full stop jumps to the left edge of the card.
+#
+# <bdi> is the right element and needs no per-language branching: it isolates
+# the run, and its default dir="auto" takes the direction from the field's own
+# first strong character. A pack that reads left to right is unaffected.
+#
+# An existing model keeps its templates (see _ensure_model — only missing
+# FIELDS are appended), so this reaches new installs and anyone who has not
+# created the note types yet. That is deliberate: rebuilding a template would
+# throw away a user's own customizations.
 BASIC_FRONT = (
-    "{{#Sentence}}{{Sentence}}<br><br><small>Word: <b>{{Word}}</b></small>{{/Sentence}}"
-    "{{^Sentence}}<b>{{Word}}</b>{{/Sentence}}"
+    "{{#Sentence}}<bdi>{{Sentence}}</bdi><br><br>"
+    "<small>Word: <b><bdi>{{Word}}</bdi></b></small>{{/Sentence}}"
+    "{{^Sentence}}<b><bdi>{{Word}}</bdi></b>{{/Sentence}}"
 )
 BASIC_BACK = (
     "{{FrontSide}}<hr id=answer>{{Translation}}"
-    "{{#Meaning}}<br><br><b>{{Word}}</b> = {{Meaning}}{{/Meaning}}"
+    "{{#Meaning}}<br><br><b><bdi>{{Word}}</bdi></b> = {{Meaning}}{{/Meaning}}"
     "{{#Source}}<br><br><small>{{Source}}</small>{{/Source}}"
 )
-CLOZE_FRONT = "{{cloze:Text}}{{#Translation}}<br><br><small>{{Translation}}</small>{{/Translation}}"
+CLOZE_FRONT = (
+    "<bdi>{{cloze:Text}}</bdi>"
+    "{{#Translation}}<br><br><small>{{Translation}}</small>{{/Translation}}"
+)
 CLOZE_BACK = (
-    "{{cloze:Text}}{{#Translation}}<br><br><small>{{Translation}}</small>{{/Translation}}"
-    "{{#Meaning}}<br><br><b>{{Word}}</b> = {{Meaning}}{{/Meaning}}"
+    "<bdi>{{cloze:Text}}</bdi>"
+    "{{#Translation}}<br><br><small>{{Translation}}</small>{{/Translation}}"
+    "{{#Meaning}}<br><br><b><bdi>{{Word}}</bdi></b> = {{Meaning}}{{/Meaning}}"
     "{{#Source}}<br><br><small>{{Source}}</small>{{/Source}}"
 )
 
