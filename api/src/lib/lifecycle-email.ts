@@ -92,12 +92,27 @@ function isVerified(value: number | boolean): boolean {
   return value === 1 || value === true;
 }
 
-function createdAtMs(value: string | number): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  const asNumber = Number(value);
-  if (Number.isFinite(asNumber) && asNumber > 1e11) return asNumber;
-  const parsed = Date.parse(String(value));
-  return Number.isNaN(parsed) ? 0 : parsed;
+/** Parse Better Auth `createdAt` (ISO, Date, ms, or unix seconds). Null if unknown. */
+export function createdAtMs(value: unknown): number | null {
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value < 1e11 ? value * 1000 : value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d+(\.\d+)?$/.test(trimmed)) {
+      const asNumber = Number(trimmed);
+      if (!Number.isFinite(asNumber)) return null;
+      return asNumber < 1e11 ? asNumber * 1000 : asNumber;
+    }
+    const parsed = Date.parse(trimmed);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
 }
 
 export function languageLabel(database: Database, userId: string): string {
@@ -129,6 +144,12 @@ function claimSend(
     .prepare('INSERT OR IGNORE INTO email_sends (userId, templateAlias, sentAt) VALUES (?, ?, ?)')
     .run(userId, alias, sentAt);
   return result.changes > 0;
+}
+
+function releaseSend(database: Database, userId: string, alias: LifecycleAlias): void {
+  database
+    .prepare('DELETE FROM email_sends WHERE userId = ? AND templateAlias = ?')
+    .run(userId, alias);
 }
 
 function loadUser(database: Database, userId: string): LifecycleUser | null {
@@ -189,27 +210,28 @@ async function sendOnce(
   const sentAt = deps.now().toISOString();
   if (!claimSend(deps.database, user.id, alias, sentAt)) return 'skipped';
 
+  const stopUrl = unsubscribeUrl(deps.appUrl, user.email);
   const wantsStop = UNSUBSCRIBE_ALIASES.has(alias);
-  const stopUrl = wantsStop ? unsubscribeUrl(deps.appUrl, user.email) : null;
 
   try {
     await deps.send({
       to: user.email,
       subject: alias,
       text: alias,
-      headers: stopUrl ? listUnsubscribeHeaders(stopUrl) : undefined,
+      headers: wantsStop && stopUrl ? listUnsubscribeHeaders(stopUrl) : undefined,
       template: {
         id: alias,
         variables: {
           USER_NAME: user.name?.trim() || 'there',
           LANGUAGE: languageLabel(deps.database, user.id),
           APP_URL: deps.appUrl,
-          ...(stopUrl ? { STOP_URL: stopUrl } : {}),
+          STOP_URL: stopUrl || `${deps.appUrl.replace(/\/$/, '')}/api/email/unsubscribe`,
         },
       },
     });
     return 'sent';
   } catch (err) {
+    releaseSend(deps.database, user.id, alias);
     console.error(`[lifecycle-email] failed to send ${alias} to ${user.email}:`, err);
     Sentry.captureException(err);
     return 'skipped';
@@ -282,10 +304,13 @@ export async function sweepLifecycleEmails(
 
     const nowMs = deps.now().getTime();
     for (const user of loadVerifiedUsers(deps.database)) {
-      const ageMs = nowMs - createdAtMs(user.createdAt);
+      const createdMs = createdAtMs(user.createdAt);
+      if (createdMs == null) continue;
+      const ageMs = nowMs - createdMs;
+      if (ageMs < 0 || ageMs >= DAY3_UNTIL_MS) continue;
       const results: LifecycleSendResult[] = [];
-      // Welcome is hook-only. A catch-up sweep on first deploy sent every
-      // old account welcome, day-1, and day-3 in one pass.
+      // Welcome is hook-only. The first sweep sent every template to every
+      // verified user because it had no upper age bound.
       if (
         ageMs >= DAY1_AFTER_MS &&
         ageMs < DAY1_UNTIL_MS &&
