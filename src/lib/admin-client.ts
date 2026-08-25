@@ -6,6 +6,31 @@
  */
 import { apiFetch } from './api-base';
 
+export interface AdminUserLanguage {
+  code: string;
+  name: string;
+  flag: string;
+  target: boolean;
+  enabled: boolean;
+  lessons: number;
+  vocab: number;
+  knownWords: number;
+  wordsRead: number;
+}
+
+export interface AdminLanguageStat {
+  code: string;
+  name: string;
+  flag: string;
+  optedIn: number;
+  contentUsers: number;
+  targetUsers: number;
+  lessons: number;
+  vocab: number;
+  knownWords: number;
+  wordsRead: number;
+}
+
 export interface AdminUserRow {
   id: string;
   email: string;
@@ -27,6 +52,7 @@ export interface AdminUserRow {
     knownWords: number;
     storageBytes: number;
   };
+  languages?: AdminUserLanguage[];
   usage: {
     period: string;
     dayPeriod: string;
@@ -65,6 +91,15 @@ export interface AdminSummary {
   };
   usageTracked: boolean;
   billingResyncAvailable: boolean;
+  languages?: AdminLanguageStat[];
+  activeLast7Days?: number;
+  activeLast30Days?: number;
+  withLibrary?: number;
+  onboarding?: {
+    completed: number;
+    inProgress: number;
+    skipped: number;
+  };
 }
 
 /** True if the caller is an admin (200 from the gated probe), false on 403/404. */

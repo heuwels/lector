@@ -4,7 +4,8 @@
  * here can assume the caller is an admin in cloud proper.
  *
  * Visibility: user list + detail (signup, plan, status, last-active, library
- * size, storage, month usage) + aggregate summary.
+ * size, storage, month usage, languages) + aggregate summary (including
+ * language totals and recency).
  * Support actions (each audit-logged): export, suspend/restore, comp/uncomp
  * (Cloud/Plus billing bypass), reset MFA, trigger password reset, resend /
  * force email verification, revoke sessions.
@@ -36,10 +37,41 @@ import { recordAdminAction, recentAuditLog, type AdminAction } from '../lib/admi
 import { startImpersonation, stopImpersonation, IMPERSONATION_TTL_MS } from '../lib/impersonation';
 import { getAuthEngine } from '../lib/accounts';
 import {
+  isValidLanguageCode,
+  LANGUAGES,
+  normalizeEnabledLanguages,
+  type LanguageCode,
+} from '../lib/languages';
+import {
   makePaddleBillingOperations,
   PaddleBillingError,
   type PaddleBillingReader,
 } from '../lib/paddle-billing';
+
+export interface AdminUserLanguage {
+  code: string;
+  name: string;
+  flag: string;
+  target: boolean;
+  enabled: boolean;
+  lessons: number;
+  vocab: number;
+  knownWords: number;
+  wordsRead: number;
+}
+
+export interface AdminLanguageStat {
+  code: string;
+  name: string;
+  flag: string;
+  optedIn: number;
+  contentUsers: number;
+  targetUsers: number;
+  lessons: number;
+  vocab: number;
+  knownWords: number;
+  wordsRead: number;
+}
 
 /**
  * Auth-engine actions the support endpoints trigger. A seam so route tests
@@ -162,6 +194,184 @@ function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {
   else map.set(key, [value]);
 }
 
+function languageMeta(code: string): { code: string; name: string; flag: string } {
+  if (isValidLanguageCode(code)) {
+    const lang = LANGUAGES[code];
+    return { code, name: lang.name, flag: lang.flag };
+  }
+  return { code, name: code, flag: '' };
+}
+
+/** Raw setting strings keyed by userId. */
+function rawSettingsByUser(key: string): Map<string, string> {
+  const rows = db.prepare('SELECT userId, value FROM settings WHERE key = ?').all(key) as {
+    userId: string;
+    value: string;
+  }[];
+  return new Map(rows.map((row) => [row.userId, row.value]));
+}
+
+/** JSON-encoded (`"af"`) or raw (`af`) — see active-language.ts. */
+function parseSettingLanguage(value: string | undefined): LanguageCode | null {
+  if (!value) return null;
+  const raw = value.replace(/^"|"$/g, '');
+  return isValidLanguageCode(raw) ? raw : null;
+}
+
+function parseEnabledLanguages(value: string | undefined): LanguageCode[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? normalizeEnabledLanguages(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Counts keyed userId → language → n. */
+function countByUserLanguage(table: string): Map<string, Map<string, number>> {
+  const rows = db
+    .prepare(`SELECT userId, language, COUNT(*) AS n FROM ${table} GROUP BY userId, language`)
+    .all() as { userId: string; language: string; n: number }[];
+  return foldUserLanguageCounts(rows);
+}
+
+function wordsReadByUserLanguage(): Map<string, Map<string, number>> {
+  const rows = db
+    .prepare(
+      `SELECT userId, language, COALESCE(SUM(wordsRead), 0) AS n FROM dailyStats
+       GROUP BY userId, language`,
+    )
+    .all() as { userId: string; language: string; n: number }[];
+  return foldUserLanguageCounts(rows);
+}
+
+function totalsFrom(byLang: Map<string, Map<string, number>>): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [userId, langs] of byLang) {
+    let n = 0;
+    for (const count of langs.values()) n += count;
+    out.set(userId, n);
+  }
+  return out;
+}
+
+function foldUserLanguageCounts(
+  rows: { userId: string; language: string; n: number }[],
+): Map<string, Map<string, number>> {
+  const out = new Map<string, Map<string, number>>();
+  for (const row of rows) {
+    let inner = out.get(row.userId);
+    if (!inner) {
+      inner = new Map();
+      out.set(row.userId, inner);
+    }
+    inner.set(row.language, row.n);
+  }
+  return out;
+}
+
+function assembleUserLanguages(
+  target: LanguageCode | null,
+  enabled: readonly LanguageCode[],
+  lessons: Map<string, number> | undefined,
+  vocab: Map<string, number> | undefined,
+  knownWords: Map<string, number> | undefined,
+  wordsRead: Map<string, number> | undefined,
+): AdminUserLanguage[] {
+  const enabledSet = new Set<string>(enabled);
+  const codes = new Set<string>();
+  if (target) codes.add(target);
+  for (const code of enabled) codes.add(code);
+  for (const bucket of [lessons, vocab, knownWords, wordsRead]) {
+    if (!bucket) continue;
+    for (const code of bucket.keys()) codes.add(code);
+  }
+
+  const rows = [...codes].map((code) => {
+    return {
+      ...languageMeta(code),
+      target: code === target,
+      enabled: enabledSet.has(code) || code === target,
+      lessons: lessons?.get(code) ?? 0,
+      vocab: vocab?.get(code) ?? 0,
+      knownWords: knownWords?.get(code) ?? 0,
+      wordsRead: wordsRead?.get(code) ?? 0,
+    };
+  });
+  rows.sort((a, b) => {
+    if (a.target !== b.target) return a.target ? -1 : 1;
+    return b.lessons - a.lessons || a.name.localeCompare(b.name);
+  });
+  return rows;
+}
+
+function rollupLanguages(users: Array<{ languages: AdminUserLanguage[] }>): AdminLanguageStat[] {
+  const byCode = new Map<string, AdminLanguageStat>();
+  for (const user of users) {
+    for (const lang of user.languages) {
+      let stat = byCode.get(lang.code);
+      if (!stat) {
+        stat = {
+          code: lang.code,
+          name: lang.name,
+          flag: lang.flag,
+          optedIn: 0,
+          contentUsers: 0,
+          targetUsers: 0,
+          lessons: 0,
+          vocab: 0,
+          knownWords: 0,
+          wordsRead: 0,
+        };
+        byCode.set(lang.code, stat);
+      }
+      if (lang.enabled) stat.optedIn += 1;
+      if (lang.lessons + lang.vocab + lang.wordsRead > 0) stat.contentUsers += 1;
+      if (lang.target) stat.targetUsers += 1;
+      stat.lessons += lang.lessons;
+      stat.vocab += lang.vocab;
+      stat.knownWords += lang.knownWords;
+      stat.wordsRead += lang.wordsRead;
+    }
+  }
+  return [...byCode.values()].sort(
+    (a, b) =>
+      b.contentUsers - a.contentUsers ||
+      b.optedIn - a.optedIn ||
+      b.lessons - a.lessons ||
+      a.name.localeCompare(b.name),
+  );
+}
+
+const DAY_MS = 86_400_000;
+
+// lastActiveAt is a session updatedAt (full ISO) or a dailyStats.date
+// (YYYY-MM-DD, UTC midnight). The date-only branch can be up to a day stale.
+function isActiveSince(iso: string | null, cutoffMs: number): boolean {
+  if (!iso) return false;
+  const t = Date.parse(iso);
+  return !Number.isNaN(t) && t >= cutoffMs;
+}
+
+function onboardingCounts(): { completed: number; inProgress: number; skipped: number } {
+  const rows = db
+    .prepare(
+      `SELECT o.status, COUNT(*) AS n
+       FROM onboarding_progress o
+       INNER JOIN user u ON u.id = o.userId
+       GROUP BY o.status`,
+    )
+    .all() as { status: string; n: number }[];
+  const counts = { completed: 0, inProgress: 0, skipped: 0 };
+  for (const row of rows) {
+    if (row.status === 'completed') counts.completed = row.n;
+    else if (row.status === 'in_progress') counts.inProgress = row.n;
+    else if (row.status === 'skipped') counts.skipped = row.n;
+  }
+  return counts;
+}
+
 export function makeAdminRoutes(
   gate: AdminGateOptions = adminConfig,
   authActions: AdminAuthActions = realAuthActions,
@@ -234,9 +444,15 @@ export function makeAdminRoutes(
     }
 
     const collections = countBy('collections');
-    const lessons = countBy('lessons');
-    const vocab = countBy('vocab');
-    const knownWords = countBy('knownWords');
+    const lessonsByLang = countByUserLanguage('lessons');
+    const vocabByLang = countByUserLanguage('vocab');
+    const knownWordsByLang = countByUserLanguage('knownWords');
+    const lessons = totalsFrom(lessonsByLang);
+    const vocab = totalsFrom(vocabByLang);
+    const knownWords = totalsFrom(knownWordsByLang);
+    const wordsReadByLang = wordsReadByUserLanguage();
+    const targetByUser = rawSettingsByUser('targetLanguage');
+    const enabledByUser = rawSettingsByUser('enabledLanguages');
 
     // Storage proxy: bytes of stored lesson text per user (the dominant
     // user-owned payload; dictionaries/banks are shared, not counted).
@@ -315,6 +531,14 @@ export function makeAdminRoutes(
           knownWords: knownWords.get(u.id) ?? 0,
           storageBytes: storage.get(u.id) ?? 0,
         },
+        languages: assembleUserLanguages(
+          parseSettingLanguage(targetByUser.get(u.id)),
+          parseEnabledLanguages(enabledByUser.get(u.id)),
+          lessonsByLang.get(u.id),
+          vocabByLang.get(u.id),
+          knownWordsByLang.get(u.id),
+          wordsReadByLang.get(u.id),
+        ),
         usage: {
           period: periods.month,
           dayPeriod: periods.day,
@@ -380,6 +604,7 @@ export function makeAdminRoutes(
       usageTotals.phraseTranslationsPerDay += r.usage.phraseTranslationsPerDay;
       usageTotals.contextTranslationsPerDay += r.usage.contextTranslationsPerDay;
     }
+    const nowMs = now().getTime();
     return c.json({
       users: rows.length,
       verified,
@@ -394,6 +619,12 @@ export function makeAdminRoutes(
       freeUsageTotals,
       usageTracked: hasUsageCounters(),
       billingResyncAvailable: billingResyncEnabled,
+      languages: rollupLanguages(rows),
+      activeLast7Days: rows.filter((r) => isActiveSince(r.lastActiveAt, nowMs - 7 * DAY_MS)).length,
+      activeLast30Days: rows.filter((r) => isActiveSince(r.lastActiveAt, nowMs - 30 * DAY_MS))
+        .length,
+      withLibrary: rows.filter((r) => r.library.lessons > 0).length,
+      onboarding: onboardingCounts(),
     });
   });
 
