@@ -30,6 +30,8 @@ export interface EmailMessage {
   text: string;
   /** Resend template. The HTML stays on Resend. Auth mail omits this. */
   template?: EmailTemplate;
+  /** Extra Resend headers (List-Unsubscribe on product mail). */
+  headers?: Record<string, string>;
 }
 
 export type EmailTransport = (message: EmailMessage) => Promise<void>;
@@ -50,6 +52,9 @@ function fileTransport(path: string): EmailTransport {
 
 /** Body for Resend. A template send must not include text or HTML. */
 export function resendPayload(from: string, message: EmailMessage): Record<string, unknown> {
+  const headers = message.headers && Object.keys(message.headers).length > 0
+    ? message.headers
+    : undefined;
   if (message.template) {
     return {
       from,
@@ -58,9 +63,16 @@ export function resendPayload(from: string, message: EmailMessage): Record<strin
         id: message.template.id,
         variables: message.template.variables ?? {},
       },
+      ...(headers ? { headers } : {}),
     };
   }
-  return { from, to: message.to, subject: message.subject, text: message.text };
+  return {
+    from,
+    to: message.to,
+    subject: message.subject,
+    text: message.text,
+    ...(headers ? { headers } : {}),
+  };
 }
 
 function senderFor(message: EmailMessage): string {

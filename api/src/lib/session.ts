@@ -14,6 +14,7 @@
  *   - `/api/auth/*` skips the check — signup/login/verify/reset/OAuth
  *     callbacks must be reachable unauthenticated (Better Auth guards its
  *     own endpoints).
+ *   - `/api/email/unsubscribe` is the signed stop-mail link on product mail.
  *   - A Bearer header hands the request to the PAT middleware instead
  *     (#218): api_tokens rows are tenanted, so a per-user token is a first-
  *     class credential — lib/auth.ts validates it and resolves its userId
@@ -53,6 +54,7 @@ export function makeSessionMiddleware(authRequired: boolean, engine: () => AuthE
     // PAT — the HMAC signature over the raw body is its credential, verified
     // in routes/billing.ts before anything is touched.
     if (c.req.path === '/api/billing/webhook') return next();
+    if (c.req.path === '/api/email/unsubscribe') return next();
 
     // Per-user PAT (#218): defer to the PAT middleware mounted right after
     // this one — it authenticates the token and resolves its tenant.

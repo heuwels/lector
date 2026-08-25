@@ -7,6 +7,11 @@ import { Database } from 'bun:sqlite';
 import { db } from '../db';
 import { config } from './config';
 import { sendEmail, type EmailMessage } from './email';
+import {
+  isUnsubscribed,
+  listUnsubscribeHeaders,
+  unsubscribeUrl,
+} from './email-unsubscribe';
 import { LANGUAGES, isValidLanguageCode } from './languages';
 import { Sentry } from './sentry';
 
@@ -21,7 +26,20 @@ export const LIFECYCLE_TEMPLATES = {
 export type LifecycleAlias = (typeof LIFECYCLE_TEMPLATES)[keyof typeof LIFECYCLE_TEMPLATES];
 
 export const ANKI_WORD_THRESHOLD = 10;
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+/** Day-1 is only for accounts that just crossed 24 hours. */
+export const DAY1_AFTER_MS = 24 * HOUR_MS;
+export const DAY1_UNTIL_MS = 72 * HOUR_MS;
+/** Day-3 is only for accounts that just crossed 72 hours. */
+export const DAY3_AFTER_MS = 72 * HOUR_MS;
+export const DAY3_UNTIL_MS = 7 * 24 * HOUR_MS;
+
+const UNSUBSCRIBE_ALIASES = new Set<LifecycleAlias>([
+  LIFECYCLE_TEMPLATES.day1,
+  LIFECYCLE_TEMPLATES.day3,
+  LIFECYCLE_TEMPLATES.anki,
+  LIFECYCLE_TEMPLATES.glossCap,
+]);
 
 const REAL_USE_EVENTS = [
   'lesson.opened',
@@ -166,21 +184,27 @@ async function sendOnce(
   if (!deps.cloud || !deps.hasResendKey) return 'skipped';
   if (!isVerified(user.emailVerified) || !user.email) return 'skipped';
   if (alreadySent(deps.database, user.id, alias)) return 'skipped';
+  if (isUnsubscribed(deps.database, user.email)) return 'skipped';
 
   const sentAt = deps.now().toISOString();
   if (!claimSend(deps.database, user.id, alias, sentAt)) return 'skipped';
+
+  const wantsStop = UNSUBSCRIBE_ALIASES.has(alias);
+  const stopUrl = wantsStop ? unsubscribeUrl(deps.appUrl, user.email) : null;
 
   try {
     await deps.send({
       to: user.email,
       subject: alias,
       text: alias,
+      headers: stopUrl ? listUnsubscribeHeaders(stopUrl) : undefined,
       template: {
         id: alias,
         variables: {
           USER_NAME: user.name?.trim() || 'there',
           LANGUAGE: languageLabel(deps.database, user.id),
           APP_URL: deps.appUrl,
+          ...(stopUrl ? { STOP_URL: stopUrl } : {}),
         },
       },
     });
@@ -254,11 +278,20 @@ export async function sweepLifecycleEmails(
     for (const user of loadVerifiedUsers(deps.database)) {
       const ageMs = nowMs - createdAtMs(user.createdAt);
       const results: LifecycleSendResult[] = [];
-      results.push(await sendOnce(user, LIFECYCLE_TEMPLATES.welcome, deps));
-      if (ageMs >= DAY_MS && savedWordCount(deps.database, user.id) === 0) {
+      // Welcome is hook-only. A catch-up sweep on first deploy sent every
+      // old account welcome, day-1, and day-3 in one pass.
+      if (
+        ageMs >= DAY1_AFTER_MS &&
+        ageMs < DAY1_UNTIL_MS &&
+        savedWordCount(deps.database, user.id) === 0
+      ) {
         results.push(await sendOnce(user, LIFECYCLE_TEMPLATES.day1, deps));
       }
-      if (ageMs >= 3 * DAY_MS && !hasRealUse(deps.database, user.id)) {
+      if (
+        ageMs >= DAY3_AFTER_MS &&
+        ageMs < DAY3_UNTIL_MS &&
+        !hasRealUse(deps.database, user.id)
+      ) {
         results.push(await sendOnce(user, LIFECYCLE_TEMPLATES.day3, deps));
       }
       for (const result of results) {

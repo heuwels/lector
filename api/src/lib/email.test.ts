@@ -88,6 +88,23 @@ describe('resendPayload', () => {
     expect(payload).not.toHaveProperty('subject');
   });
 
+  test('a template send can carry List-Unsubscribe headers', () => {
+    const payload = resendPayload('Support <support@lector.dev>', {
+      to: 'a@b.c',
+      subject: 'day-1-registered-no-word-saved',
+      text: 'day-1-registered-no-word-saved',
+      headers: {
+        'List-Unsubscribe': '<https://app.lector.dev/api/email/unsubscribe?token=x>',
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+      template: { id: 'day-1-registered-no-word-saved', variables: { STOP_URL: 'https://x' } },
+    });
+    expect(payload.headers).toEqual({
+      'List-Unsubscribe': '<https://app.lector.dev/api/email/unsubscribe?token=x>',
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
+  });
+
   test('a text send keeps subject and text', () => {
     expect(
       resendPayload('Lector <no-reply@lector.dev>', {
