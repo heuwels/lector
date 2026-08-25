@@ -108,6 +108,27 @@ describe('normalize', () => {
     expect(normalize('vīvere', LANGUAGES.la)).toBe('vivere');
     expect(normalize('amāre')).toBe('amāre');
   });
+
+  it('folds Arabic diacritics under the ar pack, and keeps the hamza carriers', () => {
+    // ar is fold-marks, but the mark set is Arabic and not Greek. Tashkeel,
+    // tatweel and the alef spellings fold.
+    expect(normalize('كَتَبَ', LANGUAGES.ar)).toBe('كتب');
+    expect(normalize('كتـــاب', LANGUAGES.ar)).toBe('كتاب');
+    expect(normalize('إلى', LANGUAGES.ar)).toBe('الى');
+    // ؤ and ئ must SURVIVE. Greek's stripMarks decomposes them and drops the
+    // hamza, which grades two different words as one (#253).
+    expect(normalize('رؤية', LANGUAGES.ar)).toBe('رؤية');
+    expect(normalize('جرؤ', LANGUAGES.ar)).toBe('جرؤ');
+    expect(normalize('رؤية', LANGUAGES.ar)).not.toBe(normalize('روية', LANGUAGES.ar));
+  });
+
+  it('strips the Arabic comma, semicolon and question mark', () => {
+    // The bank stores the raw Tatoeba token, so 195 Arabic answers end in one
+    // of these.
+    expect(normalize('كتاب؟', LANGUAGES.ar)).toBe('كتاب');
+    expect(normalize('عام،', LANGUAGES.ar)).toBe('عام');
+    expect(normalize('واحد؛', LANGUAGES.ar)).toBe('واحد');
+  });
 });
 
 describe('checkAnswer', () => {
@@ -220,6 +241,29 @@ describe('checkAnswer', () => {
     expect(checkAnswer('λογος', 'λόγος')).toBe(false);
     // Wrong letters still fail under leniency.
     expect(checkAnswer('λόγον', 'λόγος', LANGUAGES.grc)).toBe(false);
+  });
+
+  it('accepts unvocalized Arabic under the ar pack', () => {
+    // A learner types no tashkeel, because the language is not written with it.
+    expect(checkAnswer('كتب', 'كَتَبَ', LANGUAGES.ar)).toBe(true);
+    expect(checkAnswer('مدرسة', 'مَدْرَسَة', LANGUAGES.ar)).toBe(true);
+    // The alef spellings are one word.
+    expect(checkAnswer('الى', 'إلى', LANGUAGES.ar)).toBe(true);
+    // A sentence-final answer keeps its Arabic question mark in the bank.
+    expect(checkAnswer('كتاب', 'كتاب؟', LANGUAGES.ar)).toBe(true);
+    expect(checkAnswer('عام', 'عام،', LANGUAGES.ar)).toBe(true);
+  });
+
+  it('never grades an Arabic hamza pair as one word', () => {
+    // The defect this guards: Greek's stripMarks folds ؤ to و and ئ to ي, so a
+    // learner who typed the WRONG word of the pair was marked correct. 51 such
+    // pairs exist in the shipped dictionary.
+    expect(checkAnswer('روية', 'رؤية', LANGUAGES.ar)).toBe(false);
+    expect(checkAnswer('رؤية', 'روية', LANGUAGES.ar)).toBe(false);
+    expect(checkAnswer('جرو', 'جرؤ', LANGUAGES.ar)).toBe(false);
+    expect(checkAnswer('بري', 'برئ', LANGUAGES.ar)).toBe(false);
+    // The right word still passes.
+    expect(checkAnswer('رؤية', 'رؤية', LANGUAGES.ar)).toBe(true);
   });
 });
 

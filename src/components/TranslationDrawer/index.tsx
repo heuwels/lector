@@ -441,7 +441,9 @@ export default function TranslationDrawer({
                           testId="related-form-link"
                         />
                       ) : (
-                        <span className="font-medium text-foreground">{r.form}</span>
+                        <TargetText className="font-medium text-foreground" as="span">
+                          {r.form}
+                        </TargetText>
                       )}
                       <span className="ml-2 text-xs text-muted-foreground">{r.relation}</span>
                     </li>

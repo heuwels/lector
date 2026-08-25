@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import fs from 'fs';
 import path from 'path';
-import { lookupWord } from './dictionary-db';
+import { invalidateDictionaryCache, lookupWord } from './dictionary-db';
 
 // Arabic lookup (#253). Two mechanisms are under test, and they run in a fixed
 // order because the order is the design:
@@ -70,11 +70,17 @@ beforeAll(() => {
   infl.run('علي', 'على', 'unpointed');
   db.close();
   process.env.DICT_DIR = FIXTURE_DIR;
+  // Both ar fixture files point DICT_DIR at their own directory, and getDb caches
+  // the handle by LANGUAGE, not by path. bun can run them in one process, so
+  // without this the second file would read the first file's database and its
+  // assertions would pass or fail for the wrong reason.
+  invalidateDictionaryCache('ar');
 });
 
 afterAll(() => {
   if (previousDictDir === undefined) delete process.env.DICT_DIR;
   else process.env.DICT_DIR = previousDictDir;
+  invalidateDictionaryCache('ar');
 });
 
 function resolved(word: string): {

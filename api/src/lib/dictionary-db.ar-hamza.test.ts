@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import fs from 'fs';
 import path from 'path';
-import { lookupWord } from './dictionary-db';
+import { invalidateDictionaryCache, lookupWord } from './dictionary-db';
 
 // The hamza carriers must NOT be folded by any lookup step (#253).
 //
@@ -57,11 +57,15 @@ beforeAll(() => {
   }
   db.close();
   process.env.DICT_DIR = FIXTURE_DIR;
+  // See the note in dictionary-db.ar.test.ts: the cache is keyed by language, so
+  // each ar fixture has to drop the other's handle on the way in and out.
+  invalidateDictionaryCache('ar');
 });
 
 afterAll(() => {
   if (previousDictDir === undefined) delete process.env.DICT_DIR;
   else process.env.DICT_DIR = previousDictDir;
+  invalidateDictionaryCache('ar');
 });
 
 describe('Arabic hamza carriers are never folded by a lookup (#253)', () => {

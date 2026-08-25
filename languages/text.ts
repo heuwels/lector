@@ -179,7 +179,23 @@ export function stripMarks(text: string): string {
  * Fold for practice-answer comparison: exact for most packs; packs that opt
  * into `practiceLeniency: 'fold-marks'` (grc — polytonic input needs a
  * specialist keyboard) accept mark-stripped matches.
+ *
+ * WHICH marks is a per-script question, so this dispatches the same way
+ * `foldWord` does. `stripMarks` is the Greek answer, not a universal one: it
+ * decomposes and drops every \p{M}, and for Arabic that rewrites the hamza
+ * carriers. ؤ becomes و and ئ becomes ي, which makes رؤية ("seeing") and روية
+ * ("deliberation") compare EQUAL. 51 such pairs exist in the shipped Arabic
+ * dictionary, and grading them as one accepts a learner's wrong word (#253).
+ *
+ * So ar folds with `foldArabicKey`, which drops the tashkeel and the tatweel
+ * and folds the alef, and leaves ؤ and ئ alone. That also makes the answer
+ * check agree with the dictionary key, which is the same fold.
+ *
+ * A pack that adds `fold-marks` for a NEW script must decide its own mark set
+ * here. Inheriting the Greek one is what this comment exists to prevent.
  */
 export function foldForComparison(text: string, pack: LanguageConfig): string {
-  return pack.script.practiceLeniency === 'fold-marks' ? stripMarks(text) : text;
+  if (pack.script.practiceLeniency !== 'fold-marks') return text;
+  if (pack.code === 'ar') return foldArabicKey(text);
+  return stripMarks(text);
 }

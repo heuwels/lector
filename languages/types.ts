@@ -65,7 +65,16 @@ export interface ScriptConfig {
    * <apostrophe>n article). Compiled with 'giu' flags.
    */
   extraTokenPatterns?: string[];
-  /** Phase 3 (#289): 'fold-marks' accepts mark-stripped practice answers. Defaults to 'exact'. */
+  /**
+   * Phase 3 (#289): 'fold-marks' accepts mark-stripped practice answers.
+   * Defaults to 'exact'.
+   *
+   * This says the POLICY, not the mark set. `foldForComparison` decides which
+   * marks a given script may drop, and the sets differ: Greek drops every
+   * combining mark, Arabic drops only its own diacritics. A new pack that sets
+   * this must add its script's fold there — the Greek one is not a default that
+   * travels, and for Arabic it graded two different words as equal (#253).
+   */
   practiceLeniency?: 'exact' | 'fold-marks';
   /** Phase 1 (#289): per-script reading font class resolved in the reader. */
   fontClass?: string;

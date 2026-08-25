@@ -173,9 +173,13 @@ export const ar = {
     sentenceTerminators: '.!?؟',
     // A learner types unvocalized Arabic, because that is how the language is
     // written and because tashkeel needs a specialist keyboard. Accept a
-    // mark-stripped answer, the same concession polytonic Greek gets. Keys are
-    // already mark-free (foldArabicKey), so this only affects the practice
-    // comparison.
+    // mark-stripped answer, the same concession polytonic Greek gets.
+    //
+    // The MARK SET is Arabic, not Greek. foldForComparison folds an ar answer
+    // with foldArabicKey. Greek's `stripMarks` drops every \p{M} off the NFD
+    // form, which rewrites ؤ to و and ئ to ي, so it grades رؤية and روية as
+    // one word. See foldForComparison, and step 3-ar in dictionary-db.ts for
+    // the same trap on the lookup side.
     practiceLeniency: 'fold-marks' as const,
   },
   // Arabic attaches its grammar at BOTH ends of the word with no space, and

@@ -108,6 +108,19 @@ export function stemCandidates(word: string, config: MorphologyConfig): StemCand
  * sentence context). `l'acqua` and `acqua` share a key. An Indonesian
  * prefix peel (membeli → beli) does not: that is a different word, not
  * another spelling of the same token. The surface form comes first.
+ *
+ * KNOWN LIMITATION for Arabic (#253). Only an apostrophe peel counts here, so
+ * الكتاب and كتاب do not share a key: a learner who marks كتاب known still sees
+ * الكتاب painted as new. That is the Indonesian rule applied consistently, and
+ * for Indonesian it is right — a voice prefix makes a different word. Arabic is
+ * the case where it reads wrong, because the definite article is not a
+ * derivation and most nouns in running text carry it.
+ *
+ * Left alone on purpose rather than widened here. Adding the proclitic peel to
+ * this function would colour a token by a key the learner never marked, for
+ * every pack that declares `prefixes`, and the lookup already answers الكتاب
+ * correctly through the peel in dictionary-db.ts. The reader's COLOUR is the
+ * only surface that disagrees. Worth its own change, with its own measurement.
  */
 export function vocabKeys(word: string, pack: LanguageConfig): string[] {
   const folded = foldWord(word, pack);

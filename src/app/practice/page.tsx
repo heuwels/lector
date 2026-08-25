@@ -1278,7 +1278,14 @@ export default function PracticePage() {
                               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
                                 {idx + 1}
                               </span>
-                              {option}
+                              {/* The option sits beside its number key, so the
+                                  word needs isolating (#253). */}
+                              <bdi
+                                dir={getActivePack().script.direction}
+                                lang={getActivePack().script.bcp47}
+                              >
+                                {option}
+                              </bdi>
                             </button>
                           );
                         })}

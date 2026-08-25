@@ -54,8 +54,11 @@ export function createBlankedSentence(
 // apostrophe the keyboard produced.
 // An apostrophe at an edge is a quote mark, never a letter — no Ukrainian word
 // starts or ends with one — so it drops even in the keep-the-apostrophe path.
-const PUNCTUATION = /[.,!?¿¡;:·'"„“”‚‘’«»‹›()[\]{}…]/gu;
-const PUNCTUATION_KEEPING_APOSTROPHE = /[.,!?¿¡;:·"„“”‚«»‹›()[\]{}…]/gu;
+// Arabic's own comma ،, semicolon ؛ and question mark ؟ are in the class for
+// the same reason the ano teleia is (#253): the bank keeps the raw token, so
+// 195 Arabic answers end in one, and grading كتاب against كتاب؟ has to pass.
+const PUNCTUATION = /[.,!?¿¡;:·،؛؟'"„“”‚‘’«»‹›()[\]{}…]/gu;
+const PUNCTUATION_KEEPING_APOSTROPHE = /[.,!?¿¡;:·،؛؟"„“”‚«»‹›()[\]{}…]/gu;
 const EDGE_APOSTROPHES = /^'+|'+$/g;
 
 export function normalize(s: string, pack?: LanguageConfig): string {
