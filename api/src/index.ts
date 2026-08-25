@@ -14,6 +14,7 @@ import { HTTPException } from 'hono/http-exception';
 import { startClassifyWorker } from './lib/classify-worker';
 import { startTranscribeWorker } from './lib/transcribe-worker';
 import { startDictWorker } from './lib/dict-worker';
+import { startLifecycleEmailWorker } from './lib/lifecycle-email';
 import { isByokAvailable } from './lib/byok';
 import { defaultRequestBodyLimit } from './lib/request-body-limit';
 // Aliased: this file's Bun.serve export below is also named `config`.
@@ -192,6 +193,10 @@ startTranscribeWorker();
 // after the server is up and never gates readiness — a language with no
 // dictionary yet still works through the AI lookup path.
 startDictWorker();
+
+// Cloud lifecycle mail (#558). No-op in selfhost. Sweeps day-1 and day-3
+// templates. Welcome, Anki, and gloss-cap send from their own hooks.
+startLifecycleEmailWorker();
 
 const config = {
   port,

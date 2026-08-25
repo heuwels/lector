@@ -20,6 +20,7 @@ import {
   buildWordEntryPrompt,
 } from '../lib/translate-prompts';
 import { recordStudySessionPing } from '../lib/study-session';
+import { notifyGlossCapHit } from '../lib/lifecycle-email';
 import {
   entitlements,
   planLimitResponse,
@@ -157,7 +158,11 @@ function reserve(
   metric: MeteredMetric,
 ): UsageReservation | Response {
   const verdict = engine.reserve(userId, metric);
-  return verdict.allowed ? verdict.reservation : planLimitResponse(c, verdict);
+  if (verdict.allowed) return verdict.reservation;
+  if (metric === 'wordGlossesPerMonth' && verdict.plan === 'free') {
+    void notifyGlossCapHit(userId);
+  }
+  return planLimitResponse(c, verdict);
 }
 
 function simpleTranslation(text: string): string {

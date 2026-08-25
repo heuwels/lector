@@ -12,6 +12,7 @@ import { getMigrations } from 'better-auth/db/migration';
 import type { Database } from 'bun:sqlite';
 import { config } from './config';
 import { sendEmail } from './email';
+import { sendWelcomeEmail } from './lifecycle-email';
 import { purgeTenantData } from './account-deletion';
 import { getDatabaseInstance } from '../db';
 
@@ -131,6 +132,27 @@ export function createAuthEngine(opts: AuthEngineOptions) {
         } catch (err) {
           console.error(`[accounts] failed to send verification email to ${user.email}:`, err);
         }
+      },
+      afterEmailVerification: async (user) => {
+        try {
+          await sendWelcomeEmail(user.id);
+        } catch (err) {
+          console.error(`[accounts] failed to send welcome email to ${user.email}:`, err);
+        }
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            if (!user.emailVerified) return;
+            try {
+              await sendWelcomeEmail(user.id);
+            } catch (err) {
+              console.error(`[accounts] failed to send welcome email to ${user.email}:`, err);
+            }
+          },
+        },
       },
     },
     user: {
