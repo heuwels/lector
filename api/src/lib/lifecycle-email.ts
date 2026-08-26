@@ -12,8 +12,9 @@ import {
   listUnsubscribeHeaders,
   unsubscribeUrl,
 } from './email-unsubscribe';
-import { LANGUAGES, isValidLanguageCode } from './languages';
+import { LANGUAGES, isValidLanguageCode, type LanguageCode } from './languages';
 import { Sentry } from './sentry';
+import { hasStarterContent } from './starter-content';
 
 export const LIFECYCLE_TEMPLATES = {
   welcome: 'welcome-on-account-create',
@@ -115,14 +116,38 @@ export function createdAtMs(value: unknown): number | null {
   return null;
 }
 
-export function languageLabel(database: Database, userId: string): string {
+/** The user's target language code, or null when it is unset or unknown. */
+export function languageCodeFor(database: Database, userId: string): LanguageCode | null {
   const row = database
     .prepare('SELECT value FROM settings WHERE userId = ? AND key = ?')
     .get(userId, 'targetLanguage') as { value: string } | undefined;
-  if (!row) return 'your language';
+  if (!row) return null;
   const raw = row.value.replace(/^"|"$/g, '');
-  if (!isValidLanguageCode(raw)) return 'your language';
-  return LANGUAGES[raw].name;
+  return isValidLanguageCode(raw) ? raw : null;
+}
+
+export function languageLabel(database: Database, userId: string): string {
+  const code = languageCodeFor(database, userId);
+  return code ? LANGUAGES[code].name : 'your language';
+}
+
+/**
+ * One sentence about the state of the user's library.
+ *
+ * A Resend template cannot branch, and the truthful sentence differs per
+ * language: #315 seeds a starter series into the library on first language
+ * selection, and only the packs that ship `content/starter/manifest.json` have
+ * one. So the library of a German or Spanish learner is NOT empty, and telling
+ * them it is sends them hunting for an EPUB while twenty-two graded lessons sit
+ * there unopened. The sender knows the language, so it composes the sentence
+ * and the template just prints it.
+ */
+export function starterLine(database: Database, userId: string): string {
+  const code = languageCodeFor(database, userId);
+  if (code && hasStarterContent(code)) {
+    return `Your first ${LANGUAGES[code].name} lessons are already in your library, graded from the most common words up.`;
+  }
+  return 'Your library is empty until you add something, so start with a text you actually want to read.';
 }
 
 function alreadySent(database: Database, userId: string, alias: LifecycleAlias): boolean {
@@ -226,6 +251,11 @@ async function sendOnce(
           LANGUAGE: languageLabel(deps.database, user.id),
           APP_URL: deps.appUrl,
           STOP_URL: stopUrl || `${deps.appUrl.replace(/\/$/, '')}/api/email/unsubscribe`,
+          STARTER_LINE: starterLine(deps.database, user.id),
+          // Every template gets it, though only the Anki one prints it. Saying
+          // the real number is the point: it is evidence that Lector is
+          // watching, which is what "a modest word list" failed to be.
+          WORD_COUNT: String(savedWordCount(deps.database, user.id)),
         },
       },
     });

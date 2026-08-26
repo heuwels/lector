@@ -12,6 +12,7 @@ import {
   savedWordCount,
   sendWelcomeEmail,
   startLifecycleEmailWorker,
+  starterLine,
   stopLifecycleEmailWorker,
   sweepLifecycleEmails,
   type LifecycleDeps,
@@ -440,6 +441,38 @@ describe('languageLabel', () => {
       .prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)')
       .run(userId, 'targetLanguage', '"af"');
     expect(languageLabel(database, userId)).toBe('Afrikaans');
+  });
+});
+
+describe('starterLine', () => {
+  // de ships languages/de/content/starter/manifest.json, so #315 seeds its
+  // series on first language selection and that library is not empty. af ships
+  // a wordlist but no manifest, so it seeds nothing. The wrong sentence here
+  // sends a German learner off to find an EPUB while 22 lessons sit unopened.
+  test('names the seeded lessons for a language that ships a starter series', () => {
+    const database = createSchema();
+    const userId = insertUser(database);
+    database
+      .prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)')
+      .run(userId, 'targetLanguage', '"de"');
+    const line = starterLine(database, userId);
+    expect(line).toContain('German');
+    expect(line).toContain('already in your library');
+  });
+
+  test('asks for a text when the language seeds nothing', () => {
+    const database = createSchema();
+    const userId = insertUser(database);
+    database
+      .prepare('INSERT INTO settings (userId, key, value) VALUES (?, ?, ?)')
+      .run(userId, 'targetLanguage', '"af"');
+    expect(starterLine(database, userId)).toContain('empty until you add something');
+  });
+
+  test('asks for a text when no language is set', () => {
+    const database = createSchema();
+    const userId = insertUser(database);
+    expect(starterLine(database, userId)).toContain('empty until you add something');
   });
 });
 
