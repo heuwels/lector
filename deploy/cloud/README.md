@@ -90,6 +90,7 @@ Design notes:
    | `paddle-price-annual`                | String       | `PADDLE_PRICE_ANNUAL` (`pri_…` — Cloud annual)                                                                                                                                                                                                            |
    | `paddle-price-plus-monthly`          | String       | `PADDLE_PRICE_PLUS_MONTHLY` (`pri_…` — Plus monthly)                                                                                                                                                                                                      |
    | `paddle-price-plus-annual`           | String       | `PADDLE_PRICE_PLUS_ANNUAL` (`pri_…` — Plus annual)                                                                                                                                                                                                        |
+   | `paddle-discount-codes`              | String       | `PADDLE_DISCOUNT_CODES` (#516 — JSON map from a campaign code word to a Paddle discount id, e.g. `{"PRODUCTHUNT":"dsc_01k…"}`; unset = coupons off. Create the discount in Paddle first, then add its id here)                                            |
    | `billing-exempt-emails`              | String       | `BILLING_EXEMPT_EMAILS` (comma-separated accounts the gate never locks — operator + test accounts)                                                                                                                                                        |
    | `admin-emails`                       | String       | `LECTOR_ADMIN_EMAILS` (#221 — comma-separated accounts with admin-dashboard access; no spaces; unset = no admins)                                                                                                                                         |
    | `sentry-dsn`                         | String       | `SENTRY_DSN` — full-stack error tracking + tracing (API + browser, injected into `window.__ENV__`); public DSN; unset = off. Points at Sentry.io, self-hosted Sentry, or GlitchTip                                                                        |
@@ -101,6 +102,18 @@ Design notes:
    `subscription.write`. Customer + subscription read access powers the
    admin dashboard's on-demand billing-mirror resync. The public checkout
    token remains in lector-site.
+
+   **Running a coupon campaign (#516).** Create the discount in Paddle →
+   Catalog → Discounts first, then map a code word to its `dsc_…` id in
+   `paddle-discount-codes` and redeploy. Paddle owns the discount itself —
+   percentage, duration, expiry, usage limit — so a campaign change is a Paddle
+   change, and only the lookup lives here. The app resolves the code word
+   server-side and passes `discount_id` when it creates the transaction, so a
+   `dsc_…` id never reaches the browser and no code can leak to a coupon site.
+   Set `enabled_for_checkout: false` on the Paddle discount unless you also
+   want it redeemable by anyone who types it into a Paddle overlay elsewhere.
+   A malformed map does not stop the container: it logs a `[billing]` warning
+   per bad entry and serves the deployment with coupons off.
 
    ```bash
    aws ssm put-parameter --name /lector/canary/tunnel-token \

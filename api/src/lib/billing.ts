@@ -242,6 +242,105 @@ function pricesFromEnv(env: NodeJS.ProcessEnv): BillingPrice[] {
   return prices;
 }
 
+/**
+ * Paddle's own rule for a redeemable code: letters and numbers, at most 32
+ * characters (developer.paddle.com → Discounts). Matching it here is what
+ * makes "the browser cannot send a discount id" structural rather than a
+ * hand-written check: a Paddle id (`dsc_01k…`) contains an underscore and so
+ * can never normalise into a lookup key, whatever a client puts in `promo`.
+ * The length cap also bounds what an arbitrary query parameter can push into
+ * a log line.
+ */
+const DISCOUNT_CODE_PATTERN = /^[A-Z0-9]{1,32}$/;
+
+/** A code word normalised for lookup, or null when it could never be one. */
+export function normalizeDiscountCode(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const code = raw.trim().toUpperCase();
+  return DISCOUNT_CODE_PATTERN.test(code) ? code : null;
+}
+
+/**
+ * Campaign coupons (#516): a map from the code word a reader types to a
+ * Paddle discount id. Paddle owns the discount itself — percentage, duration,
+ * expiry, usage limit — so this map is only the lookup, and the next campaign
+ * needs a parameter change and no release.
+ *
+ *   PADDLE_DISCOUNT_CODES={"PRODUCTHUNT":"dsc_01k…","WINBACK25":"dsc_01m…"}
+ *
+ * A bad entry warns and drops, like LECTOR_PLAN_LIMITS, and never throws.
+ * That direction is the safe one: a broken map means no discount resolves, so
+ * the reader pays full price and the screen says the code is unknown. Refusing
+ * to boot the whole deployment over a marketing parameter is the worse trade.
+ * Unset or empty turns coupons off, which is every deployment to date.
+ */
+export function parseDiscountCodes(raw: string | undefined): Map<string, string> {
+  const codes = new Map<string, string>();
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return codes;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    console.warn('[billing] PADDLE_DISCOUNT_CODES is not valid JSON — coupons are off.');
+    return codes;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    console.warn('[billing] PADDLE_DISCOUNT_CODES must be a JSON object — coupons are off.');
+    return codes;
+  }
+
+  for (const [rawCode, id] of Object.entries(parsed)) {
+    const code = normalizeDiscountCode(rawCode);
+    if (code === null) {
+      console.warn(
+        `[billing] PADDLE_DISCOUNT_CODES key "${rawCode}" is not a usable code word ` +
+          '(letters and numbers, 32 max) — ignored.',
+      );
+      continue;
+    }
+    // A Paddle discount id, not a percentage: "dsc_…". Configuring "50" here
+    // would fail at Paddle's end once checkout opened, so drop it now and say
+    // why — the same posture pricesFromEnv takes for pri_ ids.
+    if (typeof id !== 'string' || !id.startsWith('dsc_')) {
+      console.warn(
+        `[billing] PADDLE_DISCOUNT_CODES.${code} must be a Paddle discount id (dsc_…) — ` +
+          'ignored. Use the id from Paddle → Catalog → Discounts.',
+      );
+      continue;
+    }
+    codes.set(code, id);
+  }
+  return codes;
+}
+
+/** What the /subscribe screen must tell the reader about their code. */
+export type DiscountOutcome = 'applied' | 'unknown' | 'none';
+
+/**
+ * Resolve a client-supplied `promo` against the configured map. The client
+ * names a choice and the server resolves it, exactly like the price check in
+ * routes/billing.ts — an unresolvable code is reported, never forwarded.
+ *
+ * `unknown` and `none` are deliberately different outcomes. A reader who typed
+ * something must be told it did not work, because they would otherwise meet a
+ * different number in the Paddle overlay. A reader who typed nothing has
+ * nothing to be told.
+ */
+export function resolveDiscount(
+  codes: ReadonlyMap<string, string>,
+  promo: unknown,
+): { outcome: DiscountOutcome; discountId: string | null } {
+  const absent =
+    promo === undefined || promo === null || (typeof promo === 'string' && promo.trim() === '');
+  if (absent) return { outcome: 'none', discountId: null };
+
+  const code = normalizeDiscountCode(promo);
+  const discountId = code === null ? undefined : codes.get(code);
+  return discountId ? { outcome: 'applied', discountId } : { outcome: 'unknown', discountId: null };
+}
+
 /** Comma-separated BILLING_EXEMPT_EMAILS → lowercased set. */
 export function parseExemptEmails(raw: string | undefined): Set<string> {
   return new Set(
@@ -265,6 +364,7 @@ export const billingConfig: {
   readonly environment: PaddleEnvironment;
   readonly prices: BillingPrice[];
   readonly exemptEmails: Set<string>;
+  readonly discountCodes: ReadonlyMap<string, string>;
 } = (() => {
   const mode = parseBillingMode(process.env.LECTOR_BILLING);
   return {
@@ -276,6 +376,7 @@ export const billingConfig: {
     environment: parsePaddleEnvironment(process.env.PADDLE_ENV),
     prices: pricesFromEnv(process.env),
     exemptEmails: parseExemptEmails(process.env.BILLING_EXEMPT_EMAILS),
+    discountCodes: parseDiscountCodes(process.env.PADDLE_DISCOUNT_CODES),
   } as const;
 })();
 
@@ -300,6 +401,8 @@ export type CreateTransaction = (args: {
   priceId: string;
   userId: string;
   customerId: string | null;
+  /** Resolved server-side from PADDLE_DISCOUNT_CODES (#516); never client input. */
+  discountId?: string | null;
 }) => Promise<CheckoutTransaction>;
 
 /**
@@ -307,12 +410,17 @@ export type CreateTransaction = (args: {
  * chosen price with the tenant in custom_data; passes a known customer id when
  * we have one so a returning subscriber's details prefill. `collection_mode:
  * automatic` is what makes the transaction checkout-able (vs an invoice).
+ *
+ * `discount_id` (#516) is what prices a campaign coupon. Paddle applies it as
+ * it prices the transaction, so the overlay opens on the discounted total and
+ * the reader never sees one number here and another there. It is omitted
+ * unless the route resolved a configured code.
  */
 export function makePaddleTransactionCreator(cfg: {
   apiKey: string | undefined;
   environment: PaddleEnvironment;
 }): CreateTransaction {
-  return async ({ priceId, userId, customerId }) => {
+  return async ({ priceId, userId, customerId, discountId }) => {
     const res = await fetch(`${paddleApiBase(cfg.environment)}/transactions`, {
       method: 'POST',
       headers: {
@@ -324,6 +432,7 @@ export function makePaddleTransactionCreator(cfg: {
         custom_data: { lectorUserId: userId },
         collection_mode: 'automatic',
         ...(customerId ? { customer_id: customerId } : {}),
+        ...(discountId ? { discount_id: discountId } : {}),
       }),
     });
     if (!res.ok) {

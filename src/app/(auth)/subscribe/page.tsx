@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { apiUrl, checkoutUrl } from '@/lib/api-base';
 import { authClient } from '@/lib/auth-client';
-import { paidPlanFromSearch, type PaidPlan } from '@/lib/auth-return';
+import { paidPlanFromSearch, promoFromSearch, type PaidPlan } from '@/lib/auth-return';
 import {
   fetchBillingStatus,
   startCheckout,
@@ -98,6 +98,11 @@ export default function SubscribePage() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [opening, setOpening] = useState<string | null>(null);
   const [requestedPlan, setRequestedPlan] = useState<PaidPlan | null>(null);
+  // A campaign code word from the marketing link (#516). Only the API knows
+  // whether it maps to a discount, so this is what we offer Paddle, not a
+  // promise about the price.
+  const [promo, setPromo] = useState<string | null>(null);
+  const [rejectedPromo, setRejectedPromo] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // One-shot activation poll: the webhook usually lands within seconds of
@@ -126,11 +131,13 @@ export default function SubscribePage() {
   useEffect(() => {
     let cancelled = false;
     const requested = paidPlanFromSearch(window.location.search);
+    const requestedPromo = promoFromSearch(window.location.search);
 
     fetchBillingStatus().then((s) => {
       if (cancelled) return;
 
       setRequestedPlan(requested);
+      setPromo(requestedPromo);
 
       // Billing off, already paid/exempt, or status unreachable → this page
       // has no business rendering; the rest of the app knows better than us.
@@ -183,10 +190,22 @@ export default function SubscribePage() {
   async function openCheckout(price: BillingPrice) {
     if (opening !== null) return;
     setOpening(price.id);
-    const txnId = await startCheckout(price.id);
-    if (txnId === null) {
+    setRejectedPromo(null);
+    const started = await startCheckout(price.id, promo);
+    if (started === null) {
       setOpening(null);
       toast.error("Checkout couldn't be started. Please try again in a moment.");
+      return;
+    }
+    // A code the API could not map must stop here. Redirecting anyway would
+    // send the reader to an overlay showing a different number than the one
+    // they expected, which is the one outcome this feature must not produce.
+    // The plan stays available: the next click sends no code and proceeds at
+    // full price.
+    if (started.discount === 'unknown') {
+      setOpening(null);
+      setRejectedPromo(promo);
+      setPromo(null);
       return;
     }
     // Hard navigate to the approved-domain checkout page; Paddle opens the
@@ -194,7 +213,9 @@ export default function SubscribePage() {
     // Pass the current theme so the overlay matches the app; the tenant rides
     // the transaction (custom_data), never the URL.
     const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-    window.location.assign(`${checkoutUrl()}?_ptxn=${encodeURIComponent(txnId)}&theme=${theme}`);
+    window.location.assign(
+      `${checkoutUrl()}?_ptxn=${encodeURIComponent(started.txnId)}&theme=${theme}`,
+    );
   }
 
   async function signOut() {
@@ -251,6 +272,27 @@ export default function SubscribePage() {
       {phase === 'suspended' && (
         <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-foreground">
           If you believe this is a mistake, contact support. No learner data has been deleted.
+        </p>
+      )}
+
+      {phase === 'pick' && promo !== null && (
+        <p
+          className="rounded-lg border border-primary/40 bg-[var(--primary-soft)] p-3 text-sm text-foreground"
+          data-testid="subscribe-promo"
+          data-promo={promo}
+        >
+          Code <span className="font-semibold">{promo}</span> is ready. We&apos;ll apply it when you
+          continue, and the discounted total shows at checkout.
+        </p>
+      )}
+
+      {phase === 'pick' && rejectedPromo !== null && (
+        <p
+          className="rounded-lg border border-border bg-muted p-3 text-sm text-foreground"
+          data-testid="subscribe-promo-unknown"
+        >
+          The code <span className="font-semibold">{rejectedPromo}</span> isn&apos;t valid or has
+          expired. Every plan below is still available at its usual price.
         </p>
       )}
 

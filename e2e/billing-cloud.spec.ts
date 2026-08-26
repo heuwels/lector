@@ -248,6 +248,98 @@ test.describe.serial('billing gate lifecycle', () => {
     expect(page.url()).toContain('_ptxn=txn_e2e_redirect');
   });
 
+  /**
+   * Coupon plumbing (#516). The screen never learns whether a code is real
+   * until the API answers, so both outcomes are asserted through the mocked
+   * checkout endpoint. The suite calls no Paddle endpoint.
+   */
+  async function stubCouponCheckout(
+    page: Page,
+    outcome: 'applied' | 'unknown',
+    seen: { promo?: unknown },
+  ) {
+    const CHECKOUT = 'https://lector.test/checkout';
+    await page.route('**/__env.js', (route) =>
+      route.fulfill({
+        contentType: 'application/javascript',
+        body: `window.__ENV__ = ${JSON.stringify({
+          API_URL: CLOUD_API,
+          LECTOR_MODE: 'cloud',
+          CHECKOUT_URL: CHECKOUT,
+        })};`,
+      }),
+    );
+    await page.route(`${CLOUD_API}/api/billing/status`, (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          enforced: true,
+          accessAllowed: false,
+          subscriptionActive: false,
+          freeTierEnabled: false,
+          suspended: false,
+          exempt: false,
+          status: 'none',
+          checkout: { prices: [{ id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' }] },
+        }),
+      }),
+    );
+    await page.route(`${CLOUD_API}/api/billing/checkout`, async (route) => {
+      const body = route.request().postDataJSON() as { promo?: unknown };
+      seen.promo = body.promo;
+      // Faithful to the route: a request carrying no code word can only ever
+      // come back 'none', which is what makes the retry after a rejected code
+      // succeed instead of looping.
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          txnId: 'txn_e2e_promo',
+          discount: body.promo === undefined ? 'none' : outcome,
+        }),
+      });
+    });
+    await page.route('https://lector.test/**', (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>checkout</title>' }),
+    );
+  }
+
+  test('a coupon deep link carries its code word into checkout', async ({ page }) => {
+    const seen: { promo?: unknown } = {};
+    await stubCouponCheckout(page, 'applied', seen);
+
+    await signIn(page);
+    await page.waitForURL('**/subscribe');
+    // Lower case in the link, normalized by the time it reaches the API.
+    await page.goto('/subscribe?plan=cloud&promo=producthunt');
+
+    await expect(page.getByTestId('subscribe-promo')).toHaveAttribute('data-promo', 'PRODUCTHUNT');
+    await page.getByTestId('subscribe-price-cloud-month').click();
+
+    await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_promo/);
+    expect(seen.promo).toBe('PRODUCTHUNT');
+  });
+
+  test('an unknown coupon says so and holds the reader on the plan picker', async ({ page }) => {
+    const seen: { promo?: unknown } = {};
+    await stubCouponCheckout(page, 'unknown', seen);
+
+    await signIn(page);
+    await page.waitForURL('**/subscribe');
+    await page.goto('/subscribe?plan=cloud&promo=EXPIRED2024');
+    await page.getByTestId('subscribe-price-cloud-month').click();
+
+    // The whole point of the outcome field: no redirect to an overlay showing
+    // a price the reader was not expecting.
+    await expect(page.getByTestId('subscribe-promo-unknown')).toContainText('EXPIRED2024');
+    await expect(page.getByTestId('subscribe-promo')).toHaveCount(0);
+    expect(page.url()).toContain('/subscribe');
+
+    // The plan stays buyable, and the retry carries no code.
+    await page.getByTestId('subscribe-price-cloud-month').click();
+    await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_promo/);
+    expect(seen.promo).toBeUndefined();
+  });
+
   test('the plan panel states the current cycle and never pre-selects a change', async ({
     page,
     request,

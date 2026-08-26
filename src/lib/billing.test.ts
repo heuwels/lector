@@ -26,12 +26,55 @@ describe('billing actions', () => {
   it('starts checkout with only the allowlisted price intent', async () => {
     apiFetch.mockResolvedValue(json({ txnId: 'txn_test' }));
 
-    await expect(startCheckout('pri_annual')).resolves.toBe('txn_test');
+    await expect(startCheckout('pri_annual')).resolves.toEqual({
+      txnId: 'txn_test',
+      discount: 'none',
+    });
     expect(apiFetch).toHaveBeenCalledWith('/api/billing/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ priceId: 'pri_annual' }),
     });
+  });
+
+  it('sends a campaign code word and reports that the API applied it', async () => {
+    apiFetch.mockResolvedValue(json({ txnId: 'txn_promo', discount: 'applied' }));
+
+    await expect(startCheckout('pri_annual', 'PRODUCTHUNT')).resolves.toEqual({
+      txnId: 'txn_promo',
+      discount: 'applied',
+    });
+    expect(apiFetch).toHaveBeenCalledWith('/api/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_annual', promo: 'PRODUCTHUNT' }),
+    });
+  });
+
+  it('reports an unknown code while still returning a usable transaction', async () => {
+    apiFetch.mockResolvedValue(json({ txnId: 'txn_full_price', discount: 'unknown' }));
+
+    await expect(startCheckout('pri_annual', 'NOPE')).resolves.toEqual({
+      txnId: 'txn_full_price',
+      discount: 'unknown',
+    });
+  });
+
+  it('omits promo from the body when the caller has no code', async () => {
+    apiFetch.mockResolvedValue(json({ txnId: 'txn_test', discount: 'none' }));
+
+    await startCheckout('pri_annual', null);
+    expect(apiFetch).toHaveBeenCalledWith('/api/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId: 'pri_annual' }),
+    });
+  });
+
+  it('returns null when the API answers without a transaction id', async () => {
+    apiFetch.mockResolvedValue(json({ discount: 'applied' }));
+
+    await expect(startCheckout('pri_annual', 'PRODUCTHUNT')).resolves.toBeNull();
   });
 
   it('mints portal sessions without accepting a browser redirect target', async () => {
