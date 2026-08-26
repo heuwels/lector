@@ -1,0 +1,9 @@
+name: Restore dictionaries
+description: Download the dictionaries artifact from the dicts job
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@v7
+      with:
+        name: dictionaries
+        path: .

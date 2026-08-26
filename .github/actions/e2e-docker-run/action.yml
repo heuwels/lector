@@ -12,7 +12,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: ./.github/actions/fetch-dicts
+    - uses: ./.github/actions/restore-dicts
     - name: Start container
       shell: bash
       run: |

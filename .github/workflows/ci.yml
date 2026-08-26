@@ -261,15 +261,35 @@ jobs:
       - if: needs.changes.outputs.app == 'true'
         run: npm run build
 
+  # One download of the pinned packs. e2e jobs restore this artifact so the
+  # four Docker shards do not each hit GitHub Releases.
+  dicts:
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    needs: [changes]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/fetch-dicts
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dictionaries
+          path: data/dictionary-*.db
+          retention-days: 1
+          if-no-files-found: error
+
   # Cloud specs and fixture specs. These need the extra Hono servers. The
   # Docker pass skips them. Selfhost coverage lives in e2e-docker.
   e2e-tests:
     runs-on: ubuntu-latest
-    needs: [changes]
+    if: always() && !cancelled() && needs.changes.result == 'success'
+    needs: [changes, dicts]
     steps:
       - name: Skip
         if: needs.changes.outputs.e2e != 'true'
         run: echo "No app or API change"
+      - name: Require dictionaries
+        if: needs.changes.outputs.e2e == 'true' && needs.dicts.result != 'success'
+        run: exit 1
       - if: needs.changes.outputs.e2e == 'true'
         uses: actions/checkout@v6
       - if: needs.changes.outputs.e2e == 'true'
@@ -285,9 +305,7 @@ jobs:
         run: bun install --frozen-lockfile
         working-directory: api
       - if: needs.changes.outputs.e2e == 'true'
-        uses: ./.github/actions/fetch-dicts
-        with:
-          langs: af es
+        uses: ./.github/actions/restore-dicts
       - if: needs.changes.outputs.e2e == 'true'
         uses: ./.github/actions/setup-playwright
       - if: needs.changes.outputs.e2e == 'true'
@@ -372,7 +390,7 @@ jobs:
   e2e-docker-shard:
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.can_push == 'true'
     runs-on: ubuntu-latest
-    needs: [changes, e2e-docker-image]
+    needs: [changes, dicts, e2e-docker-image]
     permissions:
       contents: read
       packages: read
@@ -406,7 +424,7 @@ jobs:
   e2e-docker-fork:
     if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.can_push != 'true'
     runs-on: ubuntu-latest
-    needs: [changes]
+    needs: [changes, dicts]
     permissions:
       contents: read
     steps:
