@@ -46,11 +46,28 @@ const DOCS = {
   requestLanguage: 'https://lector.dev/roadmap/#languages',
 };
 
+/**
+ * Template variables, in the exact shape the REST API takes.
+ *
+ * The field is `fallback_value`, with an underscore. It was `fallbackValue`
+ * here until 2026-08-26, and Resend accepts that key, ignores it, and returns
+ * 200 — so every template published since #558 has carried a null fallback
+ * while this file claimed otherwise. The Node SDK converts the case for you.
+ * This script calls fetch directly, so it does not.
+ *
+ * A null fallback matters because it is the only guard on a send that omits a
+ * variable. Absent one, Resend renders the variable as nothing: an empty
+ * headline, or an empty `src` on the screenshot, which is a broken image in
+ * every client.
+ *
+ * A fallback also only reaches the live template through a publish. A PATCH
+ * alone updates the draft, and GET keeps returning the published values.
+ */
 const VARIABLES = [
-  { key: 'USER_NAME', type: 'string', fallbackValue: 'there' },
-  { key: 'LANGUAGE', type: 'string', fallbackValue: 'your language' },
-  { key: 'APP_URL', type: 'string', fallbackValue: 'https://app.lector.dev' },
-  { key: 'STOP_URL', type: 'string', fallbackValue: 'mailto:support@lector.dev' },
+  { key: 'USER_NAME', type: 'string', fallback_value: 'there' },
+  { key: 'LANGUAGE', type: 'string', fallback_value: 'your language' },
+  { key: 'APP_URL', type: 'string', fallback_value: 'https://app.lector.dev' },
+  { key: 'STOP_URL', type: 'string', fallback_value: 'mailto:support@lector.dev' },
   // A whole sentence about the library, because a template cannot branch and
   // the answer differs per language. Only de and es ship a starter series
   // today, and #315 seeds it on first language selection, so their library is
@@ -60,12 +77,12 @@ const VARIABLES = [
   {
     key: 'STARTER_LINE',
     type: 'string',
-    fallbackValue:
+    fallback_value:
       'Your library is empty until you add something, so start with a text you actually want to read.',
   },
   // The count the Anki mail is triggered by. Saying the number is evidence
   // that Lector is paying attention, which a vague "a modest word list" is not.
-  { key: 'WORD_COUNT', type: 'string', fallbackValue: 'a few' },
+  { key: 'WORD_COUNT', type: 'string', fallback_value: 'a few' },
   // Per-language reader screenshot, so one template covers every language
   // announcement. lector-site serves these from public/images/languages/ and
   // the language guide pages use the same file. The fallback is the generic
@@ -74,7 +91,7 @@ const VARIABLES = [
   {
     key: 'SCREENSHOT_URL',
     type: 'string',
-    fallbackValue: 'https://lector.dev/images/reader.png',
+    fallback_value: 'https://lector.dev/images/reader.png',
   },
 ];
 
@@ -426,6 +443,44 @@ function findExisting(existing, t) {
   return nameHit ?? null;
 }
 
+/**
+ * Reads back what was just published and complains if it does not match.
+ *
+ * This exists because Resend answers 200 to a payload it partly ignores. The
+ * `fallbackValue` spelling was accepted and dropped for weeks with nothing in
+ * the output to say so. Two checks catch that class of bug:
+ *
+ *   - every variable the body uses has to carry a fallback
+ *   - every variable the body uses has to be declared
+ */
+async function verifyPublished(apiKey, id, template) {
+  const live = await resend(apiKey, 'GET', `/templates/${id}`);
+  const body = `${live.subject ?? ''}${live.html ?? ''}${live.text ?? ''}`;
+  const used = new Set([...body.matchAll(/\{\{\{([A-Za-z0-9_]+)\}\}\}/g)].map((m) => m[1]));
+  const declared = new Map(
+    (live.variables ?? []).map((v) => [v.key, v.fallback_value]),
+  );
+
+  const problems = [];
+  for (const key of used) {
+    if (!declared.has(key)) {
+      problems.push(`${key} is used but not declared`);
+    } else if (declared.get(key) === null || declared.get(key) === undefined) {
+      problems.push(`${key} has no fallback value`);
+    }
+  }
+  if (live.subject !== template.subject) {
+    problems.push(`subject is ${JSON.stringify(live.subject)}`);
+  }
+
+  if (problems.length === 0) {
+    console.log(`  verified ${template.alias}: ${used.size} variable(s), all with fallbacks`);
+    return;
+  }
+  for (const problem of problems) console.warn(`  ! ${template.alias}: ${problem}`);
+  process.exitCode = 1;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
@@ -496,6 +551,7 @@ async function main() {
     }
     await resend(apiKey, 'POST', `/templates/${id}/publish`);
     console.log(`Published ${t.alias}`);
+    await verifyPublished(apiKey, id, t);
   }
 
   if (!deleteExtras) return;
