@@ -1,0 +1,56 @@
+name: Run selfhost Playwright against lector:e2e
+description: Seed dictionaries, start the image, and run the selfhost suite
+inputs:
+  shard:
+    description: Playwright shard as N/M. Empty runs every selfhost spec.
+    required: false
+    default: ''
+  report_name:
+    description: Artifact name for the Playwright HTML report
+    required: false
+    default: playwright-report-docker
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/fetch-dicts
+    - name: Start container
+      shell: bash
+      run: |
+        docker run -d --name lector-e2e -p 3456:3000 -p 3457:3457 \
+          -e DICT_FETCH=0 \
+          -v "$PWD/data:/app/dict:ro" \
+          --add-host=host.docker.internal:host-gateway lector:e2e
+    - run: npm ci
+      shell: bash
+    - uses: ./.github/actions/setup-playwright
+    - name: Wait for app
+      shell: bash
+      run: |
+        for i in $(seq 1 30); do
+          if curl -fsS http://localhost:3456 > /dev/null; then exit 0; fi
+          sleep 2
+        done
+        echo "App did not become ready in 60s" >&2
+        docker logs lector-e2e
+        exit 1
+    - name: Run e2e suite against the image
+      shell: bash
+      env:
+        E2E_EXTERNAL_SERVER: '1'
+        SHARD: ${{ inputs.shard }}
+      run: |
+        if [ -n "$SHARD" ]; then
+          npm run test:e2e -- --shard="$SHARD"
+        else
+          npm run test:e2e
+        fi
+    - name: Dump container logs
+      if: failure()
+      shell: bash
+      run: docker logs lector-e2e
+    - uses: actions/upload-artifact@v7
+      if: ${{ !cancelled() }}
+      with:
+        name: ${{ inputs.report_name }}
+        path: playwright-report/
+        retention-days: 7

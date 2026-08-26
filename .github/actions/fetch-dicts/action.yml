@@ -1,12 +1,22 @@
 name: Fetch on-device dictionaries
 description: Restore or download the dictionaries pinned in dict.env
+inputs:
+  langs:
+    description: Space-separated language codes. Empty fetches every DICT_LANGS pin.
+    required: false
+    default: ''
 runs:
   using: composite
   steps:
     - uses: actions/cache@v4
       with:
         path: data/dictionary-*.db
-        key: dicts-${{ hashFiles('dict.env') }}
+        key: dicts-${{ hashFiles('dict.env') }}-${{ inputs.langs || 'all' }}
+        restore-keys: |
+          dicts-${{ hashFiles('dict.env') }}-all
+          dicts-${{ hashFiles('dict.env') }}-
     - name: Fetch on-device dictionaries
       shell: bash
+      env:
+        DICT_FETCH_LANGS: ${{ inputs.langs }}
       run: bash scripts/ci/fetch-dicts.sh

@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { apiUrl } from './api';
+import { isCloudSuite } from './suite';
 
 /**
  * Anki in cloud mode (#241): the browser-direct AnkiConnect path is
@@ -272,6 +273,7 @@ test.describe.serial('Anki in cloud mode (#241)', () => {
 });
 
 test.describe('Anki transport in selfhost mode (#241)', () => {
+  test.skip(isCloudSuite, 'selfhost Anki runs in the Docker pass');
   test('defaults to the browser-direct AnkiConnect panel', async ({ page }) => {
     await page.goto('/settings');
     await expect(page.getByText('AnkiConnect URL')).toBeVisible();

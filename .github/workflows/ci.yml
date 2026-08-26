@@ -13,174 +13,318 @@ concurrency:
 # docker.yml can retag it. Fork PRs cannot; they load the image locally.
 env:
   CAN_PUSH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+  E2E_DOCKER_SHARDS: '4'
 
 jobs:
-  deployment-script-tests:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      addon: ${{ steps.gate.outputs.addon }}
+      deploy: ${{ steps.gate.outputs.deploy }}
+      app: ${{ steps.gate.outputs.app }}
+      api: ${{ steps.gate.outputs.api }}
+      e2e: ${{ steps.gate.outputs.e2e }}
     steps:
       - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            addon:
+              - 'anki-addon/**'
+            deploy:
+              - 'deploy/**'
+              - 'scripts/ci/**'
+            api:
+              - 'api/**'
+            app:
+              - 'src/**'
+              - 'languages/**'
+              - 'e2e/**'
+              - 'public/**'
+              - 'playwright.config.ts'
+              - 'next.config.ts'
+              - 'next-env.d.ts'
+              - 'tsconfig.json'
+              - 'eslint.config.*'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+              - 'docker-entrypoint.sh'
+              - 'dict.env'
+              - '.github/**'
+              - 'scripts/**'
+              - '!scripts/ci/**'
+      - id: gate
+        env:
+          DISPATCH: ${{ github.event_name != 'pull_request' }}
+          ADDON: ${{ steps.filter.outputs.addon }}
+          DEPLOY: ${{ steps.filter.outputs.deploy }}
+          API: ${{ steps.filter.outputs.api }}
+          APP: ${{ steps.filter.outputs.app }}
+        run: |
+          set -euo pipefail
+          if [ "$DISPATCH" = "true" ]; then
+            echo "addon=true" >>"$GITHUB_OUTPUT"
+            echo "deploy=true" >>"$GITHUB_OUTPUT"
+            echo "app=true" >>"$GITHUB_OUTPUT"
+            echo "api=true" >>"$GITHUB_OUTPUT"
+            echo "e2e=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          addon=${ADDON:-false}
+          deploy=${DEPLOY:-false}
+          api=${API:-false}
+          app=${APP:-false}
+          if [ "$app" = "true" ]; then
+            echo "addon=true" >>"$GITHUB_OUTPUT"
+            echo "deploy=true" >>"$GITHUB_OUTPUT"
+            echo "app=true" >>"$GITHUB_OUTPUT"
+            echo "api=true" >>"$GITHUB_OUTPUT"
+            echo "e2e=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          e2e=false
+          if [ "$api" = "true" ]; then
+            e2e=true
+          fi
+          echo "addon=$addon" >>"$GITHUB_OUTPUT"
+          echo "deploy=$deploy" >>"$GITHUB_OUTPUT"
+          echo "app=$app" >>"$GITHUB_OUTPUT"
+          echo "api=$api" >>"$GITHUB_OUTPUT"
+          echo "e2e=$e2e" >>"$GITHUB_OUTPUT"
+
+  deployment-script-tests:
+    runs-on: ubuntu-latest
+    needs: [changes]
+    steps:
+      - name: Skip
+        if: needs.changes.outputs.deploy != 'true'
+        run: echo "No deploy or CI-script change"
+      - if: needs.changes.outputs.deploy == 'true'
+        uses: actions/checkout@v6
       - name: Validate gated deployment and rollback
+        if: needs.changes.outputs.deploy == 'true'
         run: bash deploy/cloud/deploy-cloud.test.sh
       - name: Validate image retag helper
+        if: needs.changes.outputs.deploy == 'true'
         run: |
           bash -n scripts/ci/fetch-dicts.sh
           bash -n scripts/ci/retag-tree-image.sh
           bash scripts/ci/retag-tree-image.test.sh
+          bash scripts/ci/fetch-dicts.test.sh
 
   # Anki addon (#241): aqt-free contract tests over anki-addon/lector — chunk
   # ceilings vs the API's batch caps, review-payload shape, ownership scoping.
   addon-tests:
     runs-on: ubuntu-latest
+    needs: [changes]
     steps:
-      - uses: actions/checkout@v6
+      - name: Skip
+        if: needs.changes.outputs.addon != 'true'
+        run: echo "No Anki addon change"
+      - if: needs.changes.outputs.addon == 'true'
+        uses: actions/checkout@v6
       - name: Anki addon contract tests
+        if: needs.changes.outputs.addon == 'true'
         run: python3 -m unittest discover -s anki-addon/tests -v
 
   lint:
     runs-on: ubuntu-latest
+    needs: [changes]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Skip
+        if: needs.changes.outputs.app != 'true'
+        run: echo "No app change"
+      - if: needs.changes.outputs.app == 'true'
+        uses: actions/checkout@v6
+      - if: needs.changes.outputs.app == 'true'
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run lint
+      - if: needs.changes.outputs.app == 'true'
+        run: npm ci
+      - if: needs.changes.outputs.app == 'true'
+        run: npm run lint
 
   typecheck:
     runs-on: ubuntu-latest
+    needs: [changes]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Skip
+        if: needs.changes.outputs.app != 'true'
+        run: echo "No app change"
+      - if: needs.changes.outputs.app == 'true'
+        uses: actions/checkout@v6
+      - if: needs.changes.outputs.app == 'true'
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npx tsc --noEmit
+      - if: needs.changes.outputs.app == 'true'
+        run: npm ci
+      - if: needs.changes.outputs.app == 'true'
+        run: npx tsc --noEmit
 
   unit-tests:
     runs-on: ubuntu-latest
+    needs: [changes]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Skip
+        if: needs.changes.outputs.app != 'true'
+        run: echo "No app change"
+      - if: needs.changes.outputs.app == 'true'
+        uses: actions/checkout@v6
+      - if: needs.changes.outputs.app == 'true'
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      # dictionary-db.test.ts is an integration test over the real (gitignored)
-      # dictionaries — without this the whole vitest run fails in beforeAll.
-      - uses: ./.github/actions/fetch-dicts
-      - run: npm test
-      - name: Verify starter content
-        # Packs that ship a starter series (#317) must stay verifier-clean:
-        # band discipline, every token dictionary-resolvable, and ≥90% of the
-        # top-1,000 introduced. Skips languages without a starter manifest.
+      - if: needs.changes.outputs.app == 'true'
+        run: npm ci
+      - if: needs.changes.outputs.app == 'true'
+        run: npm test
+      - name: Starter-content languages
+        if: needs.changes.outputs.app == 'true'
+        id: starter
         run: |
-          set -a; . ./dict.env; set +a
-          for L in $DICT_LANGS; do
-            if [ -f "languages/$L/content/starter/manifest.json" ]; then
-              npx tsx scripts/verify-starter-content.ts --lang "$L" --require-coverage 90
-            fi
+          langs=""
+          for f in languages/*/content/starter/manifest.json; do
+            [ -f "$f" ] || continue
+            lang=${f#languages/}
+            lang=${lang%/content/starter/manifest.json}
+            langs="$langs$lang "
+          done
+          echo "langs=${langs% }" >>"$GITHUB_OUTPUT"
+      - if: needs.changes.outputs.app == 'true' && steps.starter.outputs.langs != ''
+        uses: ./.github/actions/fetch-dicts
+        with:
+          langs: ${{ steps.starter.outputs.langs }}
+      - name: Verify starter content
+        if: needs.changes.outputs.app == 'true' && steps.starter.outputs.langs != ''
+        run: |
+          for L in ${{ steps.starter.outputs.langs }}; do
+            npx tsx scripts/verify-starter-content.ts --lang "$L" --require-coverage 90
           done
 
   api-tests:
     runs-on: ubuntu-latest
+    needs: [changes]
     steps:
-      - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
+      - name: Skip
+        if: needs.changes.outputs.api != 'true'
+        run: echo "No API change"
+      - if: needs.changes.outputs.api == 'true'
+        uses: actions/checkout@v6
+      - if: needs.changes.outputs.api == 'true'
+        uses: oven-sh/setup-bun@v2
       # eSpeak NG backs the espeak TTS engine branch (#307 §3.2c); the tts
       # route tests synthesize through the real binary (they skip when it is
       # absent, so installing here keeps them exercised in CI).
       - name: Install eSpeak NG
+        if: needs.changes.outputs.api == 'true'
         run: sudo apt-get update && sudo apt-get install -y espeak-ng
-      - run: bun install --frozen-lockfile
+      - if: needs.changes.outputs.api == 'true'
+        run: bun install --frozen-lockfile
         working-directory: api
       - name: Typecheck API
+        if: needs.changes.outputs.api == 'true'
         run: bun run typecheck
         working-directory: api
       # bun run test, not bare bun test — the script isolates DATA_DIR
-      - run: bun run test
+      - if: needs.changes.outputs.api == 'true'
+        run: bun run test
         working-directory: api
 
   build:
     runs-on: ubuntu-latest
+    needs: [changes]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Skip
+        if: needs.changes.outputs.app != 'true'
+        run: echo "No app change"
+      - if: needs.changes.outputs.app == 'true'
+        uses: actions/checkout@v6
+      - if: needs.changes.outputs.app == 'true'
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run build
+      - if: needs.changes.outputs.app == 'true'
+        run: npm ci
+      - if: needs.changes.outputs.app == 'true'
+        run: npm run build
 
+  # Cloud specs and fixture specs. These need the extra Hono servers. The
+  # Docker pass skips them. Selfhost coverage lives in e2e-docker.
   e2e-tests:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [changes]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Skip
+        if: needs.changes.outputs.e2e != 'true'
+        run: echo "No app or API change"
+      - if: needs.changes.outputs.e2e == 'true'
+        uses: actions/checkout@v6
+      - if: needs.changes.outputs.e2e == 'true'
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-      - uses: oven-sh/setup-bun@v2
-      # eSpeak NG backs the espeak TTS engine (#307 §3.2c) — the Esperanto e2e
-      # spec asserts real WAV synthesis through the dev API server.
-      - name: Install eSpeak NG
-        run: sudo apt-get update && sudo apt-get install -y espeak-ng
-      - run: npm ci
-      - run: cd api && bun install --frozen-lockfile
-      # The dictionaries are gitignored — they ship in the Docker image. For CI
-      # the dev server needs a copy at data/dictionary-<lang>.db so e2e tests
-      # that assert the "on-device" lookup path actually find a hit.
-      - uses: ./.github/actions/fetch-dicts
-      - uses: ./.github/actions/setup-playwright
-      - run: npm run test:e2e
+      - if: needs.changes.outputs.e2e == 'true'
+        uses: oven-sh/setup-bun@v2
+      - if: needs.changes.outputs.e2e == 'true'
+        run: npm ci
+      - if: needs.changes.outputs.e2e == 'true'
+        run: bun install --frozen-lockfile
+        working-directory: api
+      - if: needs.changes.outputs.e2e == 'true'
+        uses: ./.github/actions/fetch-dicts
+        with:
+          langs: af es
+      - if: needs.changes.outputs.e2e == 'true'
+        uses: ./.github/actions/setup-playwright
+      - if: needs.changes.outputs.e2e == 'true'
+        run: npm run test:e2e
+        env:
+          E2E_SUITE: cloud
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+        if: ${{ needs.changes.outputs.e2e == 'true' && !cancelled() }}
         with:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
 
-  # The dev-mode e2e job above exercises `next dev` + Bun from source. This one
-  # runs the same suite against the production artifact — the standalone Next
-  # build + docker-entrypoint.sh (both servers in one container) — so standalone
-  # packaging and the browser→Hono direct calls are covered before a release
-  # image is ever cut (#110, #188).
-  #
-  # The image is pushed as ghcr.io/heuwels/lector:tree-<tree>-amd64. docker.yml
-  # retags that image on merge; it does not build amd64 again. Fork PRs cannot
-  # push, so they load the image into the runner instead.
-  e2e-docker:
+  # Build and push tree-<tree>-amd64 once. Boot checks stay here. Shards pull
+  # the image. docker.yml retags it on merge. Fork PRs cannot push, so they
+  # use e2e-docker-fork instead.
+  e2e-docker-image:
+    if: needs.changes.outputs.e2e == 'true' && env.CAN_PUSH == 'true'
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [changes]
     permissions:
       contents: read
       packages: write
       actions: write
+    outputs:
+      image: ${{ steps.build.outputs.image }}
     steps:
       - uses: actions/checkout@v6
         with:
-          # Full history + tags so `git describe` can stamp APP_VERSION.
           fetch-depth: 0
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
       - name: Build production image
+        id: build
         uses: ./.github/actions/build-image
         with:
           platform: linux/amd64
-          push: ${{ env.CAN_PUSH }}
-          load: ${{ env.CAN_PUSH != 'true' }}
+          push: true
           local_tag: lector:e2e
           pr_number: ${{ github.event.pull_request.number }}
           git_commit: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Cloud mode without a secret refuses to boot (fail-closed guard, #242/#218)
-        # LECTOR_MODE=cloud runs built-in accounts (#218) and must exit
-        # non-zero without BETTER_AUTH_SECRET — never sign sessions with the
-        # library's default secret. Also pins the message so the guard can't
-        # silently rot.
         run: |
           set +e
           OUT=$(docker run --rm -e LECTOR_MODE=cloud lector:e2e 2>&1)
@@ -194,10 +338,6 @@ jobs:
           echo "$OUT" | grep -q "LECTOR_MODE=cloud requires BETTER_AUTH_SECRET"
 
       - name: Cloud proper boots with a secret and requires auth (#218)
-        # The other half of the guard: cloud + BETTER_AUTH_SECRET must boot,
-        # report its mode via /health, mount the Better Auth endpoints, and
-        # 401 unauthenticated API requests (the session middleware, not the
-        # selfhost passthrough).
         run: |
           docker run -d --name lector-cloud -p 3459:3457 \
             -e LECTOR_MODE=cloud -e BETTER_AUTH_SECRET=ci-boot-check-secret lector:e2e
@@ -215,9 +355,6 @@ jobs:
           [ "$VOCAB_CODE" = "401" ] && [ "$AUTH_CODE" = "401" ]
 
       - name: Cloud canary shape boots (external gate, #242)
-        # cloud + LECTOR_CLOUD_GATE=external is the deploy/cloud/ canary shape
-        # (an authenticating gateway fronts the app). It must boot and report
-        # its mode via /health so the deployed canary can be smoke-checked.
         run: |
           docker run -d --name lector-canary -p 3458:3457 \
             -e LECTOR_MODE=cloud -e LECTOR_CLOUD_GATE=external lector:e2e
@@ -229,54 +366,147 @@ jobs:
           docker rm -f lector-canary
           echo "$BODY" | grep -q '"mode":"cloud"'
 
-      # The published image ships no dictionaries (#438). The specs that assert
-      # the on-device lookup path need them, so seed DICT_DIR from the cached
-      # download instead. That also keeps this job off GitHub's release
-      # endpoint: DICT_FETCH=0 below turns the runtime fetch off, so a release
-      # outage can never flake the e2e suite.
-      - uses: ./.github/actions/fetch-dicts
-      - name: Start container
-        # /app/data has no volume mount: it starts empty, matching the fresh DB
-        # the dev-mode webServer guarantees. /app/dict is mounted read-only from
-        # the seeded dictionaries above. Container :3000 maps to host :3456 (the
-        # UI origin the specs hardcode); :3457 maps to host :3457 (the Hono API —
-        # the browser client and the specs' page.request calls hit it directly
-        # now that the Next /api proxy is gone, #188). host-gateway lets the
-        # in-container Bun API reach test stubs on the runner (lmstudio-chat.spec.ts).
+  e2e-docker-shard:
+    if: needs.changes.outputs.e2e == 'true' && env.CAN_PUSH == 'true'
+    runs-on: ubuntu-latest
+    needs: [changes, e2e-docker-image]
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    name: e2e-docker (${{ matrix.shard }}/4)
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull the tested image
         run: |
-          docker run -d --name lector-e2e -p 3456:3000 -p 3457:3457 \
-            -e DICT_FETCH=0 \
-            -v "$PWD/data:/app/dict:ro" \
-            --add-host=host.docker.internal:host-gateway lector:e2e
-      - run: npm ci
-      - uses: ./.github/actions/setup-playwright
-      - name: Wait for app
+          set -euo pipefail
+          docker pull "${{ needs.e2e-docker-image.outputs.image }}"
+          docker tag "${{ needs.e2e-docker-image.outputs.image }}" lector:e2e
+      - uses: ./.github/actions/e2e-docker-run
+        with:
+          shard: ${{ matrix.shard }}/${{ env.E2E_DOCKER_SHARDS }}
+          report_name: playwright-report-docker-${{ matrix.shard }}
+
+  # Fork PRs cannot push to ghcr. Build, load, and test on one runner.
+  e2e-docker-fork:
+    if: needs.changes.outputs.e2e == 'true' && env.CAN_PUSH != 'true'
+    runs-on: ubuntu-latest
+    needs: [changes]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build production image
+        uses: ./.github/actions/build-image
+        with:
+          platform: linux/amd64
+          push: false
+          load: true
+          local_tag: lector:e2e
+          pr_number: ${{ github.event.pull_request.number }}
+          git_commit: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Cloud mode without a secret refuses to boot (fail-closed guard, #242/#218)
         run: |
+          set +e
+          OUT=$(docker run --rm -e LECTOR_MODE=cloud lector:e2e 2>&1)
+          CODE=$?
+          set -e
+          echo "$OUT"
+          if [ "$CODE" -eq 0 ]; then
+            echo "Expected non-zero exit for LECTOR_MODE=cloud without BETTER_AUTH_SECRET, got success" >&2
+            exit 1
+          fi
+          echo "$OUT" | grep -q "LECTOR_MODE=cloud requires BETTER_AUTH_SECRET"
+      - name: Cloud proper boots with a secret and requires auth (#218)
+        run: |
+          docker run -d --name lector-cloud -p 3459:3457 \
+            -e LECTOR_MODE=cloud -e BETTER_AUTH_SECRET=ci-boot-check-secret lector:e2e
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:3456 > /dev/null; then exit 0; fi
+            BODY=$(curl -fsS http://localhost:3459/health 2>/dev/null) && break
             sleep 2
           done
-          echo "App did not become ready in 60s" >&2
-          docker logs lector-e2e
-          exit 1
-      - name: Run e2e suite against the image
-        run: E2E_EXTERNAL_SERVER=1 npm run test:e2e
-      - name: Dump container logs
-        if: failure()
-        run: docker logs lector-e2e
-      - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+          echo "health: $BODY"
+          VOCAB_CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3459/api/vocab?language=af")
+          AUTH_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:3459/api/auth/sign-in/email" \
+            -H 'Content-Type: application/json' -d '{"email":"nobody@example.com","password":"wrong"}')
+          echo "unauthenticated /api/vocab: $VOCAB_CODE (want 401), /api/auth sign-in: $AUTH_CODE (want 401 from the engine, not 404)"
+          docker rm -f lector-cloud
+          echo "$BODY" | grep -q '"mode":"cloud"'
+          [ "$VOCAB_CODE" = "401" ] && [ "$AUTH_CODE" = "401" ]
+      - name: Cloud canary shape boots (external gate, #242)
+        run: |
+          docker run -d --name lector-canary -p 3458:3457 \
+            -e LECTOR_MODE=cloud -e LECTOR_CLOUD_GATE=external lector:e2e
+          for i in $(seq 1 30); do
+            BODY=$(curl -fsS http://localhost:3458/health 2>/dev/null) && break
+            sleep 2
+          done
+          echo "health: $BODY"
+          docker rm -f lector-canary
+          echo "$BODY" | grep -q '"mode":"cloud"'
+      - uses: ./.github/actions/e2e-docker-run
         with:
-          name: playwright-report-docker
-          path: playwright-report/
-          retention-days: 7
+          report_name: playwright-report-docker
+
+  # Required check. Succeeds when shards pass, or when path filters skip e2e.
+  e2e-docker:
+    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    needs: [changes, e2e-docker-image, e2e-docker-shard, e2e-docker-fork]
+    steps:
+      - name: Check docker e2e
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          E2E: ${{ needs.changes.outputs.e2e }}
+          IMAGE: ${{ needs.e2e-docker-image.result }}
+          SHARD: ${{ needs.e2e-docker-shard.result }}
+          FORK: ${{ needs.e2e-docker-fork.result }}
+        run: |
+          set -euo pipefail
+          if [ "$CHANGES" != "success" ]; then
+            echo "changes job failed" >&2
+            exit 1
+          fi
+          if [ "$E2E" != "true" ]; then
+            echo "No app or API change"
+            exit 0
+          fi
+          if [ "$CAN_PUSH" = "true" ]; then
+            if [ "$IMAGE" != "success" ] || [ "$SHARD" != "success" ]; then
+              echo "image=$IMAGE shard=$SHARD" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+          if [ "$FORK" != "success" ]; then
+            echo "fork=$FORK" >&2
+            exit 1
+          fi
 
   # Production hosts are arm64. Build that image on the PR so docker.yml can
   # retag it instead of compiling Next again on merge.
   docker-arm64:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ needs.changes.outputs.app == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-24.04-arm
-    needs: [build]
+    needs: [changes, build]
     permissions:
       contents: read
       packages: write

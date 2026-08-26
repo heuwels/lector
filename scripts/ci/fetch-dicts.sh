@@ -1,10 +1,11 @@
 #!/bin/bash
-# Restore or download every on-device dictionary pinned in dict.env.
+# Restore or download on-device dictionaries pinned in dict.env.
+# DICT_FETCH_LANGS limits the run to a subset. Empty means every DICT_LANGS pin.
 # Files that already match the pinned SHA-256 are left in place so a
 # GitHub Actions cache hit skips the network.
 set -euo pipefail
 
-root=$(git rev-parse --show-toplevel)
+root=${DICT_FETCH_ROOT:-$(git rev-parse --show-toplevel)}
 cd "$root"
 
 set -a
@@ -12,8 +13,21 @@ set -a
 . ./dict.env
 set +a
 
+if [ -n "${DICT_FETCH_LANGS:-}" ]; then
+  langs=$DICT_FETCH_LANGS
+else
+  langs=$DICT_LANGS
+fi
+
 mkdir -p data
-for lang in $DICT_LANGS; do
+for lang in $langs; do
+  case " $DICT_LANGS " in
+    *" $lang "*) ;;
+    *)
+      echo "Unknown dictionary language: $lang" >&2
+      exit 1
+      ;;
+  esac
   upper=$(echo "$lang" | tr '[:lower:]' '[:upper:]')
   ver_var="DICT_VERSION_$upper"
   sha_var="DICT_SHA256_$upper"

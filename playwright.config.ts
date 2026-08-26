@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 import { API_BASE } from './e2e/api';
+import { CLOUD_ONLY_SPECS, e2eSuite } from './e2e/suite';
+
+const suite = e2eSuite();
+const cloudFiles = [...CLOUD_ONLY_SPECS, 'anki-addon.spec.ts'];
 
 // E2E_EXTERNAL_SERVER=1 — the app is already running at localhost:3456 (e.g.
 // the production Docker image with `-p 3456:3000 -p 3457:3457`) and Playwright
@@ -37,6 +41,8 @@ const freeApiOrigin = `http://localhost:${freeApiPort}`;
 
 export default defineConfig({
   testDir: './e2e',
+  ...(suite === 'cloud' ? { testMatch: cloudFiles } : {}),
+  ...(suite === 'selfhost' ? { testIgnore: [...CLOUD_ONLY_SPECS] } : {}),
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,

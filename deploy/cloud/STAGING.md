@@ -1,9 +1,13 @@
 # Staging and production promotion
 
 Lector uses trunk-based deployment. A `pull request` must pass every required
-CI check. The e2e-docker job builds the amd64 image and tests it. The
-docker-arm64 job builds the arm64 image. Each image has a tag that names
-its git tree.
+CI check. The e2e-docker-image job builds the amd64 image. It pushes
+`tree-<tree>-amd64`. Four shard jobs pull that image.
+
+Each shard runs one part of the selfhost Playwright suite. The e2e-docker
+job waits for those shards. The e2e-tests job runs the cloud specs and the
+fixture specs. The docker-arm64 job builds the arm64 image. Each image has
+a tag that names its git tree.
 
 When you merge the `pull request` to master, the publish workflow does not
 build those images again. The workflow applies the tag `sha-<commit>` to
@@ -14,7 +18,8 @@ image.
 ```text
 pull request
   → required CI
-  → e2e-docker pushes tree-<tree>-amd64
+  → e2e-docker-image pushes tree-<tree>-amd64
+  → e2e-docker (1/4) through (4/4) test that image
   → docker-arm64 pushes tree-<tree>-arm64
 merge to master
   → retag those images as sha-<commit>

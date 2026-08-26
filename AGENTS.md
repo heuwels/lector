@@ -1,6 +1,6 @@
 # Agent Instructions
 
-**Testing policy: CI runs the full e2e suite on every PR — rely on it for PR verification, and locally run the specs your change touches (plus `npm test` for unit tests).**
+**Testing policy: CI runs Playwright on every app or API change. Rely on it for PR verification. Locally run the specs your change touches. Also run `npm test` for unit tests.**
 
 ## Testing Requirements
 
@@ -17,7 +17,7 @@ Tests live in:
 - `api/src/**/*.test.ts` - bun:test unit tests — run with `cd api && bun test` (vitest excludes `api/**`; don't mix the two runners)
 - `e2e/` - Playwright end-to-end tests — run with `npm run test:e2e` (boots both servers against an isolated `tmp/e2e-data`, never the real `data/`)
 
-CI runs all of these, plus the e2e suite a second time against the production Docker image (`E2E_EXTERNAL_SERVER=1` with the container mapped to :3456 for the UI and :3457 for the Hono API the browser calls directly) to cover the standalone build and `docker-entrypoint.sh`. That e2e image is the amd64 image that a merge to master publishes. The workflow applies a new tag to it. It does not build it again.
+CI splits Playwright. `e2e-tests` runs the cloud specs and the fixture specs against `next dev` and the extra Hono servers. `e2e-docker` runs the selfhost specs against the production image (`E2E_EXTERNAL_SERVER=1`, UI on :3456, Hono API on :3457). That image is the amd64 image that a merge to master publishes. The workflow applies a new tag to it. It does not build it again. A docs-only change does not start Playwright.
 
 A release tag is the one exception. `release.yml` builds the image again at the tag, because `git describe` must resolve to the tag for the About panel to report it. The release e2e job then runs against that rebuilt image, so the artifact that ships is the artifact that CI tested.
 
