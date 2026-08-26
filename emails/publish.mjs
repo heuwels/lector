@@ -7,7 +7,8 @@
  *
  *   node emails/publish.mjs
  *   node emails/publish.mjs welcome-on-account-create
- *   node emails/publish.mjs --dry-run
+ *   node emails/publish.mjs --print          read the copy, no network, no key
+ *   node emails/publish.mjs --dry-run        compare against the live templates
  *   node emails/publish.mjs --delete-extras
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -40,6 +41,9 @@ const DOCS = {
   anki: 'https://lector.dev/docs/anki/',
   ankiAddon: 'https://lector.dev/docs/features/#anki-addon',
   pricing: 'https://lector.dev/pricing/',
+  // The language interest form. LanguageNotify.astro renders under id
+  // "languages" on the roadmap page, so the fragment lands on the form.
+  requestLanguage: 'https://lector.dev/roadmap/#languages',
 };
 
 const VARIABLES = [
@@ -47,6 +51,31 @@ const VARIABLES = [
   { key: 'LANGUAGE', type: 'string', fallbackValue: 'your language' },
   { key: 'APP_URL', type: 'string', fallbackValue: 'https://app.lector.dev' },
   { key: 'STOP_URL', type: 'string', fallbackValue: 'mailto:support@lector.dev' },
+  // A whole sentence about the library, because a template cannot branch and
+  // the answer differs per language. Only de and es ship a starter series
+  // today, and #315 seeds it on first language selection, so their library is
+  // NOT empty. Telling those learners it is empty sends them off to find an
+  // EPUB when twenty-two graded lessons are already waiting.
+  // lifecycle-email.ts builds the sentence from hasStarterContent().
+  {
+    key: 'STARTER_LINE',
+    type: 'string',
+    fallbackValue:
+      'Your library is empty until you add something, so start with a text you actually want to read.',
+  },
+  // The count the Anki mail is triggered by. Saying the number is evidence
+  // that Lector is paying attention, which a vague "a modest word list" is not.
+  { key: 'WORD_COUNT', type: 'string', fallbackValue: 'a few' },
+  // Per-language reader screenshot, so one template covers every language
+  // announcement. lector-site serves these from public/images/languages/ and
+  // the language guide pages use the same file. The fallback is the generic
+  // reader shot, which means a missing variable degrades to a real image and
+  // never to a broken one.
+  {
+    key: 'SCREENSHOT_URL',
+    type: 'string',
+    fallbackValue: 'https://lector.dev/images/reader.png',
+  },
 ];
 
 function link(href, label) {
@@ -78,7 +107,31 @@ function loadEnvFile(path) {
   }
 }
 
-function layout({ preheader, title, paragraphs, ctaLabel, ctaHref, unsubscribe, video }) {
+/**
+ * A screenshot, above the call to action. `video` renders the same shape but
+ * links to YouTube; `image` links nowhere and carries a caption instead.
+ *
+ * Two rules for the asset. Host it under lector.dev, because an email client
+ * needs an absolute URL and the Pages site already serves `public/`. Ship it
+ * at 1120px wide, because the card is 560px and a retina client doubles that.
+ *
+ * Every client blocks images for some readers, so the caption and the alt text
+ * have to carry the meaning on their own.
+ */
+function imageBlock(image) {
+  if (!image) return '';
+  const caption = image.caption
+    ? `<p style="margin:8px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;line-height:1.5;color:${COLORS.muted};">${image.caption}</p>`
+    : '';
+  return `<tr>
+            <td style="padding:8px 40px 16px;">
+              <img src="${image.src}" width="480" alt="${image.alt}" style="display:block;width:100%;max-width:480px;height:auto;border-radius:8px;border:1px solid ${COLORS.border};">
+              ${caption}
+            </td>
+          </tr>`;
+}
+
+function layout({ preheader, title, paragraphs, ctaLabel, ctaHref, unsubscribe, video, image }) {
   const paras = paragraphs
     .map(
       (p) =>
@@ -135,6 +188,7 @@ function layout({ preheader, title, paragraphs, ctaLabel, ctaHref, unsubscribe, 
           </tr>`
               : ''
           }
+          ${imageBlock(image)}
           <tr>
             <td style="padding:8px 40px 32px;">
               <table role="presentation" cellpadding="0" cellspacing="0">
@@ -161,9 +215,11 @@ function layout({ preheader, title, paragraphs, ctaLabel, ctaHref, unsubscribe, 
 </html>`;
 }
 
-function textBody(paragraphs, ctaLabel, ctaHref, unsubscribe, video) {
+function textBody(paragraphs, ctaLabel, ctaHref, unsubscribe, video, image) {
   const lines = paragraphs.map(toPlain);
   if (video) lines.push('', `${video.label}: ${video.href}`);
+  // The caption, not the URL. A plain-text reader cannot open a screenshot.
+  if (image?.caption) lines.push('', toPlain(image.caption));
   lines.push('', `${ctaLabel}: ${ctaHref}`, '', 'Lector · https://lector.dev', 'Questions: support@lector.dev');
   if (unsubscribe) lines.push('Stop these emails: {{{STOP_URL}}}');
   return lines.join('\n');
@@ -176,13 +232,14 @@ const TEMPLATES = [
     subject: 'Welcome to Lector',
     unsubscribe: false,
     title: 'Welcome to Lector',
-    preheader: 'A short video if you want a hand getting started.',
+    preheader: 'How the first ten minutes go.',
     paragraphs: [
       'Hi {{{USER_NAME}}}.',
-      'Thank you for signing up for Lector.',
-      `Your library starts empty. When you are ready, add a lesson of your own: an EPUB, a page from the web, or text you paste. ${link(DOCS.reading, 'The reading guide')} covers that.`,
-      "If you'd like a walkthrough of the learning loop, the Getting started video is below.",
-      'Reply to this mail if you get stuck. I read it.',
+      'Thank you for signing up for Lector. Here is how the first ten minutes go.',
+      '{{{STARTER_LINE}}}',
+      'Read a few lines, then tap a word you do not know. Lector saves it, marks it everywhere else it appears, and Practice starts building questions from it.',
+      `You can add your own text at any point. ${link(DOCS.reading, 'The reading guide')} covers EPUB, a web page by URL, and text you paste.`,
+      'Please reply to this email if you are having any issues, or if you want a hand picking a first text. I read every reply.',
     ],
     video: START_VIDEO,
     ctaLabel: 'Open Lector',
@@ -191,15 +248,21 @@ const TEMPLATES = [
   {
     alias: 'day-1-registered-no-word-saved',
     name: 'Day 1 — registered, no word saved',
-    subject: 'Need a hand with your first lesson?',
+    // Fires on savedWordCount === 0, and on nothing else. The old copy said
+    // "you haven't created any lessons yet", which this send cannot know and
+    // which is false for anyone who imported a book and read it without saving
+    // a word. Say what the trigger actually measures.
+    subject: 'Save one word to switch on Practice',
     unsubscribe: true,
-    title: 'Your first lesson',
-    preheader: 'No rush. Here is how to add something to read.',
+    title: 'Your first saved word',
+    preheader: 'One tap is what starts the practice loop.',
     paragraphs: [
-      "You created an account yesterday but it seems that you haven't created any lessons yet.",
-      `We are working on adding starter content for each language, but for now your library may be looking a little empty. Add an EPUB, a URL, or paste text when you have a moment. ${link(DOCS.reading, 'The reading guide')} walks through each option.`,
-      'The video below shows the loop after that: open a lesson, click a word you do not know, and save it.',
-      'If something broke, or you want a hand picking a first text, please reply to this email.',
+      'Hi {{{USER_NAME}}}.',
+      'You have an account, but no saved words yet. That is the one step that switches the rest of Lector on.',
+      '{{{STARTER_LINE}}}',
+      'Open a lesson and tap a word you do not know. Lector saves it, marks it everywhere else it appears, and Practice builds cloze questions from the words you save.',
+      `If you prefer your own text, ${link(DOCS.reading, 'the reading guide')} covers EPUB, a web page by URL, and text you paste.`,
+      'Please reply to this email if you are having any issues, or if you want a hand picking a first text. I read every reply.',
     ],
     video: START_VIDEO,
     ctaLabel: 'Open the library',
@@ -208,47 +271,96 @@ const TEMPLATES = [
   {
     alias: 'day-3-registered-no-real-use',
     name: 'Day 3 — registered, no real use',
-    subject: 'Just checking in',
+    // Fires on !hasRealUse between three and seven days. hasRealUse counts
+    // onboarding.completed, so this reader may well have picked a language
+    // already. The old copy told them to do that first.
+    //
+    // No video here. A reader can receive welcome, day 1 and day 3, and the old
+    // set put the same thumbnail in all three.
+    subject: 'What do you want to read first?',
     unsubscribe: true,
-    title: 'How is it going?',
-    preheader: 'No rush. I am here if you want a hand.',
+    title: 'What do you want to read?',
+    preheader: 'Tell me and I will help you get it into Lector.',
     paragraphs: [
-      "It's been a few days since you signed up. If you have not had a chance to add a text yet, no rush.",
-      `The usual first step is to pick a language, then add something you actually want to read. ${link(DOCS.reading, 'The reading guide')} covers EPUB, web pages, and paste.`,
-      'The Getting started video below is a short walkthrough if that helps.',
-      'If you got stuck, or the app did something odd, reply to this mail and I will help.',
+      'Hi {{{USER_NAME}}}.',
+      'You signed up a few days ago and have not read anything in Lector yet. That is usually one of two things. Either the text you want is not in there, or something did not work.',
+      'Both are quick to fix. Tell me which one it is and I will sort it out.',
+      `If it is the text: ${link(DOCS.reading, 'the reading guide')} covers EPUB, a web page by URL, and text you paste. An article you genuinely want to read beats a textbook chapter every time.`,
+      '{{{STARTER_LINE}}}',
+      'Please reply to this email if you are having any issues. One line about what happened is enough, and I read every reply.',
     ],
-    video: START_VIDEO,
     ctaLabel: 'Open Lector',
     ctaHref: '{{{APP_URL}}}',
   },
   {
     alias: 'anki-after-10-saved-words',
     name: 'Anki — after ~10 saved words',
-    subject: 'Want these words in Anki?',
+    subject: 'Send your saved words to Anki',
     unsubscribe: true,
-    title: 'Anki, if you use it',
-    preheader: 'Optional. Your word list can sync with Anki.',
+    title: 'Your words can go to Anki',
+    preheader: 'Optional. Your word list can sync both ways.',
     paragraphs: [
-      "Congratulations on your study. You have built a modest word list now. If you already use Anki, you can send those words over. Anki's spaced-repetition system can help you retain the vocabulary you encounter while you read.",
-      `You can read the ${link(DOCS.anki, 'Getting started with Anki')} guide if Anki is new to you. ${link(DOCS.ankiAddon, 'The Lector add-on guide')} covers the two-way sync.`,
-      'If a sync looks wrong, reply with the error text and I will take a look.',
+      'Hi {{{USER_NAME}}}.',
+      'Your {{{LANGUAGE}}} word list holds {{{WORD_COUNT}}} words now. If you use Anki, Lector sends them across and keeps the two in step.',
+      `${link(DOCS.anki, 'The Anki guide')} covers the setup if Anki is new to you. ${link(DOCS.ankiAddon, 'The add-on guide')} covers the two-way sync, which also notices a card you delete in Anki and marks the word unsynced.`,
+      'Practice inside Lector works whether or not you use Anki, so treat this as optional.',
+      'Please reply to this email if a sync looks wrong. Send the error text and I will take a look.',
     ],
     ctaLabel: 'Read the Anki guide',
     ctaHref: DOCS.anki,
   },
   {
+    // Sent by ~/personal/lector-email/announce-language.mjs, once per person
+    // per language, to the lector-site interest list. NOT a lifecycle template:
+    // the app never sends this one, because that list lives in D1 and not in
+    // the app database.
+    alias: 'language-request-notification',
+    name: 'Language request notification',
+    // LANGUAGE fills the subject too. Send a test to yourself before a real
+    // send and confirm the subject interpolates, because a template that
+    // renders the variable in the body but not in the subject would ship a
+    // literal {{{LANGUAGE}}} to the inbox line.
+    subject: '{{{LANGUAGE}}} is now available on Lector',
+    unsubscribe: true,
+    title: '{{{LANGUAGE}}} is now available',
+    preheader: 'The language you asked for is ready to read.',
+    paragraphs: [
+      'Hi there.',
+      'You asked us to tell you when {{{LANGUAGE}}} was ready. That day is here.',
+      `Open Lector, add {{{LANGUAGE}}} in the language picker, then add something you want to read. ${link(DOCS.reading, 'The reading guide')} covers EPUB, a web page by URL, and text you paste.`,
+      'If you do not have an account yet, you can make one for free.',
+      `Do you want another language? ${link(DOCS.requestLanguage, 'Ask for it on the roadmap')}, and we will tell you when it lands.`,
+      `New to Lector? ${link(START_VIDEO.href, 'Getting started')} is a short walkthrough of the app.`,
+      'Please reply to this email if you are having any issues. I read every reply.',
+    ],
+    // A screenshot of this language, not the video thumbnail. A learner who
+    // waited for a language wants proof that the language reads correctly, and
+    // the same asset serves the language guide page on the site.
+    image: {
+      src: '{{{SCREENSHOT_URL}}}',
+      alt: '{{{LANGUAGE}}} text in the Lector reader, with a dictionary entry open beside it',
+      caption: 'Tap any word to open its dictionary entry beside the text.',
+    },
+    ctaLabel: 'Open Lector',
+    ctaHref: '{{{APP_URL}}}',
+  },
+  {
     alias: 'gloss-cap-free-tier-limit-hit',
     name: 'Gloss cap — free tier limit hit',
-    subject: "This month's free translations are used up",
+    // The cap is wordGlossesPerMonth on the free plan, and it gates the
+    // translate route only. So the dictionary, Practice and the word list are
+    // genuinely unaffected, which is the first thing to say.
+    subject: 'Free translations used up — the dictionary still works',
     unsubscribe: true,
     title: 'A note on translations',
-    preheader: 'The dictionary, Practice, and your word list still work.',
+    preheader: 'The dictionary, Practice, and your word list are unaffected.',
     paragraphs: [
-      "You have used this month's free AI translations on Cloud.",
-      'The offline dictionary, Practice, and your word list still work. Only the AI model-backed taps pause until the month resets.',
-      `This will reset next month, but if you want the AI glosses back now, ${link(DOCS.pricing, 'Cloud starts at $5 a month')}. You can also export your data any time from Settings if you would like to convert to self-hosted. You can also bring your own AI key via our OpenRouter or Anthropic providers if you prefer.`,
-      'Reply if you have questions about the limit, or if something looks off.',
+      'Hi {{{USER_NAME}}}.',
+      'You reached this month\'s limit on free AI translations.',
+      'Most of Lector carries on as normal. The on-device dictionary, Practice, and your word list are all unaffected. Only the AI translations pause, and they reset at the start of next month.',
+      `If you want them back now, ${link(DOCS.pricing, 'Cloud starts at $5 a month')}.`,
+      'There are two other routes, if a subscription is not what you want. You can add your own OpenRouter or Anthropic key in Settings and run the AI translations on your own account. You can also export everything from Settings and self-host Lector for nothing.',
+      'Please reply to this email if the limit looks wrong, or if you are having any issues.',
     ],
     ctaLabel: 'See Cloud plans',
     ctaHref: DOCS.pricing,
@@ -263,7 +375,7 @@ function toPayload(t) {
     reply_to: REPLY_TO,
     subject: t.subject,
     html: layout(t),
-    text: textBody(t.paragraphs, t.ctaLabel, t.ctaHref, t.unsubscribe, t.video),
+    text: textBody(t.paragraphs, t.ctaLabel, t.ctaHref, t.unsubscribe, t.video, t.image),
     variables: VARIABLES,
   };
 }
@@ -315,6 +427,34 @@ function findExisting(existing, t) {
 }
 
 async function main() {
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run');
+  const print = args.includes('--print');
+  const deleteExtras = args.includes('--delete-extras');
+  const onlyAlias = args.find((arg) => !arg.startsWith('--'));
+
+  // --print renders the copy and reaches no network, so it needs no API key.
+  // --dry-run lists the live templates first, which does, so it cannot be used
+  // to read the copy before a key exists. Reviewing wording is the common case.
+  if (print) {
+    const chosen = onlyAlias
+      ? TEMPLATES.filter((t) => t.alias === onlyAlias)
+      : TEMPLATES;
+    if (onlyAlias && chosen.length === 0) {
+      console.error(`Unknown alias: ${onlyAlias}`);
+      process.exit(1);
+    }
+    for (const t of chosen) {
+      const payload = toPayload(t);
+      console.log(`=== ${payload.alias} ===`);
+      console.log(`subject:   ${payload.subject}`);
+      console.log(`preheader: ${t.preheader}`);
+      console.log(`--- text ---\n${payload.text}`);
+      console.log(`--- html: ${payload.html.length} bytes ---\n`);
+    }
+    return;
+  }
+
   loadEnvFile(join(SCRIPT_DIR, '.env'));
   loadEnvFile(join(process.cwd(), '.env'));
   const apiKey = process.env.RESEND_API_KEY;
@@ -323,10 +463,6 @@ async function main() {
     process.exit(1);
   }
 
-  const args = process.argv.slice(2);
-  const dryRun = args.includes('--dry-run');
-  const deleteExtras = args.includes('--delete-extras');
-  const onlyAlias = args.find((arg) => !arg.startsWith('--'));
   const toPublish = onlyAlias
     ? TEMPLATES.filter((t) => t.alias === onlyAlias)
     : TEMPLATES;
