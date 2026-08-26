@@ -11,6 +11,7 @@ concurrency:
 
 # Same-repo PRs and workflow_dispatch can push the tested image to ghcr so
 # docker.yml can retag it. Fork PRs cannot; they load the image locally.
+# Job-level if cannot read env. The changes job copies CAN_PUSH to outputs.
 env:
   CAN_PUSH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
   E2E_DOCKER_SHARDS: '4'
