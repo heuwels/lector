@@ -360,8 +360,9 @@ app.delete('/:id', (c) => {
 app.post('/bulk-delete', async (c) => {
   const userId = getCurrentUserId(c);
   const body = await c.req.json();
+  const vocabIDs = body.vocabIDs;
 
-  if (!body.vocabIDs || body.vocabIDs.length === 0) {
+  if (!vocabIDs || vocabIDs.length === 0) {
     return c.json(
       {
         error: {
@@ -372,19 +373,56 @@ app.post('/bulk-delete', async (c) => {
     );
   }
 
-  const report = body.vocabIDs.map((vocabID: string) => {
-    try {
-      db.prepare('DELETE FROM vocab WHERE id = ? AND userId = ?').run(vocabID, userId);
+  if (vocabIDs.length > 200) {
+    return c.json(
+      {
+        error: {
+          message: `There is a limit of 200 items per request on this endpoint. You sent ${vocabIDs.length}`,
+        },
+      },
+      422,
+    );
+  }
 
-      return true;
-    } catch (e) {
-      return false;
-    }
-  });
+  const successReport: Record<string, boolean> = {};
+
+  db.transaction((ids: string[]) => {
+    ids.forEach((id) => {
+      const vocab = db
+        .prepare('SELECT text, language FROM vocab WHERE id = ? AND userId = ?')
+        .get(id, userId) as { text: string; language: string } | undefined;
+
+      if (!vocab) {
+        successReport[id] = false;
+        return;
+      }
+
+      db.prepare('DELETE FROM vocab WHERE id = ? AND userId = ?').run(id, userId);
+
+      const vocabLang = vocab.language;
+      const vocabPack = getLanguageConfig(resolveLanguage(vocabLang, userId));
+      const foldedText = foldWord(vocab.text, vocabPack);
+      const remaining = db
+        .prepare('SELECT text FROM vocab WHERE userId = ? AND language = ?')
+        .all(userId, vocabLang) as { text: string }[];
+      const others = remaining.filter((r) => foldWord(r.text, vocabPack) === foldedText).length;
+      if (others === 0) {
+        db.prepare('DELETE FROM knownWords WHERE userId = ? AND word = ? AND language = ?').run(
+          userId,
+          foldedText,
+          vocabLang,
+        );
+      }
+
+      successReport[id] = true;
+    });
+  })(body.vocabIDs);
+
+  const reportAsList = Object.values(successReport);
 
   return c.json({
     success: true,
-    body: `Deleted ${report.reduce((acc: number, curr: boolean) => acc + (curr ? 1 : 0), 0)} of ${report.length}`,
+    body: `Deleted ${reportAsList.reduce((acc: number, curr: boolean) => acc + (curr ? 1 : 0), 0)} of ${reportAsList.length}`,
   });
 });
 
