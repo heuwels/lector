@@ -77,24 +77,42 @@ export async function fetchBillingStatus(): Promise<BillingStatus | null> {
   }
 }
 
+/** What the API did with a campaign code word (#516). */
+export type DiscountOutcome = 'applied' | 'unknown' | 'none';
+
+export interface StartedCheckout {
+  /** Paddle transaction id (`txn_…`). */
+  txnId: string;
+  discount: DiscountOutcome;
+}
+
 /**
- * Create a Paddle checkout transaction for `priceId` and return its id
- * (`txn_…`), or null if checkout can't be started right now (API down,
- * billing not configured, unknown price). The caller redirects the browser to
- * `${checkoutUrl()}?_ptxn=<id>` on lector.dev, where the overlay opens on the
- * approved domain; the account is stamped into the transaction server-side
- * (custom_data.lectorUserId), so nothing identifying rides the URL.
+ * Create a Paddle checkout transaction for `priceId`, or null if checkout
+ * can't be started right now (API down, billing not configured, unknown
+ * price). The caller redirects the browser to `${checkoutUrl()}?_ptxn=<id>` on
+ * lector.dev, where the overlay opens on the approved domain; the account is
+ * stamped into the transaction server-side (custom_data.lectorUserId), so
+ * nothing identifying rides the URL.
+ *
+ * `promo` is a campaign code word, never a Paddle id — the API maps it to a
+ * discount and reports which of the three outcomes happened. An unknown code
+ * still returns a usable transaction at full price, so the caller must read
+ * `discount` and say so rather than assume the coupon worked.
  */
-export async function startCheckout(priceId: string): Promise<string | null> {
+export async function startCheckout(
+  priceId: string,
+  promo?: string | null,
+): Promise<StartedCheckout | null> {
   try {
     const res = await apiFetch('/api/billing/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ priceId }),
+      body: JSON.stringify(promo ? { priceId, promo } : { priceId }),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { txnId?: string };
-    return body.txnId ?? null;
+    const body = (await res.json()) as { txnId?: string; discount?: DiscountOutcome };
+    if (!body.txnId) return null;
+    return { txnId: body.txnId, discount: body.discount ?? 'none' };
   } catch {
     return null;
   }

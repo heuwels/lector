@@ -67,6 +67,7 @@ import { Construct } from 'constructs';
  *   /lector/canary/paddle-price-annual String        optional — PADDLE_PRICE_ANNUAL (pri_… Cloud annual)
  *   /lector/canary/paddle-price-plus-monthly String  optional — PADDLE_PRICE_PLUS_MONTHLY (pri_… Plus monthly)
  *   /lector/canary/paddle-price-plus-annual String   optional — PADDLE_PRICE_PLUS_ANNUAL (pri_… Plus annual)
+ *   /lector/canary/paddle-discount-codes String      optional — PADDLE_DISCOUNT_CODES (#516 — JSON map of campaign code word → dsc_… discount id; unset = coupons off)
  *   /lector/canary/billing-exempt-emails String      optional — BILLING_EXEMPT_EMAILS (comma-separated operator/test accounts)
  *   /lector/canary/admin-emails        String        optional — LECTOR_ADMIN_EMAILS (comma-separated admin-dashboard operators, #221)
  *   /lector/canary/sentry-dsn          String        optional — SENTRY_DSN (error tracking + tracing, API + browser; public DSN; unset = off)
@@ -349,6 +350,7 @@ put PADDLE_PRICE_MONTHLY  paddle-price-monthly
 put PADDLE_PRICE_ANNUAL   paddle-price-annual
 put PADDLE_PRICE_PLUS_MONTHLY paddle-price-plus-monthly
 put PADDLE_PRICE_PLUS_ANNUAL  paddle-price-plus-annual
+put PADDLE_DISCOUNT_CODES paddle-discount-codes
 put BILLING_EXEMPT_EMAILS billing-exempt-emails
 put LECTOR_ADMIN_EMAILS   admin-emails
 put SENTRY_DSN            sentry-dsn

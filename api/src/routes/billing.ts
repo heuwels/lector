@@ -10,6 +10,7 @@ import {
   isEntitledStatus,
   makePaddleTransactionCreator,
   resolveBillingStatus,
+  resolveDiscount,
   verifyPaddleSignature,
   type BillingPrice,
   type BillingSubscriptionRecord,
@@ -71,6 +72,15 @@ export function makeBillingRoutes(
   billingOperations: PaddleBillingOperations = makePaddleBillingOperations(cfg),
 ) {
   const app = new Hono();
+
+  // Shared by every authenticated billing action that takes a JSON body:
+  // checkout, and the two plan-change routes. Declared before the routes that
+  // use it, because a `const` referenced during registration would be in its
+  // temporal dead zone.
+  const actionBodyLimit = bodyLimit({
+    maxSize: MAX_BILLING_ACTION_BODY_BYTES,
+    onError: (c) => c.json({ error: 'Billing request is too large' }, 413),
+  });
 
   // GET /api/billing/entitlements — the client's read of the plan-limits
   // engine (#222): which plan, its limit values, and this month's usage.
@@ -163,14 +173,20 @@ export function makeBillingRoutes(
   // overlay opens on the approved domain. Grants nothing on its own —
   // activation still comes from the webhook. 404 when billing/apiKey are off,
   // mirroring the webhook (this deployment can't do checkout at all).
-  app.post('/checkout', async (c) => {
+  //
+  // An optional `promo` (#516) names a campaign code word. The server resolves
+  // it against PADDLE_DISCOUNT_CODES and reports the outcome, so the screen can
+  // state the true price before the overlay opens. An unknown code is NOT an
+  // error: the plan stays available at full price, because a 4xx here would
+  // strand a reader who mistyped a coupon.
+  app.post('/checkout', actionBodyLimit, async (c) => {
     if (!cfg.enforced || !cfg.apiKey) {
       return c.json({ error: 'Billing is not enabled on this deployment' }, 404);
     }
 
     const userId = getCurrentUserId(c);
 
-    let body: { priceId?: unknown };
+    let body: { priceId?: unknown; promo?: unknown };
     try {
       body = await c.req.json();
     } catch {
@@ -184,6 +200,11 @@ export function makeBillingRoutes(
       return c.json({ error: 'Unknown price' }, 400);
     }
 
+    // Same rule as the price above: the client names a choice, the server
+    // resolves it. Only a mapped `dsc_…` ever reaches Paddle, and the code
+    // grammar makes a raw discount id unresolvable by construction.
+    const { outcome, discountId } = resolveDiscount(cfg.discountCodes, body.promo);
+
     const email = resolveEmail(userId);
     if (isEntitledStatus(resolveBillingStatus(userId, email))) {
       return c.json({ error: 'subscription_already_active' }, 409);
@@ -193,8 +214,9 @@ export function makeBillingRoutes(
         priceId,
         userId,
         customerId: findPaddleCustomerId(email),
+        discountId,
       });
-      return c.json({ txnId: txn.id });
+      return c.json({ txnId: txn.id, discount: outcome });
     } catch (err) {
       // Paddle down / bad key / rejected price — the /subscribe screen turns a
       // non-2xx into its "try again" state; nothing is charged.
@@ -267,11 +289,6 @@ export function makeBillingRoutes(
     const body = (await c.req.json().catch(() => ({}))) as { priceId?: unknown };
     return typeof body.priceId === 'string' ? body.priceId : '';
   }
-
-  const actionBodyLimit = bodyLimit({
-    maxSize: MAX_BILLING_ACTION_BODY_BYTES,
-    onError: (c) => c.json({ error: 'Billing request is too large' }, 413),
-  });
 
   // Preview and apply are deliberately separate. Paddle computes tax and
   // proration; the client confirms that preview, then this route recomputes

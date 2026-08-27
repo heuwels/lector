@@ -9,11 +9,14 @@ import {
   billingConfig,
   isEntitledStatus,
   makeBillingMiddleware,
+  normalizeDiscountCode,
   parseBillingMode,
+  parseDiscountCodes,
   parseExemptEmails,
   parseFreeTierEnabled,
   parsePaddleEnvironment,
   resolveBillingStatus,
+  resolveDiscount,
   verifyPaddleSignature,
   type CreateTransaction,
 } from './billing';
@@ -99,6 +102,73 @@ describe('billing env parsing', () => {
     expect(() => parseFreeTierEnabled('TRUE')).toThrow(/Invalid LECTOR_FREE_TIER/);
     expect(() => parseFreeTierEnabled(' true ')).toThrow(/Invalid LECTOR_FREE_TIER/);
     expect(() => parseFreeTierEnabled('1')).toThrow(/Invalid LECTOR_FREE_TIER/);
+  });
+
+  test('PADDLE_DISCOUNT_CODES: maps normalized code words to Paddle discount ids', () => {
+    const codes = parseDiscountCodes(
+      '{"PRODUCTHUNT":"dsc_01k_ph"," winback25 ":"dsc_01m_wb","launch":"dsc_01n_l"}',
+    );
+    expect(codes.get('PRODUCTHUNT')).toBe('dsc_01k_ph');
+    expect(codes.get('WINBACK25')).toBe('dsc_01m_wb');
+    expect(codes.get('LAUNCH')).toBe('dsc_01n_l');
+    expect(codes.size).toBe(3);
+  });
+
+  test('PADDLE_DISCOUNT_CODES: unset, empty, and malformed all mean coupons off', () => {
+    expect(parseDiscountCodes(undefined).size).toBe(0);
+    expect(parseDiscountCodes('').size).toBe(0);
+    expect(parseDiscountCodes('   ').size).toBe(0);
+    // Warn and drop, never throw: a broken map means nobody gets a discount,
+    // which is the safe direction. Refusing to boot would be worse.
+    expect(parseDiscountCodes('{not json').size).toBe(0);
+    expect(parseDiscountCodes('["PRODUCTHUNT","dsc_01k"]').size).toBe(0);
+    expect(parseDiscountCodes('"PRODUCTHUNT"').size).toBe(0);
+  });
+
+  test('PADDLE_DISCOUNT_CODES: drops entries that could never work', () => {
+    const codes = parseDiscountCodes(
+      JSON.stringify({
+        PRODUCTHUNT: 'dsc_01k_ph',
+        // A percentage where an id belongs — the mistake pricesFromEnv also guards.
+        HALFOFF: '50',
+        BADTYPE: 42,
+        NULLED: null,
+        // Not a usable code word: Paddle allows letters and numbers only.
+        'WITH SPACE': 'dsc_01k_space',
+        'HYPHEN-CODE': 'dsc_01k_hyphen',
+        [`${'A'.repeat(33)}`]: 'dsc_01k_long',
+      }),
+    );
+    expect([...codes.keys()]).toEqual(['PRODUCTHUNT']);
+  });
+
+  test('normalizeDiscountCode accepts Paddle code words and nothing else', () => {
+    expect(normalizeDiscountCode('producthunt')).toBe('PRODUCTHUNT');
+    expect(normalizeDiscountCode('  WinBack25  ')).toBe('WINBACK25');
+    expect(normalizeDiscountCode('A'.repeat(32))).toBe('A'.repeat(32));
+    expect(normalizeDiscountCode('A'.repeat(33))).toBeNull();
+    expect(normalizeDiscountCode('')).toBeNull();
+    // The underscore is what makes a raw Paddle id unresolvable by construction.
+    expect(normalizeDiscountCode('dsc_01k_ph')).toBeNull();
+    expect(normalizeDiscountCode(42)).toBeNull();
+    expect(normalizeDiscountCode(null)).toBeNull();
+  });
+
+  test('resolveDiscount separates "no code" from "code that did not work"', () => {
+    const codes = new Map([['PRODUCTHUNT', 'dsc_01k_ph']]);
+    expect(resolveDiscount(codes, 'producthunt')).toEqual({
+      outcome: 'applied',
+      discountId: 'dsc_01k_ph',
+    });
+    expect(resolveDiscount(codes, undefined)).toEqual({ outcome: 'none', discountId: null });
+    expect(resolveDiscount(codes, '')).toEqual({ outcome: 'none', discountId: null });
+    expect(resolveDiscount(codes, '  ')).toEqual({ outcome: 'none', discountId: null });
+    expect(resolveDiscount(codes, 'WINBACK25')).toEqual({ outcome: 'unknown', discountId: null });
+    expect(resolveDiscount(codes, 'dsc_01k_ph')).toEqual({ outcome: 'unknown', discountId: null });
+    expect(resolveDiscount(new Map(), 'PRODUCTHUNT')).toEqual({
+      outcome: 'unknown',
+      discountId: null,
+    });
   });
 
   test('BILLING_EXEMPT_EMAILS: comma-separated, trimmed, lowercased', () => {
@@ -526,6 +596,12 @@ describe('billing routes', () => {
     environment: 'production',
     prices: [{ id: 'pri_monthly', plan: 'cloud', cycle: 'month' }],
     exemptEmails: new Set<string>(),
+    discountCodes: new Map<string, string>(),
+  };
+
+  const couponCfg: typeof billingConfig = {
+    ...enforcedCfg,
+    discountCodes: new Map([['PRODUCTHUNT', 'dsc_01k_producthunt']]),
   };
 
   const managedCfg: typeof billingConfig = {
@@ -731,7 +807,12 @@ describe('billing routes', () => {
   });
 
   test('checkout creates a transaction for a known price and returns its id', async () => {
-    const calls: Array<{ priceId: string; userId: string; customerId: string | null }> = [];
+    const calls: Array<{
+      priceId: string;
+      userId: string;
+      customerId: string | null;
+      discountId?: string | null;
+    }> = [];
     const app = buildApp(enforcedCfg, 'local@example.com', async (args) => {
       calls.push(args);
       return { id: 'txn_stub_1', checkoutUrl: null };
@@ -742,9 +823,91 @@ describe('billing routes', () => {
       headers: { 'Content-Type': 'application/json' },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ txnId: 'txn_stub_1' });
+    expect(await res.json()).toEqual({ txnId: 'txn_stub_1', discount: 'none' });
     // Tenant stamped server-side; no prior customer for this email yet.
-    expect(calls).toEqual([{ priceId: 'pri_monthly', userId: 'local', customerId: null }]);
+    expect(calls).toEqual([
+      { priceId: 'pri_monthly', userId: 'local', customerId: null, discountId: null },
+    ]);
+  });
+
+  test('checkout resolves a configured code word to its Paddle discount id', async () => {
+    let seen: string | null | undefined = 'unset';
+    const app = buildApp(couponCfg, 'local@example.com', async (args) => {
+      seen = args.discountId;
+      return { id: 'txn_promo', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      // Lower case on purpose: a marketing link should not have to shout.
+      body: JSON.stringify({ priceId: 'pri_monthly', promo: 'producthunt' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ txnId: 'txn_promo', discount: 'applied' });
+    expect(seen).toBe('dsc_01k_producthunt');
+  });
+
+  test('checkout reports an unknown code without failing the transaction', async () => {
+    let seen: string | null | undefined = 'unset';
+    const app = buildApp(couponCfg, 'local@example.com', async (args) => {
+      seen = args.discountId;
+      return { id: 'txn_full_price', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly', promo: 'EXPIRED2024' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    // 200, not 4xx: a mistyped coupon must not strand a reader who wants to pay.
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ txnId: 'txn_full_price', discount: 'unknown' });
+    expect(seen).toBeNull();
+  });
+
+  test('checkout never forwards a Paddle discount id supplied by the browser', async () => {
+    let seen: string | null | undefined = 'unset';
+    const app = buildApp(couponCfg, 'local@example.com', async (args) => {
+      seen = args.discountId;
+      return { id: 'txn_injected', checkoutUrl: null };
+    });
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly', promo: 'dsc_01k_producthunt' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ txnId: 'txn_injected', discount: 'unknown' });
+    expect(seen).toBeNull();
+  });
+
+  test('checkout treats a blank or non-string code as no code at all', async () => {
+    const outcomes: string[] = [];
+    const app = buildApp(couponCfg, 'local@example.com', async () => ({
+      id: 'txn_blank',
+      checkoutUrl: null,
+    }));
+    for (const promo of ['', '   ', null]) {
+      const res = await app.request('/api/billing/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ priceId: 'pri_monthly', promo }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      outcomes.push((await res.json()).discount);
+    }
+    expect(outcomes).toEqual(['none', 'none', 'none']);
+  });
+
+  test('checkout reports unknown when the deployment has no coupons configured', async () => {
+    const app = buildApp(enforcedCfg, 'local@example.com', async () => ({
+      id: 'txn_no_coupons',
+      checkoutUrl: null,
+    }));
+    const res = await app.request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId: 'pri_monthly', promo: 'PRODUCTHUNT' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect((await res.json()).discount).toBe('unknown');
   });
 
   test('checkout prefills a known Paddle customer id for a returning buyer', async () => {

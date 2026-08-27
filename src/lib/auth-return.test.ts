@@ -3,6 +3,7 @@ import {
   authHref,
   authReturnPathFromSearch,
   paidPlanFromSearch,
+  promoFromSearch,
   sanitizeAuthReturnPath,
 } from './auth-return';
 
@@ -11,6 +12,30 @@ describe('sanitizeAuthReturnPath', () => {
     expect(sanitizeAuthReturnPath('/subscribe')).toBe('/subscribe');
     expect(sanitizeAuthReturnPath('/subscribe?plan=cloud')).toBe('/subscribe?plan=cloud');
     expect(sanitizeAuthReturnPath('/subscribe?plan=plus')).toBe('/subscribe?plan=plus');
+  });
+
+  it('carries a campaign code word through, normalized and in a stable order', () => {
+    expect(sanitizeAuthReturnPath('/subscribe?promo=PRODUCTHUNT')).toBe(
+      '/subscribe?promo=PRODUCTHUNT',
+    );
+    expect(sanitizeAuthReturnPath('/subscribe?promo=producthunt')).toBe(
+      '/subscribe?promo=PRODUCTHUNT',
+    );
+    expect(sanitizeAuthReturnPath('/subscribe?plan=plus&promo=WINBACK25')).toBe(
+      '/subscribe?plan=plus&promo=WINBACK25',
+    );
+    // Order in, canonical order out — the destination is rebuilt, not echoed.
+    expect(sanitizeAuthReturnPath('/subscribe?promo=WINBACK25&plan=plus')).toBe(
+      '/subscribe?plan=plus&promo=WINBACK25',
+    );
+  });
+
+  it('rejects a code word that could never be one, including a Paddle discount id', () => {
+    expect(sanitizeAuthReturnPath('/subscribe?promo=dsc_01k9')).toBeNull();
+    expect(sanitizeAuthReturnPath('/subscribe?promo=with%20space')).toBeNull();
+    expect(sanitizeAuthReturnPath('/subscribe?promo=')).toBeNull();
+    expect(sanitizeAuthReturnPath(`/subscribe?promo=${'A'.repeat(33)}`)).toBeNull();
+    expect(sanitizeAuthReturnPath('/subscribe?promo=A&promo=B')).toBeNull();
   });
 
   it('rejects external, protocol-relative, malformed, and unrelated destinations', () => {
@@ -39,5 +64,19 @@ describe('auth return helpers', () => {
     expect(paidPlanFromSearch('?plan=cloud')).toBe('cloud');
     expect(paidPlanFromSearch('?plan=plus')).toBe('plus');
     expect(paidPlanFromSearch('?plan=free')).toBeNull();
+  });
+
+  it('normalizes a code word off the subscribe query and drops junk', () => {
+    expect(promoFromSearch('?promo=producthunt')).toBe('PRODUCTHUNT');
+    expect(promoFromSearch('?plan=cloud&promo=WINBACK25')).toBe('WINBACK25');
+    expect(promoFromSearch('?plan=cloud')).toBeNull();
+    expect(promoFromSearch('?promo=dsc_01k9')).toBeNull();
+  });
+
+  it('preserves a code word through an auth round trip', () => {
+    const href = authHref('/register', '/subscribe?plan=plus&promo=PRODUCTHUNT');
+    expect(authReturnPathFromSearch(href.slice(href.indexOf('?')))).toBe(
+      '/subscribe?plan=plus&promo=PRODUCTHUNT',
+    );
   });
 });
