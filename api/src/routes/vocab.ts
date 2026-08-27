@@ -356,4 +356,36 @@ app.delete('/:id', (c) => {
   return c.json({ success: true });
 });
 
+// POST /api/vocab/bulk-delete
+app.post('/bulk-delete', async (c) => {
+  const userId = getCurrentUserId(c);
+  const body = await c.req.json();
+
+  if (!body.vocabIDs || body.vocabIDs.length === 0) {
+    return c.json(
+      {
+        error: {
+          message: 'Please provide a list of vocab IDs under the key vocabIDs',
+        },
+      },
+      422,
+    );
+  }
+
+  const report = body.vocabIDs.map((vocabID: string) => {
+    try {
+      db.prepare('DELETE FROM vocab WHERE id = ? AND userId = ?').run(vocabID, userId);
+
+      return true;
+    } catch (e) {
+      return false;
+    }
+  });
+
+  return c.json({
+    success: true,
+    body: `Deleted ${report.reduce((acc: number, curr: boolean) => acc + (curr ? 1 : 0), 0)} of ${report.length}`,
+  });
+});
+
 export default app;
