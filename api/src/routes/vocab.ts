@@ -388,45 +388,44 @@ app.post('/bulk-delete', async (c) => {
     return c.json({ error: 'vocabIDs must be an array of strings' }, 400);
   }
 
-  const successReport: Record<string, boolean> = {};
+  const getVocabLangAndText = db.prepare(
+    'SELECT text, language FROM vocab WHERE id = ? AND userId = ?',
+  );
+  const deleteVocab = db.prepare('DELETE FROM vocab WHERE id = ? AND userId = ?');
+  const selectRemaining = db.prepare('SELECT text FROM vocab WHERE userId = ? AND language = ?');
+  const deleteKnownWords = db.prepare(
+    'DELETE FROM knownWords WHERE userId = ? AND word = ? AND language = ?',
+  );
+
+  let deleted = 0;
 
   db.transaction((ids: string[]) => {
     ids.forEach((id) => {
-      const vocab = db
-        .prepare('SELECT text, language FROM vocab WHERE id = ? AND userId = ?')
-        .get(id, userId) as { text: string; language: string } | undefined;
+      const vocab = getVocabLangAndText.get(id, userId) as
+        | { text: string; language: string }
+        | undefined;
 
       if (!vocab) {
-        successReport[id] = false;
         return;
       }
 
-      db.prepare('DELETE FROM vocab WHERE id = ? AND userId = ?').run(id, userId);
+      deleteVocab.run(id, userId);
+      deleted = deleted + 1;
 
       const vocabLang = vocab.language;
       const vocabPack = getLanguageConfig(resolveLanguage(vocabLang, userId));
       const foldedText = foldWord(vocab.text, vocabPack);
-      const remaining = db
-        .prepare('SELECT text FROM vocab WHERE userId = ? AND language = ?')
-        .all(userId, vocabLang) as { text: string }[];
+      const remaining = selectRemaining.all(userId, vocabLang) as { text: string }[];
       const others = remaining.filter((r) => foldWord(r.text, vocabPack) === foldedText).length;
       if (others === 0) {
-        db.prepare('DELETE FROM knownWords WHERE userId = ? AND word = ? AND language = ?').run(
-          userId,
-          foldedText,
-          vocabLang,
-        );
+        deleteKnownWords.run(userId, foldedText, vocabLang);
       }
-
-      successReport[id] = true;
     });
   })(body.vocabIDs);
 
-  const reportAsList = Object.values(successReport);
-
   return c.json({
     success: true,
-    message: `Deleted ${reportAsList.reduce((acc: number, curr: boolean) => acc + (curr ? 1 : 0), 0)} of ${reportAsList.length}`,
+    message: `Deleted ${deleted} of ${vocabIDs.length}`,
   });
 });
 
