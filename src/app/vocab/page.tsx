@@ -186,7 +186,7 @@ export default function VocabPage() {
       const response = await bulkDeleteVocabEntries(vocabIDs);
       await loadData();
 
-      toast.success(response.body, {
+      toast.success(response.message, {
         duration: 5000,
       });
     } catch (error) {

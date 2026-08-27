@@ -1,15 +1,6 @@
 'use client';
 
-import {
-  Check,
-  ChevronDown,
-  ChevronUp,
-  FileWarning,
-  Loader2,
-  RefreshCw,
-  Trash,
-  Upload,
-} from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Loader2, RefreshCw, Trash, Upload } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { WordState } from '@/lib/data-layer';
 import { getPageCount, clampPage, paginate } from '@/lib/pagination';

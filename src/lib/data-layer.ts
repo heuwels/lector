@@ -660,9 +660,13 @@ export async function deleteVocabEntry(id: string): Promise<void> {
 
 export async function bulkDeleteVocabEntries(
   vocabIDs: string[],
-): Promise<{ success: boolean; body: string }> {
+): Promise<{ success: boolean; message: string }> {
   const req = await apiFetch(`/api/vocab/bulk-delete`, {
     body: JSON.stringify({ vocabIDs }),
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
     method: 'POST',
   });
 

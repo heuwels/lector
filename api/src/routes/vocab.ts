@@ -422,7 +422,7 @@ app.post('/bulk-delete', async (c) => {
 
   return c.json({
     success: true,
-    body: `Deleted ${reportAsList.reduce((acc: number, curr: boolean) => acc + (curr ? 1 : 0), 0)} of ${reportAsList.length}`,
+    message: `Deleted ${reportAsList.reduce((acc: number, curr: boolean) => acc + (curr ? 1 : 0), 0)} of ${reportAsList.length}`,
   });
 });
 
