@@ -10969,6 +10969,122 @@
         "x-token-scope": "vocab:write"
       }
     },
+    "/api/vocab/bulk-delete": {
+      "post": {
+        "operationId": "postApiVocabBulkDelete",
+        "summary": "Delete saved entries in a batch",
+        "description": "Deletes up to 200 entries in one transaction. An identifier that does not exist, or that belongs to another account, is skipped rather than rejected, so the response reports how many of the requested entries were deleted. Each deleted word also loses its known-word state when no other entry in that language still matches it.",
+        "tags": [
+          "Vocabulary"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "vocabIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Vocabulary entry identifiers. Between 1 and 200."
+                  }
+                },
+                "required": [
+                  "vocabIDs"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The batch is processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "How many of the requested entries were deleted."
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is malformed, or a field is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential is missing, invalid or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token does not carry the scope this endpoint needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A plan limit or a rate limit stopped the call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanLimitError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The API failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalAccessToken": []
+          },
+          {
+            "SessionCookie": []
+          }
+        ],
+        "x-token-scope": "vocab:write"
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
