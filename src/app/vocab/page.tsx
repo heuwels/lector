@@ -182,19 +182,12 @@ export default function VocabPage() {
   };
 
   const handleBulkDelete = async (vocabIDs: string[]) => {
-    try {
-      const response = await bulkDeleteVocabEntries(vocabIDs);
-      await loadData();
+    const response = await bulkDeleteVocabEntries(vocabIDs);
+    await loadData();
 
-      toast.success(response.message, {
-        duration: 5000,
-      });
-    } catch (error) {
-      toast.error('Failed to delete entries', {
-        duration: 5000,
-      });
-      throw error;
-    }
+    toast[response.success ? 'success' : 'error'](response.message, {
+      duration: 5000,
+    });
   };
 
   // Export selected entries to Anki. cardType controls which Anki model

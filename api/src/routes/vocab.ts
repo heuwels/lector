@@ -362,7 +362,7 @@ app.post('/bulk-delete', async (c) => {
   const body = await c.req.json().catch(() => null);
   const vocabIDs = body?.vocabIDs;
 
-  if (!vocabIDs || vocabIDs.length === 0) {
+  if (!vocabIDs || vocabIDs.length === 0 || !Array.isArray(vocabIDs)) {
     return c.json(
       {
         error: {
@@ -382,6 +382,10 @@ app.post('/bulk-delete', async (c) => {
       },
       422,
     );
+  }
+
+  if (!Array.isArray(vocabIDs) || vocabIDs.some((id) => typeof id !== 'string')) {
+    return c.json({ error: 'vocabIDs must be an array of strings' }, 400);
   }
 
   const successReport: Record<string, boolean> = {};

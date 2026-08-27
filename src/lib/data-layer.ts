@@ -664,14 +664,20 @@ export async function bulkDeleteVocabEntries(
   const req = await apiFetch(`/api/vocab/bulk-delete`, {
     body: JSON.stringify({ vocabIDs }),
     headers: {
-      Accept: 'application/json',
       'Content-Type': 'application/json',
     },
     method: 'POST',
   });
 
-  await requireOk(req, 'Could not bulk delete vocabulary entries');
   const res = await req.json();
+
+  if (!req.ok) {
+    return {
+      success: false,
+      message: res.error?.message,
+    };
+  }
+
   invalidateVocab();
   invalidateFluencyStats();
 
