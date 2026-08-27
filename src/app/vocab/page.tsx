@@ -14,6 +14,7 @@ import {
   deleteVocabEntry,
   markVocabPushedToAnki,
   saveVocab,
+  bulkDeleteVocabEntries,
 } from '@/lib/data-layer';
 import {
   addBasicCard,
@@ -174,6 +175,22 @@ export default function VocabPage() {
     } catch (error) {
       console.error('Failed to delete entry:', error);
       toast.error('Failed to delete entry', {
+        duration: 5000,
+      });
+      throw error;
+    }
+  };
+
+  const handleBulkDelete = async (vocabIDs: string[]) => {
+    try {
+      const response = await bulkDeleteVocabEntries(vocabIDs);
+      await loadData();
+
+      toast.success(response.body, {
+        duration: 5000,
+      });
+    } catch (error) {
+      toast.error('Failed to delete entries', {
         duration: 5000,
       });
       throw error;
@@ -414,6 +431,7 @@ export default function VocabPage() {
         onEntryClick={handleEntryClick}
         onExportToAnki={handleExportToAnki}
         onMarkAsKnown={handleMarkAsKnown}
+        onBulkDelete={handleBulkDelete}
         // Pull-sync is the browser→AnkiConnect path; on the addon transport
         // review state pushes itself, so the button would be a dead end.
         onSyncWithAnki={ankiTransport === 'addon' ? undefined : handleSyncWithAnki}

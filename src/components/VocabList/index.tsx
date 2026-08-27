@@ -1,6 +1,15 @@
 'use client';
 
-import { Check, ChevronDown, ChevronUp, Loader2, RefreshCw, Upload } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  FileWarning,
+  Loader2,
+  RefreshCw,
+  Trash,
+  Upload,
+} from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { WordState } from '@/lib/data-layer';
 import { getPageCount, clampPage, paginate } from '@/lib/pagination';
@@ -11,13 +20,7 @@ import { stateFilters, stateOrder, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '
 import { AnkiCardType, SortDirection, SortField, VocabListProps } from './types';
 import { useActiveLanguage } from '@/utils/hooks';
 import { Button, buttonVariants } from '../ui/button';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from '../ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog';
 import OnboardingTip from '@/components/OnboardingTip';
 
 export default function VocabList({
@@ -30,6 +33,7 @@ export default function VocabList({
   showAnkiOnboardingTip = false,
   onAnkiOnboardingTipDone,
   isLoading = false,
+  onBulkDelete,
 }: VocabListProps) {
   // Filter state
   const [stateFilter, setStateFilter] = useState<WordState | 'all' | 'learning'>('all');
@@ -57,6 +61,7 @@ export default function VocabList({
   const [isExporting, setIsExporting] = useState(false);
   const [isMarkingKnown, setIsMarkingKnown] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Export-to-Anki modal state. Card type pre-selects the user's last choice
   // (persisted to localStorage) so heavy Cloze users don't flip on every open.
@@ -247,6 +252,20 @@ export default function VocabList({
     }
   };
 
+  const handleBulkDeleteButtonPressed = async () => {
+    if (selectedIds.size === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete ${selectedIds.size} vocab entries?`)) {
+      setIsDeleting(true);
+      try {
+        await onBulkDelete(Array.from(selectedIds));
+        setSelectedIds(new Set());
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
+
   const handleMarkAsKnown = async () => {
     if (selectedIds.size === 0) return;
     setIsMarkingKnown(true);
@@ -342,6 +361,23 @@ export default function VocabList({
             <>
               <Check className="h-4 w-4" />
               Mark as Known ({selectedIds.size})
+            </>
+          )}
+        </Button>
+        <Button
+          onClick={handleBulkDeleteButtonPressed}
+          variant="destructive"
+          disabled={!someSelected || isDeleting}
+        >
+          {isDeleting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Deleting...
+            </>
+          ) : (
+            <>
+              <Trash className="h-4 w-4" />
+              Delete ({selectedIds.size})
             </>
           )}
         </Button>
@@ -493,49 +529,45 @@ export default function VocabList({
           </DialogDescription>
 
           <div className="mb-6 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                data-testid="anki-card-type-basic"
-                aria-pressed={cardType === 'basic'}
-                onClick={() => updateCardType('basic')}
-                className={`rounded-lg border p-4 text-left transition-colors ${
-                  cardType === 'basic'
-                    ? 'border-primary bg-[var(--primary-soft)] ring-2 ring-primary'
-                    : 'border-border hover:border-foreground/30'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-foreground">Basic</span>
-                  {cardType === 'basic' && (
-                    <Check className="h-4 w-4 text-primary" strokeWidth={3} />
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Front/back card. Sentence on front, translation on back.
-                </p>
-              </button>
+            <button
+              type="button"
+              data-testid="anki-card-type-basic"
+              aria-pressed={cardType === 'basic'}
+              onClick={() => updateCardType('basic')}
+              className={`rounded-lg border p-4 text-left transition-colors ${
+                cardType === 'basic'
+                  ? 'border-primary bg-[var(--primary-soft)] ring-2 ring-primary'
+                  : 'border-border hover:border-foreground/30'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-foreground">Basic</span>
+                {cardType === 'basic' && <Check className="h-4 w-4 text-primary" strokeWidth={3} />}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Front/back card. Sentence on front, translation on back.
+              </p>
+            </button>
 
-              <button
-                type="button"
-                data-testid="anki-card-type-cloze"
-                aria-pressed={cardType === 'cloze'}
-                onClick={() => updateCardType('cloze')}
-                className={`rounded-lg border p-4 text-left transition-colors ${
-                  cardType === 'cloze'
-                    ? 'border-primary bg-[var(--primary-soft)] ring-2 ring-primary'
-                    : 'border-border hover:border-foreground/30'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-foreground">Cloze</span>
-                  {cardType === 'cloze' && (
-                    <Check className="h-4 w-4 text-primary" strokeWidth={3} />
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Word is hidden in the sentence; recall it from context.
-                </p>
-              </button>
+            <button
+              type="button"
+              data-testid="anki-card-type-cloze"
+              aria-pressed={cardType === 'cloze'}
+              onClick={() => updateCardType('cloze')}
+              className={`rounded-lg border p-4 text-left transition-colors ${
+                cardType === 'cloze'
+                  ? 'border-primary bg-[var(--primary-soft)] ring-2 ring-primary'
+                  : 'border-border hover:border-foreground/30'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-foreground">Cloze</span>
+                {cardType === 'cloze' && <Check className="h-4 w-4 text-primary" strokeWidth={3} />}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Word is hidden in the sentence; recall it from context.
+              </p>
+            </button>
           </div>
 
           <div className="flex justify-end gap-2">
