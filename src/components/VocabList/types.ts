@@ -7,6 +7,7 @@ export type AnkiCardType = 'basic' | 'cloze';
 export interface VocabListProps {
   entries: VocabEntry[];
   collections: Collection[];
+  onBulkDelete: (ids: string[]) => Promise<void>;
   onEntryClick: (entry: VocabEntry) => void;
   onExportToAnki: (ids: string[], cardType: AnkiCardType) => Promise<void>;
   onMarkAsKnown: (ids: string[]) => Promise<void>;

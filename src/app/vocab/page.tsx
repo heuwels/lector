@@ -14,6 +14,7 @@ import {
   deleteVocabEntry,
   markVocabPushedToAnki,
   saveVocab,
+  bulkDeleteVocabEntries,
 } from '@/lib/data-layer';
 import {
   addBasicCard,
@@ -178,6 +179,15 @@ export default function VocabPage() {
       });
       throw error;
     }
+  };
+
+  const handleBulkDelete = async (vocabIDs: string[]) => {
+    const response = await bulkDeleteVocabEntries(vocabIDs);
+    await loadData();
+
+    toast[response.success ? 'success' : 'error'](response.message, {
+      duration: 5000,
+    });
   };
 
   // Export selected entries to Anki. cardType controls which Anki model
@@ -414,6 +424,7 @@ export default function VocabPage() {
         onEntryClick={handleEntryClick}
         onExportToAnki={handleExportToAnki}
         onMarkAsKnown={handleMarkAsKnown}
+        onBulkDelete={handleBulkDelete}
         // Pull-sync is the browser→AnkiConnect path; on the addon transport
         // review state pushes itself, so the button would be a dead end.
         onSyncWithAnki={ankiTransport === 'addon' ? undefined : handleSyncWithAnki}

@@ -100,3 +100,187 @@ describe('GET /api/vocab?text= (#240)', () => {
     expect(wrongTarget.status).toBe(400);
   });
 });
+
+// POST /api/vocab/bulk-delete (#569). The single-row DELETE /:id does two
+// things: it drops the vocab row, then drops the matching knownWords row if
+// no other vocab entry in that language folds to the same key. Bulk delete
+// has to reach the same end state for a whole batch, so most of these tests
+// are about the knownWords half rather than the vocab half.
+
+describe('POST /api/vocab/bulk-delete (#569)', () => {
+  const clear = () => {
+    db.prepare('DELETE FROM knownWords').run();
+    db.prepare('DELETE FROM vocab').run();
+  };
+  beforeEach(clear);
+  afterEach(clear);
+
+  function seedKnown(word: string, language: string) {
+    db.prepare(
+      "INSERT INTO knownWords (userId, word, language, state) VALUES ('local', ?, ?, 'known')",
+    ).run(word, language);
+  }
+
+  function bulkDelete(vocabIDs: unknown) {
+    return app.request('/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vocabIDs }),
+    });
+  }
+
+  function vocabIds(): string[] {
+    const rows = db.prepare('SELECT id FROM vocab ORDER BY id').all() as { id: string }[];
+    return rows.map((r) => r.id);
+  }
+
+  function knownWords(): Array<{ word: string; language: string }> {
+    return db.prepare('SELECT word, language FROM knownWords ORDER BY word').all() as Array<{
+      word: string;
+      language: string;
+    }>;
+  }
+
+  test('deletes the listed rows, leaves the rest, and reports the count', async () => {
+    seed('v1', 'huis', 'af');
+    seed('v2', 'kat', 'af');
+    seed('v3', 'boom', 'af');
+
+    const res = await bulkDelete(['v1', 'v3']);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: true, message: 'Deleted 2 of 2' });
+    expect(vocabIds()).toEqual(['v2']);
+  });
+
+  // Regression: the loop body inside db.transaction() is a for-of, so an
+  // unknown id has to `continue`. A `return` there abandons every id after it
+  // and skips the orphan sweep, silently deleting a fraction of the batch.
+  test('an unknown id does not abandon the ids after it', async () => {
+    seed('v1', 'huis', 'af');
+    seed('v2', 'kat', 'af');
+    seedKnown('huis', 'af');
+    seedKnown('kat', 'af');
+
+    const res = await bulkDelete(['no-such-id', 'v1', 'v2']);
+
+    expect(await res.json()).toEqual({ success: true, message: 'Deleted 2 of 3' });
+    expect(vocabIds()).toEqual([]);
+    expect(knownWords()).toEqual([]);
+  });
+
+  test('the last vocab row for a word takes its knownWords entry with it', async () => {
+    seed('v1', 'huis', 'af');
+    seedKnown('huis', 'af');
+
+    await bulkDelete(['v1']);
+
+    expect(knownWords()).toEqual([]);
+  });
+
+  // #289: SQLite's LOWER() is ASCII-only, so the survivor check folds in app
+  // code. HÄUSER and häuser are one key — deleting either alone must leave
+  // the knownWords row standing.
+  test('a surviving case variant keeps the knownWords row (#289 folding)', async () => {
+    seed('v_upper', 'HÄUSER', 'de');
+    seed('v_lower', 'häuser', 'de');
+    seedKnown('häuser', 'de');
+
+    await bulkDelete(['v_upper']);
+    expect(knownWords()).toEqual([{ word: 'häuser', language: 'de' }]);
+
+    await bulkDelete(['v_lower']);
+    expect(knownWords()).toEqual([]);
+  });
+
+  // The orphan sweep runs once per language in the batch. A word that is
+  // still held by another language must not be swept, and a language absent
+  // from the batch must not be touched at all.
+  test('a mixed-language batch sweeps each language independently', async () => {
+    seed('v_af', 'huis', 'af');
+    seed('v_de', 'haus', 'de');
+    seed('v_de_keep', 'katze', 'de');
+    seedKnown('huis', 'af');
+    seedKnown('haus', 'de');
+    seedKnown('katze', 'de');
+
+    const res = await bulkDelete(['v_af', 'v_de']);
+
+    expect(await res.json()).toEqual({ success: true, message: 'Deleted 2 of 2' });
+    expect(vocabIds()).toEqual(['v_de_keep']);
+    expect(knownWords()).toEqual([{ word: 'katze', language: 'de' }]);
+  });
+
+  test('the same word in another language keeps its own knownWords row', async () => {
+    seed('v_af', 'kat', 'af');
+    seed('v_nl', 'kat', 'nl');
+    seedKnown('kat', 'af');
+    seedKnown('kat', 'nl');
+
+    await bulkDelete(['v_af']);
+
+    expect(knownWords()).toEqual([{ word: 'kat', language: 'nl' }]);
+  });
+
+  test('a duplicated id is deleted once and counted once', async () => {
+    seed('v1', 'huis', 'af');
+
+    const res = await bulkDelete(['v1', 'v1']);
+
+    expect(await res.json()).toEqual({ success: true, message: 'Deleted 1 of 2' });
+    expect(vocabIds()).toEqual([]);
+  });
+
+  test('a missing or empty vocabIDs is rejected and deletes nothing', async () => {
+    seed('v1', 'huis', 'af');
+
+    expect((await bulkDelete(undefined)).status).toBe(422);
+    expect((await bulkDelete([])).status).toBe(422);
+    expect(vocabIds()).toEqual(['v1']);
+  });
+
+  // A bare string and an object both carry .length, so they clear the
+  // emptiness guard. The Array.isArray clause in that same guard is what
+  // stops them reaching the id loop and throwing a 500 on the bind.
+  test('a non-array vocabIDs is rejected, not a 500', async () => {
+    seed('v1', 'huis', 'af');
+
+    expect((await bulkDelete('v1')).status).toBe(422);
+    expect((await bulkDelete({ length: 2 })).status).toBe(422);
+    expect((await bulkDelete(42)).status).toBe(422);
+    expect(vocabIds()).toEqual(['v1']);
+  });
+
+  test('an array holding a non-string is rejected, not a 500', async () => {
+    seed('v1', 'huis', 'af');
+
+    expect((await bulkDelete([{ id: 'v1' }])).status).toBe(400);
+    expect((await bulkDelete([1, 2])).status).toBe(400);
+    expect((await bulkDelete(['v1', null])).status).toBe(400);
+    expect(vocabIds()).toEqual(['v1']);
+  });
+
+  test('malformed JSON is rejected, not a 500', async () => {
+    seed('v1', 'huis', 'af');
+
+    const res = await app.request('/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not json at all',
+    });
+
+    expect(res.status).toBe(422);
+    expect(vocabIds()).toEqual(['v1']);
+  });
+
+  test('the batch cap is 200 ids, and a batch over it deletes nothing', async () => {
+    seed('v1', 'huis', 'af');
+
+    const atCap = await bulkDelete(Array.from({ length: 200 }, (_, i) => `pad-${i}`));
+    expect(atCap.status).toBe(200);
+
+    const overCap = await bulkDelete(['v1', ...Array.from({ length: 200 }, (_, i) => `pad-${i}`)]);
+    expect(overCap.status).toBe(422);
+    expect(vocabIds()).toEqual(['v1']);
+  });
+});

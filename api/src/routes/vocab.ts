@@ -356,4 +356,77 @@ app.delete('/:id', (c) => {
   return c.json({ success: true });
 });
 
+// POST /api/vocab/bulk-delete
+app.post('/bulk-delete', async (c) => {
+  const userId = getCurrentUserId(c);
+  const body = await c.req.json().catch(() => null);
+  const vocabIDs = body?.vocabIDs;
+
+  if (!vocabIDs || vocabIDs.length === 0 || !Array.isArray(vocabIDs)) {
+    return c.json(
+      {
+        error: {
+          message: 'Please provide a list of vocab IDs under the key vocabIDs',
+        },
+      },
+      422,
+    );
+  }
+
+  if (vocabIDs.length > 200) {
+    return c.json(
+      {
+        error: {
+          message: `There is a limit of 200 items per request on this endpoint. You sent ${vocabIDs.length}`,
+        },
+      },
+      422,
+    );
+  }
+
+  if (!Array.isArray(vocabIDs) || vocabIDs.some((id) => typeof id !== 'string')) {
+    return c.json({ error: 'vocabIDs must be an array of strings' }, 400);
+  }
+
+  const getVocabLangAndText = db.prepare(
+    'SELECT text, language FROM vocab WHERE id = ? AND userId = ?',
+  );
+  const deleteVocab = db.prepare('DELETE FROM vocab WHERE id = ? AND userId = ?');
+  const selectRemaining = db.prepare('SELECT text FROM vocab WHERE userId = ? AND language = ?');
+  const deleteKnownWords = db.prepare(
+    'DELETE FROM knownWords WHERE userId = ? AND word = ? AND language = ?',
+  );
+
+  let deleted = 0;
+
+  db.transaction((ids: string[]) => {
+    ids.forEach((id) => {
+      const vocab = getVocabLangAndText.get(id, userId) as
+        | { text: string; language: string }
+        | undefined;
+
+      if (!vocab) {
+        return;
+      }
+
+      deleteVocab.run(id, userId);
+      deleted = deleted + 1;
+
+      const vocabLang = vocab.language;
+      const vocabPack = getLanguageConfig(resolveLanguage(vocabLang, userId));
+      const foldedText = foldWord(vocab.text, vocabPack);
+      const remaining = selectRemaining.all(userId, vocabLang) as { text: string }[];
+      const others = remaining.filter((r) => foldWord(r.text, vocabPack) === foldedText).length;
+      if (others === 0) {
+        deleteKnownWords.run(userId, foldedText, vocabLang);
+      }
+    });
+  })(body.vocabIDs);
+
+  return c.json({
+    success: true,
+    message: `Deleted ${deleted} of ${vocabIDs.length}`,
+  });
+});
+
 export default app;

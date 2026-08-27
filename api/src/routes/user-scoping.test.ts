@@ -86,6 +86,26 @@ function seedIntruderVocab(id: string) {
   ).run(id, TS, TS, INTRUDER);
 }
 
+/** An intruder row whose text collides with the requester's own (#569). */
+function seedIntruderVocabText(id: string, text: string) {
+  db.prepare(
+    `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, userId)
+     VALUES (?, ?, 'word', 'n sin', 'secret', 'new', ?, ?, 'af', ?)`,
+  ).run(id, text, TS, TS, INTRUDER);
+}
+
+/** A row belonging to the requester — userId defaults to 'local'. */
+function seedOwnVocab(id: string, text: string) {
+  db.prepare(
+    `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language)
+     VALUES (?, ?, 'word', 'n sin', 'mine', 'new', ?, ?, 'af')`,
+  ).run(id, text, TS, TS);
+}
+
+function countVocab(id: string): number {
+  return (db.prepare('SELECT COUNT(*) AS n FROM vocab WHERE id = ?').get(id) as { n: number }).n;
+}
+
 function seedIntruderCloze(id: string) {
   db.prepare(
     `INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, nextReview, language, userId)
@@ -133,6 +153,57 @@ describe('userId scoping ratchet', () => {
       .prepare('SELECT COUNT(*) AS n FROM vocab WHERE id = ?')
       .get('v_intruder') as { n: number };
     expect(survives.n).toBe(1);
+  });
+
+  test("bulk delete skips another user's ids and still deletes the requester's", async () => {
+    seedIntruderVocab('v_intruder');
+    db.prepare(
+      "INSERT INTO knownWords (userId, word, language, state) VALUES (?, 'geheim', 'af', 'known')",
+    ).run(INTRUDER);
+    seedOwnVocab('v_mine', 'huis');
+
+    const res = await vocabApp.request('/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vocabIDs: ['v_intruder', 'v_mine'] }),
+    });
+
+    expect(await res.json()).toEqual({ success: true, message: 'Deleted 1 of 2' });
+    expect(countVocab('v_intruder')).toBe(1);
+    expect(countVocab('v_mine')).toBe(0);
+    const theirKnown = db
+      .prepare('SELECT COUNT(*) AS n FROM knownWords WHERE userId = ?')
+      .get(INTRUDER) as { n: number };
+    expect(theirKnown.n).toBe(1);
+  });
+
+  // The orphan sweep asks "does any vocab row still fold to this key?" — that
+  // question has to be scoped to the requester. Another user holding the same
+  // word must neither keep the requester's knownWords row alive nor lose their
+  // own when the requester deletes theirs.
+  test("another user's identical word neither saves nor loses a knownWords row", async () => {
+    seedIntruderVocabText('v_intruder_huis', 'huis');
+    db.prepare(
+      "INSERT INTO knownWords (userId, word, language, state) VALUES (?, 'huis', 'af', 'known')",
+    ).run(INTRUDER);
+    seedOwnVocab('v_mine', 'huis');
+    db.prepare(
+      "INSERT INTO knownWords (userId, word, language, state) VALUES ('local', 'huis', 'af', 'known')",
+    ).run();
+
+    await vocabApp.request('/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vocabIDs: ['v_mine'] }),
+    });
+
+    // Theirs is untouched; mine is swept even though their row still folds to
+    // the same key.
+    const rows = db
+      .prepare('SELECT userId FROM knownWords WHERE word = ? AND language = ?')
+      .all('huis', 'af') as { userId: string }[];
+    expect(rows.map((r) => r.userId)).toEqual([INTRUDER]);
+    expect(countVocab('v_intruder_huis')).toBe(1);
   });
 
   test("known-words map excludes another user's words", async () => {

@@ -1121,6 +1121,46 @@ const vocabOps: Record<string, OperationDoc> = {
     pathParams: { id: 'Vocabulary entry identifier.' },
     responses: { '200': { description: 'The entry is deleted.', schema: ref('Success') } },
   },
+  'POST /api/vocab/bulk-delete': {
+    summary: 'Delete saved entries in a batch',
+    description:
+      'Deletes up to 200 entries in one transaction. An identifier that does not exist, ' +
+      'or that belongs to another account, is skipped rather than rejected, so the ' +
+      'response reports how many of the requested entries were deleted. Each deleted ' +
+      'word also loses its known-word state when no other entry in that language ' +
+      'still matches it.',
+    tag: 'Vocabulary',
+    requestBody: {
+      required: true,
+      schema: {
+        type: 'object',
+        properties: {
+          vocabIDs: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Vocabulary entry identifiers. Between 1 and 200.',
+          },
+        },
+        required: ['vocabIDs'],
+      },
+    },
+    responses: {
+      '200': {
+        description: 'The batch is processed.',
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: {
+              type: 'string',
+              description: 'How many of the requested entries were deleted.',
+            },
+          },
+          required: ['success', 'message'],
+        },
+      },
+    },
+  },
   'GET /api/known-words': {
     summary: 'Get every word knowledge state',
     description: 'Returns one map for the language. The reader colours words from it.',
