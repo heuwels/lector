@@ -359,8 +359,8 @@ app.delete('/:id', (c) => {
 // POST /api/vocab/bulk-delete
 app.post('/bulk-delete', async (c) => {
   const userId = getCurrentUserId(c);
-  const body = await c.req.json();
-  const vocabIDs = body.vocabIDs;
+  const body = await c.req.json().catch(() => null);
+  const vocabIDs = body?.vocabIDs;
 
   if (!vocabIDs || vocabIDs.length === 0) {
     return c.json(
