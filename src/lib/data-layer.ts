@@ -658,6 +658,22 @@ export async function deleteVocabEntry(id: string): Promise<void> {
   invalidateFluencyStats();
 }
 
+export async function bulkDeleteVocabEntries(
+  vocabIDs: string[],
+): Promise<{ success: boolean; body: string }> {
+  const req = await apiFetch(`/api/vocab/bulk-delete`, {
+    body: JSON.stringify({ vocabIDs }),
+    method: 'POST',
+  });
+
+  await requireOk(req, 'Could not bulk delete vocabulary entries');
+  const res = await req.json();
+  invalidateVocab();
+  invalidateFluencyStats();
+
+  return res;
+}
+
 // ============================================================================
 // Helper Functions - Known Words (Fast Lookup)
 // ============================================================================
