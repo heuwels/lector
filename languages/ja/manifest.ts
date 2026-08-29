@@ -158,5 +158,21 @@ export const ja = {
     // Fullwidth terminators. Japanese writes no space after 。 so the unspaced
     // sentence splitter scans instead of requiring one.
     sentenceTerminators: '。．！？!?',
+    // Tighter than the Latin default of 1.9, which #570 reports as too airy for
+    // Japanese. Two reasons the same number does not fit both scripts:
+    //
+    // - A Latin line needs room for an ascender over a descender, so 'g' under
+    //   'l' does not touch. Kana and kanji sit inside the em box and cannot
+    //   collide, so that room is empty space.
+    // - Japanese writes no spaces, so the eye follows the line rather than the
+    //   word gaps, and a wide gutter between the lines breaks that.
+    //
+    // 1.7 is a judgement call by eye, not a measurement. 1.6 read as cramped.
+    //
+    // This is the leading of PLAIN Japanese. It does not carry to a paragraph
+    // with furigana on, which the annotation floor holds at a much wider value.
+    // See MIN_ANNOTATED_LEADING: an out-of-flow reading has to fit between the
+    // lines, and no setting can compress it away.
+    prose: { lineHeight: 1.7 },
   },
 };

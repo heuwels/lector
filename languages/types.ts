@@ -78,6 +78,35 @@ export interface ScriptConfig {
   practiceLeniency?: 'exact' | 'fold-marks';
   /** Phase 1 (#289): per-script reading font class resolved in the reader. */
   fontClass?: string;
+  /**
+   * Reader typography this script reads best at (#570). Every field is
+   * optional, and an absent field takes the app-wide default.
+   *
+   * This is the LOWEST of the three layers. A reader's own global setting beats
+   * it, and a reader's per-language setting beats that. A pack states what the
+   * script needs. It never overrules a person who stated a preference.
+   *
+   * Set a field only for a script whose default rendering is wrong, and say why
+   * in the pack. Latin needs nothing.
+   */
+  prose?: ProseDefaults;
+}
+
+/**
+ * Per-script reader typography defaults (#570).
+ *
+ * A pack sets only the fields its script needs. Read `ScriptConfig.prose` for
+ * how these combine with a reader's own settings.
+ */
+export interface ProseDefaults {
+  /** Body text size in CSS pixels. */
+  fontSize?: number;
+  /** Body text weight, 100 to 900. */
+  fontWeight?: number;
+  /** Letter spacing in em. A negative value tightens the text. */
+  letterSpacing?: number;
+  /** Line height as a multiple of the font size. */
+  lineHeight?: number;
 }
 
 /** Server-side TTS engines a language can be spoken by (#307 §3.2). */

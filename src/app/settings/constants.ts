@@ -8,4 +8,5 @@ export const SETTINGS_KEYS = {
   HIDE_TRANSLATION: 'lector-hide-translation',
   VOCAB_PAGE_SIZE: 'lector-vocab-page-size',
   ANNOTATION_MODE: 'lector-annotation-mode',
+  PROSE_STYLE: 'lector-prose-style',
 } as const;

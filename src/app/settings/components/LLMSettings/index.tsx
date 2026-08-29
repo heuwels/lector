@@ -385,18 +385,23 @@ export default function LLMSettings() {
             </p>
             {hasApiKey && !editingApiKey ? (
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--primary-soft)] px-3 py-2 text-sm font-medium text-primary ">
+                <span
+                  data-testid="anthropic-api-key-status"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[var(--primary-soft)] px-3 py-2 text-sm font-medium text-primary "
+                >
                   <span className="inline-block h-2 w-2 rounded-full bg-primary" />
                   Configured
                 </span>
                 <button
                   onClick={() => setEditingApiKey(true)}
+                  data-testid="anthropic-api-key-replace"
                   className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
                 >
                   Replace
                 </button>
                 <button
                   onClick={() => runSettingMutation(clearAnthropicApiKey())}
+                  data-testid="anthropic-api-key-clear"
                   className="rounded-md border border-destructive/40 bg-background px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
                 >
                   Clear
@@ -409,11 +414,13 @@ export default function LLMSettings() {
                   value={newApiKey}
                   onChange={(e) => setNewApiKey(e.target.value)}
                   placeholder="sk-ant-api..."
+                  data-testid="anthropic-api-key"
                   className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
                 />
                 <button
                   onClick={() => runSettingMutation(saveAnthropicApiKey(newApiKey))}
                   disabled={!newApiKey.trim()}
+                  data-testid="anthropic-api-key-save"
                   className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Save
@@ -424,6 +431,7 @@ export default function LLMSettings() {
                       setEditingApiKey(false);
                       setNewApiKey('');
                     }}
+                    data-testid="anthropic-api-key-cancel"
                     className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
                   >
                     Cancel

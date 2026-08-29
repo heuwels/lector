@@ -48,6 +48,11 @@ export default function WordCell({
 }: WordCellProps) {
   const colorClass = state ? stateClasses[state] : stateClasses.new;
   const isHighlighted = isPhraseHighlighted || isActive;
+  // A word with no handler is decoration — the settings preview (#570) draws the
+  // chips to show a typography change, and there is nothing to look up. Button
+  // semantics there would put five dead stops in the keyboard order and read
+  // "Look up X" to a screen reader for a word that is not in the lesson.
+  const interactive = onActivate !== undefined;
 
   return (
     <span
@@ -56,9 +61,9 @@ export default function WordCell({
       // Test hook for the rendered word state — the e2e suite asserts on it to
       // check a save landed without reading colors out of the computed style.
       data-word-state={state ?? 'new'}
-      role="button"
-      tabIndex={0}
-      aria-label={`Look up ${text}`}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? `Look up ${text}` : undefined}
       onClick={(event) => onActivate?.(text, event.currentTarget)}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -72,14 +77,18 @@ export default function WordCell({
       // the full chip turned the page into a grid of buttons instead of prose.
       // A wide annotation keeps ruby layout and the original padding, because it
       // needs that room to avoid the neighbouring word.
-      className={`cursor-pointer rounded-[7px] font-bold hover:ring-2 hover:ring-ring/50 ${
+      className={`rounded-[7px] ${interactive ? 'cursor-pointer hover:ring-2 hover:ring-ring/50' : ''} ${
         reading && readingOverhangs ? 'relative border-transparent px-[3px]' : 'px-[7px]'
       } ${colorClass} ${isActive ? 'ring-2 ring-[var(--clay)]' : ''}`}
-      style={
-        isHighlighted
+      // The weight is a reader setting (#570). The fallback is the 700 this used
+      // to hardcode, so a surface outside the reader — listen-along, practice —
+      // publishes no custom property and draws exactly as it did before.
+      style={{
+        fontWeight: 'var(--reader-font-weight, 700)',
+        ...(isHighlighted
           ? { backgroundColor: 'color-mix(in srgb, var(--clay) 22%, transparent)' }
-          : undefined
-      }
+          : {}),
+      }}
     >
       {reading ? (
         <ruby>
