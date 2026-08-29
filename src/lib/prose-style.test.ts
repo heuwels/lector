@@ -26,7 +26,7 @@ describe('resolveProseStyle', () => {
 
   it('takes a pack default where the pack states one', () => {
     // ja tightens the leading and states nothing else.
-    expect(resolveProseStyle(ja)).toEqual({ ...DEFAULT_PROSE_STYLE, lineHeight: 1.6 });
+    expect(resolveProseStyle(ja)).toEqual({ ...DEFAULT_PROSE_STYLE, lineHeight: 1.7 });
   });
 
   it("lets the reader's global setting beat a pack default", () => {
@@ -47,7 +47,7 @@ describe('resolveProseStyle', () => {
     expect(resolveProseStyle(ja, settings)).toEqual({
       ...DEFAULT_PROSE_STYLE,
       fontSize: 24,
-      lineHeight: 1.6,
+      lineHeight: 1.7,
     });
   });
 
@@ -82,18 +82,28 @@ describe('proseStyleVars', () => {
   });
 
   it('moves the annotated leading with the reader setting, which is the #570 fault', () => {
-    const settings = { global: { lineHeight: 2 }, byLanguage: {} };
+    // Above the floor, so the extra is what decides it.
+    const settings = { global: { lineHeight: 2.5 }, byLanguage: {} };
     const vars = proseStyleVars(resolveProseStyle(ja, settings), ja);
-    expect(vars['--reader-line-height']).toBe('2');
-    expect(vars['--reader-line-height-annotated']).toBe('2.25');
+    expect(vars['--reader-line-height']).toBe('2.5');
+    expect(vars['--reader-line-height-annotated']).toBe('2.75');
   });
 
   it('holds an overhanging annotation off the line above, however tight the setting', () => {
-    // 1.2 + 0.25 is 1.45, and furigana do not fit in it. The body text still
-    // tightens to 1.2 — only the annotated paragraphs stop at the floor.
+    // Measured: furigana touch the line above at 2.15 and collide below it, so
+    // no reader setting may take the annotated paragraphs under the floor. The
+    // body text still tightens to 1.2 — only the annotated lines stop.
     const settings = { global: { lineHeight: 1.2 }, byLanguage: {} };
     const vars = proseStyleVars(resolveProseStyle(ja, settings), ja);
     expect(vars['--reader-line-height']).toBe('1.2');
+    expect(vars['--reader-line-height-annotated']).toBe(String(MIN_ANNOTATED_LEADING));
+  });
+
+  it('holds the ja pack default itself above the floor', () => {
+    // 1.7 + 0.25 is under the floor, so plain Japanese reads tight while an
+    // annotated paragraph keeps the room the furigana need.
+    const vars = proseStyleVars(resolveProseStyle(ja), ja);
+    expect(vars['--reader-line-height']).toBe('1.7');
     expect(vars['--reader-line-height-annotated']).toBe(String(MIN_ANNOTATED_LEADING));
   });
 

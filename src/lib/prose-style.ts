@@ -100,13 +100,22 @@ export function annotationLeading(pack: LanguageConfig): number {
  * browser reserves none for it. Below this the furigana of one line land on the
  * words of the line above, which is not a tight page — it is an unreadable one.
  *
- * The number is the sum of what has to fit: 1.0 for the Han em box, 0.58 for the
- * reading (see the `rt` size in WordCell), and the rest as margin.
+ * MEASURED, not derived. What has to fit is the word CHIP, not the glyph: the
+ * chip is an inline box, so its height is the reading font's content area
+ * (about 1.4em for Literata) and not the 1.0em of the Han square. Add the 0.58em
+ * reading above it and about 0.2em of margin.
+ *
+ * Measured in Chrome at 20px, 26px and 32px on a Japanese lesson, the ruby first
+ * clears the line above at 2.15 — by 0.4px, which is touching rather than
+ * clearing. 2.3 is the first value with real daylight in it.
+ *
+ * 2.15 is also what the reader hardcoded before #570, so that layout was always
+ * one rounding error from a collision.
  *
  * It does not apply to an IN-FLOW annotation. There the browser has already
  * counted the reading in the line box, so the lines cannot meet.
  */
-export const MIN_ANNOTATED_LEADING = 1.75;
+export const MIN_ANNOTATED_LEADING = 2.3;
 
 /** The line height an annotated paragraph is drawn at. */
 export function annotatedLineHeight(style: ProseStyle, pack: LanguageConfig): number {

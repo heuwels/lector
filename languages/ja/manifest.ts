@@ -167,8 +167,12 @@ export const ja = {
     // - Japanese writes no spaces, so the eye follows the line rather than the
     //   word gaps, and a wide gutter between the lines breaks that.
     //
-    // 1.6 still leaves the 0.25 of furigana headroom the annotated leading adds
-    // on top. A reader who disagrees overrules this in Settings.
-    prose: { lineHeight: 1.6 },
+    // 1.7 is a judgement call by eye, not a measurement. 1.6 read as cramped.
+    //
+    // This is the leading of PLAIN Japanese. It does not carry to a paragraph
+    // with furigana on, which the annotation floor holds at a much wider value.
+    // See MIN_ANNOTATED_LEADING: an out-of-flow reading has to fit between the
+    // lines, and no setting can compress it away.
+    prose: { lineHeight: 1.7 },
   },
 };

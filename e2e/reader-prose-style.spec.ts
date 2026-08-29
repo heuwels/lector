@@ -120,9 +120,11 @@ test.describe('Reader prose style', () => {
 
     await page.goto(`/read/${lesson}`);
     expect(await readerStyle(page)).toMatchObject({
-      lineHeight: '1.6',
-      // Furigana overhang, so the extra is 0.25 rather than 0.8.
-      annotatedLineHeight: '1.85',
+      lineHeight: '1.7',
+      // Plain Japanese reads at the pack's 1.7. An annotated paragraph does not:
+      // furigana sit out of flow, and the browser reserves no room for them, so
+      // the floor holds those lines apart. See MIN_ANNOTATED_LEADING.
+      annotatedLineHeight: '2.3',
     });
   });
 
@@ -160,9 +162,9 @@ test.describe('Reader prose style', () => {
     expect(await readerStyle(page)).toMatchObject({
       fontSize: '26px',
       lineHeight: '1.4',
-      // 1.4 + 0.25 is 1.65, below the floor an out-of-flow furigana needs, so
-      // the annotated paragraphs stop at MIN_ANNOTATED_LEADING.
-      annotatedLineHeight: '1.75',
+      // 1.4 + 0.25 is far below what an out-of-flow furigana needs, so the
+      // annotated paragraphs stop at MIN_ANNOTATED_LEADING.
+      annotatedLineHeight: '2.3',
     });
 
     await useLanguage(page, 'de');
@@ -188,17 +190,22 @@ test.describe('Prose style settings', () => {
   test('shows the app defaults under All languages, not the active pack default', async ({
     page,
   }) => {
-    // Japanese is the active language and its pack asks for 1.6. The global
+    // Japanese is the active language and its pack asks for 1.7. The global
     // numbers apply to every language, so the pack must not seed them.
     await expect(page.getByTestId('prose-fontSize-value')).toHaveText('20px');
     await expect(page.getByTestId('prose-lineHeight-value')).toHaveText('1.90');
   });
 
-  test('stores only the field that moved', async ({ page }) => {
+  test('keeps a slider out of the reader until it is saved', async ({ page }) => {
     await page.getByTestId('prose-fontSize').fill('26');
     await page.getByTestId('prose-fontSize').dispatchEvent('change');
+    // The sample follows at once. Nothing is stored, so the reader does not.
     await expect(page.getByTestId('prose-fontSize-value')).toHaveText('26px');
+    expect(
+      await page.evaluate((key) => localStorage.getItem(key), SETTINGS_KEYS.PROSE_STYLE),
+    ).toBeNull();
 
+    await page.getByTestId('prose-save').click();
     const stored = await page.evaluate(
       (key) => localStorage.getItem(key),
       SETTINGS_KEYS.PROSE_STYLE,
@@ -206,16 +213,49 @@ test.describe('Prose style settings', () => {
     expect(JSON.parse(stored!)).toEqual({ global: { fontSize: 26 }, byLanguage: {} });
   });
 
-  test('a language inherits the global size and keeps its own pack leading', async ({ page }) => {
+  test('save is dead until something moves, and dead again once it is saved', async ({ page }) => {
+    await expect(page.getByTestId('prose-save')).toBeDisabled();
     await page.getByTestId('prose-fontSize').fill('26');
+    await page.getByTestId('prose-fontSize').dispatchEvent('change');
+    await expect(page.getByTestId('prose-save')).toBeEnabled();
+    await page.getByTestId('prose-save').click();
+    await expect(page.getByTestId('prose-save')).toBeDisabled();
+  });
+
+  test('a reset throws away the unsaved sliders', async ({ page }) => {
+    await page.getByTestId('prose-fontSize').fill('34');
+    await page.getByTestId('prose-fontSize').dispatchEvent('change');
+    await expect(page.getByTestId('prose-fontSize-value')).toHaveText('34px');
+
+    await page.getByTestId('prose-reset').click();
+    await expect(page.getByTestId('prose-fontSize-value')).toHaveText('20px');
+    await expect(page.getByTestId('prose-save')).toBeDisabled();
+  });
+
+  test('keeps an unsaved edit while the reader looks at another language', async ({ page }) => {
+    await page.getByTestId('prose-fontSize').fill('30');
     await page.getByTestId('prose-fontSize').dispatchEvent('change');
 
     await page.getByTestId('prose-scope-ja').click();
+    await expect(page.getByTestId('prose-fontSize-value')).toHaveText('20px');
+
+    await page.getByTestId('prose-scope-global').click();
+    await expect(page.getByTestId('prose-fontSize-value')).toHaveText('30px');
+    await expect(page.getByTestId('prose-save')).toBeEnabled();
+  });
+
+  test('a language inherits the global size and keeps its own pack leading', async ({ page }) => {
+    await page.getByTestId('prose-fontSize').fill('26');
+    await page.getByTestId('prose-fontSize').dispatchEvent('change');
+    await page.getByTestId('prose-save').click();
+
+    await page.getByTestId('prose-scope-ja').click();
     await expect(page.getByTestId('prose-fontSize-value')).toHaveText('26px');
-    await expect(page.getByTestId('prose-lineHeight-value')).toHaveText('1.60');
+    await expect(page.getByTestId('prose-lineHeight-value')).toHaveText('1.70');
 
     await page.getByTestId('prose-lineHeight').fill('1.4');
     await page.getByTestId('prose-lineHeight').dispatchEvent('change');
+    await page.getByTestId('prose-save').click();
     const stored = await page.evaluate(
       (key) => localStorage.getItem(key),
       SETTINGS_KEYS.PROSE_STYLE,
@@ -230,10 +270,11 @@ test.describe('Prose style settings', () => {
     await page.getByTestId('prose-scope-ja').click();
     await page.getByTestId('prose-lineHeight').fill('1.4');
     await page.getByTestId('prose-lineHeight').dispatchEvent('change');
+    await page.getByTestId('prose-save').click();
     await expect(page.getByTestId('prose-lineHeight-value')).toHaveText('1.40');
 
     await page.getByTestId('prose-reset').click();
-    await expect(page.getByTestId('prose-lineHeight-value')).toHaveText('1.60');
+    await expect(page.getByTestId('prose-lineHeight-value')).toHaveText('1.70');
     const stored = await page.evaluate(
       (key) => localStorage.getItem(key),
       SETTINGS_KEYS.PROSE_STYLE,
