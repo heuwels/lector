@@ -40,10 +40,8 @@ test.describe("Anthropic Credential Management", () => {
     await page.waitForLoadState("networkidle");
 
     // Should show the API key input (not "Configured")
-    await expect(
-      page.getByPlaceholder("sk-ant-api...")
-    ).toBeVisible();
-    await expect(page.getByText("Configured").first()).not.toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key")).toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key-status")).not.toBeVisible();
   });
 
   test("should show Configured badge after saving API key", async ({
@@ -53,22 +51,18 @@ test.describe("Anthropic Credential Management", () => {
     await page.waitForLoadState("networkidle");
 
     // Type a key and save
-    await page.getByPlaceholder("sk-ant-api...").fill("sk-ant-api-test-key");
-    await page.getByRole("button", { name: "Save" }).first().click();
+    await page.getByTestId("anthropic-api-key").fill("sk-ant-api-test-key");
+    await page.getByTestId("anthropic-api-key-save").click();
 
     // Should now show Configured badge
-    await expect(page.getByText("Configured").first()).toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key-status")).toBeVisible();
 
     // Should show Replace and Clear buttons
-    await expect(
-      page.getByRole("button", { name: "Replace" }).first()
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Clear" }).first()
-    ).toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key-replace")).toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key-clear")).toBeVisible();
 
     // Input should be gone
-    await expect(page.getByPlaceholder("sk-ant-api...")).not.toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key")).not.toBeVisible();
   });
 
   test("should clear a configured API key", async ({ page }) => {
@@ -81,14 +75,14 @@ test.describe("Anthropic Credential Management", () => {
     await page.waitForLoadState("networkidle");
 
     // Should show Configured
-    await expect(page.getByText("Configured").first()).toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key-status")).toBeVisible();
 
     // Click Clear
-    await page.getByRole("button", { name: "Clear" }).first().click();
+    await page.getByTestId("anthropic-api-key-clear").click();
 
     // Should show input again
-    await expect(page.getByPlaceholder("sk-ant-api...")).toBeVisible();
-    await expect(page.getByText("Configured").first()).not.toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key")).toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key-status")).not.toBeVisible();
   });
 
   test("should show Replace flow for configured API key", async ({
@@ -103,17 +97,15 @@ test.describe("Anthropic Credential Management", () => {
     await page.waitForLoadState("networkidle");
 
     // Click Replace
-    await page.getByRole("button", { name: "Replace" }).first().click();
+    await page.getByTestId("anthropic-api-key-replace").click();
 
     // Should show input with Save and Cancel
-    await expect(page.getByPlaceholder("sk-ant-api...")).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Cancel" }).first()
-    ).toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key")).toBeVisible();
+    await expect(page.getByTestId("anthropic-api-key-cancel")).toBeVisible();
 
     // Cancel should go back to Configured
-    await page.getByRole("button", { name: "Cancel" }).first().click();
-    await expect(page.getByText("Configured").first()).toBeVisible();
+    await page.getByTestId("anthropic-api-key-cancel").click();
+    await expect(page.getByTestId("anthropic-api-key-status")).toBeVisible();
   });
 
   test("should NOT show auth mode toggle when only one credential is set", async ({
