@@ -10,6 +10,7 @@ import type { ActiveReaderWord } from './ReaderArticle';
 import { collectWords, computePhraseHighlightSet, splitWords } from './utils';
 import { wordReading, type AnnotationMode } from './annotation';
 import { readerWrapClass } from './wrap';
+import { proseStyleVars, type ProseStyle } from '@/lib/prose-style';
 import WordCell from '@/components/WordCell';
 
 /** mm:ss / h:mm:ss label for a second offset (mirrors the server helper). */
@@ -26,6 +27,8 @@ interface TranscriptReaderProps {
   segments: TranscriptSegment[];
   sourceUrl: string;
   pack: LanguageConfig;
+  /** Resolved reader typography (#570). */
+  prose: ProseStyle;
   /**
    * The lesson's stored segmentation (#289 4.2). A YouTube lesson's
    * `segmentWords` is built from the flattened transcript, which is exactly the
@@ -57,6 +60,7 @@ function TranscriptReader({
   segments,
   sourceUrl,
   pack,
+  prose,
   segmentation,
   knownWordsMap,
   readings,
@@ -79,6 +83,13 @@ function TranscriptReader({
       lang={pack.script.bcp47}
       dir={pack.script.direction}
       className={`mx-auto max-w-[46em] px-4 py-6 text-foreground sm:px-8 sm:py-8 ${readerWrapClass(pack)}`}
+      // Same typography seam as the markdown article (#570): publish the custom
+      // properties here and every cue below inherits them.
+      style={{
+        fontSize: 'var(--reader-font-size)',
+        letterSpacing: 'var(--reader-letter-spacing)',
+        ...proseStyleVars(prose, pack),
+      }}
       data-testid="transcript-reader"
     >
       {segments.map((segment, segmentIndex) => {
@@ -116,13 +127,13 @@ function TranscriptReader({
             </button>
             {/* <p> so the reader's drag-select phrase lookup (closest('p')) works. */}
             <p
-              className={`flex-1 text-lg sm:text-xl ${
-                annotationMode !== 'off' && readings !== null
-                  ? overhangs
-                    ? 'leading-[2.15]'
-                    : 'leading-[2.7]'
-                  : 'leading-[1.9]'
-              }`}
+              className="flex-1"
+              style={{
+                lineHeight:
+                  annotationMode !== 'off' && readings !== null
+                    ? 'var(--reader-line-height-annotated)'
+                    : 'var(--reader-line-height)',
+              }}
             >
               {splitWords(segment.text, pack, segmentation).map((part, partIndex) => {
                 if (!part.isWord) {

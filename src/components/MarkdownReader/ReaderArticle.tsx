@@ -16,6 +16,7 @@ import type { WordState } from '@/types';
 import { collectWords, computePhraseHighlightSet, readableText, splitWords } from './utils';
 import { wordReading, type AnnotationMode } from './annotation';
 import { readerWrapClass } from './wrap';
+import { proseStyleVars, type ProseStyle } from '@/lib/prose-style';
 import WordCell from '@/components/WordCell';
 
 export interface ActiveReaderWord {
@@ -186,28 +187,27 @@ const ReaderBlock = memo(function ReaderBlock({
 
   const content = renderChildren(children, { i: 0 });
   // An annotated paragraph needs headroom for the reading above the word, and
-  // how much depends on the layout.
-  //
-  // An OVERHANGING annotation is out of flow, so it adds nothing to the line box
-  // and the leading reserves the room itself. 2.15 fits a 0.58em reading.
-  //
-  // An IN-FLOW annotation is part of the line box already, so the browser has
-  // added its height. The leading only has to keep the lines from crowding, and
-  // 2.7 is what Chinese needs to stay legible with pinyin on every word.
+  // how much depends on the layout. Both leadings are resolved once per lesson
+  // and published as custom properties by the article below (#570), so a reader
+  // who tightens the text tightens the annotated lines with it.
   const annotated = annotationMode !== 'off' && readings !== null;
-  const annotatedLeading = overhangs ? 'leading-[2.15]' : 'leading-[2.7]';
+  const lineHeight = annotated
+    ? 'var(--reader-line-height-annotated)'
+    : 'var(--reader-line-height)';
   return Tag === 'p' ? (
-    <p className={`my-5 text-lg sm:text-xl ${annotated ? annotatedLeading : 'leading-[1.9]'}`}>
+    <p className="my-5" style={{ lineHeight }}>
       {content}
     </p>
   ) : (
-    <li className={annotated ? annotatedLeading : 'leading-relaxed'}>{content}</li>
+    <li style={{ lineHeight }}>{content}</li>
   );
 }, readerBlockPropsEqual);
 
 interface ReaderArticleProps {
   content: string;
   pack: LanguageConfig;
+  /** Resolved reader typography (#570). */
+  prose: ProseStyle;
   segmentation: WordSegmentation | null;
   knownWordsMap: Map<string, WordState>;
   readings: Map<string, string> | null;
@@ -222,6 +222,7 @@ interface ReaderArticleProps {
 function ReaderArticle({
   content,
   pack,
+  prose,
   segmentation,
   knownWordsMap,
   readings,
@@ -258,7 +259,15 @@ function ReaderArticle({
       lang={pack.script.bcp47}
       dir={pack.script.direction}
       className={`mx-auto max-w-[38em] px-4 py-8 text-foreground sm:px-8 sm:py-16 print:px-0 print:py-0 ${wrapClass}`}
-      style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}
+      // The typography reaches the words by inheritance (#570). The blocks below
+      // and WordCell read the custom properties, so no component has to pass the
+      // resolved style into the memoized block props.
+      style={{
+        fontFamily: 'var(--font-literata), Georgia, serif',
+        fontSize: 'var(--reader-font-size)',
+        letterSpacing: 'var(--reader-letter-spacing)',
+        ...proseStyleVars(prose, pack),
+      }}
     >
       <ReactMarkdown
         remarkPlugins={[remarkBreaks]}
@@ -277,12 +286,8 @@ function ReaderArticle({
               {children}
             </ReaderBlock>
           ),
-          ul: ({ children }) => (
-            <ul className="my-5 list-disc space-y-2 pl-6 text-lg sm:text-xl">{children}</ul>
-          ),
-          ol: ({ children }) => (
-            <ol className="my-5 list-decimal space-y-2 pl-6 text-lg sm:text-xl">{children}</ol>
-          ),
+          ul: ({ children }) => <ul className="my-5 list-disc space-y-2 pl-6">{children}</ul>,
+          ol: ({ children }) => <ol className="my-5 list-decimal space-y-2 pl-6">{children}</ol>,
           li: ({ node, children }) => (
             <ReaderBlock as="li" blockId={node?.position?.start?.offset ?? 0} {...blockProps}>
               {children}

@@ -33,7 +33,7 @@ import { tr } from './tr/manifest';
 import { uk } from './uk/manifest';
 import { zh } from './zh/manifest';
 
-export type { LanguageConfig } from './types';
+export type { LanguageConfig, ProseDefaults } from './types';
 
 // Keys-only object: `LanguageCode` is derived from these without referencing
 // `LanguageConfig`, which keeps types.ts ⇄ registry.ts free of a type cycle.

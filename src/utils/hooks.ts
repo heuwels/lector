@@ -4,6 +4,12 @@ import { LanguageCode, LanguageConfig } from '@/types/language';
 import { getSetting } from '@/lib/data-layer';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getLanguageSnapshot, getStoredTheme, subscribeToStorage } from './storage';
+import {
+  readProseStyleSettings,
+  serverProseStyleSettings,
+  subscribeToProseStyle,
+} from './prose-style-storage';
+import type { ProseStyleSettings } from '@/lib/prose-style';
 import { applyTheme, getEffectiveTheme } from './theme';
 import { Theme } from '@/types/theme';
 import { SETTINGS_KEYS } from '@/app/settings/constants';
@@ -59,6 +65,22 @@ export function useEnabledLanguages(): LanguageCode[] {
   }, []);
 
   return codes;
+}
+
+/**
+ * The reader typography settings (#570). Read straight out of browser storage,
+ * so a reader that changes the setting in another tab sees it here too.
+ *
+ * `useSyncExternalStore` rather than an effect, because the reader must draw
+ * the right size on its FIRST paint. An effect would paint the default and then
+ * jump to the stored size, which reads as a fault at the top of a lesson.
+ */
+export function useProseStyleSettings(): ProseStyleSettings {
+  return useSyncExternalStore(
+    subscribeToProseStyle,
+    readProseStyleSettings,
+    serverProseStyleSettings,
+  );
 }
 
 export function useTheme() {

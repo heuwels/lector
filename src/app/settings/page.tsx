@@ -11,6 +11,7 @@ import AnkiSettings from './components/AnkiSettings';
 import TTSSettings from './components/TTSSettings';
 import LLMSettings from './components/LLMSettings';
 import PracticeSettings from './components/PracticeSettings';
+import ProseSettings from './components/ProseSettings';
 import LanguagesSettings from './components/LanguagesSettings';
 import VersionInfo from './components/VersionInfo';
 import DeleteAccount from './components/DeleteAccount';
@@ -26,6 +27,7 @@ export default function SettingsPage() {
       <div className="space-y-8">
         {lectorMode() === 'cloud' && <CloudPlanSettings />}
         <LanguagesSettings />
+        <ProseSettings />
         <PracticeSettings />
         {lectorMode() === 'cloud' ? <BYOKSettings /> : <LLMSettings />}
         <AnkiSettings />

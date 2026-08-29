@@ -15,7 +15,8 @@ import {
   tokenize,
 } from '@/lib/languages';
 import { parseSegmentWords, readableText } from './utils';
-import { useActiveLanguage } from '@/utils/hooks';
+import { useActiveLanguage, useProseStyleSettings } from '@/utils/hooks';
+import { resolveProseStyle } from '@/lib/prose-style';
 import { MarkdownReaderProps } from './types';
 import { Button } from '@/components/ui/button';
 import ReaderArticle, { type ActiveReaderWord } from './ReaderArticle';
@@ -61,6 +62,11 @@ export default function MarkdownReader({
   // would show ruby over a few words and nothing over the rest, which reads as
   // a bug rather than a feature.
   const supportsAnnotation = Boolean(pack.pronunciation.annotation);
+  // Reader typography (#570). Resolved against the LESSON's pack for the same
+  // reason the tokenizer is: a Japanese lesson keeps the leading Japanese needs
+  // even when another language is the active one.
+  const proseSettings = useProseStyleSettings();
+  const prose = useMemo(() => resolveProseStyle(pack, proseSettings), [pack, proseSettings]);
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>('learning');
   const [readings, setReadings] = useState<Map<string, string> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -426,6 +432,7 @@ export default function MarkdownReader({
               segments={transcript.segments}
               sourceUrl={transcript.meta.sourceUrl}
               pack={pack}
+              prose={prose}
               segmentation={segmentation}
               knownWordsMap={knownWordsMap}
               readings={readings}
@@ -443,6 +450,7 @@ export default function MarkdownReader({
           <ReaderArticle
             content={lesson.textContent}
             pack={pack}
+            prose={prose}
             segmentation={segmentation}
             knownWordsMap={knownWordsMap}
             readings={readings}
