@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getLanguageConfig } from '@/lib/languages';
-import { readerBlockPropsEqual, type ReaderBlockProps } from './ReaderArticle';
+import { readerBlockPropsEqual, type ReaderBlockProps } from '.';
 
 const onWordClick = () => {};
 const onActivateWord = () => {};

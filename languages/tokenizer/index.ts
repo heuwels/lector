@@ -346,12 +346,16 @@ export function tokenize(
   pack: LanguageConfig,
   words?: WordSegmentation | null,
 ): Token[] {
-  if (pack.script.kind === 'cjk-unspaced') return tokenizeSegmented(text, pack.script, words);
+  if (pack.script.kind === 'cjk-unspaced') {
+    return tokenizeSegmented(text, pack.script, words);
+  }
+
   const { wordPattern } = compile(pack.script);
   const tokens: Token[] = [];
   const re = new RegExp(wordPattern.source, wordPattern.flags); // own lastIndex
   let lastIndex = 0;
   let match: RegExpExecArray | null;
+
   while ((match = re.exec(text)) !== null) {
     if (match.index > lastIndex) {
       tokens.push({

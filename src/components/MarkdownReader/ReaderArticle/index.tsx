@@ -13,11 +13,12 @@ import remarkBreaks from 'remark-breaks';
 import type { LanguageConfig, WordSegmentation } from '@/lib/languages';
 import { foldWord, lookupByVocabKeys, splitSentences, vocabKeys } from '@/lib/languages';
 import type { WordState } from '@/types';
-import { collectWords, computePhraseHighlightSet, readableText, splitWords } from './utils';
-import { wordReading, type AnnotationMode } from './annotation';
-import { readerWrapClass } from './wrap';
+import { collectWords, computePhraseHighlightSet, readableText, splitWords } from '../utils';
+import { wordReading, type AnnotationMode } from '../annotation';
+import { readerWrapClass } from '../wrap';
 import { proseStyleVars, type ProseStyle } from '@/lib/prose-style';
 import WordCell from '@/components/WordCell';
+import { ReaderArticleProps } from './types';
 
 export interface ActiveReaderWord {
   blockId: number;
@@ -202,22 +203,6 @@ const ReaderBlock = memo(function ReaderBlock({
     <li style={{ lineHeight }}>{content}</li>
   );
 }, readerBlockPropsEqual);
-
-interface ReaderArticleProps {
-  content: string;
-  pack: LanguageConfig;
-  /** Resolved reader typography (#570). */
-  prose: ProseStyle;
-  segmentation: WordSegmentation | null;
-  knownWordsMap: Map<string, WordState>;
-  readings: Map<string, string> | null;
-  annotationMode: AnnotationMode;
-  highlightedPhrase: string[];
-  activeWord: ActiveReaderWord | null;
-  onWordClick: (word: string, sentence: string) => void;
-  onActivateWord: (word: ActiveReaderWord) => void;
-  onClearPhrase: () => void;
-}
 
 function ReaderArticle({
   content,
