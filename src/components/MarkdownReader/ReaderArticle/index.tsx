@@ -16,14 +16,11 @@ import type { WordState } from '@/types';
 import { collectWords, computePhraseHighlightSet, readableText, splitWords } from '../utils';
 import { wordReading, type AnnotationMode } from '../annotation';
 import { readerWrapClass } from '../wrap';
-import { proseStyleVars, type ProseStyle } from '@/lib/prose-style';
+import { proseStyleVars } from '@/lib/prose-style';
 import WordCell from '@/components/WordCell';
-import { ReaderArticleProps } from './types';
+import type { ActiveReaderWord, ReaderArticleProps } from './types';
 
-export interface ActiveReaderWord {
-  blockId: number;
-  wordIndex: number;
-}
+export type { ActiveReaderWord } from './types';
 
 export interface ReaderBlockProps {
   as: 'p' | 'li';

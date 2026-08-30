@@ -14,6 +14,7 @@ import {
   type Token,
 } from './index';
 import { foldWord, normalizeText } from '../text';
+import { vocabKeys } from '../morphology';
 import { LANGUAGES, type LanguageCode } from '../registry';
 import type { LanguageConfig, ScriptConfig } from '../types';
 
@@ -47,9 +48,12 @@ const CORPUS: Record<
   string[]
 > = {
   af: [
+    // The 'n article still matches the oracle, which has its own alternative
+    // for it. Every OTHER apostrophe joins now (foto's, ek's), so those
+    // sentences live in the Afrikaans goldens below (#430).
     'Hallo, hoe gaan dit met jou?',
     '’n Man loop in die straat. Sy sê: „Dit is ’n mooi dag!“',
-    "ek's nie seker nie, dis 'n groot e-pos vir my pa-hulle.",
+    "Dis 'n groot e-pos vir my pa-hulle.",
     'Woorde soos sê, môre, lêer en reën het kappies.',
     'Die boek is in 1999 geskryf — hoofstuk 3 is die beste.',
     'Ons gaan na die Klein-Karoo toe.',
@@ -1107,6 +1111,111 @@ describe('Italian pack (real manifest)', () => {
     expect(snapToWordBoundaries(text, 1, 2, italian)).toEqual({ start: 0, end: 3 });
     //                 ^6^ inside "l'italiano" (4..14)
     expect(snapToWordBoundaries(text, 6, 7, italian)).toEqual({ start: 4, end: 14 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Afrikaans pack goldens — a plural apostrophe joins, it does not split (#430)
+// ---------------------------------------------------------------------------
+
+const afrikaans = LANGUAGES.af;
+
+const AF_CORPUS = [
+  'Hallo, hoe gaan dit met jou?',
+  "Ek het drie foto's en twee video's geneem.",
+  "Die ma's en pa's kyk na die baby's.",
+  "Ek's nie seker nie, en g'n een weet watter een s'n dit is.",
+];
+
+describe('Afrikaans pack (real manifest)', () => {
+  it('reassembles Afrikaans text byte-for-byte with correct offsets', () => {
+    for (const text of AF_CORPUS) {
+      const tokens = tokenize(text, afrikaans);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps a plural apostrophe as one token, in every apostrophe variant', () => {
+    // The user-reported bug: foto's must be one token. Splitting it produced
+    // foto + s, and the orphaned s painted as an unknown word.
+    for (const apostrophe of ["'", '’', 'ʼ']) {
+      const text = `foto${apostrophe}s video${apostrophe}s`;
+      expect(tokenizeWords(text, afrikaans).map((t) => t.text)).toEqual([
+        `foto${apostrophe}s`,
+        `video${apostrophe}s`,
+      ]);
+    }
+  });
+
+  it('keeps an abbreviation and a decade plural whole (#430)', () => {
+    expect(tokenizeWords("Die ABC's en die 1990's", afrikaans).map((t) => t.text)).toEqual([
+      'Die',
+      "ABC's",
+      'en',
+      'die',
+      "1990's",
+    ]);
+    expect(vocabKeys("ABC's", afrikaans)).toEqual(["abc's", 'abc']);
+    expect(vocabKeys("1990's", afrikaans)).toEqual(["1990's", '1990']);
+  });
+
+  it('keeps the common apostrophe shapes whole', () => {
+    expect(
+      tokenizeWords("Die ma's se taxi's, g'n een s'n nie, en ek's moeg.", afrikaans).map(
+        (t) => t.text,
+      ),
+    ).toEqual(['Die', "ma's", 'se', "taxi's", "g'n", 'een', "s'n", 'nie', 'en', "ek's", 'moeg']);
+  });
+
+  it('still matches the indefinite article as its own token', () => {
+    expect(tokenizeWords("Dis 'n foto's boek", afrikaans).map((t) => t.text)).toEqual([
+      'Dis',
+      "'n",
+      "foto's",
+      'boek',
+    ]);
+    // The 'n pattern must not eat the á in a curly-quoted capital N word.
+    expect(tokenizeWords('‘Ná my kom die vloed’', afrikaans).map((t) => t.text)).toEqual([
+      'Ná',
+      'my',
+      'kom',
+      'die',
+      'vloed',
+    ]);
+  });
+
+  it('folds every apostrophe variant onto one dictionary key', () => {
+    expect(foldWord("foto's", afrikaans)).toBe("foto's");
+    expect(foldWord('foto’s', afrikaans)).toBe("foto's");
+    expect(foldWord("MA'S", afrikaans)).toBe("ma's");
+    expect(foldWord('ma’s', afrikaans)).toBe("ma's");
+  });
+
+  it('peels the plural apostrophe onto the singular dictionary key', () => {
+    // The dictionary keys foto, not foto's, so the joined token has to reach
+    // the singular or the reader shows a word with no definition.
+    expect(vocabKeys("foto's", afrikaans)).toEqual(["foto's", 'foto']);
+    expect(vocabKeys('foto’s', afrikaans)).toEqual(["foto's", 'foto']);
+    expect(vocabKeys("ma's", afrikaans)).toEqual(["ma's", 'ma']);
+    // A plain -s plural is not an apostrophe peel and must not gain a key.
+    expect(vocabKeys('huise', afrikaans)).toEqual(['huise']);
+  });
+
+  it('leaves an apostrophe used as a quote outside the token', () => {
+    expect(tokenizeWords("'aanhaling'", afrikaans).map((t) => t.text)).toEqual(['aanhaling']);
+  });
+
+  it('still joins hyphenated compounds', () => {
+    expect(tokenizeWords('Klein-Karoo', afrikaans).map((t) => t.text)).toEqual(['Klein-Karoo']);
+  });
+
+  it('snaps a mid-word selection across the plural apostrophe', () => {
+    const text = "drie foto's";
+    //                 ^5..10^ inside "foto's" (5..11)
+    expect(snapToWordBoundaries(text, 6, 7, afrikaans)).toEqual({ start: 5, end: 11 });
   });
 });
 

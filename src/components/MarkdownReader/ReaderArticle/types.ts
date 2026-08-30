@@ -3,6 +3,12 @@ import type { WordState } from '@/types';
 import type { AnnotationMode } from '../annotation';
 import type { ProseStyle } from '@/lib/prose-style';
 
+/** The word the reader has focus on, addressed by its position in the article. */
+export interface ActiveReaderWord {
+  blockId: number;
+  wordIndex: number;
+}
+
 export interface ReaderArticleProps {
   content: string;
   pack: LanguageConfig;

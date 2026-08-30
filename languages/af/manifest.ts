@@ -67,7 +67,32 @@ export const af = {
     // in "‘Ná my kom…" (á isn't ASCII \w), so the opening quote + N matched as
     // the article and orphaned the "á".
     extraTokenPatterns: ["['‘’ʼ`]n(?![\\p{L}\\p{M}0-9_])"],
-    // Plural nouns (like `foto's` or `video's`) use the asterisk inside words
+    // The apostrophe is part of the spelling, not a quote mark. A noun that
+    // ends in a single vowel letter takes 's for the plural (foto's, video's,
+    // ma's, taxi's, menu's, baby's), and g'n / s'n / ek's write an elision the
+    // same way. Splitting them left a content half and a bare 's', and neither
+    // half is what the reader tapped (#430). A joiner only counts between two
+    // letter runs, so a quote mark at a token edge stays out.
+    //
+    // Dutch spells the same plural and still splits. Nothing blocks the same
+    // change there. The clitic fragments in the nl avoidWords list are an
+    // OUTPUT of the split and not a dependency of it, so a joiner can land
+    // without a rework: Italian kept its own fragments after #548, because
+    // wordfreq and older vocab rows still carry them.
     extraJoiners: "'‘’ʼʹ`´",
+    // Running text carries whichever variant its editor produced — the af
+    // corpus itself writes ’n with a curly quote — so fold them to ASCII ' and
+    // key foto's and foto’s as one word.
+    foldApostrophes: true,
+  },
+  // The written form carries the plural (foto's) and the dictionary keys the
+  // singular (foto). Peel the 's after the exact key misses, so a tap on the
+  // whole token still defines it. vocabKeys only keeps a candidate whose peeled
+  // part holds an apostrophe, so this cannot fire on a plain -s plural.
+  morphology: {
+    clitics: ["'s"],
+    maxClitics: 1,
+    // 2 so ma's and pa's still peel, while 's on its own cannot.
+    minStem: 2,
   },
 };
