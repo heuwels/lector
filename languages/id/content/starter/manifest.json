@@ -1,0 +1,129 @@
+{
+  "title": "1000 kata pertamamu",
+  "author": "Lector",
+  "allow": [
+    "Sari",
+    "Budi",
+    "Rina"
+  ],
+  "maxNewLemmasPerLesson": 60,
+  "lessons": [
+    {
+      "file": "01-aku-sari.md",
+      "title": "Aku Sari",
+      "maxRank": 250,
+      "maxNewLemmas": 140
+    },
+    {
+      "file": "02-kota-aku.md",
+      "title": "Kota aku",
+      "maxRank": 250,
+      "maxNewLemmas": 90
+    },
+    {
+      "file": "03-kerja.md",
+      "title": "Kerja",
+      "maxRank": 250
+    },
+    {
+      "file": "04-waktu.md",
+      "title": "Waktu",
+      "maxRank": 250
+    },
+    {
+      "file": "05-hidup-baik.md",
+      "title": "Hidup baik",
+      "maxRank": 250,
+      "maxNewLemmas": 90
+    },
+    {
+      "file": "06-budi.md",
+      "title": "Budi",
+      "maxRank": 500,
+      "maxNewLemmas": 180
+    },
+    {
+      "file": "07-keluarga.md",
+      "title": "Keluarga",
+      "maxRank": 500
+    },
+    {
+      "file": "08-minggu.md",
+      "title": "Minggu",
+      "maxRank": 500,
+      "maxNewLemmas": 180
+    },
+    {
+      "file": "09-sekolah.md",
+      "title": "Sekolah",
+      "maxRank": 500,
+      "maxNewLemmas": 90
+    },
+    {
+      "file": "10-di-rumah.md",
+      "title": "Di rumah",
+      "maxRank": 500,
+      "maxNewLemmas": 90
+    },
+    {
+      "file": "11-jalan.md",
+      "title": "Jalan",
+      "maxRank": 750,
+      "maxNewLemmas": 240
+    },
+    {
+      "file": "12-malam.md",
+      "title": "Malam",
+      "maxRank": 750,
+      "maxNewLemmas": 90
+    },
+    {
+      "file": "13-rina-dan-musik.md",
+      "title": "Rina dan musik",
+      "maxRank": 750,
+      "maxNewLemmas": 90
+    },
+    {
+      "file": "14-kata.md",
+      "title": "Kata",
+      "maxRank": 750,
+      "maxNewLemmas": 180
+    },
+    {
+      "file": "15-rencana.md",
+      "title": "Rencana",
+      "maxRank": 750,
+      "maxNewLemmas": 90
+    },
+    {
+      "file": "16-hari-minggu.md",
+      "title": "Hari minggu",
+      "maxRank": 1000,
+      "maxNewLemmas": 240
+    },
+    {
+      "file": "17-pasar.md",
+      "title": "Pasar",
+      "maxRank": 1000,
+      "maxNewLemmas": 100
+    },
+    {
+      "file": "18-negara.md",
+      "title": "Negara",
+      "maxRank": 1000,
+      "maxNewLemmas": 100
+    },
+    {
+      "file": "19-belajar.md",
+      "title": "Belajar",
+      "maxRank": 1000,
+      "maxNewLemmas": 100
+    },
+    {
+      "file": "20-satu-tahun-satu-hidup.md",
+      "title": "Satu tahun, satu hidup",
+      "maxRank": 1000,
+      "maxNewLemmas": 100
+    }
+  ]
+}
