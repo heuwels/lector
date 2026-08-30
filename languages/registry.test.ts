@@ -64,17 +64,17 @@ describe('registry pronunciation conformance', () => {
   });
 
   // The apostrophe seam is the same kind of opt-in as the fold locale: it moves
-  // a token boundary and changes how keys are written. uk (letter) and it
-  // (elision) declare it; fr/nl still split. Every variant the fold maps
-  // must also join, or a curly-apostrophe word would tokenize as two words
-  // and then key as one.
-  it('Ukrainian and Italian join and fold the apostrophe; French and Dutch do not', () => {
+  // a token boundary and changes how keys are written. uk (letter), it
+  // (elision) and af (plural, #430) declare it; fr/nl still split. Every
+  // variant the fold maps must also join, or a curly-apostrophe word would
+  // tokenize as two words and then key as one.
+  it('Afrikaans, Italian and Ukrainian join and fold the apostrophe; French and Dutch do not', () => {
     const withJoiners = getAllLanguages().filter((lang) => lang.script.extraJoiners);
-    expect(withJoiners.map((lang) => lang.code)).toEqual(['it', 'uk']);
+    expect(withJoiners.map((lang) => lang.code)).toEqual(['af', 'it', 'uk']);
     const withFold = getAllLanguages().filter((lang) => lang.script.foldApostrophes);
-    expect(withFold.map((lang) => lang.code)).toEqual(['it', 'uk']);
+    expect(withFold.map((lang) => lang.code)).toEqual(['af', 'it', 'uk']);
 
-    for (const code of ['it', 'uk'] as const) {
+    for (const code of ['af', 'it', 'uk'] as const) {
       const joiners = LANGUAGES[code].script.extraJoiners;
       expect(joiners).toContain("'");
       for (const variant of ['‘', '’', 'ʼ', 'ʹ', '`', '´']) {
