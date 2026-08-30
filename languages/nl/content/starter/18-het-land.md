@@ -11,3 +11,8 @@ Ik denk aan het land van mijn jaren. Ik was er. Ik ben er. Ik blijf er. Een land
 Noor zegt: «Ik maak muziek. Het land maakt de plaats waar de muziek kan.» Dat is waar. Zonder de plaats is er geen plan. Zonder het plan is er geen zaterdag. Zonder de zaterdag is er minder leven in de straat.
 
 Het land is ver en het land is hier. De overheid is een naam. De mensen zijn het land. Wanneer de mensen blijven, blijft het land. Wanneer ze gaan, gaat het ook. Zo gewoon is het niet. Zo gewoon is het wel, in het klein.
+
+
+Het land heeft politiek en verkiezingen. De burgemeester en de regering. Partijen. Een wet. Een raad. Invloed. Macht. De bevolking. Het volk. De economie. Duitse, Franse, Britse. Den Haag. West en oosten. Een eeuw. Veiligheid. Controle. Respect. De rechter. De opdracht. De oplossing. Namelijk. Doordat. Betreft. Functie. Niveau. Mening. Overzicht.
+
+Politieke bedrijven hebben invloed. De internationale ontwikkeling volgt. Diverse vormen van macht zijn aanwezig. De huidige nationale grond is veilig. Een vriend stelt een vraag. Het gevolg is gekozen. Resultaten zijn opgenomen. Een procent van het volk is gevraagd. De voormalige stand viel. Hij bracht een wet. Let op de strijd. Persoonlijke woorden zijn gesproken. Het ontstaan daarvan is gezet.

@@ -15,3 +15,7 @@ Ik zeg ja. Natuurlijk zeg ik ja. Noor heeft een plan, en een plan van Noor is al
 We zitten. We eten een beetje. We horen de stad. Later zegt ze: «Jij was bij mij op de school. Nu doe ik iets voor de straat.» Ik zeg niets. Ik denk: zo gaat het. Een doet voor de andere. De avond houdt dat vast.
 
 Wanneer ze gaat, blijft de muziek in het huis. Ik lees niet. Ik zit. De avond is het deel van de dag waar het leven tot zich zelf komt. Werk is weg. Vragen zijn minder. Wat blijft, blijft.
+
+Vanavond komt er een bericht op de telefoon. «Welkom», zegt Noor. «De club speelt live. De stem is sterk. Kom heen.» Ik voel het. Inderdaad. Jezelf laten gaan is prima. De jongens staan op een lijst. Personen rijden naar het centrum. De belangrijkste club van de buurt is begonnen.
+
+Ik neem de boeken van het bed. Het beeld van de site blijft. Een bezoek is een dienst. Hoewel de nacht normaal is, voel ik extra. Mijn broer is ergens. Eindelijk is het schrijven Nederlands. Gisteren mocht ik kiezen. Daarnaast is de reis heerlijk. Ondanks de hoogte start de serie.

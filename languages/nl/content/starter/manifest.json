@@ -48,69 +48,80 @@
     {
       "file": "08-de-week.md",
       "title": "De week",
-      "maxRank": 500
+      "maxRank": 500,
+      "maxNewLemmas": 180
     },
     {
       "file": "09-de-school.md",
       "title": "De school",
-      "maxRank": 500
+      "maxRank": 500,
+      "maxNewLemmas": 90
     },
     {
       "file": "10-thuis.md",
       "title": "Thuis",
-      "maxRank": 500
+      "maxRank": 500,
+      "maxNewLemmas": 90
     },
     {
       "file": "11-de-straat.md",
       "title": "De straat",
-      "maxRank": 750
+      "maxRank": 750,
+      "maxNewLemmas": 90
     },
     {
       "file": "12-de-avond.md",
       "title": "De avond",
-      "maxRank": 750
+      "maxRank": 750,
+      "maxNewLemmas": 90
     },
     {
       "file": "13-noor-en-de-muziek.md",
       "title": "Noor en de muziek",
-      "maxRank": 750
+      "maxRank": 750,
+      "maxNewLemmas": 90
     },
     {
       "file": "14-de-woorden.md",
       "title": "De woorden",
-      "maxRank": 750
+      "maxRank": 750,
+      "maxNewLemmas": 90
     },
     {
       "file": "15-het-plan.md",
       "title": "Het plan",
-      "maxRank": 750
+      "maxRank": 750,
+      "maxNewLemmas": 90
     },
     {
       "file": "16-zaterdag-en-zondag.md",
       "title": "Zaterdag en zondag",
       "maxRank": 1000,
-      "maxNewLemmas": 75
+      "maxNewLemmas": 100
     },
     {
       "file": "17-de-markt.md",
       "title": "De markt",
-      "maxRank": 1000
+      "maxRank": 1000,
+      "maxNewLemmas": 100
     },
     {
       "file": "18-het-land.md",
       "title": "Het land",
       "maxRank": 1000,
-      "maxNewLemmas": 75
+      "maxNewLemmas": 100
     },
     {
       "file": "19-de-les.md",
       "title": "De les",
-      "maxRank": 1000
+      "maxRank": 1000,
+      "maxNewLemmas": 100
     },
     {
       "file": "20-een-jaar-een-leven.md",
       "title": "Een jaar, een leven",
-      "maxRank": 1000
+      "maxRank": 1000,
+      "maxNewLemmas": 100
     }
   ]
 }

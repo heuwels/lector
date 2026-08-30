@@ -11,3 +11,10 @@ Zondag ga ik alleen. Ik ga naar de markt, maar de markt is voor later. Vandaag g
 Een les? Ja. Ik wil weer leren. Niet op de school van de kinderen. Op een plaats voor mensen met jaren. Een les in de taal, of in wat de taal open maakt. Dat komt. Eerst deze twee dagen.
 
 Zaterdag houdt de mensen. Zondag houdt mij. Samen zijn het twee dagen met een andere vorm. Vrijdag laat het werk. Zaterdag maakt het leven groot. Zondag laat het leven tot zich zelf komen. Dat is genoeg. Dat is een goede week, tot het laatste.
+
+
+Zaterdag is er voetbal in het park. Een festival voor de vakantie. Sport bij het hotel. Rustig genieten. Plezier. Een band. Een hond. Films. De helft van de straat is gekomen. De energie van de relatie is ruim.
+
+Zondag ga ik naar de kerk en naar de bank. Ik heb een kaart. Een heer en dames pakken lokale dingen. De kosten zijn hoger. Het hotel ligt een kilometer verder. Het park heeft films. De hond wacht. De jeugd heeft plezier.
+
+Later bekijk ik de resultaten van de slag. Het gevolg is gezet. De speciale les heet een prachtige dag. Daarvan is een procent gekozen. We moesten eraan. Een geweldige strijd. De voormalige stand is opgenomen. Het boek bevat wat hij bracht. Let op de val. Geen brand. Persoonlijke woorden zijn gesproken. Het ontstaan is gevraagd. Stop. Hij viel. Hij stelt een vraag.

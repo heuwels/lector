@@ -19,3 +19,7 @@ Daan zegt: «Je hebt de avond gemaakt.»
 Noor zegt: «De avond was er al. Ik heb haar alleen laten horen.»
 
 Ik denk aan mijn drie: mensen, werk, tijd. Noor heeft nog iets: muziek. Of het is hetzelfde, met een andere naam. Ze doet iets dat meer is dan geld. Ze blijft. Ze laat de andere blijven. Dat is de muziek. Dat is Noor.
+
+Na de muziek blijft de stem. Noor is trots. Het was prachtig en fijn. We zijn gekomen en we hebben gekregen wat we verwacht hadden. De club heeft succes. Ze speelt live. Het seizoen is kort. Leiden kan vallen. Het algemeen antwoord is een bericht. Daarmee is het eind geweldig.
+
+Ze schreef de titel van de serie. De universiteit is volledig. De zee brengt een bepaalde dorp. Gisteren mocht we de officiële reis kiezen. Schrijven blijkt. De raad start. Stel. Stemmen. Sturen. Tegenwoordig.
