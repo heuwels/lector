@@ -1,0 +1,6008 @@
+{
+ "language": "it",
+ "source": "wordfreq",
+ "bandSize": 250,
+ "count": 1000,
+ "words": [
+  {
+   "rank": 1,
+   "lemma": "di",
+   "zipf": 7.59,
+   "band": 1
+  },
+  {
+   "rank": 2,
+   "lemma": "e",
+   "zipf": 7.46,
+   "band": 1
+  },
+  {
+   "rank": 3,
+   "lemma": "che",
+   "zipf": 7.36,
+   "band": 1
+  },
+  {
+   "rank": 4,
+   "lemma": "il",
+   "zipf": 7.32,
+   "band": 1
+  },
+  {
+   "rank": 5,
+   "lemma": "la",
+   "zipf": 7.3,
+   "band": 1
+  },
+  {
+   "rank": 6,
+   "lemma": "a",
+   "zipf": 7.21,
+   "band": 1
+  },
+  {
+   "rank": 7,
+   "lemma": "in",
+   "zipf": 7.21,
+   "band": 1
+  },
+  {
+   "rank": 8,
+   "lemma": "non",
+   "zipf": 7.16,
+   "band": 1
+  },
+  {
+   "rank": 9,
+   "lemma": "un",
+   "zipf": 7.16,
+   "band": 1
+  },
+  {
+   "rank": 10,
+   "lemma": "per",
+   "zipf": 7.15,
+   "band": 1
+  },
+  {
+   "rank": 11,
+   "lemma": "è",
+   "zipf": 7.1,
+   "band": 1
+  },
+  {
+   "rank": 12,
+   "lemma": "del",
+   "zipf": 6.99,
+   "band": 1
+  },
+  {
+   "rank": 13,
+   "lemma": "i",
+   "zipf": 6.94,
+   "band": 1
+  },
+  {
+   "rank": 14,
+   "lemma": "una",
+   "zipf": 6.94,
+   "band": 1
+  },
+  {
+   "rank": 15,
+   "lemma": "le",
+   "zipf": 6.9,
+   "band": 1
+  },
+  {
+   "rank": 16,
+   "lemma": "si",
+   "zipf": 6.88,
+   "band": 1
+  },
+  {
+   "rank": 17,
+   "lemma": "con",
+   "zipf": 6.87,
+   "band": 1
+  },
+  {
+   "rank": 18,
+   "lemma": "della",
+   "zipf": 6.86,
+   "band": 1
+  },
+  {
+   "rank": 19,
+   "lemma": "da",
+   "zipf": 6.84,
+   "band": 1
+  },
+  {
+   "rank": 20,
+   "lemma": "sono",
+   "zipf": 6.8,
+   "band": 1
+  },
+  {
+   "rank": 21,
+   "lemma": "ma",
+   "zipf": 6.73,
+   "band": 1
+  },
+  {
+   "rank": 22,
+   "lemma": "al",
+   "zipf": 6.71,
+   "band": 1
+  },
+  {
+   "rank": 23,
+   "lemma": "ha",
+   "zipf": 6.69,
+   "band": 1
+  },
+  {
+   "rank": 24,
+   "lemma": "come",
+   "zipf": 6.67,
+   "band": 1
+  },
+  {
+   "rank": 25,
+   "lemma": "più",
+   "zipf": 6.63,
+   "band": 1
+  },
+  {
+   "rank": 26,
+   "lemma": "dei",
+   "zipf": 6.61,
+   "band": 1
+  },
+  {
+   "rank": 27,
+   "lemma": "se",
+   "zipf": 6.61,
+   "band": 1
+  },
+  {
+   "rank": 28,
+   "lemma": "nel",
+   "zipf": 6.59,
+   "band": 1
+  },
+  {
+   "rank": 29,
+   "lemma": "mi",
+   "zipf": 6.58,
+   "band": 1
+  },
+  {
+   "rank": 30,
+   "lemma": "alla",
+   "zipf": 6.53,
+   "band": 1
+  },
+  {
+   "rank": 31,
+   "lemma": "anche",
+   "zipf": 6.52,
+   "band": 1
+  },
+  {
+   "rank": 32,
+   "lemma": "lo",
+   "zipf": 6.52,
+   "band": 1
+  },
+  {
+   "rank": 33,
+   "lemma": "gli",
+   "zipf": 6.51,
+   "band": 1
+  },
+  {
+   "rank": 34,
+   "lemma": "delle",
+   "zipf": 6.49,
+   "band": 1
+  },
+  {
+   "rank": 35,
+   "lemma": "o",
+   "zipf": 6.48,
+   "band": 1
+  },
+  {
+   "rank": 36,
+   "lemma": "questo",
+   "zipf": 6.46,
+   "band": 1
+  },
+  {
+   "rank": 37,
+   "lemma": "ho",
+   "zipf": 6.45,
+   "band": 1
+  },
+  {
+   "rank": 38,
+   "lemma": "ci",
+   "zipf": 6.42,
+   "band": 1
+  },
+  {
+   "rank": 39,
+   "lemma": "su",
+   "zipf": 6.38,
+   "band": 1
+  },
+  {
+   "rank": 40,
+   "lemma": "ad",
+   "zipf": 6.36,
+   "band": 1
+  },
+  {
+   "rank": 41,
+   "lemma": "dal",
+   "zipf": 6.33,
+   "band": 1
+  },
+  {
+   "rank": 42,
+   "lemma": "solo",
+   "zipf": 6.33,
+   "band": 1
+  },
+  {
+   "rank": 43,
+   "lemma": "essere",
+   "zipf": 6.32,
+   "band": 1
+  },
+  {
+   "rank": 44,
+   "lemma": "io",
+   "zipf": 6.32,
+   "band": 1
+  },
+  {
+   "rank": 45,
+   "lemma": "nella",
+   "zipf": 6.32,
+   "band": 1
+  },
+  {
+   "rank": 46,
+   "lemma": "ti",
+   "zipf": 6.31,
+   "band": 1
+  },
+  {
+   "rank": 47,
+   "lemma": "cui",
+   "zipf": 6.27,
+   "band": 1
+  },
+  {
+   "rank": 48,
+   "lemma": "era",
+   "zipf": 6.25,
+   "band": 1
+  },
+  {
+   "rank": 49,
+   "lemma": "stato",
+   "zipf": 6.25,
+   "band": 1
+  },
+  {
+   "rank": 50,
+   "lemma": "quando",
+   "zipf": 6.24,
+   "band": 1
+  },
+  {
+   "rank": 51,
+   "lemma": "tutti",
+   "zipf": 6.24,
+   "band": 1
+  },
+  {
+   "rank": 52,
+   "lemma": "questa",
+   "zipf": 6.23,
+   "band": 1
+  },
+  {
+   "rank": 53,
+   "lemma": "tutto",
+   "zipf": 6.21,
+   "band": 1
+  },
+  {
+   "rank": 54,
+   "lemma": "cosa",
+   "zipf": 6.2,
+   "band": 1
+  },
+  {
+   "rank": 55,
+   "lemma": "hanno",
+   "zipf": 6.2,
+   "band": 1
+  },
+  {
+   "rank": 56,
+   "lemma": "tra",
+   "zipf": 6.2,
+   "band": 1
+  },
+  {
+   "rank": 57,
+   "lemma": "fatto",
+   "zipf": 6.19,
+   "band": 1
+  },
+  {
+   "rank": 58,
+   "lemma": "prima",
+   "zipf": 6.19,
+   "band": 1
+  },
+  {
+   "rank": 59,
+   "lemma": "suo",
+   "zipf": 6.19,
+   "band": 1
+  },
+  {
+   "rank": 60,
+   "lemma": "loro",
+   "zipf": 6.18,
+   "band": 1
+  },
+  {
+   "rank": 61,
+   "lemma": "parte",
+   "zipf": 6.18,
+   "band": 1
+  },
+  {
+   "rank": 62,
+   "lemma": "perché",
+   "zipf": 6.18,
+   "band": 1
+  },
+  {
+   "rank": 63,
+   "lemma": "anni",
+   "zipf": 6.17,
+   "band": 1
+  },
+  {
+   "rank": 64,
+   "lemma": "due",
+   "zipf": 6.17,
+   "band": 1
+  },
+  {
+   "rank": 65,
+   "lemma": "sia",
+   "zipf": 6.17,
+   "band": 1
+  },
+  {
+   "rank": 66,
+   "lemma": "sua",
+   "zipf": 6.17,
+   "band": 1
+  },
+  {
+   "rank": 67,
+   "lemma": "ai",
+   "zipf": 6.15,
+   "band": 1
+  },
+  {
+   "rank": 68,
+   "lemma": "fare",
+   "zipf": 6.15,
+   "band": 1
+  },
+  {
+   "rank": 69,
+   "lemma": "così",
+   "zipf": 6.14,
+   "band": 1
+  },
+  {
+   "rank": 70,
+   "lemma": "dalla",
+   "zipf": 6.14,
+   "band": 1
+  },
+  {
+   "rank": 71,
+   "lemma": "degli",
+   "zipf": 6.14,
+   "band": 1
+  },
+  {
+   "rank": 72,
+   "lemma": "dopo",
+   "zipf": 6.13,
+   "band": 1
+  },
+  {
+   "rank": 73,
+   "lemma": "sul",
+   "zipf": 6.13,
+   "band": 1
+  },
+  {
+   "rank": 74,
+   "lemma": "alle",
+   "zipf": 6.12,
+   "band": 1
+  },
+  {
+   "rank": 75,
+   "lemma": "uno",
+   "zipf": 6.12,
+   "band": 1
+  },
+  {
+   "rank": 76,
+   "lemma": "ne",
+   "zipf": 6.1,
+   "band": 1
+  },
+  {
+   "rank": 77,
+   "lemma": "poi",
+   "zipf": 6.1,
+   "band": 1
+  },
+  {
+   "rank": 78,
+   "lemma": "quello",
+   "zipf": 6.1,
+   "band": 1
+  },
+  {
+   "rank": 79,
+   "lemma": "sempre",
+   "zipf": 6.1,
+   "band": 1
+  },
+  {
+   "rank": 80,
+   "lemma": "fa",
+   "zipf": 6.09,
+   "band": 1
+  },
+  {
+   "rank": 81,
+   "lemma": "me",
+   "zipf": 6.09,
+   "band": 1
+  },
+  {
+   "rank": 82,
+   "lemma": "chi",
+   "zipf": 6.08,
+   "band": 1
+  },
+  {
+   "rank": 83,
+   "lemma": "ancora",
+   "zipf": 6.07,
+   "band": 1
+  },
+  {
+   "rank": 84,
+   "lemma": "molto",
+   "zipf": 6.07,
+   "band": 1
+  },
+  {
+   "rank": 85,
+   "lemma": "senza",
+   "zipf": 6.04,
+   "band": 1
+  },
+  {
+   "rank": 86,
+   "lemma": "mai",
+   "zipf": 6.03,
+   "band": 1
+  },
+  {
+   "rank": 87,
+   "lemma": "ogni",
+   "zipf": 6.03,
+   "band": 1
+  },
+  {
+   "rank": 88,
+   "lemma": "altri",
+   "zipf": 6.02,
+   "band": 1
+  },
+  {
+   "rank": 89,
+   "lemma": "ora",
+   "zipf": 6.02,
+   "band": 1
+  },
+  {
+   "rank": 90,
+   "lemma": "mio",
+   "zipf": 6.01,
+   "band": 1
+  },
+  {
+   "rank": 91,
+   "lemma": "può",
+   "zipf": 6.01,
+   "band": 1
+  },
+  {
+   "rank": 92,
+   "lemma": "quanto",
+   "zipf": 6.0,
+   "band": 1
+  },
+  {
+   "rank": 93,
+   "lemma": "mia",
+   "zipf": 5.98,
+   "band": 1
+  },
+  {
+   "rank": 94,
+   "lemma": "sulla",
+   "zipf": 5.98,
+   "band": 1
+  },
+  {
+   "rank": 95,
+   "lemma": "tempo",
+   "zipf": 5.98,
+   "band": 1
+  },
+  {
+   "rank": 96,
+   "lemma": "dove",
+   "zipf": 5.97,
+   "band": 1
+  },
+  {
+   "rank": 97,
+   "lemma": "vita",
+   "zipf": 5.97,
+   "band": 1
+  },
+  {
+   "rank": 98,
+   "lemma": "nei",
+   "zipf": 5.96,
+   "band": 1
+  },
+  {
+   "rank": 99,
+   "lemma": "no",
+   "zipf": 5.96,
+   "band": 1
+  },
+  {
+   "rank": 100,
+   "lemma": "già",
+   "zipf": 5.95,
+   "band": 1
+  },
+  {
+   "rank": 101,
+   "lemma": "sei",
+   "zipf": 5.95,
+   "band": 1
+  },
+  {
+   "rank": 102,
+   "lemma": "quella",
+   "zipf": 5.94,
+   "band": 1
+  },
+  {
+   "rank": 103,
+   "lemma": "quindi",
+   "zipf": 5.94,
+   "band": 1
+  },
+  {
+   "rank": 104,
+   "lemma": "secondo",
+   "zipf": 5.94,
+   "band": 1
+  },
+  {
+   "rank": 105,
+   "lemma": "hai",
+   "zipf": 5.93,
+   "band": 1
+  },
+  {
+   "rank": 106,
+   "lemma": "proprio",
+   "zipf": 5.93,
+   "band": 1
+  },
+  {
+   "rank": 107,
+   "lemma": "altro",
+   "zipf": 5.92,
+   "band": 1
+  },
+  {
+   "rank": 108,
+   "lemma": "bene",
+   "zipf": 5.92,
+   "band": 1
+  },
+  {
+   "rank": 109,
+   "lemma": "grazie",
+   "zipf": 5.92,
+   "band": 1
+  },
+  {
+   "rank": 110,
+   "lemma": "lavoro",
+   "zipf": 5.91,
+   "band": 1
+  },
+  {
+   "rank": 111,
+   "lemma": "modo",
+   "zipf": 5.91,
+   "band": 1
+  },
+  {
+   "rank": 112,
+   "lemma": "dai",
+   "zipf": 5.9,
+   "band": 1
+  },
+  {
+   "rank": 113,
+   "lemma": "noi",
+   "zipf": 5.9,
+   "band": 1
+  },
+  {
+   "rank": 114,
+   "lemma": "nelle",
+   "zipf": 5.89,
+   "band": 1
+  },
+  {
+   "rank": 115,
+   "lemma": "vi",
+   "zipf": 5.89,
+   "band": 1
+  },
+  {
+   "rank": 116,
+   "lemma": "casa",
+   "zipf": 5.88,
+   "band": 1
+  },
+  {
+   "rank": 117,
+   "lemma": "persone",
+   "zipf": 5.88,
+   "band": 1
+  },
+  {
+   "rank": 118,
+   "lemma": "qui",
+   "zipf": 5.87,
+   "band": 1
+  },
+  {
+   "rank": 119,
+   "lemma": "sta",
+   "zipf": 5.87,
+   "band": 1
+  },
+  {
+   "rank": 120,
+   "lemma": "te",
+   "zipf": 5.87,
+   "band": 1
+  },
+  {
+   "rank": 121,
+   "lemma": "volta",
+   "zipf": 5.87,
+   "band": 1
+  },
+  {
+   "rank": 122,
+   "lemma": "dire",
+   "zipf": 5.86,
+   "band": 1
+  },
+  {
+   "rank": 123,
+   "lemma": "tu",
+   "zipf": 5.86,
+   "band": 1
+  },
+  {
+   "rank": 124,
+   "lemma": "giorno",
+   "zipf": 5.85,
+   "band": 1
+  },
+  {
+   "rank": 125,
+   "lemma": "mondo",
+   "zipf": 5.85,
+   "band": 1
+  },
+  {
+   "rank": 126,
+   "lemma": "questi",
+   "zipf": 5.84,
+   "band": 1
+  },
+  {
+   "rank": 127,
+   "lemma": "stata",
+   "zipf": 5.84,
+   "band": 1
+  },
+  {
+   "rank": 128,
+   "lemma": "lui",
+   "zipf": 5.83,
+   "band": 1
+  },
+  {
+   "rank": 129,
+   "lemma": "siamo",
+   "zipf": 5.83,
+   "band": 1
+  },
+  {
+   "rank": 130,
+   "lemma": "stesso",
+   "zipf": 5.83,
+   "band": 1
+  },
+  {
+   "rank": 131,
+   "lemma": "via",
+   "zipf": 5.83,
+   "band": 1
+  },
+  {
+   "rank": 132,
+   "lemma": "cose",
+   "zipf": 5.82,
+   "band": 1
+  },
+  {
+   "rank": 133,
+   "lemma": "grande",
+   "zipf": 5.82,
+   "band": 1
+  },
+  {
+   "rank": 134,
+   "lemma": "primo",
+   "zipf": 5.82,
+   "band": 1
+  },
+  {
+   "rank": 135,
+   "lemma": "contro",
+   "zipf": 5.81,
+   "band": 1
+  },
+  {
+   "rank": 136,
+   "lemma": "de",
+   "zipf": 5.81,
+   "band": 1
+  },
+  {
+   "rank": 137,
+   "lemma": "caso",
+   "zipf": 5.8,
+   "band": 1
+  },
+  {
+   "rank": 138,
+   "lemma": "li",
+   "zipf": 5.8,
+   "band": 1
+  },
+  {
+   "rank": 139,
+   "lemma": "mentre",
+   "zipf": 5.8,
+   "band": 1
+  },
+  {
+   "rank": 140,
+   "lemma": "tutte",
+   "zipf": 5.8,
+   "band": 1
+  },
+  {
+   "rank": 141,
+   "lemma": "abbiamo",
+   "zipf": 5.79,
+   "band": 1
+  },
+  {
+   "rank": 142,
+   "lemma": "quel",
+   "zipf": 5.79,
+   "band": 1
+  },
+  {
+   "rank": 143,
+   "lemma": "oggi",
+   "zipf": 5.78,
+   "band": 1
+  },
+  {
+   "rank": 144,
+   "lemma": "tanto",
+   "zipf": 5.78,
+   "band": 1
+  },
+  {
+   "rank": 145,
+   "lemma": "città",
+   "zipf": 5.77,
+   "band": 1
+  },
+  {
+   "rank": 146,
+   "lemma": "nuovo",
+   "zipf": 5.77,
+   "band": 1
+  },
+  {
+   "rank": 147,
+   "lemma": "detto",
+   "zipf": 5.76,
+   "band": 1
+  },
+  {
+   "rank": 148,
+   "lemma": "fine",
+   "zipf": 5.76,
+   "band": 1
+  },
+  {
+   "rank": 149,
+   "lemma": "qualche",
+   "zipf": 5.75,
+   "band": 1
+  },
+  {
+   "rank": 150,
+   "lemma": "quale",
+   "zipf": 5.75,
+   "band": 1
+  },
+  {
+   "rank": 151,
+   "lemma": "suoi",
+   "zipf": 5.75,
+   "band": 1
+  },
+  {
+   "rank": 152,
+   "lemma": "viene",
+   "zipf": 5.75,
+   "band": 1
+  },
+  {
+   "rank": 153,
+   "lemma": "aveva",
+   "zipf": 5.74,
+   "band": 1
+  },
+  {
+   "rank": 154,
+   "lemma": "anno",
+   "zipf": 5.73,
+   "band": 1
+  },
+  {
+   "rank": 155,
+   "lemma": "dalle",
+   "zipf": 5.73,
+   "band": 1
+  },
+  {
+   "rank": 156,
+   "lemma": "sarà",
+   "zipf": 5.73,
+   "band": 1
+  },
+  {
+   "rank": 157,
+   "lemma": "stati",
+   "zipf": 5.73,
+   "band": 1
+  },
+  {
+   "rank": 158,
+   "lemma": "storia",
+   "zipf": 5.73,
+   "band": 1
+  },
+  {
+   "rank": 159,
+   "lemma": "tre",
+   "zipf": 5.73,
+   "band": 1
+  },
+  {
+   "rank": 160,
+   "lemma": "tuo",
+   "zipf": 5.73,
+   "band": 1
+  },
+  {
+   "rank": 161,
+   "lemma": "va",
+   "zipf": 5.73,
+   "band": 1
+  },
+  {
+   "rank": 162,
+   "lemma": "avere",
+   "zipf": 5.72,
+   "band": 1
+  },
+  {
+   "rank": 163,
+   "lemma": "fino",
+   "zipf": 5.72,
+   "band": 1
+  },
+  {
+   "rank": 164,
+   "lemma": "foto",
+   "zipf": 5.72,
+   "band": 1
+  },
+  {
+   "rank": 165,
+   "lemma": "altre",
+   "zipf": 5.71,
+   "band": 1
+  },
+  {
+   "rank": 166,
+   "lemma": "dello",
+   "zipf": 5.71,
+   "band": 1
+  },
+  {
+   "rank": 167,
+   "lemma": "erano",
+   "zipf": 5.71,
+   "band": 1
+  },
+  {
+   "rank": 168,
+   "lemma": "meglio",
+   "zipf": 5.71,
+   "band": 1
+  },
+  {
+   "rank": 169,
+   "lemma": "queste",
+   "zipf": 5.71,
+   "band": 1
+  },
+  {
+   "rank": 170,
+   "lemma": "visto",
+   "zipf": 5.71,
+   "band": 1
+  },
+  {
+   "rank": 171,
+   "lemma": "ciò",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 172,
+   "lemma": "meno",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 173,
+   "lemma": "però",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 174,
+   "lemma": "sarebbe",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 175,
+   "lemma": "so",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 176,
+   "lemma": "sotto",
+   "zipf": 5.7,
+   "band": 1
+  },
+  {
+   "rank": 177,
+   "lemma": "momento",
+   "zipf": 5.69,
+   "band": 1
+  },
+  {
+   "rank": 178,
+   "lemma": "aver",
+   "zipf": 5.68,
+   "band": 1
+  },
+  {
+   "rank": 179,
+   "lemma": "vedere",
+   "zipf": 5.68,
+   "band": 1
+  },
+  {
+   "rank": 180,
+   "lemma": "deve",
+   "zipf": 5.67,
+   "band": 1
+  },
+  {
+   "rank": 181,
+   "lemma": "forse",
+   "zipf": 5.67,
+   "band": 1
+  },
+  {
+   "rank": 182,
+   "lemma": "giorni",
+   "zipf": 5.67,
+   "band": 1
+  },
+  {
+   "rank": 183,
+   "lemma": "invece",
+   "zipf": 5.67,
+   "band": 1
+  },
+  {
+   "rank": 184,
+   "lemma": "nostro",
+   "zipf": 5.67,
+   "band": 1
+  },
+  {
+   "rank": 185,
+   "lemma": "agli",
+   "zipf": 5.66,
+   "band": 1
+  },
+  {
+   "rank": 186,
+   "lemma": "qualcosa",
+   "zipf": 5.66,
+   "band": 1
+  },
+  {
+   "rank": 187,
+   "lemma": "sembra",
+   "zipf": 5.66,
+   "band": 1
+  },
+  {
+   "rank": 188,
+   "lemma": "fosse",
+   "zipf": 5.65,
+   "band": 1
+  },
+  {
+   "rank": 189,
+   "lemma": "oltre",
+   "zipf": 5.65,
+   "band": 1
+  },
+  {
+   "rank": 190,
+   "lemma": "perchè",
+   "zipf": 5.65,
+   "band": 1
+  },
+  {
+   "rank": 191,
+   "lemma": "troppo",
+   "zipf": 5.65,
+   "band": 1
+  },
+  {
+   "rank": 192,
+   "lemma": "vero",
+   "zipf": 5.65,
+   "band": 1
+  },
+  {
+   "rank": 193,
+   "lemma": "allora",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 194,
+   "lemma": "durante",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 195,
+   "lemma": "fu",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 196,
+   "lemma": "gente",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 197,
+   "lemma": "legge",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 198,
+   "lemma": "niente",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 199,
+   "lemma": "posto",
+   "zipf": 5.64,
+   "band": 1
+  },
+  {
+   "rank": 200,
+   "lemma": "alcuni",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 201,
+   "lemma": "fuori",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 202,
+   "lemma": "nome",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 203,
+   "lemma": "poco",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 204,
+   "lemma": "roma",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 205,
+   "lemma": "sto",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 206,
+   "lemma": "voi",
+   "zipf": 5.63,
+   "band": 1
+  },
+  {
+   "rank": 207,
+   "lemma": "andare",
+   "zipf": 5.62,
+   "band": 1
+  },
+  {
+   "rank": 208,
+   "lemma": "insieme",
+   "zipf": 5.62,
+   "band": 1
+  },
+  {
+   "rank": 209,
+   "lemma": "punto",
+   "zipf": 5.62,
+   "band": 1
+  },
+  {
+   "rank": 210,
+   "lemma": "qualcuno",
+   "zipf": 5.62,
+   "band": 1
+  },
+  {
+   "rank": 211,
+   "lemma": "quelli",
+   "zipf": 5.62,
+   "band": 1
+  },
+  {
+   "rank": 212,
+   "lemma": "tipo",
+   "zipf": 5.62,
+   "band": 1
+  },
+  {
+   "rank": 213,
+   "lemma": "tutta",
+   "zipf": 5.62,
+   "band": 1
+  },
+  {
+   "rank": 214,
+   "lemma": "altra",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 215,
+   "lemma": "davvero",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 216,
+   "lemma": "dice",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 217,
+   "lemma": "nessuno",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 218,
+   "lemma": "nuova",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 219,
+   "lemma": "quali",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 220,
+   "lemma": "tua",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 221,
+   "lemma": "verso",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 222,
+   "lemma": "volte",
+   "zipf": 5.61,
+   "band": 1
+  },
+  {
+   "rank": 223,
+   "lemma": "comunque",
+   "zipf": 5.6,
+   "band": 1
+  },
+  {
+   "rank": 224,
+   "lemma": "far",
+   "zipf": 5.6,
+   "band": 1
+  },
+  {
+   "rank": 225,
+   "lemma": "lei",
+   "zipf": 5.6,
+   "band": 1
+  },
+  {
+   "rank": 226,
+   "lemma": "negli",
+   "zipf": 5.6,
+   "band": 1
+  },
+  {
+   "rank": 227,
+   "lemma": "possono",
+   "zipf": 5.6,
+   "band": 1
+  },
+  {
+   "rank": 228,
+   "lemma": "video",
+   "zipf": 5.6,
+   "band": 1
+  },
+  {
+   "rank": 229,
+   "lemma": "sui",
+   "zipf": 5.59,
+   "band": 1
+  },
+  {
+   "rank": 230,
+   "lemma": "voglio",
+   "zipf": 5.59,
+   "band": 1
+  },
+  {
+   "rank": 231,
+   "lemma": "male",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 232,
+   "lemma": "nostra",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 233,
+   "lemma": "numero",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 234,
+   "lemma": "quasi",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 235,
+   "lemma": "quelle",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 236,
+   "lemma": "sì",
+   "zipf": 5.58,
+   "band": 1
+  },
+  {
+   "rank": 237,
+   "lemma": "cazzo",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 238,
+   "lemma": "certo",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 239,
+   "lemma": "gruppo",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 240,
+   "lemma": "persona",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 241,
+   "lemma": "stessa",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 242,
+   "lemma": "sue",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 243,
+   "lemma": "sulle",
+   "zipf": 5.57,
+   "band": 1
+  },
+  {
+   "rank": 244,
+   "lemma": "dato",
+   "zipf": 5.56,
+   "band": 1
+  },
+  {
+   "rank": 245,
+   "lemma": "società",
+   "zipf": 5.56,
+   "band": 1
+  },
+  {
+   "rank": 246,
+   "lemma": "uomo",
+   "zipf": 5.56,
+   "band": 1
+  },
+  {
+   "rank": 247,
+   "lemma": "famiglia",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 248,
+   "lemma": "nulla",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 249,
+   "lemma": "ore",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 250,
+   "lemma": "paese",
+   "zipf": 5.55,
+   "band": 1
+  },
+  {
+   "rank": 251,
+   "lemma": "problema",
+   "zipf": 5.55,
+   "band": 2
+  },
+  {
+   "rank": 252,
+   "lemma": "puoi",
+   "zipf": 5.55,
+   "band": 2
+  },
+  {
+   "rank": 253,
+   "lemma": "circa",
+   "zipf": 5.54,
+   "band": 2
+  },
+  {
+   "rank": 254,
+   "lemma": "credo",
+   "zipf": 5.54,
+   "band": 2
+  },
+  {
+   "rank": 255,
+   "lemma": "governo",
+   "zipf": 5.54,
+   "band": 2
+  },
+  {
+   "rank": 256,
+   "lemma": "molti",
+   "zipf": 5.54,
+   "band": 2
+  },
+  {
+   "rank": 257,
+   "lemma": "posso",
+   "zipf": 5.54,
+   "band": 2
+  },
+  {
+   "rank": 258,
+   "lemma": "potrebbe",
+   "zipf": 5.54,
+   "band": 2
+  },
+  {
+   "rank": 259,
+   "lemma": "col",
+   "zipf": 5.53,
+   "band": 2
+  },
+  {
+   "rank": 260,
+   "lemma": "ecco",
+   "zipf": 5.53,
+   "band": 2
+  },
+  {
+   "rank": 261,
+   "lemma": "esempio",
+   "zipf": 5.53,
+   "band": 2
+  },
+  {
+   "rank": 262,
+   "lemma": "ben",
+   "zipf": 5.52,
+   "band": 2
+  },
+  {
+   "rank": 263,
+   "lemma": "donne",
+   "zipf": 5.52,
+   "band": 2
+  },
+  {
+   "rank": 264,
+   "lemma": "fanno",
+   "zipf": 5.52,
+   "band": 2
+  },
+  {
+   "rank": 265,
+   "lemma": "italiano",
+   "zipf": 5.52,
+   "band": 2
+  },
+  {
+   "rank": 266,
+   "lemma": "possibile",
+   "zipf": 5.52,
+   "band": 2
+  },
+  {
+   "rank": 267,
+   "lemma": "rispetto",
+   "zipf": 5.52,
+   "band": 2
+  },
+  {
+   "rank": 268,
+   "lemma": "sistema",
+   "zipf": 5.52,
+   "band": 2
+  },
+  {
+   "rank": 269,
+   "lemma": "vuole",
+   "zipf": 5.52,
+   "band": 2
+  },
+  {
+   "rank": 270,
+   "lemma": "abbia",
+   "zipf": 5.51,
+   "band": 2
+  },
+  {
+   "rank": 271,
+   "lemma": "adesso",
+   "zipf": 5.51,
+   "band": 2
+  },
+  {
+   "rank": 272,
+   "lemma": "bisogno",
+   "zipf": 5.51,
+   "band": 2
+  },
+  {
+   "rank": 273,
+   "lemma": "serie",
+   "zipf": 5.51,
+   "band": 2
+  },
+  {
+   "rank": 274,
+   "lemma": "allo",
+   "zipf": 5.5,
+   "band": 2
+  },
+  {
+   "rank": 275,
+   "lemma": "almeno",
+   "zipf": 5.5,
+   "band": 2
+  },
+  {
+   "rank": 276,
+   "lemma": "donna",
+   "zipf": 5.5,
+   "band": 2
+  },
+  {
+   "rank": 277,
+   "lemma": "miei",
+   "zipf": 5.5,
+   "band": 2
+  },
+  {
+   "rank": 278,
+   "lemma": "nazionale",
+   "zipf": 5.5,
+   "band": 2
+  },
+  {
+   "rank": 279,
+   "lemma": "the",
+   "zipf": 5.5,
+   "band": 2
+  },
+  {
+   "rank": 280,
+   "lemma": "generale",
+   "zipf": 5.49,
+   "band": 2
+  },
+  {
+   "rank": 281,
+   "lemma": "guerra",
+   "zipf": 5.49,
+   "band": 2
+  },
+  {
+   "rank": 282,
+   "lemma": "infatti",
+   "zipf": 5.49,
+   "band": 2
+  },
+  {
+   "rank": 283,
+   "lemma": "morte",
+   "zipf": 5.49,
+   "band": 2
+  },
+  {
+   "rank": 284,
+   "lemma": "sito",
+   "zipf": 5.49,
+   "band": 2
+  },
+  {
+   "rank": 285,
+   "lemma": "avuto",
+   "zipf": 5.48,
+   "band": 2
+  },
+  {
+   "rank": 286,
+   "lemma": "base",
+   "zipf": 5.48,
+   "band": 2
+  },
+  {
+   "rank": 287,
+   "lemma": "film",
+   "zipf": 5.48,
+   "band": 2
+  },
+  {
+   "rank": 288,
+   "lemma": "politica",
+   "zipf": 5.48,
+   "band": 2
+  },
+  {
+   "rank": 289,
+   "lemma": "pure",
+   "zipf": 5.48,
+   "band": 2
+  },
+  {
+   "rank": 290,
+   "lemma": "spesso",
+   "zipf": 5.48,
+   "band": 2
+  },
+  {
+   "rank": 291,
+   "lemma": "uomini",
+   "zipf": 5.48,
+   "band": 2
+  },
+  {
+   "rank": 292,
+   "lemma": "comune",
+   "zipf": 5.47,
+   "band": 2
+  },
+  {
+   "rank": 293,
+   "lemma": "sa",
+   "zipf": 5.47,
+   "band": 2
+  },
+  {
+   "rank": 294,
+   "lemma": "subito",
+   "zipf": 5.47,
+   "band": 2
+  },
+  {
+   "rank": 295,
+   "lemma": "centro",
+   "zipf": 5.46,
+   "band": 2
+  },
+  {
+   "rank": 296,
+   "lemma": "dio",
+   "zipf": 5.46,
+   "band": 2
+  },
+  {
+   "rank": 297,
+   "lemma": "fra",
+   "zipf": 5.46,
+   "band": 2
+  },
+  {
+   "rank": 298,
+   "lemma": "inoltre",
+   "zipf": 5.46,
+   "band": 2
+  },
+  {
+   "rank": 299,
+   "lemma": "parlare",
+   "zipf": 5.46,
+   "band": 2
+  },
+  {
+   "rank": 300,
+   "lemma": "scuola",
+   "zipf": 5.46,
+   "band": 2
+  },
+  {
+   "rank": 301,
+   "lemma": "vuoi",
+   "zipf": 5.46,
+   "band": 2
+  },
+  {
+   "rank": 302,
+   "lemma": "appena",
+   "zipf": 5.45,
+   "band": 2
+  },
+  {
+   "rank": 303,
+   "lemma": "buona",
+   "zipf": 5.45,
+   "band": 2
+  },
+  {
+   "rank": 304,
+   "lemma": "ce",
+   "zipf": 5.45,
+   "band": 2
+  },
+  {
+   "rank": 305,
+   "lemma": "idea",
+   "zipf": 5.45,
+   "band": 2
+  },
+  {
+   "rank": 306,
+   "lemma": "mano",
+   "zipf": 5.45,
+   "band": 2
+  },
+  {
+   "rank": 307,
+   "lemma": "siano",
+   "zipf": 5.45,
+   "band": 2
+  },
+  {
+   "rank": 308,
+   "lemma": "alcune",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 309,
+   "lemma": "amici",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 310,
+   "lemma": "avrebbe",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 311,
+   "lemma": "causa",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 312,
+   "lemma": "corso",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 313,
+   "lemma": "forza",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 314,
+   "lemma": "importante",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 315,
+   "lemma": "mesi",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 316,
+   "lemma": "presidente",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 317,
+   "lemma": "seguito",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 318,
+   "lemma": "senso",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 319,
+   "lemma": "successo",
+   "zipf": 5.44,
+   "band": 2
+  },
+  {
+   "rank": 320,
+   "lemma": "basta",
+   "zipf": 5.43,
+   "band": 2
+  },
+  {
+   "rank": 321,
+   "lemma": "diritto",
+   "zipf": 5.43,
+   "band": 2
+  },
+  {
+   "rank": 322,
+   "lemma": "fai",
+   "zipf": 5.43,
+   "band": 2
+  },
+  {
+   "rank": 323,
+   "lemma": "nostri",
+   "zipf": 5.43,
+   "band": 2
+  },
+  {
+   "rank": 324,
+   "lemma": "parole",
+   "zipf": 5.43,
+   "band": 2
+  },
+  {
+   "rank": 325,
+   "lemma": "scritto",
+   "zipf": 5.43,
+   "band": 2
+  },
+  {
+   "rank": 326,
+   "lemma": "soprattutto",
+   "zipf": 5.43,
+   "band": 2
+  },
+  {
+   "rank": 327,
+   "lemma": "stanno",
+   "zipf": 5.43,
+   "band": 2
+  },
+  {
+   "rank": 328,
+   "lemma": "terra",
+   "zipf": 5.43,
+   "band": 2
+  },
+  {
+   "rank": 329,
+   "lemma": "padre",
+   "zipf": 5.42,
+   "band": 2
+  },
+  {
+   "rank": 330,
+   "lemma": "penso",
+   "zipf": 5.42,
+   "band": 2
+  },
+  {
+   "rank": 331,
+   "lemma": "piace",
+   "zipf": 5.42,
+   "band": 2
+  },
+  {
+   "rank": 332,
+   "lemma": "dare",
+   "zipf": 5.41,
+   "band": 2
+  },
+  {
+   "rank": 333,
+   "lemma": "devo",
+   "zipf": 5.41,
+   "band": 2
+  },
+  {
+   "rank": 334,
+   "lemma": "piano",
+   "zipf": 5.41,
+   "band": 2
+  },
+  {
+   "rank": 335,
+   "lemma": "porta",
+   "zipf": 5.41,
+   "band": 2
+  },
+  {
+   "rank": 336,
+   "lemma": "settimana",
+   "zipf": 5.41,
+   "band": 2
+  },
+  {
+   "rank": 337,
+   "lemma": "state",
+   "zipf": 5.41,
+   "band": 2
+  },
+  {
+   "rank": 338,
+   "lemma": "trovare",
+   "zipf": 5.41,
+   "band": 2
+  },
+  {
+   "rank": 339,
+   "lemma": "vengono",
+   "zipf": 5.41,
+   "band": 2
+  },
+  {
+   "rank": 340,
+   "lemma": "vista",
+   "zipf": 5.41,
+   "band": 2
+  },
+  {
+   "rank": 341,
+   "lemma": "genere",
+   "zipf": 5.4,
+   "band": 2
+  },
+  {
+   "rank": 342,
+   "lemma": "letto",
+   "zipf": 5.4,
+   "band": 2
+  },
+  {
+   "rank": 343,
+   "lemma": "migliore",
+   "zipf": 5.4,
+   "band": 2
+  },
+  {
+   "rank": 344,
+   "lemma": "pubblico",
+   "zipf": 5.4,
+   "band": 2
+  },
+  {
+   "rank": 345,
+   "lemma": "realtà",
+   "zipf": 5.4,
+   "band": 2
+  },
+  {
+   "rank": 346,
+   "lemma": "strada",
+   "zipf": 5.4,
+   "band": 2
+  },
+  {
+   "rank": 347,
+   "lemma": "livello",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 348,
+   "lemma": "lungo",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 349,
+   "lemma": "mezzo",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 350,
+   "lemma": "problemi",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 351,
+   "lemma": "ragazzi",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 352,
+   "lemma": "seconda",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 353,
+   "lemma": "tale",
+   "zipf": 5.39,
+   "band": 2
+  },
+  {
+   "rank": 354,
+   "lemma": "bella",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 355,
+   "lemma": "diversi",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 356,
+   "lemma": "grandi",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 357,
+   "lemma": "particolare",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 358,
+   "lemma": "pubblicato",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 359,
+   "lemma": "ragione",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 360,
+   "lemma": "settembre",
+   "zipf": 5.38,
+   "band": 2
+  },
+  {
+   "rank": 361,
+   "lemma": "dovrebbe",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 362,
+   "lemma": "marzo",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 363,
+   "lemma": "notte",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 364,
+   "lemma": "possa",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 365,
+   "lemma": "presso",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 366,
+   "lemma": "quattro",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 367,
+   "lemma": "san",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 368,
+   "lemma": "situazione",
+   "zipf": 5.37,
+   "band": 2
+  },
+  {
+   "rank": 369,
+   "lemma": "attività",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 370,
+   "lemma": "attraverso",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 371,
+   "lemma": "bambini",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 372,
+   "lemma": "consiglio",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 373,
+   "lemma": "faccio",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 374,
+   "lemma": "forma",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 375,
+   "lemma": "italiana",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 376,
+   "lemma": "libro",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 377,
+   "lemma": "qualsiasi",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 378,
+   "lemma": "sapere",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 379,
+   "lemma": "saranno",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 380,
+   "lemma": "soldi",
+   "zipf": 5.36,
+   "band": 2
+  },
+  {
+   "rank": 381,
+   "lemma": "buon",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 382,
+   "lemma": "campo",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 383,
+   "lemma": "dagli",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 384,
+   "lemma": "faccia",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 385,
+   "lemma": "figlio",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 386,
+   "lemma": "prendere",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 387,
+   "lemma": "progetto",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 388,
+   "lemma": "propria",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 389,
+   "lemma": "servizio",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 390,
+   "lemma": "testa",
+   "zipf": 5.35,
+   "band": 2
+  },
+  {
+   "rank": 391,
+   "lemma": "accordo",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 392,
+   "lemma": "amore",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 393,
+   "lemma": "avevo",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 394,
+   "lemma": "capo",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 395,
+   "lemma": "conto",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 396,
+   "lemma": "giusto",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 397,
+   "lemma": "madre",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 398,
+   "lemma": "periodo",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 399,
+   "lemma": "preso",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 400,
+   "lemma": "studio",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 401,
+   "lemma": "tratta",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 402,
+   "lemma": "unico",
+   "zipf": 5.34,
+   "band": 2
+  },
+  {
+   "rank": 403,
+   "lemma": "ciao",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 404,
+   "lemma": "dati",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 405,
+   "lemma": "diverse",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 406,
+   "lemma": "gioco",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 407,
+   "lemma": "grado",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 408,
+   "lemma": "voce",
+   "zipf": 5.33,
+   "band": 2
+  },
+  {
+   "rank": 409,
+   "lemma": "forte",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 410,
+   "lemma": "giro",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 411,
+   "lemma": "gran",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 412,
+   "lemma": "italiani",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 413,
+   "lemma": "maggio",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 414,
+   "lemma": "mese",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 415,
+   "lemma": "nello",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 416,
+   "lemma": "ricerca",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 417,
+   "lemma": "unica",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 418,
+   "lemma": "uso",
+   "zipf": 5.32,
+   "band": 2
+  },
+  {
+   "rank": 419,
+   "lemma": "capire",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 420,
+   "lemma": "corpo",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 421,
+   "lemma": "facendo",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 422,
+   "lemma": "fatti",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 423,
+   "lemma": "luogo",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 424,
+   "lemma": "nemmeno",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 425,
+   "lemma": "ormai",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 426,
+   "lemma": "parla",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 427,
+   "lemma": "partito",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 428,
+   "lemma": "passato",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 429,
+   "lemma": "quei",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 430,
+   "lemma": "ragazza",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 431,
+   "lemma": "tv",
+   "zipf": 5.31,
+   "band": 2
+  },
+  {
+   "rank": 432,
+   "lemma": "avanti",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 433,
+   "lemma": "avete",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 434,
+   "lemma": "euro",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 435,
+   "lemma": "favore",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 436,
+   "lemma": "figli",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 437,
+   "lemma": "milione",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 438,
+   "lemma": "minuti",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 439,
+   "lemma": "molte",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 440,
+   "lemma": "sicurezza",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 441,
+   "lemma": "tuttavia",
+   "zipf": 5.3,
+   "band": 2
+  },
+  {
+   "rank": 442,
+   "lemma": "acqua",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 443,
+   "lemma": "aprile",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 444,
+   "lemma": "casi",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 445,
+   "lemma": "cuore",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 446,
+   "lemma": "difficile",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 447,
+   "lemma": "domanda",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 448,
+   "lemma": "giugno",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 449,
+   "lemma": "occhi",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 450,
+   "lemma": "presente",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 451,
+   "lemma": "siete",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 452,
+   "lemma": "trova",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 453,
+   "lemma": "vedo",
+   "zipf": 5.29,
+   "band": 2
+  },
+  {
+   "rank": 454,
+   "lemma": "articolo",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 455,
+   "lemma": "bello",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 456,
+   "lemma": "capito",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 457,
+   "lemma": "chiesa",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 458,
+   "lemma": "cioè",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 459,
+   "lemma": "devi",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 460,
+   "lemma": "ex",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 461,
+   "lemma": "informazioni",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 462,
+   "lemma": "lì",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 463,
+   "lemma": "maggior",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 464,
+   "lemma": "media",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 465,
+   "lemma": "ottobre",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 466,
+   "lemma": "parola",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 467,
+   "lemma": "pochi",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 468,
+   "lemma": "prova",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 469,
+   "lemma": "sera",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 470,
+   "lemma": "stai",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 471,
+   "lemma": "sud",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 472,
+   "lemma": "titolo",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 473,
+   "lemma": "vorrei",
+   "zipf": 5.28,
+   "band": 2
+  },
+  {
+   "rank": 474,
+   "lemma": "cinque",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 475,
+   "lemma": "fatta",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 476,
+   "lemma": "luglio",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 477,
+   "lemma": "musica",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 478,
+   "lemma": "nuove",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 479,
+   "lemma": "nuovi",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 480,
+   "lemma": "paesi",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 481,
+   "lemma": "paura",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 482,
+   "lemma": "pensare",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 483,
+   "lemma": "primi",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 484,
+   "lemma": "regione",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 485,
+   "lemma": "sociale",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 486,
+   "lemma": "sopra",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 487,
+   "lemma": "stare",
+   "zipf": 5.27,
+   "band": 2
+  },
+  {
+   "rank": 488,
+   "lemma": "dietro",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 489,
+   "lemma": "inglese",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 490,
+   "lemma": "maggiore",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 491,
+   "lemma": "messo",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 492,
+   "lemma": "nord",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 493,
+   "lemma": "post",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 494,
+   "lemma": "questione",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 495,
+   "lemma": "re",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 496,
+   "lemma": "termine",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 497,
+   "lemma": "vicino",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 498,
+   "lemma": "vivere",
+   "zipf": 5.26,
+   "band": 2
+  },
+  {
+   "rank": 499,
+   "lemma": "abbastanza",
+   "zipf": 5.25,
+   "band": 2
+  },
+  {
+   "rank": 500,
+   "lemma": "data",
+   "zipf": 5.25,
+   "band": 2
+  },
+  {
+   "rank": 501,
+   "lemma": "dico",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 502,
+   "lemma": "ero",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 503,
+   "lemma": "giornata",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 504,
+   "lemma": "lingua",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 505,
+   "lemma": "mettere",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 506,
+   "lemma": "piccolo",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 507,
+   "lemma": "posizione",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 508,
+   "lemma": "possibilità",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 509,
+   "lemma": "potere",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 510,
+   "lemma": "programma",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 511,
+   "lemma": "usa",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 512,
+   "lemma": "zona",
+   "zipf": 5.25,
+   "band": 3
+  },
+  {
+   "rank": 513,
+   "lemma": "controllo",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 514,
+   "lemma": "cultura",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 515,
+   "lemma": "devono",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 516,
+   "lemma": "dovuto",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 517,
+   "lemma": "febbraio",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 518,
+   "lemma": "futuro",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 519,
+   "lemma": "ieri",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 520,
+   "lemma": "mercato",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 521,
+   "lemma": "neanche",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 522,
+   "lemma": "polizia",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 523,
+   "lemma": "veramente",
+   "zipf": 5.24,
+   "band": 3
+  },
+  {
+   "rank": 524,
+   "lemma": "alto",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 525,
+   "lemma": "amico",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 526,
+   "lemma": "avevano",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 527,
+   "lemma": "cura",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 528,
+   "lemma": "davanti",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 529,
+   "lemma": "dicembre",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 530,
+   "lemma": "magari",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 531,
+   "lemma": "nonostante",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 532,
+   "lemma": "novembre",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 533,
+   "lemma": "pare",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 534,
+   "lemma": "personale",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 535,
+   "lemma": "piuttosto",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 536,
+   "lemma": "possiamo",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 537,
+   "lemma": "punti",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 538,
+   "lemma": "scelta",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 539,
+   "lemma": "semplice",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 540,
+   "lemma": "sviluppo",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 541,
+   "lemma": "tanti",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 542,
+   "lemma": "trovato",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 543,
+   "lemma": "tuoi",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 544,
+   "lemma": "ultimi",
+   "zipf": 5.23,
+   "band": 3
+  },
+  {
+   "rank": 545,
+   "lemma": "agosto",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 546,
+   "lemma": "condizioni",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 547,
+   "lemma": "dentro",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 548,
+   "lemma": "fronte",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 549,
+   "lemma": "leggi",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 550,
+   "lemma": "luce",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 551,
+   "lemma": "mare",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 552,
+   "lemma": "motivo",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 553,
+   "lemma": "opera",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 554,
+   "lemma": "poter",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 555,
+   "lemma": "probabilmente",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 556,
+   "lemma": "rapporto",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 557,
+   "lemma": "resto",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 558,
+   "lemma": "sai",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 559,
+   "lemma": "sicuro",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 560,
+   "lemma": "vari",
+   "zipf": 5.22,
+   "band": 3
+  },
+  {
+   "rank": 561,
+   "lemma": "ah",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 562,
+   "lemma": "attenzione",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 563,
+   "lemma": "farlo",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 564,
+   "lemma": "gennaio",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 565,
+   "lemma": "giovani",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 566,
+   "lemma": "napoli",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 567,
+   "lemma": "nessun",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 568,
+   "lemma": "né",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 569,
+   "lemma": "online",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 570,
+   "lemma": "parti",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 571,
+   "lemma": "risposta",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 572,
+   "lemma": "ruolo",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 573,
+   "lemma": "sola",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 574,
+   "lemma": "stessi",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 575,
+   "lemma": "vedi",
+   "zipf": 5.21,
+   "band": 3
+  },
+  {
+   "rank": 576,
+   "lemma": "guarda",
+   "zipf": 5.2,
+   "band": 3
+  },
+  {
+   "rank": 577,
+   "lemma": "linea",
+   "zipf": 5.2,
+   "band": 3
+  },
+  {
+   "rank": 578,
+   "lemma": "mente",
+   "zipf": 5.2,
+   "band": 3
+  },
+  {
+   "rank": 579,
+   "lemma": "ok",
+   "zipf": 5.2,
+   "band": 3
+  },
+  {
+   "rank": 580,
+   "lemma": "tempi",
+   "zipf": 5.2,
+   "band": 3
+  },
+  {
+   "rank": 581,
+   "lemma": "uniti",
+   "zipf": 5.2,
+   "band": 3
+  },
+  {
+   "rank": 582,
+   "lemma": "classe",
+   "zipf": 5.19,
+   "band": 3
+  },
+  {
+   "rank": 583,
+   "lemma": "continua",
+   "zipf": 5.19,
+   "band": 3
+  },
+  {
+   "rank": 584,
+   "lemma": "esperienza",
+   "zipf": 5.19,
+   "band": 3
+  },
+  {
+   "rank": 585,
+   "lemma": "mie",
+   "zipf": 5.19,
+   "band": 3
+  },
+  {
+   "rank": 586,
+   "lemma": "pubblica",
+   "zipf": 5.19,
+   "band": 3
+  },
+  {
+   "rank": 587,
+   "lemma": "ragazze",
+   "zipf": 5.19,
+   "band": 3
+  },
+  {
+   "rank": 588,
+   "lemma": "squadra",
+   "zipf": 5.19,
+   "band": 3
+  },
+  {
+   "rank": 589,
+   "lemma": "ultimo",
+   "zipf": 5.19,
+   "band": 3
+  },
+  {
+   "rank": 590,
+   "lemma": "voglia",
+   "zipf": 5.19,
+   "band": 3
+  },
+  {
+   "rank": 591,
+   "lemma": "arte",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 592,
+   "lemma": "auto",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 593,
+   "lemma": "giovane",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 594,
+   "lemma": "lavori",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 595,
+   "lemma": "merda",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 596,
+   "lemma": "oppure",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 597,
+   "lemma": "piazza",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 598,
+   "lemma": "processo",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 599,
+   "lemma": "qualità",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 600,
+   "lemma": "ragazzo",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 601,
+   "lemma": "risultati",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 602,
+   "lemma": "significa",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 603,
+   "lemma": "specie",
+   "zipf": 5.18,
+   "band": 3
+  },
+  {
+   "rank": 604,
+   "lemma": "aiuto",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 605,
+   "lemma": "bisogna",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 606,
+   "lemma": "capisco",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 607,
+   "lemma": "colpa",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 608,
+   "lemma": "domani",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 609,
+   "lemma": "effetti",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 610,
+   "lemma": "facile",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 611,
+   "lemma": "genitori",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 612,
+   "lemma": "internazionale",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 613,
+   "lemma": "libri",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 614,
+   "lemma": "mani",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 615,
+   "lemma": "produzione",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 616,
+   "lemma": "repubblica",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 617,
+   "lemma": "sinistra",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 618,
+   "lemma": "spero",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 619,
+   "lemma": "ufficiale",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 620,
+   "lemma": "ultima",
+   "zipf": 5.17,
+   "band": 3
+  },
+  {
+   "rank": 621,
+   "lemma": "dobbiamo",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 622,
+   "lemma": "fondo",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 623,
+   "lemma": "leggere",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 624,
+   "lemma": "libertà",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 625,
+   "lemma": "massimo",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 626,
+   "lemma": "metà",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 627,
+   "lemma": "passo",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 628,
+   "lemma": "popolo",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 629,
+   "lemma": "presto",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 630,
+   "lemma": "ricordo",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 631,
+   "lemma": "sede",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 632,
+   "lemma": "serve",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 633,
+   "lemma": "spazio",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 634,
+   "lemma": "studi",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 635,
+   "lemma": "territorio",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 636,
+   "lemma": "valore",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 637,
+   "lemma": "varie",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 638,
+   "lemma": "vera",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 639,
+   "lemma": "verità",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 640,
+   "lemma": "viaggio",
+   "zipf": 5.16,
+   "band": 3
+  },
+  {
+   "rank": 641,
+   "lemma": "bel",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 642,
+   "lemma": "cerca",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 643,
+   "lemma": "diritti",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 644,
+   "lemma": "mamma",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 645,
+   "lemma": "migliori",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 646,
+   "lemma": "moglie",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 647,
+   "lemma": "nostre",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 648,
+   "lemma": "pace",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 649,
+   "lemma": "papa",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 650,
+   "lemma": "politico",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 651,
+   "lemma": "presenza",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 652,
+   "lemma": "servizi",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 653,
+   "lemma": "stiamo",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 654,
+   "lemma": "vogliono",
+   "zipf": 5.15,
+   "band": 3
+  },
+  {
+   "rank": 655,
+   "lemma": "breve",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 656,
+   "lemma": "civile",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 657,
+   "lemma": "lavorare",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 658,
+   "lemma": "ministro",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 659,
+   "lemma": "nessuna",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 660,
+   "lemma": "ordine",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 661,
+   "lemma": "oro",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 662,
+   "lemma": "pensa",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 663,
+   "lemma": "piedi",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 664,
+   "lemma": "rete",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 665,
+   "lemma": "speciale",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 666,
+   "lemma": "tramite",
+   "zipf": 5.14,
+   "band": 3
+  },
+  {
+   "rank": 667,
+   "lemma": "calcio",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 668,
+   "lemma": "centrale",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 669,
+   "lemma": "codice",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 670,
+   "lemma": "felice",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 671,
+   "lemma": "pagina",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 672,
+   "lemma": "piccola",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 673,
+   "lemma": "provincia",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 674,
+   "lemma": "riguarda",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 675,
+   "lemma": "sentire",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 676,
+   "lemma": "sole",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 677,
+   "lemma": "vado",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 678,
+   "lemma": "vanno",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 679,
+   "lemma": "vede",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 680,
+   "lemma": "web",
+   "zipf": 5.13,
+   "band": 3
+  },
+  {
+   "rank": 681,
+   "lemma": "cosi",
+   "zipf": 5.12,
+   "band": 3
+  },
+  {
+   "rank": 682,
+   "lemma": "internet",
+   "zipf": 5.12,
+   "band": 3
+  },
+  {
+   "rank": 683,
+   "lemma": "macchina",
+   "zipf": 5.12,
+   "band": 3
+  },
+  {
+   "rank": 684,
+   "lemma": "movimento",
+   "zipf": 5.12,
+   "band": 3
+  },
+  {
+   "rank": 685,
+   "lemma": "notizie",
+   "zipf": 5.12,
+   "band": 3
+  },
+  {
+   "rank": 686,
+   "lemma": "perdere",
+   "zipf": 5.12,
+   "band": 3
+  },
+  {
+   "rank": 687,
+   "lemma": "riguardo",
+   "zipf": 5.12,
+   "band": 3
+  },
+  {
+   "rank": 688,
+   "lemma": "sento",
+   "zipf": 5.12,
+   "band": 3
+  },
+  {
+   "rank": 689,
+   "lemma": "stile",
+   "zipf": 5.12,
+   "band": 3
+  },
+  {
+   "rank": 690,
+   "lemma": "cittadini",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 691,
+   "lemma": "domande",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 692,
+   "lemma": "età",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 693,
+   "lemma": "inizio",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 694,
+   "lemma": "nota",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 695,
+   "lemma": "occasione",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 696,
+   "lemma": "opere",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 697,
+   "lemma": "passare",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 698,
+   "lemma": "perso",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 699,
+   "lemma": "prezzo",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 700,
+   "lemma": "prodotto",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 701,
+   "lemma": "qua",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 702,
+   "lemma": "scusa",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 703,
+   "lemma": "secolo",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 704,
+   "lemma": "stagione",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 705,
+   "lemma": "università",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 706,
+   "lemma": "vai",
+   "zipf": 5.11,
+   "band": 3
+  },
+  {
+   "rank": 707,
+   "lemma": "cambiare",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 708,
+   "lemma": "camera",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 709,
+   "lemma": "corte",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 710,
+   "lemma": "deciso",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 711,
+   "lemma": "destra",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 712,
+   "lemma": "formazione",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 713,
+   "lemma": "locale",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 714,
+   "lemma": "maria",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 715,
+   "lemma": "mondiale",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 716,
+   "lemma": "necessario",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 717,
+   "lemma": "popolazione",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 718,
+   "lemma": "portato",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 719,
+   "lemma": "reale",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 720,
+   "lemma": "sesso",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 721,
+   "lemma": "soltanto",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 722,
+   "lemma": "tante",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 723,
+   "lemma": "terzo",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 724,
+   "lemma": "testo",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 725,
+   "lemma": "totale",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 726,
+   "lemma": "versione",
+   "zipf": 5.1,
+   "band": 3
+  },
+  {
+   "rank": 727,
+   "lemma": "alta",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 728,
+   "lemma": "bambino",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 729,
+   "lemma": "chiaro",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 730,
+   "lemma": "chiesto",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 731,
+   "lemma": "dieci",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 732,
+   "lemma": "diventare",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 733,
+   "lemma": "finalmente",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 734,
+   "lemma": "fratello",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 735,
+   "lemma": "fuoco",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 736,
+   "lemma": "interesse",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 737,
+   "lemma": "maniera",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 738,
+   "lemma": "natura",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 739,
+   "lemma": "ovviamente",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 740,
+   "lemma": "partire",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 741,
+   "lemma": "piacere",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 742,
+   "lemma": "portare",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 743,
+   "lemma": "potuto",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 744,
+   "lemma": "quanti",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 745,
+   "lemma": "risultato",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 746,
+   "lemma": "semplicemente",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 747,
+   "lemma": "vostro",
+   "zipf": 5.09,
+   "band": 3
+  },
+  {
+   "rank": 748,
+   "lemma": "arriva",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 749,
+   "lemma": "arrivare",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 750,
+   "lemma": "aspetto",
+   "zipf": 5.08,
+   "band": 3
+  },
+  {
+   "rank": 751,
+   "lemma": "carta",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 752,
+   "lemma": "cercare",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 753,
+   "lemma": "completamente",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 754,
+   "lemma": "comunità",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 755,
+   "lemma": "danno",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 756,
+   "lemma": "dicono",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 757,
+   "lemma": "esiste",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 758,
+   "lemma": "festa",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 759,
+   "lemma": "forze",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 760,
+   "lemma": "francese",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 761,
+   "lemma": "importanti",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 762,
+   "lemma": "libero",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 763,
+   "lemma": "presenti",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 764,
+   "lemma": "principale",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 765,
+   "lemma": "pur",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 766,
+   "lemma": "relazione",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 767,
+   "lemma": "scrivere",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 768,
+   "lemma": "stampa",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 769,
+   "lemma": "tornare",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 770,
+   "lemma": "usare",
+   "zipf": 5.08,
+   "band": 4
+  },
+  {
+   "rank": 771,
+   "lemma": "avrei",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 772,
+   "lemma": "comuni",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 773,
+   "lemma": "entrambi",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 774,
+   "lemma": "francesco",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 775,
+   "lemma": "furono",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 776,
+   "lemma": "messaggio",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 777,
+   "lemma": "mostra",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 778,
+   "lemma": "prime",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 779,
+   "lemma": "prossimo",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 780,
+   "lemma": "scopo",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 781,
+   "lemma": "simile",
+   "zipf": 5.07,
+   "band": 4
+  },
+  {
+   "rank": 782,
+   "lemma": "beh",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 783,
+   "lemma": "cibo",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 784,
+   "lemma": "direttamente",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 785,
+   "lemma": "facciamo",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 786,
+   "lemma": "figlia",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 787,
+   "lemma": "finale",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 788,
+   "lemma": "lato",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 789,
+   "lemma": "lunga",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 790,
+   "lemma": "prodotti",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 791,
+   "lemma": "propri",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 792,
+   "lemma": "sangue",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 793,
+   "lemma": "tema",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 794,
+   "lemma": "vecchio",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 795,
+   "lemma": "voto",
+   "zipf": 5.06,
+   "band": 4
+  },
+  {
+   "rank": 796,
+   "lemma": "anzi",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 797,
+   "lemma": "avesse",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 798,
+   "lemma": "basso",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 799,
+   "lemma": "contratto",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 800,
+   "lemma": "costa",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 801,
+   "lemma": "crisi",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 802,
+   "lemma": "dallo",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 803,
+   "lemma": "differenza",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 804,
+   "lemma": "entrare",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 805,
+   "lemma": "fortuna",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 806,
+   "lemma": "fossero",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 807,
+   "lemma": "guida",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 808,
+   "lemma": "idee",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 809,
+   "lemma": "immagini",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 810,
+   "lemma": "incontro",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 811,
+   "lemma": "iniziato",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 812,
+   "lemma": "intorno",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 813,
+   "lemma": "nero",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 814,
+   "lemma": "notizia",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 815,
+   "lemma": "ottenere",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 816,
+   "lemma": "pena",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 817,
+   "lemma": "principali",
+   "zipf": 5.05,
+   "band": 4
+  },
+  {
+   "rank": 818,
+   "lemma": "azione",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 819,
+   "lemma": "chiedere",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 820,
+   "lemma": "creare",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 821,
+   "lemma": "culo",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 822,
+   "lemma": "discorso",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 823,
+   "lemma": "diventa",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 824,
+   "lemma": "entro",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 825,
+   "lemma": "fin",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 826,
+   "lemma": "lista",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 827,
+   "lemma": "locali",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 828,
+   "lemma": "morto",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 829,
+   "lemma": "pari",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 830,
+   "lemma": "pensiero",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 831,
+   "lemma": "posti",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 832,
+   "lemma": "proprietà",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 833,
+   "lemma": "rischio",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 834,
+   "lemma": "settimane",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 835,
+   "lemma": "sicuramente",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 836,
+   "lemma": "solito",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 837,
+   "lemma": "soluzione",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 838,
+   "lemma": "superiore",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 839,
+   "lemma": "telefono",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 840,
+   "lemma": "vale",
+   "zipf": 5.04,
+   "band": 4
+  },
+  {
+   "rank": 841,
+   "lemma": "andato",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 842,
+   "lemma": "armi",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 843,
+   "lemma": "atto",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 844,
+   "lemma": "autore",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 845,
+   "lemma": "campagna",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 846,
+   "lemma": "colore",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 847,
+   "lemma": "commissione",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 848,
+   "lemma": "difesa",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 849,
+   "lemma": "diretta",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 850,
+   "lemma": "direttore",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 851,
+   "lemma": "eventi",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 852,
+   "lemma": "infine",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 853,
+   "lemma": "là",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 854,
+   "lemma": "matrimonio",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 855,
+   "lemma": "morti",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 856,
+   "lemma": "porto",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 857,
+   "lemma": "pratica",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 858,
+   "lemma": "qualunque",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 859,
+   "lemma": "scena",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 860,
+   "lemma": "storico",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 861,
+   "lemma": "usato",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 862,
+   "lemma": "vivo",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 863,
+   "lemma": "vogliamo",
+   "zipf": 5.03,
+   "band": 4
+  },
+  {
+   "rank": 864,
+   "lemma": "alcun",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 865,
+   "lemma": "aria",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 866,
+   "lemma": "assolutamente",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 867,
+   "lemma": "capitale",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 868,
+   "lemma": "guardare",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 869,
+   "lemma": "mattina",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 870,
+   "lemma": "militare",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 871,
+   "lemma": "oh",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 872,
+   "lemma": "riesco",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 873,
+   "lemma": "salute",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 874,
+   "lemma": "sentito",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 875,
+   "lemma": "settore",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 876,
+   "lemma": "stava",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 877,
+   "lemma": "tali",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 878,
+   "lemma": "ufficio",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 879,
+   "lemma": "uscire",
+   "zipf": 5.02,
+   "band": 4
+  },
+  {
+   "rank": 880,
+   "lemma": "chiama",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 881,
+   "lemma": "chiamato",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 882,
+   "lemma": "difficoltà",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 883,
+   "lemma": "lettera",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 884,
+   "lemma": "mangiare",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 885,
+   "lemma": "partita",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 886,
+   "lemma": "pieno",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 887,
+   "lemma": "precedente",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 888,
+   "lemma": "prende",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 889,
+   "lemma": "qual",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 890,
+   "lemma": "resta",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 891,
+   "lemma": "riferimento",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 892,
+   "lemma": "signore",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 893,
+   "lemma": "stesse",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 894,
+   "lemma": "venire",
+   "zipf": 5.01,
+   "band": 4
+  },
+  {
+   "rank": 895,
+   "lemma": "animali",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 896,
+   "lemma": "azienda",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 897,
+   "lemma": "cielo",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 898,
+   "lemma": "conoscere",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 899,
+   "lemma": "diverso",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 900,
+   "lemma": "dunque",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 901,
+   "lemma": "esattamente",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 902,
+   "lemma": "finito",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 903,
+   "lemma": "giochi",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 904,
+   "lemma": "gruppi",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 905,
+   "lemma": "lascia",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 906,
+   "lemma": "modello",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 907,
+   "lemma": "nato",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 908,
+   "lemma": "parlando",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 909,
+   "lemma": "politiche",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 910,
+   "lemma": "poteva",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 911,
+   "lemma": "progetti",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 912,
+   "lemma": "ritorno",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 913,
+   "lemma": "scoperto",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 914,
+   "lemma": "social",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 915,
+   "lemma": "vittoria",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 916,
+   "lemma": "vostra",
+   "zipf": 5.0,
+   "band": 4
+  },
+  {
+   "rank": 917,
+   "lemma": "bianco",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 918,
+   "lemma": "canzone",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 919,
+   "lemma": "case",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 920,
+   "lemma": "cercando",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 921,
+   "lemma": "chiunque",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 922,
+   "lemma": "compagnia",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 923,
+   "lemma": "dicendo",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 924,
+   "lemma": "dovrebbero",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 925,
+   "lemma": "dubbio",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 926,
+   "lemma": "effetto",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 927,
+   "lemma": "entra",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 928,
+   "lemma": "evitare",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 929,
+   "lemma": "giustizia",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 930,
+   "lemma": "medico",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 931,
+   "lemma": "merito",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 932,
+   "lemma": "mette",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 933,
+   "lemma": "mille",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 934,
+   "lemma": "noto",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 935,
+   "lemma": "ovvero",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 936,
+   "lemma": "passa",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 937,
+   "lemma": "politici",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 938,
+   "lemma": "potrebbero",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 939,
+   "lemma": "radio",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 940,
+   "lemma": "ricevuto",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 941,
+   "lemma": "scorso",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 942,
+   "lemma": "soli",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 943,
+   "lemma": "struttura",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 944,
+   "lemma": "termini",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 945,
+   "lemma": "vuol",
+   "zipf": 4.99,
+   "band": 4
+  },
+  {
+   "rank": 946,
+   "lemma": "andata",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 947,
+   "lemma": "aperto",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 948,
+   "lemma": "capacità",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 949,
+   "lemma": "comunicazione",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 950,
+   "lemma": "dici",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 951,
+   "lemma": "direzione",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 952,
+   "lemma": "essendo",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 953,
+   "lemma": "immagine",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 954,
+   "lemma": "ministero",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 955,
+   "lemma": "morire",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 956,
+   "lemma": "normale",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 957,
+   "lemma": "parlato",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 958,
+   "lemma": "richiesta",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 959,
+   "lemma": "rimane",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 960,
+   "lemma": "siti",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 961,
+   "lemma": "sé",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 962,
+   "lemma": "volevo",
+   "zipf": 4.98,
+   "band": 4
+  },
+  {
+   "rank": 963,
+   "lemma": "avrà",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 964,
+   "lemma": "confronti",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 965,
+   "lemma": "gay",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 966,
+   "lemma": "inizia",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 967,
+   "lemma": "lasciare",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 968,
+   "lemma": "lasciato",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 969,
+   "lemma": "pensato",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 970,
+   "lemma": "poche",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 971,
+   "lemma": "precedenti",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 972,
+   "lemma": "premio",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 973,
+   "lemma": "rende",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 974,
+   "lemma": "riesce",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 975,
+   "lemma": "sacco",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 976,
+   "lemma": "scuole",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 977,
+   "lemma": "seguire",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 978,
+   "lemma": "sette",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 979,
+   "lemma": "son",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 980,
+   "lemma": "studenti",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 981,
+   "lemma": "tardi",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 982,
+   "lemma": "tue",
+   "zipf": 4.97,
+   "band": 4
+  },
+  {
+   "rank": 983,
+   "lemma": "abbiano",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 984,
+   "lemma": "attuale",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 985,
+   "lemma": "aziende",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 986,
+   "lemma": "bocca",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 987,
+   "lemma": "chiedo",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 988,
+   "lemma": "commenti",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 989,
+   "lemma": "contrario",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 990,
+   "lemma": "costruzione",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 991,
+   "lemma": "documenti",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 992,
+   "lemma": "edizione",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 993,
+   "lemma": "elezioni",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 994,
+   "lemma": "europea",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 995,
+   "lemma": "farsi",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 996,
+   "lemma": "fase",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 997,
+   "lemma": "giocare",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 998,
+   "lemma": "interessante",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 999,
+   "lemma": "luoghi",
+   "zipf": 4.96,
+   "band": 4
+  },
+  {
+   "rank": 1000,
+   "lemma": "membri",
+   "zipf": 4.96,
+   "band": 4
+  }
+ ]
+}

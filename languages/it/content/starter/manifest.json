@@ -1,0 +1,122 @@
+{
+  "title": "Le tue prime 1000 parole",
+  "author": "Lector",
+  "allow": [
+    "Giulia",
+    "Luca",
+    "Sofia"
+  ],
+  "maxNewLemmasPerLesson": 60,
+  "lessons": [
+    {
+      "file": "01-io-sono-giulia.md",
+      "title": "Io sono Giulia",
+      "maxRank": 250,
+      "maxNewLemmas": 160
+    },
+    {
+      "file": "02-la-casa.md",
+      "title": "La casa",
+      "maxRank": 250
+    },
+    {
+      "file": "03-il-lavoro.md",
+      "title": "Il lavoro",
+      "maxRank": 250
+    },
+    {
+      "file": "04-la-citta.md",
+      "title": "La citt\u00e0",
+      "maxRank": 250
+    },
+    {
+      "file": "05-dopo-il-lavoro.md",
+      "title": "Dopo il lavoro",
+      "maxRank": 250
+    },
+    {
+      "file": "06-lamico-luca.md",
+      "title": "Luca",
+      "maxRank": 500,
+      "maxNewLemmas": 220
+    },
+    {
+      "file": "07-la-settimana.md",
+      "title": "La settimana",
+      "maxRank": 500
+    },
+    {
+      "file": "08-i-soldi.md",
+      "title": "I soldi",
+      "maxRank": 500,
+      "maxNewLemmas": 180
+    },
+    {
+      "file": "09-la-scuola.md",
+      "title": "La scuola",
+      "maxRank": 500
+    },
+    {
+      "file": "10-la-strada.md",
+      "title": "La strada",
+      "maxRank": 500
+    },
+    {
+      "file": "11-la-giornata.md",
+      "title": "La giornata",
+      "maxRank": 750,
+      "maxNewLemmas": 240
+    },
+    {
+      "file": "12-il-mare.md",
+      "title": "Il mare",
+      "maxRank": 750
+    },
+    {
+      "file": "13-sofia-e-la-musica.md",
+      "title": "Sofia e la musica",
+      "maxRank": 750
+    },
+    {
+      "file": "14-la-famiglia-di-luca.md",
+      "title": "La famiglia di Luca",
+      "maxRank": 750
+    },
+    {
+      "file": "15-il-piano.md",
+      "title": "Il piano",
+      "maxRank": 750,
+      "maxNewLemmas": 90
+    },
+    {
+      "file": "16-la-festa.md",
+      "title": "La festa",
+      "maxRank": 1000,
+      "maxNewLemmas": 250
+    },
+    {
+      "file": "17-la-piazza.md",
+      "title": "La piazza",
+      "maxRank": 1000,
+      "maxNewLemmas": 100
+    },
+    {
+      "file": "18-il-paese.md",
+      "title": "Il paese",
+      "maxRank": 1000,
+      "maxNewLemmas": 100
+    },
+    {
+      "file": "19-il-corso.md",
+      "title": "Il corso",
+      "maxRank": 1000,
+      "maxNewLemmas": 100
+    },
+    {
+      "file": "20-un-anno-una-vita.md",
+      "title": "Un anno, una vita",
+      "maxRank": 1000,
+      "maxNewLemmas": 100
+    }
+  ]
+}

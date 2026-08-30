@@ -143,6 +143,9 @@ only `wordlist.json` seeds nothing.
 - **id** — wordfreq. Some English tokens in `wordfreq-id` do not resolve in
   the dictionary. Write `disini` as one word in band 1. The form `sini` is
   rank 273. Informal `aku` is rank 10.
+- **it** — wordfreq. The tokenizer keeps elision as one token. `l'acqua`
+  does not resolve in the verifier. Write `la` before a consonant. Do not
+  write `c'è`. `è` is rank 11.
 - **future packs** — a language without wordfreq mirrors af's pipeline
   (see `woordeboek/process/FREQUENCY.md`); a language without a dictionary
   can't have starter content, by construction.
