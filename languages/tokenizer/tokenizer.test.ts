@@ -1150,6 +1150,18 @@ describe('Afrikaans pack (real manifest)', () => {
     }
   });
 
+  it('keeps an abbreviation and a decade plural whole (#430)', () => {
+    expect(tokenizeWords("Die ABC's en die 1990's", afrikaans).map((t) => t.text)).toEqual([
+      'Die',
+      "ABC's",
+      'en',
+      'die',
+      "1990's",
+    ]);
+    expect(vocabKeys("ABC's", afrikaans)).toEqual(["abc's", 'abc']);
+    expect(vocabKeys("1990's", afrikaans)).toEqual(["1990's", '1990']);
+  });
+
   it('keeps the common apostrophe shapes whole', () => {
     expect(
       tokenizeWords("Die ma's se taxi's, g'n een s'n nie, en ek's moeg.", afrikaans).map(
