@@ -140,6 +140,9 @@ only `wordlist.json` seeds nothing.
 - **fr** — wordfreq, same as es (rollout: #318). Do not draft a starter
   series until `l`/`d`/`j`/`c`/`s`/`m`/`t`/`n`/`qu` resolve to the clitic
   sense, not the letter name.
+- **id** — wordfreq. Some English tokens in `wordfreq-id` do not resolve in
+  the dictionary. Write `disini` as one word in band 1. The form `sini` is
+  rank 273. Informal `aku` is rank 10.
 - **future packs** — a language without wordfreq mirrors af's pipeline
   (see `woordeboek/process/FREQUENCY.md`); a language without a dictionary
   can't have starter content, by construction.
