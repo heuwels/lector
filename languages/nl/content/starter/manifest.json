@@ -1,0 +1,116 @@
+{
+  "title": "Je eerste 1000 woorden",
+  "author": "Lector",
+  "allow": [
+    "Eva",
+    "Daan",
+    "Noor"
+  ],
+  "maxNewLemmasPerLesson": 60,
+  "lessons": [
+    {
+      "file": "01-ik-ben-eva.md",
+      "title": "Ik ben Eva",
+      "maxRank": 250,
+      "maxNewLemmas": 120
+    },
+    {
+      "file": "02-mijn-stad.md",
+      "title": "Mijn stad",
+      "maxRank": 250
+    },
+    {
+      "file": "03-het-werk.md",
+      "title": "Het werk",
+      "maxRank": 250
+    },
+    {
+      "file": "04-de-tijd.md",
+      "title": "De tijd",
+      "maxRank": 250
+    },
+    {
+      "file": "05-goed-leven.md",
+      "title": "Goed leven",
+      "maxRank": 250
+    },
+    {
+      "file": "06-daan.md",
+      "title": "Daan",
+      "maxRank": 500,
+      "maxNewLemmas": 75
+    },
+    {
+      "file": "07-de-familie.md",
+      "title": "De familie",
+      "maxRank": 500
+    },
+    {
+      "file": "08-de-week.md",
+      "title": "De week",
+      "maxRank": 500
+    },
+    {
+      "file": "09-de-school.md",
+      "title": "De school",
+      "maxRank": 500
+    },
+    {
+      "file": "10-thuis.md",
+      "title": "Thuis",
+      "maxRank": 500
+    },
+    {
+      "file": "11-de-straat.md",
+      "title": "De straat",
+      "maxRank": 750
+    },
+    {
+      "file": "12-de-avond.md",
+      "title": "De avond",
+      "maxRank": 750
+    },
+    {
+      "file": "13-noor-en-de-muziek.md",
+      "title": "Noor en de muziek",
+      "maxRank": 750
+    },
+    {
+      "file": "14-de-woorden.md",
+      "title": "De woorden",
+      "maxRank": 750
+    },
+    {
+      "file": "15-het-plan.md",
+      "title": "Het plan",
+      "maxRank": 750
+    },
+    {
+      "file": "16-zaterdag-en-zondag.md",
+      "title": "Zaterdag en zondag",
+      "maxRank": 1000,
+      "maxNewLemmas": 75
+    },
+    {
+      "file": "17-de-markt.md",
+      "title": "De markt",
+      "maxRank": 1000
+    },
+    {
+      "file": "18-het-land.md",
+      "title": "Het land",
+      "maxRank": 1000,
+      "maxNewLemmas": 75
+    },
+    {
+      "file": "19-de-les.md",
+      "title": "De les",
+      "maxRank": 1000
+    },
+    {
+      "file": "20-een-jaar-een-leven.md",
+      "title": "Een jaar, een leven",
+      "maxRank": 1000
+    }
+  ]
+}
