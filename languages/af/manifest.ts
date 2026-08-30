@@ -74,9 +74,11 @@ export const af = {
     // half is what the reader tapped (#430). A joiner only counts between two
     // letter runs, so a quote mark at a token edge stays out.
     //
-    // Dutch spells the same plural and still splits (see nl/manifest.ts): its
-    // avoidWords list carries the fragments that the split produces, so the two
-    // packs must not be made to agree without reworking that list first.
+    // Dutch spells the same plural and still splits. Nothing blocks the same
+    // change there. The clitic fragments in the nl avoidWords list are an
+    // OUTPUT of the split and not a dependency of it, so a joiner can land
+    // without a rework: Italian kept its own fragments after #548, because
+    // wordfreq and older vocab rows still carry them.
     extraJoiners: "'‘’ʼʹ`´",
     // Running text carries whichever variant its editor produced — the af
     // corpus itself writes ’n with a curly quote — so fold them to ASCII ' and
