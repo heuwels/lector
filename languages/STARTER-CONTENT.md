@@ -134,7 +134,12 @@ only `wordlist.json` seeds nothing.
 - **af** — no wordfreq; use the woordeboek blend CSV (`--freq-csv`) and
   `--alias "n='n"` (the CSV counts the article `'n` as bare `n`; the app
   tokenizes `'n` whole).
-- **de/fr/nl** — wordfreq, same as es (rollout: #318).
+- **de/nl/pt** — wordfreq, same as es. Portuguese needs `é` (the verb) in
+  band 1; the generator keeps a one-letter form when POS is verb, pronoun or
+  interjection, not only conjunction, preposition, article or determiner.
+- **fr** — wordfreq, same as es (rollout: #318). Do not draft a starter
+  series until `l`/`d`/`j`/`c`/`s`/`m`/`t`/`n`/`qu` resolve to the clitic
+  sense, not the letter name.
 - **future packs** — a language without wordfreq mirrors af's pipeline
   (see `woordeboek/process/FREQUENCY.md`); a language without a dictionary
   can't have starter content, by construction.

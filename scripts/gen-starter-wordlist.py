@@ -117,12 +117,12 @@ class Dictionary:
     def is_function_single_letter(self, headword: str) -> bool:
         """Single-letter candidates are mostly letter-name entries (kaikki pos
         'character': b, q, x…) leaked from frequency lists. Keep only genuine
-        one-letter function words — es y/a/o/e/u — i.e. a conj/prep/article/det
-        sense whose gloss isn't itself an abbreviation/obsolete-spelling note
-        (es 'd' = "abbreviation of de", 'i' = "obsolete spelling of y"), and no
-        'name' sense. Conservative by design: if a language has a one-letter
-        word outside these POS (e.g. fr 'y' pron), extend this or whitelist it
-        in the pack manifest."""
+        one-letter function words — es y/a/o/e/u, pt é — i.e. a
+        conj/prep/article/det/verb/pron/intj sense whose gloss isn't itself an
+        abbreviation/obsolete-spelling note (es 'd' = "abbreviation of de",
+        'i' = "obsolete spelling of y"), and no 'name' sense. Conservative by
+        design: if a language has a one-letter word outside these POS, extend
+        this or whitelist it in the pack manifest."""
         if "name" in self.pos_set(headword):
             return False
         junk = (
@@ -133,7 +133,8 @@ class Dictionary:
             "nonstandard form of",  # de 'n' = "nonstandard form of 'n"
         )
         rows = self.db.execute(
-            "SELECT gloss FROM senses WHERE word = ? AND pos IN ('conj','prep','article','det')",
+            "SELECT gloss FROM senses WHERE word = ? AND pos IN "
+            "('conj','prep','article','det','verb','pron','intj')",
             (headword,),
         ).fetchall()
         return any(not r[0].lower().startswith(junk) for r in rows)
