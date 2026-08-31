@@ -13,6 +13,7 @@
 import type { LanguageConfig } from './types';
 import { af } from './af/manifest';
 import { ar } from './ar/manifest';
+import { bn } from './bn/manifest';
 import { cs } from './cs/manifest';
 import { de } from './de/manifest';
 import { eo } from './eo/manifest';
@@ -40,6 +41,7 @@ export type { LanguageConfig, ProseDefaults } from './types';
 const MANIFESTS = {
   af,
   ar,
+  bn,
   cs,
   de,
   eo,

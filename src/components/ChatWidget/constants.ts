@@ -12,6 +12,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What is the difference between كتب and يكتب, and how do I recognise the tense?',
     'How do the verb patterns (أوزان) change the meaning of a root like ك-ت-ب?',
   ],
+  bn: [
+    'How do the classifiers টি, টা, খানা and জন work, and which noun takes which?',
+    'What is the difference between তুমি, তুই and আপনি, and who do I use each with?',
+    'How do the case endings -এ, -এর and -কে attach to a noun?',
+  ],
   cs: [
     'How do the seven Czech cases work, and when do I use the instrumental?',
     'What is the difference between "být" and "byt"?',
