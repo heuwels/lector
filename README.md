@@ -94,6 +94,7 @@ Language packs ship for:
 - Esperanto
 - French
 - German
+- Hindi
 - Indonesian
 - Italian
 - Japanese

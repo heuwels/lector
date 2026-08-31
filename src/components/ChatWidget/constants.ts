@@ -42,6 +42,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What does the aorist tense mean compared to the imperfect?',
     'What\'s the difference between "οὐ" and "μή" for negation?',
   ],
+  hi: [
+    'When do I use ने after the subject, and what does it do to the verb?',
+    'What is the difference between है, हैं, था and थी?',
+    'How do postpositions like का, के, की and को attach to a noun?',
+  ],
   id: [
     'How do the meN- / ber- / di- / ter- verb prefixes work, including nasal sandhi?',
     'When do I use "tidak" vs "bukan" for negation?',
