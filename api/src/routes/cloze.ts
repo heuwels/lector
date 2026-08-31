@@ -172,6 +172,7 @@ function clozeWriteChecks(
 const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   af: () => import('../lib/sentence-bank-af.json'),
   ar: () => import('../lib/sentence-bank-ar.json'),
+  bn: () => import('../lib/sentence-bank-bn.json'),
   cs: () => import('../lib/sentence-bank-cs.json'),
   de: () => import('../lib/sentence-bank-de.json'),
   eo: () => import('../lib/sentence-bank-eo.json'),

@@ -89,6 +89,7 @@ If you do not want to run a server, use the hosted app at [app.lector.dev](https
 Language packs ship for:
 
 - Afrikaans
+- Bengali
 - Czech
 - Dutch
 - Esperanto

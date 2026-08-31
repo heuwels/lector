@@ -60,6 +60,24 @@ interface LangProfile {
   /** Newline-delimited word list for the coverage-gate corpus when the live
    *  corpus (lector.db + books) is thin. null = fall back to rootsJsonRel (af). */
   coverageCorpusRel: string | null;
+  /** Minimum coverage this language must reach, overriding COVERAGE_THRESHOLD.
+   *
+   *  Set this ONLY where the source data, and not the build, is the limit, and
+   *  only with a measurement in the profile comment saying what the limit is.
+   *  It is a regression gate, not a target: pin it just below what the language
+   *  measures today, so a worse dump or a broken fold still fails the build.
+   *
+   *  bn is the one language that sets it. Every other pack clears 85% against a
+   *  5,000-word wordfreq corpus, and bn reaches 69.7% because English Wiktionary
+   *  holds 9,929 glossed Bengali headwords against Arabic's 35,941. No lever in
+   *  this file closes a vocabulary gap.
+   *
+   *  A miss is not a dead end for the reader. api/src/routes/dictionary.ts
+   *  returns `{ entry: null }` and the caller falls back to AI translate, and
+   *  an accepted translation is cached back through POST /api/dictionary/cache.
+   *  So a lower gate buys more LLM calls, not failed lookups — which is the
+   *  trade this lever exists to make explicit rather than silent. */
+  coverageThreshold?: number;
   /** Drop entries with no English gloss — the de→en filter, and the large,
    *  natural size lever for the 1GB German dump. Off for af (parity-preserving). */
   glossFilter: boolean;
@@ -326,6 +344,61 @@ const PROFILES: Record<string, LangProfile> = {
       هو: 'هُوَ',
       هي: 'هِيَ',
     },
+  },
+  bn: {
+    // Canonical /Bengali/ URL (kaikki has no /downloads/bn/ mirror; verified
+    // 2026-08-31). 37.6 MB, 11,178 lines — the SMALLEST dump any pack builds
+    // from, and the reason this profile sets `coverageThreshold`.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Bengali/kaikki.org-dictionary-Bengali.jsonl'],
+    // The Bengali block, U+0980-U+09FE: independent vowels and consonants, the
+    // dependent vowel signs (matras), the virama, the nuqta, the anusvara, the
+    // chandrabindu, the visarga and the khanda ta. The marks are in the class
+    // because a Bengali word is written as a consonant plus its matra and the
+    // letter test sees the whole token. The Bengali digits U+09E6-U+09EF are
+    // deliberately LEFT OUT so they act as boundaries, matching the runtime
+    // tokenizer — ২০২৪ সালে is one word, not two.
+    letterClass: '\\u0980-\\u09FE',
+    // Bengali resolves through the pack's `morphology` slice, not through
+    // these. The coverage lookup reads the pack directly, so the gate and the
+    // runtime peel the same suffixes. See stemCandidates.
+    prefixes: [],
+    suffixes: [],
+    // The independent vowels. Only the af-style affix machinery reads this, and
+    // bn declares no affix rules, so nothing consults it.
+    vowels: 'অআইঈউঊএঐওঔ',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-bn.txt',
+    // 5 of 11,178 lines carry no English gloss. The filter is nearly a no-op
+    // here, unlike ar (41,398 of 77,339), but it stays on so a later dump that
+    // grows a thesaurus section cannot leak English headwords into a bn key.
+    glossFilter: true,
+    // 65%, against the 85% every other pack clears. This is a MEASUREMENT, not
+    // a preference, and it is the whole reason the pack needed a decision.
+    //
+    // Measured 2026-08-31 against the top 5,000 wordfreq-bn tokens:
+    //
+    //   exact headword                 38.7%
+    //   + the dump's inflection tables 55.8%
+    //   + the pack's morphology slice  69.7%
+    //
+    // The ceiling is VOCABULARY, not morphology. A deliberately over-aggressive
+    // peel that also stripped verb endings reached 71.4%, so 2 more points cost
+    // every false stem the wider list invents. What is actually missing is the
+    // Sanskrit-derived register a Bengali newspaper is written in, and English
+    // Wiktionary does not have it: অনুষ্ঠিত (held), নিহত (killed), উদ্ধার
+    // (rescue), উন্নয়ন (development), প্রতিষ্ঠান (institution), প্রযুক্তি
+    // (technology), নিয়ন্ত্রণ (control), সংস্থা (organisation), চুক্তি (treaty).
+    // Names and loans (বিএনপি, প্রেসিডেন্ট, টিভি) and informal spellings (কারন
+    // for কারণ, ছিলো for ছিল) make up most of the rest.
+    //
+    // Coverage is much better on the words a learner meets first: 88.3% over
+    // the top 1,000 and 81.8% over the top 2,000. It is the long tail of formal
+    // vocabulary that fails, which is the right shape of failure for a reader
+    // that falls back to AI translate on a miss.
+    //
+    // The gate is pinned 4.7 points below the measurement so a dump refresh
+    // that loses ground still fails the build.
+    coverageThreshold: 0.65,
   },
   cs: {
     // Canonical /Czech/ URL (kaikki has no /downloads/cs/ mirror; verified 2026-08-08).
@@ -2222,10 +2295,15 @@ async function main() {
   const pct = hits / total;
   console.log(`\nCoverage: ${hits}/${total} words = ${(pct * 100).toFixed(1)}%`);
 
-  if (pct < COVERAGE_THRESHOLD) {
-    console.error(
-      `\nCoverage below ${(COVERAGE_THRESHOLD * 100).toFixed(0)}% threshold. First 50 misses:`,
+  const threshold = PROFILE.coverageThreshold ?? COVERAGE_THRESHOLD;
+  if (threshold !== COVERAGE_THRESHOLD) {
+    console.log(
+      `  (${LANG} builds against a reduced ${(threshold * 100).toFixed(0)}% gate — see coverageThreshold)`,
     );
+  }
+
+  if (pct < threshold) {
+    console.error(`\nCoverage below ${(threshold * 100).toFixed(0)}% threshold. First 50 misses:`);
     for (const m of misses) console.error('  -', m);
     process.exit(1);
   }

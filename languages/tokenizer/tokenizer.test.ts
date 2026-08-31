@@ -37,14 +37,14 @@ function legacyWords(text: string): string[] {
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
 // the contract for exactly those packs. Languages added after #289 get their
-// own goldens below instead — ar, ru, grc, uk, ko, zh, ja and hi because the
-// oracle can't see their scripts (zh and ja doubly so: they have no whitespace,
-// so the oracle returns the whole paragraph), and tr because the oracle applies
-// the Afrikaans 'n alternative to every language, which mis-splits a Turkish
-// suffixed proper noun (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to
-// the af pack.
+// own goldens below instead — ar, bn, ru, grc, uk, ko, zh, ja and hi because
+// the oracle can't see their scripts (zh and ja doubly so: they have no
+// whitespace, so the oracle returns the whole paragraph), and tr because the
+// oracle applies the Afrikaans 'n alternative to every language, which
+// mis-splits a Turkish suffixed proper noun (Ankara'nın → Ankara + 'n + ın).
+// The engine scopes 'n to the af pack.
 const CORPUS: Record<
-  Exclude<LanguageCode, 'ar' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'>,
+  Exclude<LanguageCode, 'ar' | 'bn' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'>,
   string[]
 > = {
   af: [
@@ -148,7 +148,7 @@ const CORPUS: Record<
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
   for (const [code, texts] of Object.entries(CORPUS) as [
-    Exclude<LanguageCode, 'ar' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'>,
+    Exclude<LanguageCode, 'ar' | 'bn' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'>,
     string[],
   ][]) {
     const pack = LANGUAGES[code];
@@ -956,6 +956,107 @@ describe('Arabic pack (real manifest)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Bengali pack goldens — the first Brahmic script, and the first pack that
+// needed a non-Latin sentence terminator
+// ---------------------------------------------------------------------------
+
+const bn = LANGUAGES.bn;
+
+const BN_CORPUS = [
+  'নমস্কার! আপনি কেমন আছেন?',
+  'আমি বাংলায় বই পড়ি।',
+  'ছেলেটি স্কুলে গেল, তারপর বাড়ি ফিরল।',
+  'সে ২০২৪ সালে ঢাকায় এসেছিল।',
+  'বইগুলোর দাম অনেক বেশি।',
+  'আমি London শহরে 1999 সালে গিয়েছিলাম।',
+];
+
+describe('Bengali pack (real manifest)', () => {
+  it('reassembles Bengali text byte-for-byte with correct offsets', () => {
+    for (const text of BN_CORPUS) {
+      const tokens = tokenize(text, bn);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps matras, the ya-phala and conjuncts inside the word token', () => {
+    // Every one of these is \p{M} or a consonant joined by the virama, which
+    // the engine already treats as word characters. This is the whole reason
+    // an Indic pack needed no new character ranges: #252 predicted four call
+    // sites would need Devanagari added, and #289 had already generalised them.
+    expect(tokenizeWords('আমি বাংলায় বই পড়ি।', bn).map((t) => t.text)).toEqual([
+      'আমি',
+      'বাংলায়',
+      'বই',
+      'পড়ি',
+    ]);
+    expect(tokenizeWords('নমস্কার স্কুলে বিদ্যুৎ', bn).map((t) => t.text)).toEqual([
+      'নমস্কার',
+      'স্কুলে',
+      'বিদ্যুৎ',
+    ]);
+  });
+
+  it('treats Bengali digits as boundaries and keeps an ASCII year whole', () => {
+    // Same split the Arabic pack makes: the script's own digits are
+    // boundaries, and ASCII digits stay word characters for every pack.
+    expect(tokenizeWords('সে ২০২৪ সালে ঢাকায় এসেছিল।', bn).map((t) => t.text)).toEqual([
+      'সে',
+      'সালে',
+      'ঢাকায়',
+      'এসেছিল',
+    ]);
+    expect(tokenizeWords('আমি London শহরে 1999 সালে গিয়েছিলাম।', bn).map((t) => t.text)).toEqual([
+      'আমি',
+      'London',
+      'শহরে',
+      '1999',
+      'সালে',
+      'গিয়েছিলাম',
+    ]);
+  });
+
+  it('splits sentences on the danda, and not on the comma', () => {
+    expect(splitSentences('আমি যাব। তুমি এসো।', bn)).toEqual(['আমি যাব।', 'তুমি এসো।']);
+    expect(splitSentences('ছেলেটি স্কুলে গেল, তারপর বাড়ি ফিরল।', bn)).toEqual([
+      'ছেলেটি স্কুলে গেল, তারপর বাড়ি ফিরল।',
+    ]);
+  });
+
+  it('splits on the Latin full stop too, because modern prose mixes them', () => {
+    expect(splitSentences('আমি যাব. তুমি এসো।', bn)).toEqual(['আমি যাব.', 'তুমি এসো।']);
+  });
+
+  it('folds to NFC only — Bengali has no case and the pack declares no fold', () => {
+    // ো is U+09CB and decomposes to U+09C7 U+09BE, so a decomposed token would
+    // never match a composed key. NFC at ingress is what closes that.
+    const decomposed = 'বইগুলোর'.normalize('NFD');
+    expect(decomposed).not.toBe('বইগুলোর');
+    expect(foldWord(decomposed, bn)).toBe('বইগুলোর');
+    expect(normalizeText(decomposed)).toBe('বইগুলোর');
+  });
+
+  it('snaps a mid-word selection outward across a matra', () => {
+    const text = 'আমি বাংলায় বই পড়ি';
+    //                 ^5..7^ inside "বাংলায়" (4..11)
+    expect(snapToWordBoundaries(text, 5, 7, bn)).toEqual({ start: 4, end: 11 });
+  });
+
+  it('counts words with no per-script code', () => {
+    expect(countWords('আমি বাংলায় বই পড়ি', bn)).toBe(4);
+  });
+
+  it('is a spaced ltr pack, so it needs no segmenter and no bidi work', () => {
+    expect(bn.script.kind).toBe('alpha-spaced');
+    expect(bn.script.direction).toBe('ltr');
+    expect(clozeTokenSeparator('আমি বই পড়ি', clozeTokens('আমি বই পড়ি', bn))).toBe(' ');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Hindi pack goldens — Devanagari, spaced, combining marks stay inside
 // ---------------------------------------------------------------------------
 
@@ -1482,6 +1583,7 @@ describe('clozeTokens', () => {
     ['grc', 'ἐν ἀρχῇ ἦν ὁ λόγος.'],
     ['ru', 'Привет, как дела?'],
     ['tr', 'İyi günler dostum.'],
+    ['bn', 'আমি বাংলায় বই পড়ি।'],
     ['hi', 'यह एक अच्छा दिन है।'],
   ] as Array<[LanguageCode, string]>)(
     'keeps the whitespace split for %s so stored indices cannot move',
