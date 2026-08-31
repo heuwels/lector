@@ -19,7 +19,7 @@ describe('Free takeout serialization budget', () => {
     // Grows by ~466 bytes per language pack (the witness enumerates them), so
     // this constant moves with every pack that lands. It also moves with every
     // settings key, by that key's value ceiling times the escape factor.
-    expect(proof.totalBytes).toBe(93_300_142);
+    expect(proof.totalBytes).toBe(93_300_618);
     expect(proof.totalBytes).toBeLessThanOrEqual(FREE_RESTORE_ENVELOPE_BYTES);
     expect(FREE_RESTORE_ENVELOPE_BYTES - proof.totalBytes).toBeGreaterThan(1 * 1024 * 1024);
   });
