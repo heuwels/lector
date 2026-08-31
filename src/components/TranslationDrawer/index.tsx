@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
+import clsx from 'clsx';
 import type { WordState } from '@/types';
 import { sentenceContainsWord } from '@/lib/words';
 import { useActiveLanguage } from '@/utils/hooks';
@@ -114,7 +115,12 @@ export default function TranslationDrawer({
     <div
       data-testid="translation-drawer"
       aria-hidden={!isOpen}
-      className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-full flex-col border-l border-border bg-popover shadow-2xl transition-transform duration-300 ease-out sm:w-96 print:hidden ${isOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full'} `}
+      className={clsx(
+        'max-h-screen w-full max-w-full sm:max-w-96',
+        'fixed 2xl:relative',
+        'inset-y-0 right-0 z-50 flex flex-col border-l border-border bg-popover shadow-2xl transition-transform duration-300 ease-out 2xl:shadow-none print:hidden',
+        isOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full 2xl:translate-x-0',
+      )}
       ref={drawerRef}
       role="dialog"
       aria-label={`Definition of ${word}`}
@@ -211,7 +217,7 @@ export default function TranslationDrawer({
           </div>
           <button
             onClick={onClose}
-            className="flex-shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex-shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground 2xl:hidden"
             aria-label="Close"
             title="Close (Esc)"
           >
