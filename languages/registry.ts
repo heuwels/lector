@@ -20,6 +20,7 @@ import { eo } from './eo/manifest';
 import { es } from './es/manifest';
 import { fr } from './fr/manifest';
 import { grc } from './grc/manifest';
+import { hi } from './hi/manifest';
 import { id } from './id/manifest';
 import { it } from './it/manifest';
 import { ja } from './ja/manifest';
@@ -48,6 +49,7 @@ const MANIFESTS = {
   es,
   fr,
   grc,
+  hi,
   id,
   it,
   ja,

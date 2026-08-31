@@ -2,8 +2,8 @@
 // multi-script language packs (#212 ru, #213 zh, #214 ja, #253 ar, #254 grc,
 // #255 hbo, #258 ko) plug into. Dispatches on `pack.script.kind`; the default
 // engine covers every spaced alphabetic script (Latin, Cyrillic, Greek,
-// Hangul, Arabic, Hebrew) with Unicode property escapes — no per-language
-// character ranges anywhere.
+// Hangul, Arabic, Hebrew, Devanagari) with Unicode property escapes — no
+// per-language character ranges anywhere.
 //
 // Word-shape notes (kept byte-compatible with the old Latin WORD_PATTERN for
 // shipped languages):

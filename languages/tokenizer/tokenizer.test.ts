@@ -37,14 +37,14 @@ function legacyWords(text: string): string[] {
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
 // the contract for exactly those packs. Languages added after #289 get their
-// own goldens below instead — ar, bn, ru, grc, uk, ko, zh and ja because the
-// oracle can't see their scripts (zh and ja doubly so: they have no whitespace,
-// so the oracle returns the whole paragraph), and tr because the oracle applies
-// the Afrikaans 'n alternative to every language, which mis-splits a Turkish
-// suffixed proper noun (Ankara'nın → Ankara + 'n + ın). The engine scopes 'n to
-// the af pack.
+// own goldens below instead — ar, bn, ru, grc, uk, ko, zh, ja and hi because
+// the oracle can't see their scripts (zh and ja doubly so: they have no
+// whitespace, so the oracle returns the whole paragraph), and tr because the
+// oracle applies the Afrikaans 'n alternative to every language, which
+// mis-splits a Turkish suffixed proper noun (Ankara'nın → Ankara + 'n + ın).
+// The engine scopes 'n to the af pack.
 const CORPUS: Record<
-  Exclude<LanguageCode, 'ar' | 'bn' | 'ru' | 'grc' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'>,
+  Exclude<LanguageCode, 'ar' | 'bn' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'>,
   string[]
 > = {
   af: [
@@ -148,7 +148,7 @@ const CORPUS: Record<
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
   for (const [code, texts] of Object.entries(CORPUS) as [
-    Exclude<LanguageCode, 'ar' | 'ru' | 'grc' | 'tr' | 'uk' | 'zh' | 'ja'>,
+    Exclude<LanguageCode, 'ar' | 'bn' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'>,
     string[],
   ][]) {
     const pack = LANGUAGES[code];
@@ -1057,6 +1057,86 @@ describe('Bengali pack (real manifest)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Hindi pack goldens — Devanagari, spaced, combining marks stay inside
+// ---------------------------------------------------------------------------
+
+const hi = LANGUAGES.hi;
+
+const HI_CORPUS = [
+  'नमस्ते! आप कैसे हैं?',
+  'मैं किताब पढ़ता हूँ।',
+  'यह एक अच्छा दिन है।',
+  'क्या आप हिंदी बोलते हैं?',
+];
+
+describe('Hindi pack (real manifest)', () => {
+  it('reassembles Hindi text byte-for-byte with correct offsets', () => {
+    for (const text of HI_CORPUS) {
+      const tokens = tokenize(text, hi);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps matras, virama and nukta inside the word token', () => {
+    expect(tokenizeWords('मैं किताब पढ़ता हूँ', hi).map((t) => t.text)).toEqual([
+      'मैं',
+      'किताब',
+      'पढ़ता',
+      'हूँ',
+    ]);
+    expect(tokenizeWords('करना अच्छा है', hi).map((t) => t.text)).toEqual(['करना', 'अच्छा', 'है']);
+  });
+
+  it('treats Devanagari digits and the danda as boundaries', () => {
+    expect(tokenizeWords('उसने १२ किताबें खरीदीं।', hi).map((t) => t.text)).toEqual([
+      'उसने',
+      'किताबें',
+      'खरीदीं',
+    ]);
+    expect(tokenizeWords('एक। दो', hi).map((t) => t.text)).toEqual(['एक', 'दो']);
+  });
+
+  it('keeps a Latin word and an ASCII year whole inside Hindi prose', () => {
+    expect(tokenizeWords('मैंने London में 1999 में यात्रा की।', hi).map((t) => t.text)).toEqual([
+      'मैंने',
+      'London',
+      'में',
+      '1999',
+      'में',
+      'यात्रा',
+      'की',
+    ]);
+  });
+
+  it('splits sentences on the danda and the question mark', () => {
+    expect(splitSentences('यह एक दिन है। आप कैसे हैं?', hi)).toEqual([
+      'यह एक दिन है।',
+      'आप कैसे हैं?',
+    ]);
+  });
+
+  it('snaps a mid-word selection outward', () => {
+    const text = 'मैं किताब पढ़ता हूँ';
+    const word = 'पढ़ता';
+    const wordStart = text.indexOf(word);
+    const mid = wordStart + 2;
+    expect(snapToWordBoundaries(text, mid, mid + 1, hi)).toEqual({
+      start: wordStart,
+      end: wordStart + word.length,
+    });
+  });
+
+  it('is a spaced caseless pack, so it needs no segmenter', () => {
+    expect(hi.script.kind).toBe('alpha-spaced');
+    expect(hi.script.hasCase).toBe(false);
+    expect(clozeTokenSeparator('यह एक दिन है', clozeTokens('यह एक दिन है', hi))).toBe(' ');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Ukrainian pack goldens — the apostrophe is a letter, not a boundary
 // ---------------------------------------------------------------------------
 
@@ -1503,6 +1583,8 @@ describe('clozeTokens', () => {
     ['grc', 'ἐν ἀρχῇ ἦν ὁ λόγος.'],
     ['ru', 'Привет, как дела?'],
     ['tr', 'İyi günler dostum.'],
+    ['bn', 'আমি বাংলায় বই পড়ি।'],
+    ['hi', 'यह एक अच्छा दिन है।'],
   ] as Array<[LanguageCode, string]>)(
     'keeps the whitespace split for %s so stored indices cannot move',
     (code, sentence) => {

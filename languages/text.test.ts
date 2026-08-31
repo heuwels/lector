@@ -55,6 +55,15 @@ describe('normalizeText', () => {
     expect(normalizeText('한')).toBe('한'); // 한
   });
 
+  it('composes a Devanagari nukta onto the precomposed consonant', () => {
+    // क + ◌़ and क़ encode the same letter two ways. NFC folds them so a
+    // dictionary key cannot miss the other spelling (#252).
+    const decomposed = 'क\u093C';
+    expect(decomposed).toHaveLength(2);
+    expect(normalizeText(decomposed)).toBe('क़');
+    expect(foldWord(decomposed, LANGUAGES.hi)).toBe(foldWord('क़', LANGUAGES.hi));
+  });
+
   it('is a no-op on already-NFC text', () => {
     const text = 'Die Häuser wurden sê môre gebaut.';
     expect(normalizeText(text)).toBe(text);

@@ -494,6 +494,26 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-fr.txt',
     glossFilter: true,
   },
+  hi: {
+    // Canonical /Hindi/ URL (kaikki has no /downloads/hi/ mirror).
+    kaikkiUrls: ['https://kaikki.org/dictionary/Hindi/kaikki.org-dictionary-Hindi.jsonl'],
+    // Devanagari letters and marks: U+0900–U+0963 covers the independent
+    // vowels, consonants, nukta, virama and matras; U+0971–U+097F is the
+    // additional-letter tail. Danda U+0964, double danda U+0965 and the
+    // digits U+0966–U+096F are left out so they act as boundaries, matching
+    // the runtime tokenizer. ZWJ/ZWNJ stay in so a conjunct that writes them
+    // still passes the letter test.
+    letterClass: '\\u0900-\\u0963\\u0971-\\u097F\\u200C\\u200D',
+    // No hand affix rules: Hindi inflection is mild (gender, direct/oblique)
+    // and kaikki carries the forms. Postpositions are separate words.
+    prefixes: [],
+    suffixes: [],
+    // Independent vowels only. The affix machinery does not run for hi.
+    vowels: 'अआइईउऊऋएऐओऔ',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-hi.txt',
+    glossFilter: true,
+  },
   id: {
     // Canonical /Indonesian/ URL (kaikki has no /downloads/id/ mirror).
     kaikkiUrls: ['https://kaikki.org/dictionary/Indonesian/kaikki.org-dictionary-Indonesian.jsonl'],

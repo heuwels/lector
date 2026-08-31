@@ -110,6 +110,26 @@ describe('registry pronunciation conformance', () => {
     expect(pack.script.kind).toBe('alpha-spaced');
   });
 
+  it('Hindi is caseless Devanagari with no fold locale and no apostrophe seam', () => {
+    const pack = LANGUAGES.hi;
+    expect(pack.tatoebaCode).toBe('hin');
+    expect(pack.script.bcp47).toBe('hi');
+    expect(pack.script.kind).toBe('alpha-spaced');
+    expect(pack.script.hasCase).toBe(false);
+    expect(pack.script.direction).toBe('ltr');
+    expect(pack.script.caseFoldLocale).toBeUndefined();
+    expect(pack.script.extraJoiners).toBeUndefined();
+    expect(pack.script.foldApostrophes).toBeUndefined();
+    expect(pack.script.extraTokenPatterns).toBeUndefined();
+    expect(pack.script.sentenceTerminators).toBe('.!?।॥');
+    // ZWJ/ZWNJ sit inside some conjuncts. They are format characters, so the
+    // engine needs them named; letters and marks are already word characters.
+    expect(pack.script.extraWordChars).toBe('\u200C\u200D');
+    expect(pack.ttsCode).toBe('hi-IN');
+    expect(pack.ttsVoice).toBe('hi-IN-Standard-A');
+    expect(pack.pronunciation.audio).toEqual(['google']);
+  });
+
   it('esperanto is espeak-voiced with a rule-generated IPA gloss', () => {
     const eo = LANGUAGES.eo;
     expect(eo.pronunciation.audio).toEqual(['espeak']);
