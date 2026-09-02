@@ -553,7 +553,9 @@ html {
 }
 
 @media (hover: none) and (pointer: coarse) {
-  /* The long-press belongs to the phrase gesture, not to the iOS callout. */
+  /* The long-press belongs to the phrase gesture, not to the iOS callout. This
+     covers every word chip, so the settings preview and listen-along drop the
+     callout as well. */
   [data-word-state] {
     -webkit-touch-callout: none;
   }
