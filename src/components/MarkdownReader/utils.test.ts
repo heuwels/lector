@@ -6,6 +6,7 @@ import {
   computePhraseHighlightSet,
   parseSegmentWords,
   readableText,
+  wordSpansBetween,
 } from './utils';
 import { LANGUAGES } from '@/lib/languages';
 
@@ -173,5 +174,26 @@ describe('readableText (#289 4.4)', () => {
 
   it('returns empty for an annotation asked about directly', () => {
     expect(readableText(el('RT', text('wǒ')))).toBe('');
+  });
+});
+
+describe('wordSpansBetween', () => {
+  const spans = ['die', 'groot', 'hond', 'loop'];
+
+  it('returns the inclusive run for a forward drag', () => {
+    expect(wordSpansBetween('die', 'hond', spans)).toEqual(['die', 'groot', 'hond']);
+  });
+
+  it('returns the same run for a backward drag', () => {
+    expect(wordSpansBetween('hond', 'die', spans)).toEqual(['die', 'groot', 'hond']);
+  });
+
+  it('returns the single word when both endpoints are the same', () => {
+    expect(wordSpansBetween('groot', 'groot', spans)).toEqual(['groot']);
+  });
+
+  it('returns nothing when an endpoint is not in the list', () => {
+    expect(wordSpansBetween('die', 'kat', spans)).toEqual([]);
+    expect(wordSpansBetween('kat', 'die', spans)).toEqual([]);
   });
 });

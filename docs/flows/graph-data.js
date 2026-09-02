@@ -208,8 +208,8 @@
   N("flow:phrase-selection", "flow", "Phrase selection", {
     domain: "translation",
     md: "translation.md#phrase-selection",
-    summary: "Drag across two or more words. Snaps to bounds. translatePhrase. No dictionary path.",
-    steps: ["fn:handleMouseUp", "fn:snapToWordBoundaries", "fn:read-handleWordClick", "fn:translatePhrase", "route:translate-post"],
+    summary: "Drag across two or more words, with a mouse or a touch hold. Snaps to bounds. translatePhrase. No dictionary path.",
+    steps: ["fn:handleMouseUp", "fn:usePhraseTouchSelection", "fn:snapToWordBoundaries", "fn:lookUpPhrase", "fn:read-handleWordClick", "fn:translatePhrase", "route:translate-post"],
   });
   N("flow:enrich-nested", "flow", "Enrich and nested lookup", {
     domain: "translation",
@@ -604,6 +604,8 @@
   N("fn:read-handleNestedLookup", "fn", "handleNestedLookup", { path: "src/app/read/[bookId]/page.tsx" });
   N("fn:handleMouseUp", "fn", "MarkdownReader.handleMouseUp", { path: "src/components/MarkdownReader/index.tsx" });
   N("fn:snapToWordBoundaries", "fn", "snapToWordBoundaries", { path: "src/components/MarkdownReader/index.tsx" });
+  N("fn:lookUpPhrase", "fn", "MarkdownReader.lookUpPhrase", { path: "src/components/MarkdownReader/index.tsx" });
+  N("fn:usePhraseTouchSelection", "fn", "usePhraseTouchSelection", { path: "src/components/MarkdownReader/usePhraseTouchSelection.ts" });
   N("fn:findNestedWordRef", "fn", "findNestedWordRef", { path: "src/lib/definition-links.ts" });
   N("fn:applyReaderWordState", "fn", "applyReaderWordState", { path: "src/app/read/[bookId]/page.tsx" });
   N("fn:patchWordState", "fn", "patchWordState", { path: "src/components/MarkdownReader/optimistic-word-state.ts" });
@@ -1005,9 +1007,13 @@
   edge("file:words", "flow:in-context", "uses");
 
   edge("flow:phrase-selection", "fn:handleMouseUp", "starts");
+  edge("flow:phrase-selection", "fn:usePhraseTouchSelection", "starts");
   edge("fn:handleMouseUp", "file:markdown-reader", "in");
   edge("fn:handleMouseUp", "fn:snapToWordBoundaries", "calls");
-  edge("fn:handleMouseUp", "fn:read-handleWordClick", "then");
+  edge("fn:handleMouseUp", "fn:lookUpPhrase", "calls");
+  edge("fn:usePhraseTouchSelection", "fn:lookUpPhrase", "calls");
+  edge("fn:lookUpPhrase", "file:markdown-reader", "in");
+  edge("fn:lookUpPhrase", "fn:read-handleWordClick", "then");
   edge("fn:read-handleWordClick", "fn:translatePhrase", "calls");
   edge("fn:translatePhrase", "file:claude", "in");
   edge("fn:translatePhrase", "route:translate-post", "http");

@@ -147,10 +147,18 @@ sequenceDiagram
 
 The user selects two or more words. The reader snaps to word bounds and calls `onWordClick` with the phrase.
 
+A mouse drag makes a browser selection. A touch drag makes none, and it sends no
+`mouseup`, so touch input has its own gesture. Hold one word for 350 ms, then
+drag across the phrase. Both paths end in `lookUpPhrase`.
+
 ```mermaid
 flowchart TD
-  drag[Mouse up with a space in the selection] --> snap[snapToWordBoundaries]
-  snap --> sentence[findSentence]
+  drag[Mouse up on a selection of two or more words] --> snap[snapToWordBoundaries]
+  hold[Touch hold, then drag across words] --> spans[usePhraseTouchSelection]
+  spans --> range[readableRangeText between the end words]
+  snap --> look[lookUpPhrase]
+  range --> look
+  look --> sentence[findSentence]
   sentence --> handle[handleWordClick]
   handle --> cap{phraseSelectionWords?}
   cap -->|over cap| toast[Plan toast, stop]
@@ -162,7 +170,8 @@ flowchart TD
 
 | Role | Path | Function |
 | --- | --- | --- |
-| Reader | `src/components/MarkdownReader/index.tsx` | `handleMouseUp`, `snapToWordBoundaries` |
+| Reader | `src/components/MarkdownReader/index.tsx` | `handleMouseUp`, `snapToWordBoundaries`, `lookUpPhrase` |
+| Reader touch | `src/components/MarkdownReader/usePhraseTouchSelection.ts` | `usePhraseTouchSelection` |
 | Reader page | `src/app/read/[bookId]/page.tsx` | `handleWordClick` |
 | Client | `src/lib/claude.ts` | `translatePhrase` |
 | Limits | `src/lib/plan-limits.ts` | `phraseSelectionLimitPayload` |
@@ -172,7 +181,7 @@ flowchart TD
 
 Managed Free uses a short phrase prompt and `phraseTranslationsPerDay`. For paid Afrikaans, the prompt adds spelreels from `api/src/lib/afrikaans-spelreels/`. Phrase save does not write the dictionary cache.
 
-Tests: `e2e/reader-phrase-selection.spec.ts`.
+Tests: `e2e/reader-phrase-selection.spec.ts`, `e2e/reader-phrase-touch.spec.ts`.
 
 ## Enrich and nested lookup
 

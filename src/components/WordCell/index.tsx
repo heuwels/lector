@@ -58,8 +58,8 @@ export default function WordCell({
     <span
       data-leaf=""
       data-testid={testId}
-      // Test hook for the rendered word state — the e2e suite asserts on it to
-      // check a save landed without reading colors out of the computed style.
+      // Marks the span as one word: `usePhraseTouchSelection` selects on this
+      // attribute, and the e2e suite asserts the state it carries.
       data-word-state={state ?? 'new'}
       role={interactive ? 'button' : undefined}
       tabIndex={interactive ? 0 : undefined}

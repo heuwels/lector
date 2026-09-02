@@ -14,7 +14,8 @@ import {
   splitSentences,
   tokenize,
 } from '@/lib/languages';
-import { parseSegmentWords, readableText } from './utils';
+import { parseSegmentWords, readableRangeText, readableText } from './utils';
+import { usePhraseTouchSelection } from './usePhraseTouchSelection';
 import { useActiveLanguage, useProseStyleSettings } from '@/utils/hooks';
 import { resolveProseStyle } from '@/lib/prose-style';
 import { MarkdownReaderProps } from './types';
@@ -288,13 +289,31 @@ export default function MarkdownReader({
     }
   }, [wordPanelOpen]);
 
+  // Look up a selected phrase, whichever gesture selected it.
+  //
+  // A phrase means two or more words. Counted with the tokenizer, not by
+  // looking for a space, so the check holds in an unspaced script (#213).
+  const lookUpPhrase = useCallback(
+    (text: string, wordElement: HTMLElement | null) => {
+      const words = phraseWords(text);
+      if (words.length < 2) return;
+
+      // Clear browser selection but apply our own visual highlight. The
+      // single-word active highlight gives way to the phrase highlight.
+      window.getSelection()?.removeAllRanges();
+      setActiveWord(null);
+      setHighlightedPhrase(words);
+
+      onWordClick(text, wordElement ? findSentence(wordElement) : '');
+    },
+    [onWordClick, phraseWords, findSentence],
+  );
+
   // Handle text selection for phrases
   const handleMouseUp = useCallback(() => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return;
 
-    // A phrase means two or more words. Counted with the tokenizer, not by
-    // looking for a space, so the check holds in an unspaced script (#213).
     const rawText = selection.toString().trim();
     if (!rawText || phraseWords(rawText).length < 2) return;
 
@@ -303,19 +322,24 @@ export default function MarkdownReader({
     // the reader never drew (#289 4.2).
     const snappedText = snapToWordBoundaries(selection, pack, segmentation);
     if (!snappedText) return;
-    const snappedWords = phraseWords(snappedText);
-    if (snappedWords.length < 2) return;
 
-    const sentence = findSentence(selection.anchorNode?.parentElement as HTMLElement);
+    lookUpPhrase(snappedText, selection.anchorNode?.parentElement as HTMLElement);
+  }, [lookUpPhrase, phraseWords, pack, segmentation]);
 
-    // Clear browser selection but apply our own visual highlight. The
-    // single-word active highlight gives way to the phrase highlight.
-    selection.removeAllRanges();
-    setActiveWord(null);
-    setHighlightedPhrase(snappedWords);
+  // The touch gesture reports its endpoint spans, so the phrase text comes from
+  // the DOM between them. That keeps the spacing of the rendered text, which a
+  // join of the word list would not in an unspaced script.
+  const handleTouchPhrase = useCallback(
+    (first: HTMLElement, last: HTMLElement) => {
+      const range = document.createRange();
+      range.setStartBefore(first);
+      range.setEndAfter(last);
+      lookUpPhrase(readableRangeText(range).trim(), first);
+    },
+    [lookUpPhrase],
+  );
 
-    onWordClick(snappedText, sentence);
-  }, [onWordClick, phraseWords, pack, segmentation, findSentence]);
+  usePhraseTouchSelection(containerRef, handleTouchPhrase);
 
   return (
     <div className="flex h-full flex-col bg-card print:block print:h-auto">
