@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { MessageCircle, X, SendHorizonal } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { useActiveLanguage, useScreenSize } from '@/utils/hooks';
+import { useActiveLanguage } from '@/utils/hooks';
 import { apiFetch, isBareRoute } from '@/lib/api-base';
 import { isComposing } from '@/lib/keyboard';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -31,7 +31,6 @@ export default function ChatWidget() {
   const initialLoadDone = useRef(false);
   const activeLang = useActiveLanguage();
   const pathname = usePathname();
-  const screenSize = useScreenSize();
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -202,10 +201,8 @@ export default function ChatWidget() {
       <Button
         onClick={toggleOpen}
         className={clsx(
-          pathname.includes('/read') && screenSize === '2xl'
-            ? 'right-[400px] sm:right-[406px]'
-            : 'right-4 sm:right-6',
-          'fixed bottom-20 z-50 flex h-12 w-12 rounded-full shadow-lg transition-all hover:shadow-xl sm:bottom-6 print:hidden',
+          'fixed right-4 bottom-20 z-50 flex h-12 w-12 rounded-full shadow-lg transition-all hover:shadow-xl sm:right-6 sm:bottom-6 print:hidden',
+          pathname.includes('/read') && '2xl:right-[406px]',
         )}
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
         data-testid="chat-toggle"
@@ -216,7 +213,10 @@ export default function ChatWidget() {
       {/* Chat panel */}
       {isOpen && (
         <div
-          className="fixed right-4 bottom-36 z-50 flex h-[80vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl sm:right-6 sm:bottom-20 sm:w-96 print:hidden"
+          className={clsx(
+            'fixed right-4 bottom-36 z-50 flex h-[80vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl sm:right-6 sm:bottom-20 sm:w-96 print:hidden',
+            pathname.includes('/read') && '2xl:right-[406px]',
+          )}
           data-testid="chat-panel"
         >
           {/* Header */}

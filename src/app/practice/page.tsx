@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle, Star } from 'lucide-react';
 import { DeckShuffle } from '@/components/Loaders';
-import TranslationDrawer from '@/components/TranslationDrawer';
+import TranslationDrawer, { TranslationDrawerSlot } from '@/components/TranslationDrawer';
 import {
   ClozeSentence,
   ClozeMasteryLevel,
@@ -839,8 +839,8 @@ export default function PracticePage() {
   const onboardingProgress = onboardingSnapshot?.progress;
 
   return (
-    <>
-      <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen">
+      <main className="mx-auto max-w-2xl min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8">
         {/* Setup screen */}
         {state === 'setup' && (
           <div className="py-6">
@@ -1566,6 +1566,7 @@ export default function PracticePage() {
           </div>
         )}
       </main>
+      <TranslationDrawerSlot />
       <TranslationDrawer
         isOpen={!!wordTooltip}
         word={wordTooltip?.word ?? ''}
@@ -1582,6 +1583,6 @@ export default function PracticePage() {
         onRequestContextTranslation={requestContextTranslation}
         onLookupWord={handleWordClick}
       />
-    </>
+    </div>
   );
 }

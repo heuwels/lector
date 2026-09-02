@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PageTurn } from '@/components/Loaders';
 import MarkdownReader from '@/components/MarkdownReader';
 import OnboardingCoach from '@/components/OnboardingCoach';
-import TranslationDrawer from '@/components/TranslationDrawer';
+import TranslationDrawer, { TranslationDrawerSlot } from '@/components/TranslationDrawer';
 import { Button } from '@/components/ui/button';
 import ListenAlong from '@/components/ListenAlong';
 import {
@@ -1274,8 +1274,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   );
 
   return (
-    <div className="flex h-dvh flex-col overflow-x-hidden bg-card print:block print:h-auto print:overflow-visible">
-      <div className="relative flex-1 overflow-hidden print:block print:h-auto print:overflow-visible">
+    <div className="flex h-dvh flex-col overflow-x-hidden bg-card 2xl:flex-row print:block print:h-auto print:overflow-visible">
+      <div className="relative min-h-0 flex-1 overflow-hidden print:block print:h-auto print:overflow-visible">
         {listenMode && segments.length > 0 ? (
           <ListenAlong
             lesson={lesson}
@@ -1313,6 +1313,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           />
         )}
       </div>
+      <TranslationDrawerSlot />
       <TranslationDrawer
         isOpen={wordPanel.isOpen}
         word={wordPanel.word}
