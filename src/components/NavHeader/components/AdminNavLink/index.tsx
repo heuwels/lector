@@ -2,21 +2,31 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useLectorMode } from '@/lib/use-env';
 import { checkAdminAccess } from '@/lib/admin-client';
+import { getNavLinkClassname } from '../utils';
 
 /**
  * The Admin nav link (#221) — rendered only in cloud mode and only for an
- * account the server confirms is an admin (a 200 from the gated /access
- * probe). A non-admin never sees it; the page and every endpoint are
- * server-enforced regardless, so this is purely to avoid a dead link.
+ * account the server confirms is an admin
  */
-export default function AdminNavLink({ isMobile }: { isMobile: boolean }) {
+export default function AdminNavLink({
+  isMobile,
+  collapsed = false,
+}: {
+  isMobile: boolean;
+  collapsed?: boolean;
+}) {
   const mode = useLectorMode();
   const [isAdmin, setIsAdmin] = useState(false);
   const pathname = usePathname();
+  const isActive = pathname === '/admin';
+
+  const className = useMemo(() => {
+    return getNavLinkClassname({ isActive, isMobile, collapsed });
+  }, [isActive, isMobile, collapsed]);
 
   useEffect(() => {
     if (mode !== 'cloud') return;
@@ -35,21 +45,15 @@ export default function AdminNavLink({ isMobile }: { isMobile: boolean }) {
 
   if (!isAdmin) return null;
 
-  const isActive = pathname === '/admin';
-  const className = isMobile
-    ? `flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
-        isActive ? 'text-primary' : 'text-muted-foreground'
-      }`
-    : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-        isActive
-          ? 'bg-[var(--primary-soft)] font-bold text-primary'
-          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-      }`;
-
   return (
-    <Link href="/admin" className={className}>
+    <Link
+      href="/admin"
+      className={className}
+      title={collapsed && !isMobile ? 'Admin' : undefined}
+      aria-label={collapsed && !isMobile ? 'Admin' : undefined}
+    >
       <ShieldCheck size="20" />
-      Admin
+      {!(collapsed && !isMobile) && 'Admin'}
     </Link>
   );
 }

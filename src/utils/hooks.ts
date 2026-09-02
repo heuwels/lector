@@ -4,7 +4,14 @@ import { LanguageCode, LanguageConfig } from '@/types/language';
 import { getSetting } from '@/lib/data-layer';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useWindowSize } from 'usehooks-ts';
-import { getLanguageSnapshot, getStoredTheme, subscribeToStorage } from './storage';
+import {
+  getLanguageSnapshot,
+  getStoredTheme,
+  readSidebarCollapsed,
+  subscribeToSidebarCollapsed,
+  subscribeToStorage,
+  writeSidebarCollapsed,
+} from './storage';
 import {
   readProseStyleSettings,
   serverProseStyleSettings,
@@ -153,4 +160,17 @@ export function useScreenSize(): ScreenSize {
   // comparison then falls through to `2xl` and hydrates the wrong class.
   const { width } = useWindowSize({ initializeWithValue: false });
   return screenSizeFromWidth(width);
+}
+
+export function useSidebarCollapsed() {
+  const collapsed = useSyncExternalStore(
+    subscribeToSidebarCollapsed,
+    readSidebarCollapsed,
+    () => false,
+  );
+
+  return {
+    collapsed,
+    setCollapsed: writeSidebarCollapsed,
+  };
 }
