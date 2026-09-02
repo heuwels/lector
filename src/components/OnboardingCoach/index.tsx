@@ -2,51 +2,19 @@
 
 import { BookOpenText, Brain, Check, Highlighter, MousePointer2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
-export type OnboardingCoachStage = 'lookup' | 'phrase' | 'save' | 'practice';
-
-interface OnboardingCoachProps {
-  stage: OnboardingCoachStage;
-  savedCount: number;
-  savedWords: string[];
-  onStartPractice?: () => void;
-}
+import { IOnboardingCoachProps } from './types';
+import { getContent } from './utils';
 
 export default function OnboardingCoach({
   stage,
   savedCount,
   savedWords,
   onStartPractice,
-}: OnboardingCoachProps) {
-  const content = {
-    lookup: {
-      icon: MousePointer2,
-      eyebrow: 'Try the reader',
-      title: 'Choose any highlighted word',
-      body: 'Coloured words are still new to you. Tap or click one to see its meaning here in the lesson.',
-    },
-    save: {
-      icon: BookOpenText,
-      eyebrow: `${Math.min(savedCount, 3)} of 3 ready`,
-      title: savedCount === 0 ? 'Add this word to your review' : 'Choose another useful word',
-      body:
-        savedCount === 0
-          ? 'Choose level 1–4 in the definition panel. You will see this word fill the review progress below.'
-          : 'Close the definition, choose a different highlighted word, then set its level to add it.',
-    },
-    phrase: {
-      icon: Highlighter,
-      eyebrow: `${Math.min(savedCount, 3)} of 3 ready`,
-      title: 'Now translate a whole phrase',
-      body: 'Close the definition, then drag across two or more words (or long-press on mobile). Release to translate the highlighted phrase.',
-    },
-    practice: {
-      icon: Brain,
-      eyebrow: 'Your mini-review is ready',
-      title: 'Practise the words you just read',
-      body: 'Three quick cards will close the loop while the lesson is still fresh.',
-    },
-  }[stage];
+}: IOnboardingCoachProps) {
+  const content = getContent({
+    stage,
+    savedCount,
+  });
   const Icon = content.icon;
 
   return (
