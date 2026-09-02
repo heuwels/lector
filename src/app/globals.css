@@ -546,6 +546,19 @@ html {
   overflow-x: hidden;
 }
 
+/* Reader phrase drag. The touch gesture paints the run under the finger before
+   it commits, so this must match the highlight WordCell draws inline. */
+[data-phrase-dragging] {
+  background-color: color-mix(in srgb, var(--clay) 22%, transparent);
+}
+
+@media (hover: none) and (pointer: coarse) {
+  /* The long-press belongs to the phrase gesture, not to the iOS callout. */
+  [data-word-state] {
+    -webkit-touch-callout: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

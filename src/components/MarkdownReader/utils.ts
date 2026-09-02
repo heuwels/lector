@@ -185,3 +185,17 @@ export function computePhraseHighlightSet(
   }
   return set;
 }
+
+/**
+ * The inclusive run between two endpoints of an ordered list, in that order.
+ *
+ * `spans` must hold a block's word spans in document order, so a drag that ran
+ * backwards returns the same run as the forward drag. An endpoint that is not
+ * in the list returns nothing.
+ */
+export function wordSpansBetween<T>(anchor: T, focus: T, spans: readonly T[]): T[] {
+  const start = spans.indexOf(anchor);
+  const end = spans.indexOf(focus);
+  if (start < 0 || end < 0) return [];
+  return start <= end ? spans.slice(start, end + 1) : spans.slice(end, start + 1);
+}
