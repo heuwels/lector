@@ -3,6 +3,7 @@ import { normalizeEnabledLanguages, LANGUAGES } from '@/lib/languages';
 import { LanguageCode, LanguageConfig } from '@/types/language';
 import { getSetting } from '@/lib/data-layer';
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useWindowSize } from 'usehooks-ts';
 import { getLanguageSnapshot, getStoredTheme, subscribeToStorage } from './storage';
 import {
   readProseStyleSettings,
@@ -113,4 +114,43 @@ export function useTheme() {
   const effectiveTheme = mounted ? getEffectiveTheme(theme) : 'dark';
 
   return { theme, effectiveTheme, setTheme, mounted };
+}
+
+export type ScreenSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+
+/** Map a viewport width to a Tailwind screen name. Unknown width is `xl`. */
+export function screenSizeFromWidth(width: number | undefined): ScreenSize {
+  if (width == null || width === 0) {
+    return 'xl';
+  }
+
+  if (width < 640) {
+    return 'xs';
+  }
+
+  if (width < 768) {
+    return 'sm';
+  }
+
+  if (width < 1024) {
+    return 'md';
+  }
+
+  if (width < 1280) {
+    return 'lg';
+  }
+
+  if (width < 1536) {
+    return 'xl';
+  }
+
+  return '2xl';
+}
+
+export function useScreenSize(): ScreenSize {
+  // `initializeWithValue: false` keeps the first client paint in line with
+  // the server. `useWindowSize` yields `undefined` on the server; a numeric
+  // comparison then falls through to `2xl` and hydrates the wrong class.
+  const { width } = useWindowSize({ initializeWithValue: false });
+  return screenSizeFromWidth(width);
 }

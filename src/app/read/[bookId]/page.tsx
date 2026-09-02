@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PageTurn } from '@/components/Loaders';
 import MarkdownReader from '@/components/MarkdownReader';
 import OnboardingCoach from '@/components/OnboardingCoach';
-import TranslationDrawer from '@/components/TranslationDrawer';
+import TranslationDrawer, { TranslationDrawerSlot } from '@/components/TranslationDrawer';
 import { Button } from '@/components/ui/button';
 import ListenAlong from '@/components/ListenAlong';
 import {
@@ -1274,8 +1274,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   );
 
   return (
-    <div className="flex h-dvh flex-col overflow-x-hidden bg-card print:block print:h-auto print:overflow-visible">
-      <div className="relative flex-1 overflow-hidden print:block print:h-auto print:overflow-visible">
+    <div className="flex h-dvh flex-col overflow-x-hidden bg-card 2xl:flex-row print:block print:h-auto print:overflow-visible">
+      <div className="relative min-h-0 flex-1 overflow-hidden print:block print:h-auto print:overflow-visible">
         {listenMode && segments.length > 0 ? (
           <ListenAlong
             lesson={lesson}
@@ -1313,48 +1313,50 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           />
         )}
       </div>
-      <TranslationDrawer
-        isOpen={wordPanel.isOpen}
-        word={wordPanel.word}
-        sentence={wordPanel.sentence}
-        // WordPanelState field names differ from TranslationDrawerProps; map them
-        // explicitly. A spread silently dropped these (all props optional, so tsc
-        // stayed green) and the drawer rendered "No definition found" for every word.
-        entry={displayEntry}
-        aiTranslation={wordPanel.translation}
-        aiPartOfSpeech={wordPanel.partOfSpeech}
-        aiContextTranslation={wordPanel.aiContextTranslation}
-        aiContextPartOfSpeech={wordPanel.aiContextPartOfSpeech}
-        aiPhraseDetails={wordPanel.phraseDetails}
-        isDictionaryResult={wordPanel.isDictionaryResult}
-        isLoading={wordPanel.isLoading}
-        isContextLoading={wordPanel.isContextLoading}
-        isStreaming={wordPanel.isStreamingGloss}
-        isEnriching={wordPanel.isEnriching}
-        error={wordPanel.error}
-        existingEntry={wordPanel.existingEntry}
-        wordState={readerWordStates.get(foldWord(wordPanel.word, activeLang))}
-        onboardingSaveProgress={
-          onboardingActive && !wordPanel.word.includes(' ')
-            ? {
-                savedCount: onboardingSavedCount,
-                target: 3,
-                currentWordSaved: onboardingCurrentWordSaved,
-              }
-            : undefined
-        }
-        onClose={closeWordPanel}
-        onSpeak={(text) => speak(text.split(/\s+/).slice(0, 15).join(' '))}
-        onSetLevel={setWordLevel}
-        onMarkKnown={markAsKnown}
-        onIgnore={ignoreWord}
-        onRequestContextTranslation={requestContextTranslation}
-        onEnrich={canEnrich ? enrichTranslation : undefined}
-        onRetranslate={retranslateWithAi}
-        onLookupWord={handleNestedLookup}
-        onAddToAnki={!wordPanel.word.includes(' ') ? addWordToAnki : undefined}
-        onAddCloze={wordPanel.word.includes(' ') ? addClozeToAnki : undefined}
-      />
+      <TranslationDrawerSlot>
+        <TranslationDrawer
+          isOpen={wordPanel.isOpen}
+          word={wordPanel.word}
+          sentence={wordPanel.sentence}
+          // WordPanelState field names differ from TranslationDrawerProps; map them
+          // explicitly. A spread silently dropped these (all props optional, so tsc
+          // stayed green) and the drawer rendered "No definition found" for every word.
+          entry={displayEntry}
+          aiTranslation={wordPanel.translation}
+          aiPartOfSpeech={wordPanel.partOfSpeech}
+          aiContextTranslation={wordPanel.aiContextTranslation}
+          aiContextPartOfSpeech={wordPanel.aiContextPartOfSpeech}
+          aiPhraseDetails={wordPanel.phraseDetails}
+          isDictionaryResult={wordPanel.isDictionaryResult}
+          isLoading={wordPanel.isLoading}
+          isContextLoading={wordPanel.isContextLoading}
+          isStreaming={wordPanel.isStreamingGloss}
+          isEnriching={wordPanel.isEnriching}
+          error={wordPanel.error}
+          existingEntry={wordPanel.existingEntry}
+          wordState={readerWordStates.get(foldWord(wordPanel.word, activeLang))}
+          onboardingSaveProgress={
+            onboardingActive && !wordPanel.word.includes(' ')
+              ? {
+                  savedCount: onboardingSavedCount,
+                  target: 3,
+                  currentWordSaved: onboardingCurrentWordSaved,
+                }
+              : undefined
+          }
+          onClose={closeWordPanel}
+          onSpeak={(text) => speak(text.split(/\s+/).slice(0, 15).join(' '))}
+          onSetLevel={setWordLevel}
+          onMarkKnown={markAsKnown}
+          onIgnore={ignoreWord}
+          onRequestContextTranslation={requestContextTranslation}
+          onEnrich={canEnrich ? enrichTranslation : undefined}
+          onRetranslate={retranslateWithAi}
+          onLookupWord={handleNestedLookup}
+          onAddToAnki={!wordPanel.word.includes(' ') ? addWordToAnki : undefined}
+          onAddCloze={wordPanel.word.includes(' ') ? addClozeToAnki : undefined}
+        />
+      </TranslationDrawerSlot>
       {onboardingActive && (
         <OnboardingCoach
           stage={onboardingCoachStage}
