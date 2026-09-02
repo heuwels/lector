@@ -93,9 +93,12 @@ Language packs ship for:
 - Czech
 - Dutch
 - Esperanto
+- Finnish
 - French
 - German
+- Greek
 - Hindi
+- Hungarian
 - Indonesian
 - Italian
 - Japanese

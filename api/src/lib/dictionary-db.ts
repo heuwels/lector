@@ -1051,8 +1051,8 @@ function resolveWord(
     //
     // Gated on the LANGUAGE, not on `practiceLeniency` (#253). The two are
     // unrelated: leniency is about what a typed practice answer may omit, and
-    // this step needs the `markStrippedAliases` rows, which only the grc build
-    // profile writes. Reading the practice setting as the trigger silently
+    // this step needs the `markStrippedAliases` rows, which the grc and el
+    // builds write. Reading the practice setting as the trigger silently
     // handed this step to every pack that relaxed its practice input, and for
     // Arabic that was actively wrong. NFD splits ؤ into و + U+0654 and ئ into
     // ي + U+0654, so stripping every \p{M} rewrites the hamza carriers: 817 ar
@@ -1061,7 +1061,7 @@ function resolveWord(
     // ("deliberation"), and برئ ("to be innocent") by برية ("wild"). ar has its
     // own fallback in step 3-ar, over alias rows built for the two letter pairs
     // Arabic actually confuses.
-    if (language === 'grc') {
+    if (language === 'grc' || language === 'el') {
       const stripped = stripMarks(lower);
       if (stripped !== lower) {
         const exactStripped = stmts.selectEntry.get(stripped) as EntryRow | undefined;
