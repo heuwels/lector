@@ -12,7 +12,12 @@ import {
 } from '../lib/languages';
 import { getCurrentUserId } from '../lib/user';
 import { randomUUID } from 'crypto';
-import { entitlements, planLimitResponse, type AtomicLimitCheck } from '../lib/entitlements';
+import {
+  entitlements,
+  planLimitResponse,
+  type AtomicLimitCheck,
+  type LimitMetric,
+} from '../lib/entitlements';
 import {
   aggregateGrowthCheck,
   batchGrowthCheck,
@@ -161,6 +166,61 @@ function clozeWriteChecks(
     ...aggregateGrowthCheck('maxClozeTextBytesTotal', nextBytes, previousBytes),
     ...batchGrowthCheck(growth),
   ];
+}
+
+const SEED_BAND_RANK: Record<string, number> = {
+  top500: 0,
+  top1000: 1,
+  top2000: 2,
+  mined: 3,
+  random: 4,
+};
+
+type PreparedSeedInsert = { entry: BankEntry; id: string };
+
+const SEED_ROOM_PROBE = 1_000_000_000;
+
+function remainingAllowance(userId: string, metric: LimitMetric): number | null {
+  const verdict = entitlements.checkLimit(userId, metric, SEED_ROOM_PROBE);
+  if (verdict.allowed) return null;
+  return Math.max(0, verdict.limit - verdict.used);
+}
+
+function rankSeedInserts(inserts: PreparedSeedInsert[]): PreparedSeedInsert[] {
+  return [...inserts].sort((a, b) => {
+    const band =
+      (SEED_BAND_RANK[a.entry.collection] ?? 5) - (SEED_BAND_RANK[b.entry.collection] ?? 5);
+    if (band !== 0) return band;
+    return (
+      (a.entry.wordRank ?? Number.MAX_SAFE_INTEGER) - (b.entry.wordRank ?? Number.MAX_SAFE_INTEGER)
+    );
+  });
+}
+
+function fitSeedInserts(userId: string, inserts: PreparedSeedInsert[]): PreparedSeedInsert[] {
+  if (inserts.length === 0) return inserts;
+  let rowsLeft = remainingAllowance(userId, 'maxClozeSentences');
+  let bytesLeft = remainingAllowance(userId, 'maxClozeTextBytesTotal');
+  let batchLeft = remainingAllowance(userId, 'maxWriteBatchBytes');
+  if (rowsLeft === 0 || bytesLeft === 0 || batchLeft === 0) return [];
+
+  const fitted: PreparedSeedInsert[] = [];
+  for (const item of rankSeedInserts(inserts)) {
+    const bytes = clozeContentBytes({
+      sentence: item.entry.text,
+      clozeWord: item.entry.clozeWord,
+      translation: item.entry.translation,
+    });
+    if (!entitlements.checkLimit(userId, 'maxClozeEntryBytes', bytes).allowed) continue;
+    if (rowsLeft !== null && rowsLeft < 1) break;
+    if (bytesLeft !== null && bytes > bytesLeft) continue;
+    if (batchLeft !== null && bytes > batchLeft) continue;
+    fitted.push(item);
+    if (rowsLeft !== null) rowsLeft -= 1;
+    if (bytesLeft !== null) bytesLeft -= bytes;
+    if (batchLeft !== null) batchLeft -= bytes;
+  }
+  return fitted;
 }
 
 // Per-language sentence banks, lazily loaded. Each value is a LITERAL dynamic
@@ -771,10 +831,17 @@ app.post('/seed', async (c) => {
     UPDATE clozeSentences SET clozeWord = ?, clozeIndex = ?, tokens = ?, wordRank = ?, collection = ? WHERE id = ? AND userId = ?
   `);
 
-  const preparedInserts = toInsert.map((entry) => ({
-    entry,
-    id: (entry.source ?? 'tatoeba') === 'mined' ? minedId(entry.id) : randomUUID(),
-  }));
+  const preparedInserts = fitSeedInserts(
+    userId,
+    toInsert.map((entry) => ({
+      entry,
+      id: (entry.source ?? 'tatoeba') === 'mined' ? minedId(entry.id) : randomUUID(),
+    })),
+  );
+  if (preparedInserts.length === 0 && toUpdate.length === 0) {
+    return c.json({ seeded: 0, updated: 0, mined: 0, tatoeba: 0, total: bank.length });
+  }
+
   const checks = clozeWriteChecks(userId, [
     ...preparedInserts.map(({ entry, id }) => ({
       id,
@@ -820,14 +887,17 @@ app.post('/seed', async (c) => {
       );
     }
   });
-  if (!verdict.allowed) return planLimitResponse(c, verdict);
+  // Practice POSTs seed on every visit. A 429 would toast and block the page.
+  if (!verdict.allowed) {
+    return c.json({ seeded: 0, updated: 0, mined: 0, tatoeba: 0, total: bank.length });
+  }
 
-  const minedSeeded = toInsert.filter((s) => (s.source ?? 'tatoeba') === 'mined').length;
+  const minedSeeded = preparedInserts.filter((s) => (s.entry.source ?? 'tatoeba') === 'mined').length;
   return c.json({
-    seeded: toInsert.length,
+    seeded: preparedInserts.length,
     updated: toUpdate.length,
     mined: minedSeeded,
-    tatoeba: toInsert.length - minedSeeded,
+    tatoeba: preparedInserts.length - minedSeeded,
     total: bank.length,
   });
 });
