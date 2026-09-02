@@ -266,6 +266,23 @@ export interface MorphologyConfig {
    * بالقلم, which is not a key.
    */
   maxPrefixes?: number;
+  /**
+   * Initial mutations: a substitution at the front of the word, not a peel.
+   * Welsh, Irish and Scottish Gaelic change the first letter for grammar.
+   * Scottish Gaelic turns `bean` into `bhean`. A prefix rule would strip `bh`
+   * and leave `ean`, which is not the lemma.
+   *
+   * Each rule maps a surface start onto a lemma start. The remainder stays.
+   * `bhean` plus `{ from: 'bh', to: 'b' }` gives `bean`.
+   *
+   * This runs after the exact key and after the forms table, in the same
+   * place as the Korean peel. An exact headword still wins: `tha` is its
+   * own word and must not become `ta`.
+   *
+   * Order does not matter. The stripper sorts by `from` length, so `t-s`
+   * wins over `t-` if a pack lists both.
+   */
+  mutations?: Array<{ from: string; to: string }>;
 }
 
 export interface LanguageConfig {

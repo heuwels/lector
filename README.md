@@ -109,6 +109,7 @@ Language packs ship for:
 - Polish
 - Portuguese
 - Russian
+- Scottish Gaelic
 - Spanish
 - Swedish
 - Turkish

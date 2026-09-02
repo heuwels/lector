@@ -68,13 +68,13 @@ describe('registry pronunciation conformance', () => {
   // (elision) and af (plural, #430) declare it; fr/nl still split. Every
   // variant the fold maps must also join, or a curly-apostrophe word would
   // tokenize as two words and then key as one.
-  it('Afrikaans, Italian and Ukrainian join and fold the apostrophe; French and Dutch do not', () => {
+  it('Afrikaans, Italian, Ukrainian and Scottish Gaelic join and fold the apostrophe; French and Dutch do not', () => {
     const withJoiners = getAllLanguages().filter((lang) => lang.script.extraJoiners);
-    expect(withJoiners.map((lang) => lang.code)).toEqual(['af', 'it', 'uk']);
+    expect(withJoiners.map((lang) => lang.code)).toEqual(['af', 'gd', 'it', 'uk']);
     const withFold = getAllLanguages().filter((lang) => lang.script.foldApostrophes);
-    expect(withFold.map((lang) => lang.code)).toEqual(['af', 'it', 'uk']);
+    expect(withFold.map((lang) => lang.code)).toEqual(['af', 'gd', 'it', 'uk']);
 
-    for (const code of ['af', 'it', 'uk'] as const) {
+    for (const code of ['af', 'gd', 'it', 'uk'] as const) {
       const joiners = LANGUAGES[code].script.extraJoiners;
       expect(joiners).toContain("'");
       for (const variant of ['‘', '’', 'ʼ', 'ʹ', '`', '´']) {
@@ -156,6 +156,21 @@ describe('registry pronunciation conformance', () => {
     expect(pack.ttsCode).toBe('hi-IN');
     expect(pack.ttsVoice).toBe('hi-IN-Standard-A');
     expect(pack.pronunciation.audio).toEqual(['google']);
+  });
+
+  it('Scottish Gaelic is espeak-voiced, joins the apostrophe, and undoes lenition', () => {
+    const pack = LANGUAGES.gd;
+    expect(pack.tatoebaCode).toBe('gla');
+    expect(pack.script.bcp47).toBe('gd');
+    expect(pack.script.kind).toBe('alpha-spaced');
+    expect(pack.script.hasCase).toBe(true);
+    expect(pack.script.foldApostrophes).toBe(true);
+    expect(pack.pronunciation.audio).toEqual(['espeak']);
+    expect(pack.ttsCode).toBeUndefined();
+    expect(pack.ttsVoice).toBeUndefined();
+    expect(pack.script.extraTokenPatterns?.length).toBeGreaterThan(0);
+    expect(pack.morphology?.prefixes).toEqual(['h-', 't-']);
+    expect(pack.morphology?.mutations).toContainEqual({ from: 'bh', to: 'b' });
   });
 
   it('esperanto is espeak-voiced with a rule-generated IPA gloss', () => {
