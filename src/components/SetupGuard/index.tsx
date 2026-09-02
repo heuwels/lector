@@ -8,16 +8,14 @@ import { readLanguageCache, writeLanguageCache } from '@/lib/language-cache';
 import { isBareRoute } from '@/lib/auth-client';
 import { Spinner } from '@/components/ui/spinner';
 
+/**
+ * The first render must be identical on the server and the client, so we must not use any clientside APIs
+ * that would cause mutations. This will result in a hydration error.
+ */
 export default function SetupGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  // The first render must be identical on the server and the client, so we must
-  // not read localStorage here — doing so rendered the spinner on the server but
-  // the children on the client, which was the hydration mismatch. /setup is
-  // always allowed through, as are the auth pages (#218) — they render
-  // pre-session, when the settings probe below could only 401 — and
-  // /subscribe (#224), where a locked account's probe could only 402; every
-  // other route resolves in the effect below.
+
   const [checked, setChecked] = useState(pathname === '/setup' || isBareRoute(pathname));
   const [error, setError] = useState(false);
 
@@ -79,10 +77,6 @@ export default function SetupGuard({ children }: { children: React.ReactNode }) 
     );
   }
 
-  // Mirrors the effect's own bail-out condition above. Without the pathname
-  // check, arriving at /setup via the router.replace() below (rather than a
-  // hard load) re-renders with checked still false — the effect bails out
-  // before ever setting it — and the spinner never clears.
   if (!checked && pathname !== '/setup' && !isBareRoute(pathname)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">

@@ -1,6 +1,6 @@
 'use client';
 
-import { BookOpenText, Brain, Check, Highlighter, MousePointer2 } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IOnboardingCoachProps } from './types';
 import { getContent } from './utils';

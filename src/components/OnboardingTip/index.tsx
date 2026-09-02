@@ -1,13 +1,6 @@
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface OnboardingTipProps {
-  title: string;
-  body: string;
-  onDismiss: () => void;
-  className?: string;
-  testId: string;
-}
+import { IOnboardingTipProps } from './types';
 
 export default function OnboardingTip({
   title,
@@ -15,7 +8,7 @@ export default function OnboardingTip({
   onDismiss,
   className,
   testId,
-}: OnboardingTipProps) {
+}: IOnboardingTipProps) {
   return (
     <div
       role="status"

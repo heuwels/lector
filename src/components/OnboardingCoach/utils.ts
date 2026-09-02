@@ -1,4 +1,4 @@
-import { BookOpenText, Brain, Highlighter, LucideIcon, MousePointer2 } from 'lucide-react';
+import { BookOpenText, Brain, Highlighter, type LucideIcon, MousePointer2 } from 'lucide-react';
 import { OnboardingCoachStage } from './types';
 
 export function getContent({
