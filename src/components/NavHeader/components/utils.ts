@@ -22,7 +22,7 @@ export function getNavLinkClassname({
     : 'text-muted-foreground hover:bg-accent hover:text-foreground';
 
   if (collapsed) {
-    return clsx(base, colorClassName, 'p-2.5');
+    return clsx(base, colorClassName, 'justify-center p-2.5');
   }
 
   return clsx(base, 'gap-3 px-3 py-2.5', colorClassName);
