@@ -1,21 +1,22 @@
 'use client';
 
+import clsx from 'clsx';
 import { usePathname } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import LanguageSelector from '@/components/LanguageSelector';
 import { isBareRoute } from '@/lib/auth-client';
 import { useSidebarCollapsed } from '@/utils/hooks';
+import {
+  advancePostOnboardingTour,
+  finishPostOnboardingTour,
+  usePostOnboardingTour,
+} from '@/lib/post-onboarding-tour';
 import { navLinks } from './constants';
 import NavLink from './components/NavLink';
 import AppName from './components/AppName';
 import AccountMenu from './components/AccountMenu';
 import AdminNavLink from './components/AdminNavLink';
 import SidebarCollapseButton from './components/SidebarCollapseButton';
-import {
-  advancePostOnboardingTour,
-  finishPostOnboardingTour,
-  usePostOnboardingTour,
-} from '@/lib/post-onboarding-tour';
 import type { NavTourTip } from './components/NavLink';
 
 export default function NavHeader() {
@@ -63,11 +64,12 @@ export default function NavHeader() {
 
       {/* Desktop left sidebar — hidden on mobile */}
       <aside
-        className={`sticky top-0 z-50 hidden h-screen border-r border-border bg-card sm:flex sm:flex-col print:hidden ${
-          collapsed ? 'w-16' : 'w-56'
-        }`}
+        className={clsx(
+          'sticky top-0 z-50 hidden h-screen border-r border-border bg-card sm:flex sm:flex-col print:hidden',
+          collapsed ? 'w-16' : 'w-56',
+        )}
       >
-        <div className={`flex h-16 items-center ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
+        <div className={clsx('flex h-16 items-center', collapsed ? 'justify-center px-0' : 'px-5')}>
           <AppName hideName={collapsed} />
         </div>
 
@@ -75,7 +77,7 @@ export default function NavHeader() {
           <LanguageSelector collapsed={collapsed} />
         </div>
 
-        <nav className={`flex-1 space-y-1 py-2 ${collapsed ? 'px-1' : 'px-3'}`}>
+        <nav className={clsx('flex-1 space-y-1 py-2', collapsed ? 'px-1' : 'px-3')}>
           {navLinks.map((link) => {
             return (
               <NavLink
@@ -90,16 +92,17 @@ export default function NavHeader() {
           <AdminNavLink isMobile={false} collapsed={collapsed} />
         </nav>
 
-        <div className={collapsed ? 'flex justify-center py-1' : undefined}>
+        <div className={clsx(collapsed ? 'flex justify-center py-1' : '')}>
           <AccountMenu compact={collapsed} />
         </div>
 
         <div
-          className={`border-t border-border ${
+          className={clsx(
+            'border-t border-border',
             collapsed
               ? 'flex flex-col items-center gap-2 px-1 py-3'
-              : 'flex items-center justify-between gap-2 px-4 py-3'
-          }`}
+              : 'flex items-center justify-between gap-2 px-4 py-3',
+          )}
         >
           <ThemeToggle vertical={collapsed} />
           <SidebarCollapseButton collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
