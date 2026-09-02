@@ -33,7 +33,10 @@ async function startTypeRound(page: Page) {
   await expect(page.getByRole('button', { name: 'Start' })).toBeVisible({ timeout: 30000 });
 
   const learnNewSection = page.getByText('Learn New').locator('..');
-  await learnNewSection.getByRole('button', { name: /Top 500/ }).first().click();
+  await learnNewSection
+    .getByRole('button', { name: /Top 500/ })
+    .first()
+    .click();
   await page.getByRole('button', { name: '10', exact: true }).click();
   await page.getByRole('button', { name: 'Type' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
@@ -101,7 +104,7 @@ test.describe('Translation drawer — dictionary lookup pipeline', () => {
 
       // Use the API directly to confirm the dict miss
       const lookupRes = await page.request.get(
-        apiUrl('/api/dictionary/lookup?word=xyznonexistent')
+        apiUrl('/api/dictionary/lookup?word=xyznonexistent'),
       );
       const lookupData = await lookupRes.json();
       expect(lookupData.entry).toBeNull();
@@ -116,7 +119,13 @@ test.describe('Translation drawer — dictionary lookup pipeline', () => {
     }
   });
 
-  test('drawer slides in (translate-x-0) and out (translate-x-full)', async ({ page }) => {
+  test('drawer slides in (translate-x-0) and out (translate-x-full) on a small screen', async ({
+    page,
+  }) => {
+    page.setViewportSize({
+      width: 414,
+      height: 896,
+    });
     await startTypeRound(page);
 
     const drawer = page.getByTestId('translation-drawer');
@@ -128,6 +137,18 @@ test.describe('Translation drawer — dictionary lookup pipeline', () => {
 
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveClass(/translate-x-full/);
+  });
+
+  test('drawer is always in view on large screens', async ({ page }) => {
+    page.setViewportSize({
+      width: 2560,
+      height: 1440,
+    });
+    await startTypeRound(page);
+
+    const drawer = page.getByTestId('translation-drawer');
+
+    await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
   });
 
   test('drawer shows IPA when the entry has one', async ({ page }) => {

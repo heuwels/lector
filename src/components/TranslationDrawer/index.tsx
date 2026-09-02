@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import type { WordState } from '@/types';
 import { sentenceContainsWord } from '@/lib/words';
-import { useActiveLanguage } from '@/utils/hooks';
+import { useActiveLanguage, useScreenSize } from '@/utils/hooks';
 import { TranslationDrawerProps } from './types';
 import { wordStateColors, wordStateLabels } from './constants';
 import { ChevronRight, RefreshCw, Sparkles, Volume2, X, Zap } from 'lucide-react';
@@ -17,7 +17,7 @@ import { lookupAnnouncement } from './lookup-announcement';
 export { type ExpandedDictionaryEntry } from './types';
 
 export default function TranslationDrawer({
-  isOpen,
+  isOpen: rawIsOpen,
   word,
   sentence,
   entry,
@@ -50,6 +50,7 @@ export default function TranslationDrawer({
   const pack = useActiveLanguage();
   const drawerRef = useRef<HTMLDivElement>(null);
   const [relatedExpanded, setRelatedExpanded] = useState(false);
+  const screenSize = useScreenSize();
   // Anki push status for single-word cards
   const [ankiStatus, setAnkiStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   // Cloze picker state for phrase selections
@@ -69,14 +70,22 @@ export default function TranslationDrawer({
     setClozeStatus('idle');
   }
 
+  const isOpen = useMemo(() => {
+    if (screenSize === '2xl') {
+      return true;
+    }
+
+    return rawIsOpen;
+  }, [rawIsOpen, screenSize]);
+
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || screenSize === '2xl') return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, screenSize]);
 
   // Click-outside-to-close intentionally omitted: it races with the
   // new-word click handler (mousedown closes the drawer before the click
@@ -119,7 +128,7 @@ export default function TranslationDrawer({
         'max-h-screen w-full max-w-full sm:max-w-96',
         'fixed 2xl:relative',
         'inset-y-0 right-0 z-50 flex flex-col border-l border-border bg-popover shadow-2xl transition-transform duration-300 ease-out 2xl:shadow-none print:hidden',
-        isOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full 2xl:translate-x-0',
+        isOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full',
       )}
       ref={drawerRef}
       role="dialog"

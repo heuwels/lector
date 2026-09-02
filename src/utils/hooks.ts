@@ -3,6 +3,8 @@ import { normalizeEnabledLanguages, LANGUAGES } from '@/lib/languages';
 import { LanguageCode, LanguageConfig } from '@/types/language';
 import { getSetting } from '@/lib/data-layer';
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useThrottledCallback } from 'use-debounce';
+import { useWindowSize } from 'usehooks-ts';
 import { getLanguageSnapshot, getStoredTheme, subscribeToStorage } from './storage';
 import {
   readProseStyleSettings,
@@ -113,4 +115,30 @@ export function useTheme() {
   const effectiveTheme = mounted ? getEffectiveTheme(theme) : 'dark';
 
   return { theme, effectiveTheme, setTheme, mounted };
+}
+
+export function useScreenSize(): 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' {
+  const { width } = useWindowSize();
+
+  if (width < 640) {
+    return 'xs';
+  }
+
+  if (width < 768) {
+    return 'sm';
+  }
+
+  if (width < 1024) {
+    return 'md';
+  }
+
+  if (width < 1280) {
+    return 'lg';
+  }
+
+  if (width < 1536) {
+    return 'xl';
+  }
+
+  return '2xl';
 }
