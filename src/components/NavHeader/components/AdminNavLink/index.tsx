@@ -2,16 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
+import clsx from 'clsx';
 import { useLectorMode } from '@/lib/use-env';
 import { checkAdminAccess } from '@/lib/admin-client';
 
 /**
  * The Admin nav link (#221) — rendered only in cloud mode and only for an
- * account the server confirms is an admin (a 200 from the gated /access
- * probe). A non-admin never sees it; the page and every endpoint are
- * server-enforced regardless, so this is purely to avoid a dead link.
+ * account the server confirms is an admin
  */
 export default function AdminNavLink({
   isMobile,
@@ -23,6 +22,27 @@ export default function AdminNavLink({
   const mode = useLectorMode();
   const [isAdmin, setIsAdmin] = useState(false);
   const pathname = usePathname();
+  const isActive = pathname === '/admin';
+
+  const className = useMemo(() => {
+    if (isMobile) {
+      return clsx(
+        'flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors',
+        isActive ? 'text-primary' : 'text-muted-foreground',
+      );
+    }
+
+    const base = 'flex w-full items-center rounded-lg text-sm font-medium transition-colors';
+    const colorClassName = isActive
+      ? 'bg-[var(--primary-soft)] font-bold text-primary'
+      : 'text-muted-foreground hover:bg-accent hover:text-foreground';
+
+    if (collapsed) {
+      return clsx(base, colorClassName, 'p-2.5');
+    }
+
+    return clsx(base, 'gap-3 px-3 py-2.5', colorClassName);
+  }, [isMobile, collapsed, isActive]);
 
   useEffect(() => {
     if (mode !== 'cloud') return;
@@ -40,23 +60,6 @@ export default function AdminNavLink({
   }, [mode]);
 
   if (!isAdmin) return null;
-
-  const isActive = pathname === '/admin';
-  const className = isMobile
-    ? `flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
-        isActive ? 'text-primary' : 'text-muted-foreground'
-      }`
-    : collapsed
-      ? `flex w-full items-center justify-center rounded-lg p-2.5 text-sm font-medium transition-colors ${
-          isActive
-            ? 'bg-[var(--primary-soft)] font-bold text-primary'
-            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-        }`
-      : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-          isActive
-            ? 'bg-[var(--primary-soft)] font-bold text-primary'
-            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-        }`;
 
   return (
     <Link
