@@ -79,30 +79,25 @@ export default function LanguageSelector({
   const listed = normalizeEnabledLanguages([...enabledCodes, activeLang.code]);
   const addable = availableLanguages(listed);
 
-  const menuItems = listed.map((code) => (
-    <DropdownMenuItem
-      key={code}
-      onClick={() => handleSwitch(code)}
-      data-testid={`language-option-${code}`}
-      className={code === activeLang.code ? 'font-medium' : undefined}
-    >
-      <span className="text-lg">{LANGUAGES[code].flag}</span>
-      <span>{LANGUAGES[code].native}</span>
-      {code === activeLang.code && <Check className="ml-auto size-4" />}
-    </DropdownMenuItem>
-  ));
+  function languageRow(code: LanguageCode, testIdPrefix: string, markActive: boolean) {
+    const isActive = markActive && code === activeLang.code;
+    return (
+      <DropdownMenuItem
+        key={code}
+        onClick={() => handleSwitch(code)}
+        data-testid={`${testIdPrefix}-${code}`}
+        className={isActive ? 'font-medium' : undefined}
+      >
+        <span className="text-lg">{LANGUAGES[code].flag}</span>
+        <span>{LANGUAGES[code].native}</span>
+        {isActive && <Check className="ml-auto size-4" />}
+      </DropdownMenuItem>
+    );
+  }
 
+  const menuItems = listed.map((code) => languageRow(code, 'language-option', true));
   const addItems = addOpen
-    ? addable.map((code) => (
-        <DropdownMenuItem
-          key={code}
-          onClick={() => handleSwitch(code)}
-          data-testid={`language-add-option-${code}`}
-        >
-          <span className="text-lg">{LANGUAGES[code].flag}</span>
-          <span>{LANGUAGES[code].native}</span>
-        </DropdownMenuItem>
-      ))
+    ? addable.map((code) => languageRow(code, 'language-add-option', false))
     : null;
 
   const addSection =
@@ -128,66 +123,45 @@ export default function LanguageSelector({
     if (!nextOpen) setAddOpen(false);
   }
 
-  if (collapsed) {
-    return (
-      <div className="flex justify-center px-1">
-        <DropdownMenu open={open} onOpenChange={onOpenChange}>
-          <DropdownMenuTrigger
-            data-testid="language-selector"
-            aria-label={`Language: ${activeLang.native}`}
-            title={activeLang.native}
-            className="flex items-center justify-center rounded-lg p-2 text-lg transition-colors hover:bg-accent"
-          >
-            <span>{activeLang.flag}</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" aria-label="Select language" className="min-w-44">
-            {menuItems}
-            {addSection}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    );
-  }
+  const variant = collapsed ? 'collapsed' : compact ? 'compact' : 'full';
+  const triggerClass = {
+    collapsed:
+      'flex items-center justify-center rounded-lg p-2 text-lg transition-colors hover:bg-accent',
+    compact:
+      'flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted',
+    full: 'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent',
+  }[variant];
 
-  if (compact) {
-    return (
-      <DropdownMenu open={open} onOpenChange={onOpenChange}>
-        <DropdownMenuTrigger
-          data-testid="language-selector"
-          aria-label={`Language: ${activeLang.native}`}
-          className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          <span>{activeLang.flag}</span>
-          <span>{activeLang.code.toUpperCase()}</span>
-          {knownBadge}
-          <ChevronDown className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" aria-label="Select language" className="w-44">
-          {menuItems}
-          {addSection}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
-
-  return (
-    <div className="mx-3">
-      <DropdownMenu open={open} onOpenChange={onOpenChange}>
-        <DropdownMenuTrigger
-          data-testid="language-selector"
-          aria-label={`Language: ${activeLang.native}`}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          <span className="text-lg">{activeLang.flag}</span>
-          <span className="flex-1 text-left">{activeLang.native}</span>
-          {knownBadge}
-          <ChevronDown className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" aria-label="Select language" className="min-w-44">
-          {menuItems}
-          {addSection}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+  const menu = (
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger
+        data-testid="language-selector"
+        aria-label={`Language: ${activeLang.native}`}
+        title={variant === 'collapsed' ? activeLang.native : undefined}
+        className={triggerClass}
+      >
+        <span className={variant === 'full' ? 'text-lg' : undefined}>{activeLang.flag}</span>
+        {variant === 'compact' && <span>{activeLang.code.toUpperCase()}</span>}
+        {variant === 'full' && <span className="flex-1 text-left">{activeLang.native}</span>}
+        {variant !== 'collapsed' && knownBadge}
+        {variant !== 'collapsed' && <ChevronDown className="size-4" />}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align={variant === 'compact' ? 'end' : 'start'}
+        aria-label="Select language"
+        className={variant === 'compact' ? 'w-44' : 'min-w-44'}
+      >
+        {menuItems}
+        {addSection}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
+
+  if (variant === 'collapsed') {
+    return <div className="flex justify-center px-1">{menu}</div>;
+  }
+  if (variant === 'full') {
+    return <div className="mx-3">{menu}</div>;
+  }
+  return menu;
 }
