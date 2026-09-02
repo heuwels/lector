@@ -14,9 +14,11 @@ export interface NavTourTip {
 export default function NavLink({
   link,
   isMobile,
+  collapsed = false,
   tourTip,
 }: {
   isMobile: boolean;
+  collapsed?: boolean;
   link: { href: string; label: string };
   tourTip?: NavTourTip;
 }) {
@@ -27,11 +29,17 @@ export default function NavLink({
     ? `flex w-full flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
         isActive ? 'text-primary' : 'text-muted-foreground'
       }`
-    : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-        isActive
-          ? 'bg-[var(--primary-soft)] font-bold text-primary'
-          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-      }`;
+    : collapsed
+      ? `flex w-full items-center justify-center rounded-lg p-2.5 text-sm font-medium transition-colors ${
+          isActive
+            ? 'bg-[var(--primary-soft)] font-bold text-primary'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+        }`
+      : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+          isActive
+            ? 'bg-[var(--primary-soft)] font-bold text-primary'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+        }`;
 
   return (
     <div className={isMobile ? 'relative flex flex-1' : 'relative w-full'}>
@@ -45,9 +53,11 @@ export default function NavLink({
         }`}
         data-onboarding-highlight={tourTip ? link.href.slice(1) || 'library' : undefined}
         onClick={tourTip?.onNavigate}
+        title={collapsed && !isMobile ? link.label : undefined}
+        aria-label={collapsed && !isMobile ? link.label : undefined}
       >
         <Icon size="20" />
-        {link.label}
+        {!(collapsed && !isMobile) && link.label}
       </Link>
       {tourTip && (
         <OnboardingTip

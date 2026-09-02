@@ -13,7 +13,13 @@ import { checkAdminAccess } from '@/lib/admin-client';
  * probe). A non-admin never sees it; the page and every endpoint are
  * server-enforced regardless, so this is purely to avoid a dead link.
  */
-export default function AdminNavLink({ isMobile }: { isMobile: boolean }) {
+export default function AdminNavLink({
+  isMobile,
+  collapsed = false,
+}: {
+  isMobile: boolean;
+  collapsed?: boolean;
+}) {
   const mode = useLectorMode();
   const [isAdmin, setIsAdmin] = useState(false);
   const pathname = usePathname();
@@ -40,16 +46,27 @@ export default function AdminNavLink({ isMobile }: { isMobile: boolean }) {
     ? `flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
         isActive ? 'text-primary' : 'text-muted-foreground'
       }`
-    : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-        isActive
-          ? 'bg-[var(--primary-soft)] font-bold text-primary'
-          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-      }`;
+    : collapsed
+      ? `flex w-full items-center justify-center rounded-lg p-2.5 text-sm font-medium transition-colors ${
+          isActive
+            ? 'bg-[var(--primary-soft)] font-bold text-primary'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+        }`
+      : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+          isActive
+            ? 'bg-[var(--primary-soft)] font-bold text-primary'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+        }`;
 
   return (
-    <Link href="/admin" className={className}>
+    <Link
+      href="/admin"
+      className={className}
+      title={collapsed && !isMobile ? 'Admin' : undefined}
+      aria-label={collapsed && !isMobile ? 'Admin' : undefined}
+    >
       <ShieldCheck size="20" />
-      Admin
+      {!(collapsed && !isMobile) && 'Admin'}
     </Link>
   );
 }

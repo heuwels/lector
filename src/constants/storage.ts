@@ -3,3 +3,6 @@ export const LANGUAGE_CHANGE_EVENT = 'lector-language-change';
 
 /** Same-tab notification that the reader typography settings changed (#570). */
 export const PROSE_STYLE_CHANGE_EVENT = 'lector-prose-style-change';
+
+/** Same-tab notification that the desktop sidebar collapsed state changed. */
+export const SIDEBAR_COLLAPSE_EVENT = 'lector-sidebar-collapse-change';

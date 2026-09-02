@@ -16,7 +16,13 @@ import { useActiveLanguage, useEnabledLanguages } from '@/utils/hooks';
 import { setLanguageInStorage } from '@/utils/storage';
 import { toast } from 'sonner';
 
-export default function LanguageSelector({ compact = false }: { compact?: boolean }) {
+export default function LanguageSelector({
+  compact = false,
+  collapsed = false,
+}: {
+  compact?: boolean;
+  collapsed?: boolean;
+}) {
   const activeLang = useActiveLanguage();
   const enabledCodes = useEnabledLanguages();
   const [knownWordsCount, setKnownWordsCount] = useState<number | null>(null);
@@ -120,6 +126,27 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
   function onOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
     if (!nextOpen) setAddOpen(false);
+  }
+
+  if (collapsed) {
+    return (
+      <div className="flex justify-center px-1">
+        <DropdownMenu open={open} onOpenChange={onOpenChange}>
+          <DropdownMenuTrigger
+            data-testid="language-selector"
+            aria-label={`Language: ${activeLang.native}`}
+            title={activeLang.native}
+            className="flex items-center justify-center rounded-lg p-2 text-lg transition-colors hover:bg-accent"
+          >
+            <span>{activeLang.flag}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" aria-label="Select language" className="min-w-44">
+            {menuItems}
+            {addSection}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
   }
 
   if (compact) {

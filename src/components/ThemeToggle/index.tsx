@@ -10,13 +10,15 @@ const options: { value: Theme; icon: LucideIcon; label: string }[] = [
   { value: 'system', icon: Monitor, label: 'System' },
 ];
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ vertical = false }: { vertical?: boolean }) {
   const { theme, setTheme, mounted } = useTheme();
 
   if (!mounted) return null;
 
   return (
-    <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+    <div
+      className={`flex gap-1 rounded-lg bg-muted p-1 ${vertical ? 'flex-col items-center' : 'items-center'}`}
+    >
       {options.map((opt) => {
         const Icon = opt.icon;
         const isActive = theme === opt.value;

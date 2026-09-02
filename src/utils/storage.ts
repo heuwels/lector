@@ -1,5 +1,5 @@
 import { SETTINGS_KEYS } from '@/app/settings/constants';
-import { LANGUAGE_CHANGE_EVENT } from '@/constants/storage';
+import { LANGUAGE_CHANGE_EVENT, SIDEBAR_COLLAPSE_EVENT } from '@/constants/storage';
 import { readLanguageCache, writeLanguageCache } from '@/lib/language-cache';
 import { DEFAULT_LANGUAGE, isValidLanguageCode, LANGUAGES } from '@/lib/languages';
 import { LanguageConfig } from '@/types/language';
@@ -37,4 +37,24 @@ export function getLanguageSnapshot(): LanguageConfig {
 export function getStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'system';
   return (localStorage.getItem(SETTINGS_KEYS.THEME) as Theme) || 'system';
+}
+
+export function subscribeToSidebarCollapsed(callback: () => void): () => void {
+  window.addEventListener('storage', callback);
+  window.addEventListener(SIDEBAR_COLLAPSE_EVENT, callback);
+  return () => {
+    window.removeEventListener('storage', callback);
+    window.removeEventListener(SIDEBAR_COLLAPSE_EVENT, callback);
+  };
+}
+
+export function readSidebarCollapsed(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(SETTINGS_KEYS.SIDEBAR_COLLAPSED) === '1';
+}
+
+export function writeSidebarCollapsed(collapsed: boolean): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(SETTINGS_KEYS.SIDEBAR_COLLAPSED, collapsed ? '1' : '0');
+  window.dispatchEvent(new Event(SIDEBAR_COLLAPSE_EVENT));
 }
