@@ -1,37 +1,17 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import type { ITurnstileWidgetProps } from './types';
 
 /**
- * Cloudflare Turnstile (#218) — bot protection on the auth forms. Renders
- * nothing unless window.__ENV__.TURNSTILE_SITE_KEY is set (selfhost and
- * keyless dev stay widget-free, matching the API, which only enforces
- * captcha when TURNSTILE_SECRET_KEY is configured server-side).
+ * Cloudflare Turnstile
+ * Provides bot protection on the auth forms.
  *
- * The token lands via onToken and must be sent as the `x-captcha-response`
- * header on sign-up/sign-in/reset requests. Tokens are single-use: after a
- * failed submit the widget resets itself and issues a fresh one.
+ * Only renders when window.__ENV__.TURNSTILE_SITE_KEY is set
+ *
+ * Token is retrieved via onToken and must be sent as the
+ * `x-captcha-response` header on sign-up/sign-in/reset requests.
  */
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (
-        el: HTMLElement,
-        opts: {
-          sitekey: string;
-          callback: (token: string) => void;
-          'expired-callback'?: () => void;
-          'error-callback'?: () => void;
-          theme?: 'auto' | 'light' | 'dark';
-        },
-      ) => string;
-      reset: (widgetId: string) => void;
-      remove: (widgetId: string) => void;
-    };
-    __lectorTurnstileReady?: Promise<void>;
-  }
-}
 
 const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 
@@ -55,12 +35,7 @@ function loadTurnstile(): Promise<void> {
   return window.__lectorTurnstileReady;
 }
 
-export default function TurnstileWidget({
-  onToken,
-}: {
-  /** Called with a fresh token, and with '' when the token expires/errors. */
-  onToken: (token: string) => void;
-}) {
+export default function TurnstileWidget({ onToken }: ITurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onTokenRef = useRef(onToken);
   useEffect(() => {
@@ -97,5 +72,5 @@ export default function TurnstileWidget({
   }, [siteKey]);
 
   if (!siteKey) return null;
-  return <div ref={containerRef} data-testid="turnstile-widget" className="min-h-[65px]" />;
+  return <div ref={containerRef} data-testid="turnstile-widget" className="min-h-16.25" />;
 }
