@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import type { WordState } from '@/types';
 import { sentenceContainsWord } from '@/lib/words';
 import { useActiveLanguage, useScreenSize } from '@/utils/hooks';
-import { TRANSLATION_DRAWER_SLOT_ID } from './slot';
 import { TranslationDrawerProps } from './types';
 import { wordStateColors, wordStateLabels } from './constants';
 import { ChevronRight, RefreshCw, Sparkles, Volume2, X, Zap } from 'lucide-react';
@@ -75,12 +74,6 @@ export default function TranslationDrawer({
   const docked = screenSize === '2xl';
   const isOpen = useMemo(() => docked || rawIsOpen, [docked, rawIsOpen]);
   const idle = docked && !word.trim();
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-
-  useLayoutEffect(() => {
-    const slot = document.getElementById(TRANSLATION_DRAWER_SLOT_ID);
-    setPortalTarget(docked && slot ? slot : document.body);
-  }, [docked]);
 
   useEffect(() => {
     if (!isOpen || docked) return;
@@ -775,6 +768,7 @@ export default function TranslationDrawer({
     </div>
   );
 
-  if (!portalTarget) return null;
-  return createPortal(content, portalTarget);
+  if (typeof document === 'undefined') return null;
+  if (docked) return content;
+  return createPortal(content, document.body);
 }

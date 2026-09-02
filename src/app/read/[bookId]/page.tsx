@@ -1313,49 +1313,50 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           />
         )}
       </div>
-      <TranslationDrawerSlot />
-      <TranslationDrawer
-        isOpen={wordPanel.isOpen}
-        word={wordPanel.word}
-        sentence={wordPanel.sentence}
-        // WordPanelState field names differ from TranslationDrawerProps; map them
-        // explicitly. A spread silently dropped these (all props optional, so tsc
-        // stayed green) and the drawer rendered "No definition found" for every word.
-        entry={displayEntry}
-        aiTranslation={wordPanel.translation}
-        aiPartOfSpeech={wordPanel.partOfSpeech}
-        aiContextTranslation={wordPanel.aiContextTranslation}
-        aiContextPartOfSpeech={wordPanel.aiContextPartOfSpeech}
-        aiPhraseDetails={wordPanel.phraseDetails}
-        isDictionaryResult={wordPanel.isDictionaryResult}
-        isLoading={wordPanel.isLoading}
-        isContextLoading={wordPanel.isContextLoading}
-        isStreaming={wordPanel.isStreamingGloss}
-        isEnriching={wordPanel.isEnriching}
-        error={wordPanel.error}
-        existingEntry={wordPanel.existingEntry}
-        wordState={readerWordStates.get(foldWord(wordPanel.word, activeLang))}
-        onboardingSaveProgress={
-          onboardingActive && !wordPanel.word.includes(' ')
-            ? {
-                savedCount: onboardingSavedCount,
-                target: 3,
-                currentWordSaved: onboardingCurrentWordSaved,
-              }
-            : undefined
-        }
-        onClose={closeWordPanel}
-        onSpeak={(text) => speak(text.split(/\s+/).slice(0, 15).join(' '))}
-        onSetLevel={setWordLevel}
-        onMarkKnown={markAsKnown}
-        onIgnore={ignoreWord}
-        onRequestContextTranslation={requestContextTranslation}
-        onEnrich={canEnrich ? enrichTranslation : undefined}
-        onRetranslate={retranslateWithAi}
-        onLookupWord={handleNestedLookup}
-        onAddToAnki={!wordPanel.word.includes(' ') ? addWordToAnki : undefined}
-        onAddCloze={wordPanel.word.includes(' ') ? addClozeToAnki : undefined}
-      />
+      <TranslationDrawerSlot>
+        <TranslationDrawer
+          isOpen={wordPanel.isOpen}
+          word={wordPanel.word}
+          sentence={wordPanel.sentence}
+          // WordPanelState field names differ from TranslationDrawerProps; map them
+          // explicitly. A spread silently dropped these (all props optional, so tsc
+          // stayed green) and the drawer rendered "No definition found" for every word.
+          entry={displayEntry}
+          aiTranslation={wordPanel.translation}
+          aiPartOfSpeech={wordPanel.partOfSpeech}
+          aiContextTranslation={wordPanel.aiContextTranslation}
+          aiContextPartOfSpeech={wordPanel.aiContextPartOfSpeech}
+          aiPhraseDetails={wordPanel.phraseDetails}
+          isDictionaryResult={wordPanel.isDictionaryResult}
+          isLoading={wordPanel.isLoading}
+          isContextLoading={wordPanel.isContextLoading}
+          isStreaming={wordPanel.isStreamingGloss}
+          isEnriching={wordPanel.isEnriching}
+          error={wordPanel.error}
+          existingEntry={wordPanel.existingEntry}
+          wordState={readerWordStates.get(foldWord(wordPanel.word, activeLang))}
+          onboardingSaveProgress={
+            onboardingActive && !wordPanel.word.includes(' ')
+              ? {
+                  savedCount: onboardingSavedCount,
+                  target: 3,
+                  currentWordSaved: onboardingCurrentWordSaved,
+                }
+              : undefined
+          }
+          onClose={closeWordPanel}
+          onSpeak={(text) => speak(text.split(/\s+/).slice(0, 15).join(' '))}
+          onSetLevel={setWordLevel}
+          onMarkKnown={markAsKnown}
+          onIgnore={ignoreWord}
+          onRequestContextTranslation={requestContextTranslation}
+          onEnrich={canEnrich ? enrichTranslation : undefined}
+          onRetranslate={retranslateWithAi}
+          onLookupWord={handleNestedLookup}
+          onAddToAnki={!wordPanel.word.includes(' ') ? addWordToAnki : undefined}
+          onAddCloze={wordPanel.word.includes(' ') ? addClozeToAnki : undefined}
+        />
+      </TranslationDrawerSlot>
       {onboardingActive && (
         <OnboardingCoach
           stage={onboardingCoachStage}

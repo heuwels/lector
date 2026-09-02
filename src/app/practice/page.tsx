@@ -1566,23 +1566,24 @@ export default function PracticePage() {
           </div>
         )}
       </main>
-      <TranslationDrawerSlot />
-      <TranslationDrawer
-        isOpen={!!wordTooltip}
-        word={wordTooltip?.word ?? ''}
-        sentence={current?.blankedSentence ?? ''}
-        entry={wordTooltip?.dictEntry ?? null}
-        aiTranslation={wordTooltip?.translation ?? null}
-        aiPartOfSpeech={wordTooltip?.partOfSpeech ?? null}
-        isDictionaryResult={!!wordTooltip?.dictEntry}
-        isLoading={wordTooltip?.isLoading ?? false}
-        isContextLoading={wordTooltip?.isContextLoading ?? false}
-        error={wordTooltip?.error ?? null}
-        onClose={() => setWordTooltip(null)}
-        onSpeak={(text) => speak(text)}
-        onRequestContextTranslation={requestContextTranslation}
-        onLookupWord={handleWordClick}
-      />
+      <TranslationDrawerSlot>
+        <TranslationDrawer
+          isOpen={!!wordTooltip}
+          word={wordTooltip?.word ?? ''}
+          sentence={current?.blankedSentence ?? ''}
+          entry={wordTooltip?.dictEntry ?? null}
+          aiTranslation={wordTooltip?.translation ?? null}
+          aiPartOfSpeech={wordTooltip?.partOfSpeech ?? null}
+          isDictionaryResult={!!wordTooltip?.dictEntry}
+          isLoading={wordTooltip?.isLoading ?? false}
+          isContextLoading={wordTooltip?.isContextLoading ?? false}
+          error={wordTooltip?.error ?? null}
+          onClose={() => setWordTooltip(null)}
+          onSpeak={(text) => speak(text)}
+          onRequestContextTranslation={requestContextTranslation}
+          onLookupWord={handleWordClick}
+        />
+      </TranslationDrawerSlot>
     </div>
   );
 }
