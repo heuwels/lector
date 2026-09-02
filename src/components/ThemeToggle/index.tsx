@@ -1,14 +1,21 @@
 'use client';
 
 import clsx from 'clsx';
+import { Theme } from '@/types/theme';
 import { useTheme } from '@/utils/hooks';
 import { OPTIONS } from './constants';
 import ThemeButton from './components/ThemeButton';
 
 export default function ThemeToggle({ vertical = false }: { vertical?: boolean }) {
-  const { mounted } = useTheme();
+  const { mounted, setTheme, theme } = useTheme();
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return null;
+  }
+
+  const handleThemeButtonPressed = (theme: Theme) => {
+    setTheme(theme);
+  };
 
   return (
     <div
@@ -17,7 +24,9 @@ export default function ThemeToggle({ vertical = false }: { vertical?: boolean }
         vertical ? 'flex-col items-center' : 'items-center',
       )}
     >
-      {OPTIONS.map(ThemeButton)}
+      {OPTIONS.map((opt) => (
+        <ThemeButton key={opt.value} {...opt} onClick={handleThemeButtonPressed} theme={theme} />
+      ))}
     </div>
   );
 }

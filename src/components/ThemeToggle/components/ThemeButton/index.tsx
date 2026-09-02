@@ -1,23 +1,25 @@
 import clsx from 'clsx';
-import { useTheme } from '@/utils/hooks';
-import { IThemeOption } from '../../types';
+import { IThemeButtonProps } from './types';
 
-export default function ThemeButton(opt: IThemeOption) {
-  const { theme, setTheme } = useTheme();
-
-  const Icon = opt.icon;
-  const isActive = theme === opt.value;
+export default function ThemeButton({
+  icon: Icon,
+  theme,
+  value,
+  label,
+  onClick,
+}: IThemeButtonProps) {
+  const isActive = theme === value;
 
   const handleOptionClicked = () => {
-    setTheme(opt.value);
+    onClick(value);
   };
 
   return (
     <button
-      key={opt.value}
+      key={value}
       type="button"
       onClick={handleOptionClicked}
-      title={opt.label}
+      title={label}
       className={clsx(
         'rounded-md p-1.5 transition-colors',
         isActive
