@@ -16,11 +16,14 @@ import { ar } from './ar/manifest';
 import { bn } from './bn/manifest';
 import { cs } from './cs/manifest';
 import { de } from './de/manifest';
+import { el } from './el/manifest';
 import { eo } from './eo/manifest';
 import { es } from './es/manifest';
+import { fi } from './fi/manifest';
 import { fr } from './fr/manifest';
 import { grc } from './grc/manifest';
 import { hi } from './hi/manifest';
+import { hu } from './hu/manifest';
 import { id } from './id/manifest';
 import { it } from './it/manifest';
 import { ja } from './ja/manifest';
@@ -45,11 +48,14 @@ const MANIFESTS = {
   bn,
   cs,
   de,
+  el,
   eo,
   es,
+  fi,
   fr,
   grc,
   hi,
+  hu,
   id,
   it,
   ja,

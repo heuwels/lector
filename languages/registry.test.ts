@@ -97,6 +97,8 @@ describe('registry pronunciation conformance', () => {
     ['cs', 'ces'],
     ['id', 'ind'],
     ['sv', 'swe'],
+    ['fi', 'fin'],
+    ['hu', 'hun'],
   ] as const)('%s declares no fold locale and no apostrophe seam', (code, tatoebaCode) => {
     const pack = LANGUAGES[code];
     expect(pack.script.caseFoldLocale).toBeUndefined();
@@ -108,6 +110,32 @@ describe('registry pronunciation conformance', () => {
     expect(pack.script.bcp47).toBe(code);
     expect(pack.script.hasCase).toBe(true);
     expect(pack.script.kind).toBe('alpha-spaced');
+  });
+
+  it('Finnish and Hungarian keep the Polish control-case seams and name their voices', () => {
+    expect(LANGUAGES.fi.ttsCode).toBe('fi-FI');
+    expect(LANGUAGES.fi.ttsVoice).toBe('fi-FI-Standard-B');
+    expect(LANGUAGES.fi.pronunciation.audio).toEqual(['google']);
+    expect(LANGUAGES.hu.ttsCode).toBe('hu-HU');
+    expect(LANGUAGES.hu.ttsVoice).toBe('hu-HU-Standard-B');
+    expect(LANGUAGES.hu.pronunciation.audio).toEqual(['google']);
+  });
+
+  it('Modern Greek reuses the Koine script seams and stays a separate pack', () => {
+    const pack = LANGUAGES.el;
+    expect(pack.name).toBe('Greek');
+    expect(pack.tatoebaCode).toBe('ell');
+    expect(pack.script.bcp47).toBe('el');
+    expect(pack.script.kind).toBe('alpha-spaced');
+    expect(pack.script.hasCase).toBe(true);
+    expect(pack.script.sentenceTerminators).toBe('.;·');
+    expect(pack.script.practiceLeniency).toBe('fold-marks');
+    expect(pack.ttsCode).toBe('el-GR');
+    expect(pack.ttsVoice).toBe('el-GR-Standard-B');
+    expect(pack.pronunciation.audio).toEqual(['google']);
+    expect(LANGUAGES.grc.pronunciation.audio).toBe('none');
+    expect(LANGUAGES.grc.name).toBe('Koine Greek');
+    expect(LANGUAGES.grc.script.practiceLeniency).toBe('fold-marks');
   });
 
   it('Hindi is caseless Devanagari with no fold locale and no apostrophe seam', () => {

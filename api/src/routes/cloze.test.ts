@@ -25,6 +25,9 @@ const ID_TATOEBA_IDS = [1401, 1402];
 const SV_TATOEBA_IDS = [1501, 1502];
 const LA_TATOEBA_IDS = [1601, 1602];
 const HI_TATOEBA_IDS = [1701, 1702];
+const EL_TATOEBA_IDS = [1801, 1802];
+const FI_TATOEBA_IDS = [1901, 1902];
+const HU_TATOEBA_IDS = [2101, 2102];
 const GRC_VERSE_IDS = [40010010, 40030160];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
@@ -480,6 +483,75 @@ mock.module('../lib/sentence-bank-hi.json', () => ({
   ],
 }));
 
+mock.module('../lib/sentence-bank-el.json', () => ({
+  default: [
+    {
+      id: 1801,
+      text: 'Διαβάζω ένα καλό βιβλίο.',
+      translation: 'I read a good book.',
+      clozeWord: 'βιβλίο',
+      clozeIndex: 3,
+      wordRank: 40,
+      collection: 'top500',
+    },
+    {
+      id: 1802,
+      text: 'Το σπίτι είναι μεγάλο.',
+      translation: 'The house is big.',
+      clozeWord: 'σπίτι',
+      clozeIndex: 1,
+      wordRank: 90,
+      collection: 'top500',
+    },
+  ],
+}));
+
+mock.module('../lib/sentence-bank-fi.json', () => ({
+  default: [
+    {
+      id: 1901,
+      text: 'Ostin uuden kirjan eilen.',
+      translation: 'I bought a new book yesterday.',
+      clozeWord: 'kirjan',
+      clozeIndex: 2,
+      wordRank: 35,
+      collection: 'top500',
+    },
+    {
+      id: 1902,
+      text: 'Tämä päivä on kaunis.',
+      translation: 'This day is beautiful.',
+      clozeWord: 'päivä',
+      clozeIndex: 1,
+      wordRank: 80,
+      collection: 'top500',
+    },
+  ],
+}));
+
+mock.module('../lib/sentence-bank-hu.json', () => ({
+  default: [
+    {
+      id: 2101,
+      text: 'Vettem egy új könyvet.',
+      translation: 'I bought a new book.',
+      clozeWord: 'könyvet',
+      clozeIndex: 3,
+      wordRank: 50,
+      collection: 'top500',
+    },
+    {
+      id: 2102,
+      text: 'A ház a kertben áll.',
+      translation: 'The house stands in the garden.',
+      clozeWord: 'ház',
+      clozeIndex: 1,
+      wordRank: 70,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -491,7 +563,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...UK_TATOEBA_IDS, ...PL_TATOEBA_IDS, ...CS_TATOEBA_IDS, ...ID_TATOEBA_IDS, ...SV_TATOEBA_IDS, ...LA_TATOEBA_IDS, ...HI_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...UK_TATOEBA_IDS, ...PL_TATOEBA_IDS, ...CS_TATOEBA_IDS, ...ID_TATOEBA_IDS, ...SV_TATOEBA_IDS, ...LA_TATOEBA_IDS, ...HI_TATOEBA_IDS, ...EL_TATOEBA_IDS, ...FI_TATOEBA_IDS, ...HU_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
   ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -974,6 +1046,70 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get() as { c: number };
     expect(laUnderHi.c).toBe(0);
+  });
+
+  test('seeds the Greek bank under el, isolated from Koine', async () => {
+    setActiveLanguage('grc');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('el');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const greek = db
+      .prepare(
+        `SELECT language, clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${EL_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string }[];
+    expect(greek.length).toBe(2);
+    expect(greek.every((r) => r.language === 'el')).toBe(true);
+    expect(greek.some((r) => r.clozeWord === 'βιβλίο')).toBe(true);
+    expect(greek.some((r) => r.clozeWord === 'σπίτι')).toBe(true);
+
+    const grcUnderEl = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'el' AND tatoebaSentenceId IN (${GRC_VERSE_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(grcUnderEl.c).toBe(0);
+  });
+
+  test('seeds the Finnish bank under fi, isolated from Swedish', async () => {
+    setActiveLanguage('sv');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('fi');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const fi = db
+      .prepare(
+        `SELECT language, clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${FI_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string }[];
+    expect(fi.length).toBe(2);
+    expect(fi.every((r) => r.language === 'fi')).toBe(true);
+    expect(fi.some((r) => r.clozeWord === 'kirjan')).toBe(true);
+    expect(fi.some((r) => r.clozeWord === 'päivä')).toBe(true);
+  });
+
+  test('seeds the Hungarian bank under hu, isolated from Finnish', async () => {
+    setActiveLanguage('fi');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('hu');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const hu = db
+      .prepare(
+        `SELECT language, clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${HU_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string }[];
+    expect(hu.length).toBe(2);
+    expect(hu.every((r) => r.language === 'hu')).toBe(true);
+    expect(hu.some((r) => r.clozeWord === 'könyvet')).toBe(true);
+    expect(hu.some((r) => r.clozeWord === 'ház')).toBe(true);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {

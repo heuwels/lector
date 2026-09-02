@@ -240,6 +240,27 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Jag köpte en ny bok.', 'bo', sv)).toBe(false);
   });
 
+  it('matches Finnish tokens through the default case fold', () => {
+    const fi = LANGUAGES.fi;
+    expect(sentenceContainsWord('Ostin uuden kirjan.', 'kirjan', fi)).toBe(true);
+    expect(sentenceContainsWord('Tämä on suomalainen päivä.', 'päivä', fi)).toBe(true);
+    expect(sentenceContainsWord('Ostin uuden kirjan.', 'kirj', fi)).toBe(false);
+  });
+
+  it('matches Hungarian tokens through the default case fold', () => {
+    const hu = LANGUAGES.hu;
+    expect(sentenceContainsWord('Vettem egy új könyvet.', 'könyvet', hu)).toBe(true);
+    expect(sentenceContainsWord('Ez a ház a kertben áll.', 'ház', hu)).toBe(true);
+    expect(sentenceContainsWord('Vettem egy új könyvet.', 'könyv', hu)).toBe(false);
+  });
+
+  it('matches Modern Greek tokens with the tonos intact', () => {
+    const greek = LANGUAGES.el;
+    expect(sentenceContainsWord('Αυτό είναι ένα καλό βιβλίο.', 'βιβλίο', greek)).toBe(true);
+    expect(sentenceContainsWord('Πού είναι το σπίτι;', 'σπίτι', greek)).toBe(true);
+    expect(sentenceContainsWord('Αυτό είναι ένα καλό βιβλίο.', 'βιβλ', greek)).toBe(false);
+  });
+
   it('matches a Ukrainian apostrophe word as one token, in any variant', () => {
     const uk = LANGUAGES.uk;
     expect(sentenceContainsWord("Я з'їв п'ять яблук.", "п'ять", uk)).toBe(true);

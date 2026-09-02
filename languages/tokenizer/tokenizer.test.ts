@@ -44,7 +44,10 @@ function legacyWords(text: string): string[] {
 // mis-splits a Turkish suffixed proper noun (Ankara'nın → Ankara + 'n + ın).
 // The engine scopes 'n to the af pack.
 const CORPUS: Record<
-  Exclude<LanguageCode, 'ar' | 'bn' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'>,
+  Exclude<
+    LanguageCode,
+    'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'
+  >,
   string[]
 > = {
   af: [
@@ -90,10 +93,22 @@ const CORPUS: Record<
     'El niño comió mañana; ¿por qué no?',
     'La canción número 42 es fantástica, ¿verdad?',
   ],
+  fi: [
+    'Hei! Mitä kuuluu?',
+    'Ostin uuden kirjan vuonna 1999.',
+    'Hän luki lehden — sitten hän joi kahvia.',
+    'Tämä on suomalainen päivä ja yksi yö.',
+  ],
   fr: [
     'Bonjour ! Comment ça va ?',
     "L'eau est belle aujourd'hui, n'est-ce pas ?",
     "C'était l'été où j'ai vu «le grand œuvre» à Noël.",
+  ],
+  hu: [
+    'Szia! Hogy vagy?',
+    'Vettem egy új könyvet 1999-ben.',
+    'Ő olvasta az újságot — aztán kávét ivott.',
+    'Ez a ház a kertben áll.',
   ],
   id: [
     'Halo! Apa kabar?',
@@ -148,7 +163,7 @@ const CORPUS: Record<
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
   for (const [code, texts] of Object.entries(CORPUS) as [
-    Exclude<LanguageCode, 'ar' | 'bn' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'>,
+    Exclude<LanguageCode, 'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'>,
     string[],
   ][]) {
     const pack = LANGUAGES[code];
@@ -1137,6 +1152,81 @@ describe('Hindi pack (real manifest)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Modern Greek pack goldens — monotonic, spaced, tonos stays inside
+// ---------------------------------------------------------------------------
+
+const el = LANGUAGES.el;
+
+const EL_CORPUS = [
+  'Γεια σου! Τι κάνεις;',
+  'Αυτό είναι ένα καλό βιβλίο.',
+  'Πού είναι το σπίτι;',
+  'Ο άνθρωπος διαβάζει την εφημερίδα.',
+];
+
+describe('Modern Greek pack (real manifest)', () => {
+  it('reassembles Greek text byte-for-byte with correct offsets', () => {
+    for (const text of EL_CORPUS) {
+      const tokens = tokenize(text, el);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps the tonos and final sigma inside the word token', () => {
+    expect(tokenizeWords('Αυτό είναι ένα καλό βιβλίο', el).map((t) => t.text)).toEqual([
+      'Αυτό',
+      'είναι',
+      'ένα',
+      'καλό',
+      'βιβλίο',
+    ]);
+    expect(tokenizeWords('ο καλός άνθρωπος', el).map((t) => t.text)).toEqual([
+      'ο',
+      'καλός',
+      'άνθρωπος',
+    ]);
+  });
+
+  it('treats the erotimatiko as a sentence end', () => {
+    expect(splitSentences('Πού είναι το σπίτι; Είναι εδώ.', el)).toEqual([
+      'Πού είναι το σπίτι;',
+      'Είναι εδώ.',
+    ]);
+  });
+
+  it('keeps a Latin word and an ASCII year whole inside Greek prose', () => {
+    expect(tokenizeWords('Πήγα στο London το 1999.', el).map((t) => t.text)).toEqual([
+      'Πήγα',
+      'στο',
+      'London',
+      'το',
+      '1999',
+    ]);
+  });
+
+  it('snaps a mid-word selection outward', () => {
+    const text = 'Αυτό είναι ένα καλό βιβλίο';
+    const word = 'βιβλίο';
+    const wordStart = text.indexOf(word);
+    const mid = wordStart + 2;
+    expect(snapToWordBoundaries(text, mid, mid + 1, el)).toEqual({
+      start: wordStart,
+      end: wordStart + word.length,
+    });
+  });
+
+  it('is a spaced pack with mark-fold practice, so it needs no segmenter', () => {
+    expect(el.script.kind).toBe('alpha-spaced');
+    expect(el.script.hasCase).toBe(true);
+    expect(el.script.practiceLeniency).toBe('fold-marks');
+    expect(clozeTokenSeparator('Αυτό είναι καλό', clozeTokens('Αυτό είναι καλό', el))).toBe(' ');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Ukrainian pack goldens — the apostrophe is a letter, not a boundary
 // ---------------------------------------------------------------------------
 
@@ -1585,6 +1675,9 @@ describe('clozeTokens', () => {
     ['tr', 'İyi günler dostum.'],
     ['bn', 'আমি বাংলায় বই পড়ি।'],
     ['hi', 'यह एक अच्छा दिन है।'],
+    ['el', 'Αυτό είναι ένα καλό βιβλίο.'],
+    ['fi', 'Tämä on suomalainen päivä.'],
+    ['hu', 'Ez egy jó könyv.'],
   ] as Array<[LanguageCode, string]>)(
     'keeps the whitespace split for %s so stored indices cannot move',
     (code, sentence) => {

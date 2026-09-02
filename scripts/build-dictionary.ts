@@ -6,7 +6,7 @@
  *     npx tsx scripts/build-dictionary.ts --lang de  # German
  *     npx tsx scripts/build-dictionary.ts --lang it  # Italian
  *
- * - Streams the JSONL dump line-by-line (does NOT load into memory).
+ * - Streams the download to disk, then the JSONL dump line-by-line.
  * - Caches the download in ./tmp/kaikki-<lang>.jsonl so reruns are fast.
  * - Merges hand-curated frequency ranks from the language's roots JSON (af only).
  * - Writes data/dictionary-<lang>.db (dropped + recreated each run).
@@ -21,6 +21,8 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 
 import { stemCandidates } from '../languages/morphology';
 import { LANGUAGES, isValidLanguageCode } from '../languages/registry';
@@ -424,6 +426,49 @@ const PROFILES: Record<string, LangProfile> = {
     vowels: 'aáeéěiíoóuúůyý',
     rootsJsonRel: null,
     coverageCorpusRel: 'scripts/coverage-corpus-cs.txt',
+    glossFilter: true,
+  },
+  el: {
+    // Canonical /Greek/ URL. Distinct from the Ancient Greek dump that grc uses.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Greek/kaikki.org-dictionary-Greek.jsonl'],
+    // Greek and Coptic (Ͱ-Ͽ): base letters, tonos forms, and final sigma.
+    // Hyphen stays a word char for editorial compounds.
+    letterClass: 'Ͱ-Ͽ-',
+    prefixes: [],
+    suffixes: [],
+    vowels: 'αεηιοωυάέήίόύώϊϋΐΰ',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-el.txt',
+    glossFilter: true,
+    // wordfreq and running text disagree with Wiktionary on the tonos and
+    // on final sigma (της vs τησ). Alias the stripMarks form, as grc does.
+    markStrippedAliases: true,
+  },
+  fi: {
+    // Canonical /Finnish/ URL. 4.6 GB — Wiktionary generates full inflection
+    // tables, so the streaming path is required, as for Latin.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Finnish/kaikki.org-dictionary-Finnish.jsonl'],
+    letterClass: 'a-zäöA-ZÄÖ-',
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouyäö',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-fi.txt',
+    glossFilter: true,
+    // Wiktionary generates every possessive stack (kirjassanikin). Those rows
+    // blow the inflection map past V8's Map limit. Case and number stay.
+    extraSkipFormTags: ['possessive', 'singular-possessive', 'plural-possessive'],
+  },
+  hu: {
+    // Canonical /Hungarian/ URL.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Hungarian/kaikki.org-dictionary-Hungarian.jsonl'],
+    // Acute and double-acute. Hyphen stays a word char for compounds.
+    letterClass: 'a-záéíóöőúüűA-ZÁÉÍÓÖŐÚÜŰ-',
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aáeéiíoóöőuúüű',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-hu.txt',
     glossFilter: true,
   },
   de: {
@@ -1083,9 +1128,14 @@ async function ensureDump(): Promise<string> {
       if (!res.ok || !res.body) {
         throw new Error(`Download failed: HTTP ${res.status}`);
       }
-      const buf = Buffer.from(await res.arrayBuffer());
-      fs.writeFileSync(CACHE_PATH, buf);
-      console.log(`  wrote ${(buf.length / 1024 / 1024).toFixed(2)} MB to ${CACHE_PATH}`);
+      const partial = `${CACHE_PATH}.part`;
+      await pipeline(
+        Readable.fromWeb(res.body as import('stream/web').ReadableStream),
+        fs.createWriteStream(partial),
+      );
+      fs.renameSync(partial, CACHE_PATH);
+      const sizeMb = fs.statSync(CACHE_PATH).size / 1024 / 1024;
+      console.log(`  wrote ${sizeMb.toFixed(2)} MB to ${CACHE_PATH}`);
       return CACHE_PATH;
     } catch (err) {
       lastErr = err;

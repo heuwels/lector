@@ -27,6 +27,16 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'When do I use "der", "die", and "das"?',
     'How do separable verbs work in German?',
   ],
+  el: [
+    'When do I write final ς and when do I write σ?',
+    'What is the difference between δεν and μην for negation?',
+    'How does the article change across cases, as in ο / τον / του?',
+  ],
+  fi: [
+    'How do the fifteen Finnish cases work, and when do I use the partitive?',
+    'What is consonant gradation, as in katu → kadun?',
+    'How does vowel harmony decide which suffix I use?',
+  ],
   eo: [
     'How does the accusative -n ending work?',
     'Explain the correlative table (kiu, tiu, ĉiu, neniu…)',
@@ -51,6 +61,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'When do I use ने after the subject, and what does it do to the verb?',
     'What is the difference between है, हैं, था and थी?',
     'How do postpositions like का, के, की and को attach to a noun?',
+  ],
+  hu: [
+    'What is the difference between definite látom and indefinite látok?',
+    'How does vowel harmony decide which suffix I use?',
+    'In what order do case, possession and number stack on a noun like házaimban?',
   ],
   id: [
     'How do the meN- / ber- / di- / ter- verb prefixes work, including nasal sandhi?',
