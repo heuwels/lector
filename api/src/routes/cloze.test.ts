@@ -1,6 +1,12 @@
 import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { db } from '../db';
+import {
+  makeEntitlements,
+  NO_STORAGE_LIMITS,
+  setEntitlementsEngineForTests,
+  type PlanLimits,
+} from '../lib/entitlements';
 
 // The per-language sentence bank is lazily imported by the seed route. Mock the
 // Afrikaans bank down to a tiny fixture (2 Tatoeba rows + 1 mined row) so the
@@ -1141,6 +1147,92 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       .prepare('SELECT COUNT(*) AS c FROM clozeSentences WHERE id IN (?, ?)')
       .get(MINED_ID, STORED_MINED_ID) as { c: number };
     expect(count.c).toBe(1);
+  });
+});
+
+function makeFreeSeedEngine(limits: Partial<PlanLimits> = {}) {
+  const plan = { ...NO_STORAGE_LIMITS, ...limits } as PlanLimits;
+  return makeEntitlements({
+    enforced: true,
+    freeTierEnabled: true,
+    exemptEmails: new Set(),
+    prices: [],
+    planLimits: { free: plan, cloud: plan, plus: plan },
+    resolveEmail: () => null,
+    isByok: () => false,
+    compedPlan: () => null,
+    now: () => new Date('2026-09-03T00:00:00Z'),
+  });
+}
+
+describe('POST /api/cloze/seed — Free fair-use ceiling (#603)', () => {
+  const FILLER_ID = 'seed-cap-filler';
+  let restoreEngine: (() => void) | null = null;
+
+  function clear() {
+    reset();
+    db.prepare('DELETE FROM clozeSentences WHERE id = ?').run(FILLER_ID);
+    restoreEngine?.();
+    restoreEngine = null;
+  }
+
+  beforeEach(clear);
+  afterEach(clear);
+
+  test('seeds the rows that fit instead of blocking Practice', async () => {
+    restoreEngine = setEntitlementsEngineForTests(makeFreeSeedEngine({ maxClozeSentences: 2 }));
+    setActiveLanguage('af');
+
+    const res = await app.request('/seed', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { seeded: number; mined: number; tatoeba: number };
+    expect(body.seeded).toBe(2);
+    expect(body.tatoeba).toBe(2);
+    expect(body.mined).toBe(0);
+
+    const rows = db
+      .prepare(
+        `SELECT collection FROM clozeSentences WHERE tatoebaSentenceId IN (${TATOEBA_IDS.join(',')}) OR id = ?`,
+      )
+      .all(STORED_MINED_ID) as { collection: string }[];
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.collection === 'top500')).toBe(true);
+  });
+
+  test('a second seed at the cap returns 200 and inserts nothing', async () => {
+    restoreEngine = setEntitlementsEngineForTests(makeFreeSeedEngine({ maxClozeSentences: 2 }));
+    setActiveLanguage('af');
+    await app.request('/seed', { method: 'POST' });
+
+    const res = await app.request('/seed', { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ seeded: 0, mined: 0, tatoeba: 0 });
+
+    const count = db
+      .prepare('SELECT COUNT(*) AS c FROM clozeSentences WHERE userId = ?')
+      .get('local') as { c: number };
+    expect(count.c).toBe(2);
+  });
+
+  test('a later language still seeds into the remaining room', async () => {
+    restoreEngine = setEntitlementsEngineForTests(makeFreeSeedEngine({ maxClozeSentences: 2 }));
+    db.prepare(
+      `INSERT INTO clozeSentences (id, sentence, clozeWord, clozeIndex, translation, source, collection, nextReview, language, userId)
+       VALUES (?, 'Filler.', 'Filler', 0, 'x', 'tatoeba', 'random', ?, 'de', 'local')`,
+    ).run(FILLER_ID, new Date().toISOString());
+    setActiveLanguage('hu');
+
+    const res = await app.request('/seed', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(1);
+
+    const hu = db
+      .prepare(
+        `SELECT clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${HU_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { clozeWord: string }[];
+    expect(hu).toEqual([{ clozeWord: 'könyvet' }]);
   });
 });
 

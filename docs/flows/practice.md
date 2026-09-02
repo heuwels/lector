@@ -35,7 +35,7 @@ sequenceDiagram
   User->>Page: Open /practice
   Page->>DL: seedSentenceBank
   DL->>API: POST /api/cloze/seed
-  API->>DB: INSERT from sentence-bank JSON
+  API->>DB: INSERT rows that fit the plan ceiling
   User->>Page: Review Due or Start
   Page->>DL: getClozeSentencesByCollection or getNewSentencesByCollection
   DL->>API: GET /api/cloze/due
@@ -84,7 +84,7 @@ Blacklisted rows stay out. Order is random.
 - If `persistReview` fails, the round does not advance.
 - Word-state and daily-stat writes are best effort after a saved review.
 - Punctuation after the word sits outside the blank. The grade step strips it. The known-word write also strips it.
-- The seed step copies rows from Tatoeba in the JSON bank. The seed step also copies mined rows.
+- The seed step copies rows from Tatoeba in the JSON bank. The seed step also copies mined rows. A Free plan copies only the rows that fit the practice ceiling.
 - Live `GET /api/tatoeba` is not on this path.
 - The UI collections are:
   - `top500`
