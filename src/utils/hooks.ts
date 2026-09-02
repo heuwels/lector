@@ -3,7 +3,6 @@ import { normalizeEnabledLanguages, LANGUAGES } from '@/lib/languages';
 import { LanguageCode, LanguageConfig } from '@/types/language';
 import { getSetting } from '@/lib/data-layer';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useThrottledCallback } from 'use-debounce';
 import { useWindowSize } from 'usehooks-ts';
 import { getLanguageSnapshot, getStoredTheme, subscribeToStorage } from './storage';
 import {
