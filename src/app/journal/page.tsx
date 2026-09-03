@@ -154,7 +154,7 @@ export default function JournalPage() {
   const wordCount = countTypedWords(bodyText, activeLang);
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 pb-24 sm:px-6 sm:pb-8 lg:px-8">
+    <main className="mx-auto flex h-full max-w-3xl flex-col px-4 py-8 pb-24 sm:px-6 sm:pb-8 lg:px-8">
       <PageHeader title="Journal">
         {!showEditor && (
           <Button onClick={handleNewEntry}>
@@ -163,6 +163,51 @@ export default function JournalPage() {
           </Button>
         )}
       </PageHeader>
+      <div className="relative flex w-full max-w-3xl flex-1 flex-col items-stretch justify-stretch">
+        <div className="absolute left-0 h-full w-1 -translate-x-full bg-card brightness-130"></div>
+
+        <div className="flex h-full flex-col rounded-r-2xl bg-card">
+          <div className="header flex h-18 items-center justify-center border-b-3 border-b-card px-6 text-center brightness-200">
+            <h2 className="mr-auto text-xl">This is a test</h2>
+            <div className="flex items-center space-x-1">
+              <div className="border-b border-b-card px-1 brightness-200">03</div>{' '}
+              <span className="block">/</span>
+              <div className="border-b border-b-card px-1 brightness-200">09</div>{' '}
+              <span className="block">/</span>
+              <div className="border-b border-b-card px-1 brightness-200">2026</div>
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200">
+              I am writing a journal entry
+            </div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200">
+              Testing line breaks
+            </div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+          </div>
+        </div>
+      </div>
       {showEditor && (
         <section className="mb-10">
           <div className="mb-3 flex items-center justify-between">
@@ -223,35 +268,6 @@ export default function JournalPage() {
           )}
         </section>
       )}
-      {entries.length > 0 ? (
-        <section>
-          <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-            {entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}
-          </h2>
-          <div className="space-y-2">
-            {entries.map((entry) => (
-              <HistoryCard
-                key={entry.id}
-                entry={entry}
-                onSelect={(e) => {
-                  if (e.status === 'draft') {
-                    handleEditDraft(e);
-                  } else {
-                    setSelectedEntry(e);
-                  }
-                }}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-        </section>
-      ) : !showEditor ? (
-        <div className="py-16 text-center">
-          <p className="mb-4 text-muted-foreground">No journal entries yet</p>
-          <Button onClick={handleNewEntry}>Write your first entry</Button>
-        </div>
-      ) : null}
-      {selectedEntry && <EntryModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />}
     </main>
   );
 }
