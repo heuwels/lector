@@ -188,6 +188,54 @@ describe('Arabic stemCandidates (#253)', () => {
   });
 });
 
+describe('Scottish Gaelic mutations', () => {
+  const gdMorph: MorphologyConfig = {
+    clitics: [],
+    maxClitics: 0,
+    minStem: 2,
+    prefixes: ['h-', 't-'],
+    mutations: [
+      { from: 'bh', to: 'b' },
+      { from: 'ch', to: 'c' },
+      { from: 'dh', to: 'd' },
+      { from: 'fh', to: 'f' },
+      { from: 'gh', to: 'g' },
+      { from: 'mh', to: 'm' },
+      { from: 'ph', to: 'p' },
+      { from: 'sh', to: 's' },
+      { from: 'th', to: 't' },
+    ],
+  };
+
+  it('undoes lenition at the front of the word', () => {
+    expect(keys('bhean', gdMorph)).toContain('bean');
+    expect(keys('chù', gdMorph)).toContain('cù');
+    expect(keys('fhear', gdMorph)).toContain('fear');
+    expect(keys('mhàthair', gdMorph)).toContain('màthair');
+  });
+
+  it('peels h- and t- prothesis', () => {
+    expect(keys('h-obair', gdMorph)).toContain('obair');
+    expect(keys('t-ainm', gdMorph)).toContain('ainm');
+    expect(keys('t-sùil', gdMorph)).toContain('sùil');
+  });
+
+  it('records the surface start that it undid', () => {
+    const hit = stemCandidates('bhean', gdMorph).find((c) => c.key === 'bean');
+    expect(hit?.peeled).toEqual(['bh']);
+  });
+
+  it('does not propose a mutation when the surface is already the lemma', () => {
+    expect(keys('bean', gdMorph)).toEqual([]);
+  });
+
+  it('still proposes a mutation for a word that is also a headword', () => {
+    // tha is the copula. The lookup tries the exact key first, so this
+    // proposal must not run until that miss. The function only proposes.
+    expect(keys('tha', gdMorph)).toContain('ta');
+  });
+});
+
 describe('maxPrefixes defaults to one pass', () => {
   it('does not stack prefixes for a pack that never asked to', () => {
     // id peels ONE voice prefix. `memberi` must not lose `mem` and then `beri`'s

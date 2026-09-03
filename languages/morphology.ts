@@ -99,6 +99,21 @@ export function stemCandidates(word: string, config: MorphologyConfig): StemCand
     }
   }
 
+  if (config.mutations) {
+    const mutations = [...config.mutations].sort((a, b) => b.from.length - a.from.length);
+    const mutationBases: StemCandidate[] = [{ key: word, peeled: [] }, ...out];
+    for (const base of mutationBases) {
+      for (const mutation of mutations) {
+        if (!base.key.startsWith(mutation.from)) continue;
+        const key = mutation.to + base.key.slice(mutation.from.length);
+        if (key.length < config.minStem) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ key, peeled: [...base.peeled, mutation.from] });
+      }
+    }
+  }
+
   return out;
 }
 

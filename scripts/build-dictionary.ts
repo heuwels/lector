@@ -69,10 +69,12 @@ interface LangProfile {
    *  It is a regression gate, not a target: pin it just below what the language
    *  measures today, so a worse dump or a broken fold still fails the build.
    *
-   *  bn is the one language that sets it. Every other pack clears 85% against a
-   *  5,000-word wordfreq corpus, and bn reaches 69.7% because English Wiktionary
-   *  holds 9,929 glossed Bengali headwords against Arabic's 35,941. No lever in
-   *  this file closes a vocabulary gap.
+   *  bn and gd set it. Every other pack clears 85% against a 5,000-word
+   *  wordfreq corpus. bn reaches 69.7% because English Wiktionary holds
+   *  9,929 glossed Bengali headwords. gd reaches 78.2% because the Gaelic
+   *  dump holds 16,909 entries and Wikipedia still writes place-name
+   *  fragments and plurals the dump does not list. No lever in this file
+   *  closes a vocabulary gap.
    *
    *  A miss is not a dead end for the reader. api/src/routes/dictionary.ts
    *  returns `{ entry: null }` and the caller falls back to AI translate, and
@@ -538,6 +540,31 @@ const PROFILES: Record<string, LangProfile> = {
     rootsJsonRel: null,
     coverageCorpusRel: 'scripts/coverage-corpus-fr.txt',
     glossFilter: true,
+  },
+  gd: {
+    // Canonical /Scottish Gaelic/ URL (space in the path, concatenated filename).
+    kaikkiUrls: [
+      'https://kaikki.org/dictionary/Scottish%20Gaelic/kaikki.org-dictionary-ScottishGaelic.jsonl',
+    ],
+    // a-z plus grave vowels à è ì ò ù. Hyphen stays a word char for
+    // an-diugh / a-màireach. Apostrophe stays a word char, matching the
+    // pack's extraJoiners (a' bhean, 's, d'fhàg).
+    letterClass: "a-zàèìòùA-ZÀÈÌÒÙ'-",
+    // No hand affix rules. kaikki carries most inflected forms. Lenition
+    // and h-/t- prothesis resolve through the pack's morphology slice.
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouàèìòù',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-gd.txt',
+    glossFilter: true,
+    foldApostrophes: true,
+    // 77%, against the 85% every other pack clears. Measured 2026-09-02
+    // against the top 1,000 cleaned gd.wikipedia tokens: 78.2%. The dump
+    // holds 16,909 entries and 24,548 senses. The misses are plurals
+    // (tachartasan), contractions (th'ann, den), and place-name halves
+    // (èideann, obar) that Wikipedia writes and kaikki does not list.
+    coverageThreshold: 0.77,
   },
   hi: {
     // Canonical /Hindi/ URL (kaikki has no /downloads/hi/ mirror).
