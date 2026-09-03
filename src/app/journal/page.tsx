@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/PageHeader';
 import { useActiveLanguage } from '@/utils/hooks';
 import { countTypedWords } from '@/lib/languages';
+import { dateStringInTimeZone } from '@/lib/dates';
 import CritiquePanel from './components/CritiquePanel';
 import CorrectionView from './components/CorrectionView';
 import EntrySidebar from './components/EntrySidebar';
@@ -28,7 +29,7 @@ import WordCountBar from './components/WordCountBar';
 const EMPTY_STATS: JournalWordStats = { month: 0, year: 0, lifetime: 0 };
 
 function todayKey(): string {
-  return new Date().toISOString().split('T')[0];
+  return dateStringInTimeZone(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone);
 }
 
 function pageTitle(body: string, composing: boolean): string {

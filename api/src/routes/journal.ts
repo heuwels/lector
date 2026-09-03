@@ -125,7 +125,7 @@ app.post('/', async (c) => {
   const languageError = validateOptionalLanguage(language);
   if (languageError) return c.json({ error: languageError }, 400);
   const lang = resolveLanguage(language, userId);
-  const date = entryDate || new Date().toISOString().split('T')[0];
+  const date = entryDate || getTodayDate(userId);
   const now = new Date().toISOString();
   const bodyText = body || '';
   const wordCount = countTypedWords(bodyText, getLanguageConfig(lang));

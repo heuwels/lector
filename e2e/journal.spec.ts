@@ -3,6 +3,14 @@ import { apiUrl } from './api';
 
 const TEST_PREFIX = '2099'; // Far future dates to avoid conflicts
 
+/** Today in this machine's zone — the zone the API falls back to for day windows. */
+function localToday(): string {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
 test.describe('Journal', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -187,9 +195,9 @@ test.describe('Journal', () => {
       await page.request.delete(apiUrl(`/api/journal/${e.id}`));
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    // The month window is a calendar month in the API's zone, not UTC.
     const created = await page.request.post(apiUrl('/api/journal'), {
-      data: { body: 'Een twee drie vier vyf', entryDate: today },
+      data: { body: 'Een twee drie vier vyf', entryDate: localToday() },
     });
     const { id } = await created.json();
     const saved = await page.request.put(apiUrl(`/api/journal/${id}`), {
@@ -199,7 +207,7 @@ test.describe('Journal', () => {
 
     // A draft stays out of every total until the learner saves it.
     await page.request.post(apiUrl('/api/journal'), {
-      data: { body: 'Nog drie woorde', entryDate: today },
+      data: { body: 'Nog drie woorde', entryDate: localToday() },
     });
 
     await page.goto('/journal');
@@ -261,6 +269,26 @@ test.describe('Journal', () => {
       });
     });
 
+    // The mocked /correct never reaches the DB, so the real PUT would refuse a
+    // revision. Capture the save instead. The API test covers persistence.
+    const revisionSaves: { revision?: string }[] = [];
+    await page.route('**/api/journal/*', async (route) => {
+      const request = route.request();
+      if (request.method() === 'PUT') {
+        const data = request.postDataJSON() as { revision?: string } | null;
+        if (data && typeof data.revision === 'string') {
+          revisionSaves.push(data);
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: true }),
+          });
+          return;
+        }
+      }
+      await route.fallback();
+    });
+
     await page.goto('/journal');
     await page.waitForLoadState('load');
     await page.getByRole('button', { name: 'New Entry' }).click();
@@ -317,12 +345,11 @@ test.describe('Journal', () => {
     await expect(page.getByText('Revision saved')).toBeVisible({ timeout: 5000 });
 
     // The revision is text the learner writes. It never runs the model again.
+    expect(revisionSaves).toHaveLength(1);
+    expect(revisionSaves[0].revision).toBe(
+      'Gister het ek na die winkel gegaan. Ek het baie dinge gekoop.',
+    );
     expect(correctCalls).toBe(1);
-
-    const saved = await page.request.get(apiUrl(`/api/journal?date=${today}`));
-    const savedEntries = await saved.json();
-    const revised = savedEntries.find((e: { revision: string | null }) => e.revision);
-    expect(revised.revision).toBe('Gister het ek na die winkel gegaan. Ek het baie dinge gekoop.');
 
     const apiRes = await page.request.get(apiUrl(`/api/journal?date=${today}`));
     const entries = await apiRes.json();
