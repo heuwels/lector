@@ -163,48 +163,61 @@ export default function JournalPage() {
           </Button>
         )}
       </PageHeader>
-      <div className="relative flex w-full max-w-3xl flex-1 flex-col items-stretch justify-stretch">
-        <div className="absolute left-0 h-full w-1 -translate-x-full bg-card brightness-130"></div>
+      <div className="flex w-full max-w-3xl space-x-4">
+        <aside className="w-40 rounded-2xl bg-card p-6">
+          <h2 className="text-lg">Past entries</h2>
+          {entries.map((entry) => {
+            return (
+              <div className="" key={entry.id}>
+                <p>{entry.entryDate}</p>
+                <p>{entry.status}</p>
+              </div>
+            );
+          })}
+        </aside>
+        <div className="relative flex flex-1 flex-col items-stretch justify-stretch">
+          <div className="absolute left-0 h-full w-1 -translate-x-full bg-card brightness-130"></div>
 
-        <div className="flex h-full flex-col rounded-r-2xl bg-card">
-          <div className="header flex h-18 items-center justify-center border-b-3 border-b-card px-6 text-center brightness-200">
-            <h2 className="mr-auto text-xl">This is a test</h2>
-            <div className="flex items-center space-x-1">
-              <div className="border-b border-b-card px-1 brightness-200">03</div>{' '}
-              <span className="block">/</span>
-              <div className="border-b border-b-card px-1 brightness-200">09</div>{' '}
-              <span className="block">/</span>
-              <div className="border-b border-b-card px-1 brightness-200">2026</div>
+          <div className="flex h-full flex-col rounded-r-2xl bg-card">
+            <div className="header flex h-18 items-center justify-center border-b-3 border-b-card px-6 text-center brightness-200">
+              <h2 className="mr-auto text-xl">This is a test</h2>
+              <div className="flex items-center space-x-1">
+                <div className="border-b border-b-card px-1 brightness-200">03</div>{' '}
+                <span className="block">/</span>
+                <div className="border-b border-b-card px-1 brightness-200">09</div>{' '}
+                <span className="block">/</span>
+                <div className="border-b border-b-card px-1 brightness-200">2026</div>
+              </div>
             </div>
-          </div>
-          <div className="flex-1">
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200">
-              I am writing a journal entry
+            <div className="flex-1">
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200">
+                I am writing a journal entry
+              </div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200">
+                Testing line breaks
+              </div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
+              <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
             </div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200">
-              Testing line breaks
-            </div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
-            <div className="line flex h-8 w-full items-center border-b-2 border-b-card px-6 brightness-200"></div>
           </div>
         </div>
       </div>
