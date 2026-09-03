@@ -22,8 +22,8 @@ const FROM = 'Support <support@lector.dev>';
 const REPLY_TO = 'support@lector.dev';
 const API = 'https://api.resend.com';
 const START_VIDEO = {
-  href: 'https://youtu.be/r-RgyOj-4Co',
-  thumb: 'https://i.ytimg.com/vi/r-RgyOj-4Co/hqdefault.jpg',
+  href: 'https://youtu.be/BjHq3bK8rVk',
+  thumb: 'https://i.ytimg.com/vi/BjHq3bK8rVk/hqdefault.jpg',
   label: 'Watch Getting started',
 };
 
