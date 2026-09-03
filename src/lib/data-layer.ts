@@ -1052,11 +1052,24 @@ export interface Correction {
   type: 'grammar' | 'spelling' | 'word_choice' | 'word_order' | 'missing_word' | 'extra_word';
 }
 
+export interface JournalCritique {
+  strengths: string[];
+  weaknesses: string[];
+}
+
+export interface JournalWordStats {
+  month: number;
+  year: number;
+  lifetime: number;
+}
+
 export interface JournalEntry {
   id: string;
   body: string;
   correctedBody: string | null;
   corrections: Correction[] | null;
+  revision: string | null;
+  critique: JournalCritique | null;
   status: 'draft' | 'submitted';
   wordCount: number;
   entryDate: string;
@@ -1101,9 +1114,33 @@ export function updateJournalDraft(id: string, body: string): Promise<Response> 
   });
 }
 
-export async function submitJournalForCorrection(
-  id: string,
-): Promise<{ correctedBody: string; corrections: Correction[] }> {
+export function saveJournalEntry(id: string, body: string): Promise<Response> {
+  return apiFetch(`/api/journal/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, status: 'submitted' }),
+  });
+}
+
+export function updateJournalRevision(id: string, revision: string): Promise<Response> {
+  return apiFetch(`/api/journal/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revision }),
+  });
+}
+
+export async function getJournalWordStats(): Promise<JournalWordStats> {
+  const res = await apiFetch(`/api/journal/stats${langParam('?')}`);
+  if (!res.ok) return { month: 0, year: 0, lifetime: 0 };
+  return res.json();
+}
+
+export async function submitJournalForCorrection(id: string): Promise<{
+  correctedBody: string;
+  corrections: Correction[];
+  critique: JournalCritique | null;
+}> {
   const res = await apiFetch(`/api/journal/${id}/correct`, { method: 'POST' });
   if (!res.ok) {
     const err = await res.json();

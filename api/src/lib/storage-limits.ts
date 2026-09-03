@@ -52,8 +52,16 @@ export function journalContentBytes(input: {
   body?: unknown;
   correctedBody?: unknown;
   corrections?: unknown;
+  revision?: unknown;
+  critique?: unknown;
 }): number {
-  return utf8Bytes(input.body) + utf8Bytes(input.correctedBody) + utf8Bytes(input.corrections);
+  return (
+    utf8Bytes(input.body) +
+    utf8Bytes(input.correctedBody) +
+    utf8Bytes(input.corrections) +
+    utf8Bytes(input.revision) +
+    utf8Bytes(input.critique)
+  );
 }
 
 export function ankiPendingContentBytes(input: {

@@ -187,6 +187,8 @@ function getDb(): Database {
       body TEXT NOT NULL DEFAULT '',
       correctedBody TEXT,
       corrections TEXT,
+      revision TEXT,
+      critique TEXT,
       status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
       wordCount INTEGER DEFAULT 0,
       entryDate TEXT NOT NULL,
@@ -501,6 +503,15 @@ function getDb(): Database {
 
   if (!chatCols.some((c) => c.name === 'language')) {
     _db.exec("ALTER TABLE chat_messages ADD COLUMN language TEXT NOT NULL DEFAULT 'af'");
+  }
+
+  // Revision text and the LLM critique live on the same row as the entry (#556).
+  const journalCols = _db.prepare('PRAGMA table_info(journal_entries)').all() as { name: string }[];
+  if (journalCols.length > 0 && !journalCols.some((c) => c.name === 'revision')) {
+    _db.exec('ALTER TABLE journal_entries ADD COLUMN revision TEXT');
+  }
+  if (journalCols.length > 0 && !journalCols.some((c) => c.name === 'critique')) {
+    _db.exec('ALTER TABLE journal_entries ADD COLUMN critique TEXT');
   }
 
   // Drop the legacy UNIQUE constraint on journal_entries.entryDate (multiple
@@ -1220,6 +1231,8 @@ export function migrateCompositeTenantKeys(database: Database) {
           body TEXT NOT NULL DEFAULT '',
           correctedBody TEXT,
           corrections TEXT,
+          revision TEXT,
+          critique TEXT,
           status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
           wordCount INTEGER DEFAULT 0,
           language TEXT NOT NULL DEFAULT 'af',
@@ -1234,6 +1247,8 @@ export function migrateCompositeTenantKeys(database: Database) {
         'body',
         'correctedBody',
         'corrections',
+        'revision',
+        'critique',
         'status',
         'wordCount',
         'language',
@@ -1773,6 +1788,8 @@ export interface JournalEntryRow {
   body: string;
   correctedBody: string | null;
   corrections: string | null;
+  revision: string | null;
+  critique: string | null;
   status: JournalStatus;
   wordCount: number;
   language: string;

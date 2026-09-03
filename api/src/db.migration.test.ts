@@ -141,6 +141,8 @@ function createOldSchema(db: Database) {
       body TEXT NOT NULL DEFAULT '',
       correctedBody TEXT,
       corrections TEXT,
+      revision TEXT,
+      critique TEXT,
       status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
       wordCount INTEGER DEFAULT 0,
       entryDate TEXT NOT NULL,

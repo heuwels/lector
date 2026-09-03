@@ -1,6 +1,8 @@
 import '../test-guard';
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { db } from '../db';
+import { getTodayDate } from '../lib/dates';
+import { LOCAL_USER_ID } from '../lib/user';
 import {
   makeEntitlements,
   NO_STORAGE_LIMITS,
@@ -13,6 +15,10 @@ mock.module('../lib/journal-correct', () => ({
   correctJournalText: async () => ({
     correctedBody: 'Reggestelde teks.',
     corrections: [{ original: 'fout', corrected: 'reg', explanation: 'x', type: 'spelling' }],
+    critique: {
+      strengths: ['Clear sentence rhythm.'],
+      weaknesses: ['Verb agreement needs work.'],
+    },
   }),
 }));
 
@@ -181,5 +187,94 @@ describe('journal route', () => {
 
   test('POST /:id/correct 404s for a missing entry', async () => {
     expect((await app.request('/nope/correct', { method: 'POST' })).status).toBe(404);
+  });
+
+  test('PUT /:id can submit a draft without a correction run', async () => {
+    insertEntry('save-1', 'Vandag was stil.', '2026-09-01', 'draft');
+    const res = await app.request('/save-1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: 'Vandag was stil.', status: 'submitted' }),
+    });
+    expect(res.status).toBe(200);
+    const row = db.prepare('SELECT * FROM journal_entries WHERE id = ?').get('save-1') as Record<
+      string,
+      unknown
+    >;
+    expect(row.status).toBe('submitted');
+    expect(row.corrections).toBeNull();
+    expect(row.body).toBe('Vandag was stil.');
+  });
+
+  test('GET /:id treats null corrections as no run and [] as a clean result', async () => {
+    insertEntry('null-c', 'Geen toets nog.', '2026-09-01', 'submitted');
+    const unread = await app.request('/null-c?language=af');
+    expect(unread.status).toBe(200);
+    expect(((await unread.json()) as { corrections: unknown }).corrections).toBeNull();
+
+    db.prepare("UPDATE journal_entries SET corrections = '[]' WHERE id = 'null-c'").run();
+    const clean = await app.request('/null-c?language=af');
+    expect(((await clean.json()) as { corrections: unknown }).corrections).toEqual([]);
+  });
+
+  test('PUT /:id stores a revision after a correction and does not call the model', async () => {
+    insertEntry('rev-1', 'Ek het fout gemaak.', '2026-09-01', 'draft');
+    const correct = await app.request('/rev-1/correct', { method: 'POST' });
+    expect(correct.status).toBe(200);
+
+    const res = await app.request('/rev-1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 'Ek het dit reg gemaak.' }),
+    });
+    expect(res.status).toBe(200);
+    const row = db
+      .prepare('SELECT revision, status FROM journal_entries WHERE id = ?')
+      .get('rev-1') as { revision: string; status: string };
+    expect(row.revision).toBe('Ek het dit reg gemaak.');
+    expect(row.status).toBe('submitted');
+  });
+
+  test('PUT /:id rejects a revision before a correction run', async () => {
+    insertEntry('rev-early', 'Wag nog.', '2026-09-01', 'submitted');
+    const res = await app.request('/rev-early', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 'Te vroeg.' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /:id/correct stores critique and refuses a second run', async () => {
+    insertEntry('crit-1', 'Ek het fout gemaak.', '2026-09-01', 'submitted');
+    const first = await app.request('/crit-1/correct', { method: 'POST' });
+    expect(first.status).toBe(200);
+    const payload = (await first.json()) as {
+      critique: { strengths: string[]; weaknesses: string[] };
+    };
+    expect(payload.critique.strengths).toHaveLength(1);
+    const row = db.prepare('SELECT critique FROM journal_entries WHERE id = ?').get('crit-1') as {
+      critique: string;
+    };
+    expect(JSON.parse(row.critique).weaknesses[0]).toContain('Verb agreement');
+
+    const second = await app.request('/crit-1/correct', { method: 'POST' });
+    expect(second.status).toBe(400);
+  });
+
+  test('GET /stats counts submitted words only', async () => {
+    const today = getTodayDate(LOCAL_USER_ID);
+    const thisMonth = `${today.slice(0, 7)}-15`;
+    const lastYear = `${Number(today.slice(0, 4)) - 1}-06-15`;
+    insertEntry('w-month', 'one two three', thisMonth, 'submitted');
+    insertEntry('w-old', 'four five', lastYear, 'submitted');
+    insertEntry('w-draft', 'draft words here', thisMonth, 'draft');
+
+    const res = await app.request('/stats?language=af');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { month: number; year: number; lifetime: number };
+    expect(data.month).toBe(3);
+    expect(data.year).toBe(3);
+    expect(data.lifetime).toBe(5);
   });
 });

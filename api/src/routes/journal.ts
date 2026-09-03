@@ -19,13 +19,46 @@ import {
   journalContentBytes,
 } from '../lib/storage-limits';
 import { validateDateKey, validateOptionalLanguage } from '../lib/persisted-input';
+import { getTodayDate } from '../lib/dates';
 
 const app = new Hono();
 
-const withParsedCorrections = (e: JournalEntryRow) => ({
+const withParsedFields = (e: JournalEntryRow) => ({
   ...e,
   corrections: e.corrections ? JSON.parse(e.corrections) : null,
+  critique: e.critique ? JSON.parse(e.critique) : null,
 });
+
+export type JournalCritique = {
+  strengths: string[];
+  weaknesses: string[];
+};
+
+export function parseCritique(raw: unknown): JournalCritique | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const record = raw as Record<string, unknown>;
+  const strengths = Array.isArray(record.strengths)
+    ? record.strengths.filter(
+        (item): item is string => typeof item === 'string' && item.trim() !== '',
+      )
+    : [];
+  const weaknesses = Array.isArray(record.weaknesses)
+    ? record.weaknesses.filter(
+        (item): item is string => typeof item === 'string' && item.trim() !== '',
+      )
+    : [];
+  if (strengths.length === 0 && weaknesses.length === 0) return null;
+  return { strengths, weaknesses };
+}
+
+// Month and year windows start from the learner's own calendar day, never UTC.
+function monthStart(today: string): string {
+  return `${today.slice(0, 7)}-01`;
+}
+
+function yearStart(today: string): string {
+  return `${today.slice(0, 4)}-01-01`;
+}
 
 // GET /api/journal - list entries, optionally filtered by date
 app.get('/', (c) => {
@@ -41,7 +74,7 @@ app.get('/', (c) => {
         'SELECT * FROM journal_entries WHERE userId = ? AND entryDate = ? AND language = ? ORDER BY createdAt DESC',
       )
       .all(userId, date, lang) as JournalEntryRow[];
-    return c.json(entries.map(withParsedCorrections));
+    return c.json(entries.map(withParsedFields));
   }
 
   const entries = db
@@ -50,7 +83,34 @@ app.get('/', (c) => {
     )
     .all(userId, lang, limit, offset) as JournalEntryRow[];
 
-  return c.json(entries.map(withParsedCorrections));
+  return c.json(entries.map(withParsedFields));
+});
+
+// GET /api/journal/stats — word counts for submitted entries in the open language.
+app.get('/stats', (c) => {
+  const userId = getCurrentUserId(c);
+  const lang = resolveLanguage(c.req.query('language'), userId);
+  const today = getTodayDate(userId);
+  const row = db
+    .prepare(
+      `SELECT
+         COALESCE(SUM(CASE WHEN entryDate >= ? THEN wordCount ELSE 0 END), 0) AS month
+       , COALESCE(SUM(CASE WHEN entryDate >= ? THEN wordCount ELSE 0 END), 0) AS year
+       , COALESCE(SUM(wordCount), 0) AS lifetime
+       FROM journal_entries
+       WHERE userId = ? AND language = ? AND status = 'submitted'`,
+    )
+    .get(monthStart(today), yearStart(today), userId, lang) as {
+    month: number;
+    year: number;
+    lifetime: number;
+  };
+
+  return c.json({
+    month: row.month,
+    year: row.year,
+    lifetime: row.lifetime,
+  });
 });
 
 // POST /api/journal - create a new draft entry
@@ -107,7 +167,7 @@ app.get('/:id', (c) => {
 
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
 
-  return c.json(withParsedCorrections(entry));
+  return c.json(withParsedFields(entry));
 });
 
 // PUT /api/journal/:id - update draft body
@@ -130,6 +190,24 @@ app.put('/:id', async (c) => {
     return c.json({ error: 'Cannot edit a submitted entry' }, 400);
   }
 
+  if (body.status !== undefined && body.status !== 'draft' && body.status !== 'submitted') {
+    return c.json({ error: 'status must be draft or submitted' }, 400);
+  }
+  if (body.status === 'draft' && existing.status === 'submitted') {
+    return c.json({ error: 'Cannot reopen a submitted entry' }, 400);
+  }
+  if (body.revision !== undefined && typeof body.revision !== 'string') {
+    return c.json({ error: 'revision must be a string' }, 400);
+  }
+  if (body.revision !== undefined) {
+    if (existing.status !== 'submitted' && body.status !== 'submitted') {
+      return c.json({ error: 'Save the entry before you add a revision' }, 400);
+    }
+    if (existing.corrections === null) {
+      return c.json({ error: 'Ask for a correction before you add a revision' }, 400);
+    }
+  }
+
   const now = new Date().toISOString();
   const updates: string[] = ['updatedAt = ?'];
   const values: SQLQueryBindings[] = [now];
@@ -145,6 +223,20 @@ app.put('/:id', async (c) => {
     grown = wordCount - existing.wordCount;
     nextContentBytes = journalContentBytes({ ...existing, body: body.body });
     values.push(body.body, wordCount);
+  }
+
+  if (body.status === 'submitted' && existing.status === 'draft') {
+    updates.push("status = 'submitted'");
+  }
+
+  if (body.revision !== undefined) {
+    updates.push('revision = ?');
+    nextContentBytes = journalContentBytes({
+      ...existing,
+      body: body.body !== undefined ? body.body : existing.body,
+      revision: body.revision,
+    });
+    values.push(body.revision);
   }
 
   values.push(id);
@@ -203,6 +295,9 @@ app.post('/:id/correct', async (c) => {
 
   if (!entry) return c.json({ error: 'Entry not found' }, 404);
   if (!entry.body.trim()) return c.json({ error: 'Entry body is empty' }, 400);
+  if (entry.corrections !== null) {
+    return c.json({ error: 'Entry already has a correction' }, 400);
+  }
 
   // Reserve the managed-LLM request before the provider call, refund on failure
   // (#222 review) — a check-then-record leaves a concurrent-request window.
@@ -216,15 +311,21 @@ app.post('/:id/correct', async (c) => {
     })) as {
       correctedBody?: string;
       corrections?: unknown;
+      critique?: unknown;
     };
 
     const correctedBody = typeof data.correctedBody === 'string' ? data.correctedBody : null;
-    const corrections = JSON.stringify(data.corrections ?? null);
+    // A successful run always stores an array. null on the row means no run yet (#496).
+    const correctionsList = Array.isArray(data.corrections) ? data.corrections : [];
+    const corrections = JSON.stringify(correctionsList);
+    const critique = parseCritique(data.critique);
+    const critiqueJson = critique ? JSON.stringify(critique) : null;
     const previousContentBytes = journalContentBytes(entry);
     const nextContentBytes = journalContentBytes({
       body: entry.body,
       correctedBody,
       corrections,
+      critique: critiqueJson,
     });
     const checks: AtomicLimitCheck[] = [
       ...growingRowCheck('maxJournalEntryBytes', nextContentBytes, previousContentBytes),
@@ -235,9 +336,9 @@ app.post('/:id/correct', async (c) => {
     const storageVerdict = entitlements.reserveCount(userId, checks, () => {
       db.prepare(
         `UPDATE journal_entries
-         SET correctedBody = ?, corrections = ?, status = 'submitted', updatedAt = ?
+         SET correctedBody = ?, corrections = ?, critique = ?, status = 'submitted', updatedAt = ?
          WHERE id = ? AND userId = ? AND language = ?`,
-      ).run(correctedBody, corrections, now, id, userId, lang);
+      ).run(correctedBody, corrections, critiqueJson, now, id, userId, lang);
     });
     if (!storageVerdict.allowed) {
       // A correction the learner cannot save is not useful consumption. Return
@@ -249,7 +350,7 @@ app.post('/:id/correct', async (c) => {
 
     reservation = null; // provider output was persisted, so the usage is earned
 
-    return c.json({ correctedBody, corrections: data.corrections });
+    return c.json({ correctedBody, corrections: correctionsList, critique });
   } catch (error) {
     if (reservation) entitlements.refund(reservation);
     console.error('Journal correction error:', error);

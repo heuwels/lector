@@ -1408,11 +1408,12 @@ app.post(
       if (data.journalEntries?.length) {
         const stmt = db.prepare(`
           INSERT INTO journal_entries
-            (id, body, correctedBody, corrections, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, body, correctedBody, corrections, revision, critique, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(userId, id) DO UPDATE SET
             body = excluded.body, correctedBody = excluded.correctedBody,
-            corrections = excluded.corrections, status = excluded.status,
+            corrections = excluded.corrections, revision = excluded.revision,
+            critique = excluded.critique, status = excluded.status,
             wordCount = excluded.wordCount, entryDate = excluded.entryDate,
             language = excluded.language, createdAt = excluded.createdAt,
             updatedAt = excluded.updatedAt
@@ -1425,6 +1426,8 @@ app.post(
             entry.body,
             entry.correctedBody ?? null,
             entry.corrections ?? null,
+            entry.revision ?? null,
+            entry.critique ?? null,
             entry.status,
             wordCount,
             entry.entryDate,
