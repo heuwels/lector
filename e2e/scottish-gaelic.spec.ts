@@ -3,7 +3,8 @@ import { apiUrl } from './api';
 import { pickLanguage } from './language-helpers';
 
 // Scottish Gaelic language pack: apostrophe tokens, grave vowels, lenition
-// lookup, and the cloze bank. Requires dictionary-gd.db in the e2e data dir.
+// lookup, and the cloze bank. Requires dictionary-gd.db in the e2e data dir
+// (copied from data/ by the webServer bootstrap; fetched via dict.env pins in CI).
 
 const COLLECTION = 'Gaelic E2E';
 
