@@ -269,8 +269,9 @@ test.describe('Journal', () => {
       });
     });
 
-    // The mocked /correct never reaches the DB, so the real PUT would refuse a
-    // revision. Capture the save instead. The API test covers persistence.
+    // The mocked /correct never reaches the DB, so the server still reads
+    // corrections as null and the real PUT refuses a revision. Capture the
+    // save here. journal.test.ts covers the stored revision.
     const revisionSaves: { revision?: string }[] = [];
     await page.route('**/api/journal/*', async (route) => {
       const request = route.request();
@@ -342,13 +343,12 @@ test.describe('Journal', () => {
       .getByPlaceholder(/Write the page again/i)
       .fill('Gister het ek na die winkel gegaan. Ek het baie dinge gekoop.');
     await page.getByRole('button', { name: 'Save revision' }).click();
-    await expect(page.getByText('Revision saved')).toBeVisible({ timeout: 5000 });
-
-    // The revision is text the learner writes. It never runs the model again.
-    expect(revisionSaves).toHaveLength(1);
+    await expect.poll(() => revisionSaves.length, { timeout: 5000 }).toBe(1);
     expect(revisionSaves[0].revision).toBe(
       'Gister het ek na die winkel gegaan. Ek het baie dinge gekoop.',
     );
+
+    // The revision is text the learner writes. It never runs the model again.
     expect(correctCalls).toBe(1);
 
     const apiRes = await page.request.get(apiUrl(`/api/journal?date=${today}`));
