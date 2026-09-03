@@ -1143,8 +1143,9 @@ export async function submitJournalForCorrection(id: string): Promise<{
 }> {
   const res = await apiFetch(`/api/journal/${id}/correct`, { method: 'POST' });
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Correction failed');
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    // The status rides along so a 429 caller can defer to the plan-limit toast.
+    throw Object.assign(new Error(err.error || 'Correction failed'), { status: res.status });
   }
   return res.json();
 }

@@ -238,7 +238,9 @@ export default function JournalPage() {
       setRevisionText(updated.revision ?? '');
       setFace(updated.corrections ? 'corrections' : 'writing');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Correction failed');
+      if ((err as { status?: number }).status !== 429) {
+        setError(err instanceof Error ? err.message : 'Correction failed');
+      }
     } finally {
       setIsCorrecting(false);
     }
