@@ -22,6 +22,7 @@ import { es } from './es/manifest';
 import { fi } from './fi/manifest';
 import { fr } from './fr/manifest';
 import { grc } from './grc/manifest';
+import { hbo } from './hbo/manifest';
 import { hi } from './hi/manifest';
 import { hu } from './hu/manifest';
 import { id } from './id/manifest';
@@ -54,6 +55,7 @@ const MANIFESTS = {
   fi,
   fr,
   grc,
+  hbo,
   hi,
   hu,
   id,

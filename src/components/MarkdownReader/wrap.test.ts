@@ -20,9 +20,13 @@ describe('reader line breaking', () => {
     expect(readerWrapClass(LANGUAGES.grc)).toBe('');
   });
 
-  it('applies to every hangul pack and no other', () => {
+  it('holds a maqaf-joined Hebrew word together', () => {
+    expect(readerWrapClass(LANGUAGES.hbo)).toBe('break-keep');
+  });
+
+  it('applies keep-all to hangul and Biblical Hebrew only', () => {
     for (const [code, pack] of Object.entries(LANGUAGES)) {
-      const expected = pack.script.kind === 'hangul' ? 'break-keep' : '';
+      const expected = pack.script.kind === 'hangul' || pack.code === 'hbo' ? 'break-keep' : '';
       expect(readerWrapClass(pack), code).toBe(expected);
     }
   });

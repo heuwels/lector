@@ -26,7 +26,13 @@ import { pipeline } from 'stream/promises';
 
 import { stemCandidates } from '../languages/morphology';
 import { LANGUAGES, isValidLanguageCode } from '../languages/registry';
-import { arabicLooseKey, foldArabicKey, stripMarks } from '../languages/text';
+import {
+  arabicLooseKey,
+  foldArabicKey,
+  foldHebrewKey,
+  hebrewLooseKey,
+  stripMarks,
+} from '../languages/text';
 
 // ---------------------------------------------------------------------------
 // Paths & constants
@@ -266,11 +272,15 @@ interface LangProfile {
    *  later dump. See scripts/ar-lead-forms.json for what belongs in it. */
   leadFormsRel?: string;
   /** Register a leniently-folded variant of every key as an inflection alias,
-   *  for the runtime fallback to hit ('arabic': arabicLooseKey, type
-   *  'unpointed'). The Arabic sibling of markStrippedAliases, and the same
-   *  mechanism: exact keys always win first, so this only answers a word that
-   *  nothing else resolved. */
-  looseAliases?: 'arabic';
+   *  for the runtime fallback to hit ('arabic': arabicLooseKey, 'hebrew':
+   *  hebrewLooseKey, type 'unpointed'). The sibling of markStrippedAliases,
+   *  and the same mechanism: exact keys always win first, so this only answers
+   *  a word that nothing else resolved. */
+  looseAliases?: 'arabic' | 'hebrew';
+  /** Fold every key with `foldHebrewKey` (hbo): drop niqqud and cantillation.
+   *  Mirrors the runtime foldWord. Final forms stay on the key; hebrewLooseKey
+   *  aliases them. */
+  foldHebrewKeys?: boolean;
 }
 
 const PROFILES: Record<string, LangProfile> = {
@@ -707,6 +717,23 @@ const PROFILES: Record<string, LangProfile> = {
     stripFromKeys: /[\u0304\u0306]/g,
     markStrippedAliases: true,
     supplementalInflectionsRel: 'scripts/morphgnt-inflections-grc.tsv',
+  },
+  hbo: {
+    // kaikki Hebrew mixes Modern and Biblical. Treat it as a supplement.
+    // Frequency and the Tanakh lemmas come from OSHB via dictionary-roots-hbo.json.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Hebrew/kaikki.org-dictionary-Hebrew.jsonl'],
+    // Hebrew block: letters, niqqud, cantillation, geresh/gershayim. Maqaf
+    // is punctuation. The reader joins on it. Keys do not include it.
+    letterClass: '\\u0591-\\u05BD\\u05BF\\u05C1\\u05C2\\u05C4\\u05C5\\u05C7\\u05D0-\\u05EA\\u05F3\\u05F4',
+    prefixes: [],
+    suffixes: [],
+    vowels: 'אהוי',
+    rootsJsonRel: 'scripts/dictionary-roots-hbo.json',
+    coverageCorpusRel: 'scripts/coverage-corpus-hbo.txt',
+    glossFilter: true,
+    foldHebrewKeys: true,
+    looseAliases: 'hebrew',
+    supplementalInflectionsRel: 'scripts/oshb-inflections-hbo.tsv',
   },
   pt: {
     // Canonical /Portuguese/ URL (kaikki has no /downloads/pt/ mirror).
@@ -1398,6 +1425,7 @@ function foldKey(s: string): string {
   // would silently fold the waw and the ya as well, so foldArabicKey names the
   // four alef spellings instead.
   if (PROFILE.foldArabicKeys) return foldArabicKey(stripped);
+  if (PROFILE.foldHebrewKeys) return foldHebrewKey(stripped);
   if (!PROFILE.unfoldLigatures) return stripped;
   return stripped.replace(/æ/g, 'ae').replace(/œ/g, 'oe');
 }
@@ -1925,7 +1953,11 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
     // corpus word has to travel the same road or the gate would measure a
     // spelling the database never stored.
     const cased = lowerForLang(w);
-    const lower = PROFILE.foldArabicKeys ? foldArabicKey(cased) : cased;
+    const lower = PROFILE.foldArabicKeys
+      ? foldArabicKey(cased)
+      : PROFILE.foldHebrewKeys
+        ? foldHebrewKey(cased)
+        : cased;
 
     const hit = exact.get(lower) as { word: string } | undefined;
     if (hit) return hit;
@@ -1966,8 +1998,9 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
 
     // Mirror of the runtime loose-Arabic fallback (dictionary-db.ts step 3-ar):
     // retry with the ة→ه, ى→ي key against the alias rows.
-    if (PROFILE.looseAliases === 'arabic') {
-      const loose = arabicLooseKey(lower);
+    if (PROFILE.looseAliases === 'arabic' || PROFILE.looseAliases === 'hebrew') {
+      const loose =
+        PROFILE.looseAliases === 'arabic' ? arabicLooseKey(lower) : hebrewLooseKey(lower);
       if (loose !== lower) {
         const looseHit = exact.get(loose) as { word: string } | undefined;
         if (looseHit) return looseHit;
@@ -2256,12 +2289,11 @@ async function main() {
     console.log(`  mark-stripped aliases (${LANG}): ${aliased} keys registered`);
   }
 
-  if (PROFILE.looseAliases === 'arabic') {
-    // The ar sibling of markStrippedAliases (#253). Register arabicLooseKey of
-    // every key as an extra inflection row, type 'unpointed', so the runtime
-    // fallback has something to hit when a text spells مدرسه for مدرسة or علي
-    // for على. Exact keys always win first, so a real minimal pair keeps its
-    // own entry and this only answers a word nothing else resolved.
+  if (PROFILE.looseAliases === 'arabic' || PROFILE.looseAliases === 'hebrew') {
+    // Register the lenient key of every entry as an extra inflection row, type
+    // 'unpointed', so the runtime fallback has something to hit. Exact keys
+    // always win first.
+    const foldLoose = PROFILE.looseAliases === 'arabic' ? arabicLooseKey : hebrewLooseKey;
     const addAlias = (alias: string, ref: string) => {
       let bucket = inflectionMap.get(alias);
       if (!bucket) {
@@ -2272,18 +2304,18 @@ async function main() {
     };
     let aliased = 0;
     for (const word of entries.keys()) {
-      const loose = arabicLooseKey(word);
+      const loose = foldLoose(word);
       if (loose === word || !loose) continue;
       addAlias(loose, `${word}::unpointed`);
       aliased++;
     }
     for (const [inflected, bucket] of [...inflectionMap]) {
-      const loose = arabicLooseKey(inflected);
+      const loose = foldLoose(inflected);
       if (loose === inflected || !loose) continue;
       for (const ref of bucket) addAlias(loose, ref);
       aliased++;
     }
-    console.log(`  loose Arabic aliases (${LANG}): ${aliased} keys registered`);
+    console.log(`  loose ${PROFILE.looseAliases} aliases (${LANG}): ${aliased} keys registered`);
   }
 
   if (PROFILE.glossFilter) {

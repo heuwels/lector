@@ -29,6 +29,7 @@ const EL_TATOEBA_IDS = [1801, 1802];
 const FI_TATOEBA_IDS = [1901, 1902];
 const HU_TATOEBA_IDS = [2101, 2102];
 const GRC_VERSE_IDS = [40010010, 40030160];
+const HBO_VERSE_IDS = [10010010, 10010020];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
   default: [
@@ -271,6 +272,31 @@ mock.module('../lib/sentence-bank-grc.json', () => ({
       translation: 'For God so loved the world. (John 3:16)',
       clozeWord: 'κόσμον.',
       clozeIndex: 6,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
+// Biblical Hebrew bank fixture (2 rows) — verse-aligned like grc, pointed text
+// intact, provenance on the translation.
+mock.module('../lib/sentence-bank-hbo.json', () => ({
+  default: [
+    {
+      id: 10010010,
+      text: 'בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ׃',
+      translation: 'In the beginning God created the heavens and the earth. (Genesis 1:1)',
+      clozeWord: 'בָּרָא',
+      clozeIndex: 1,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 10010020,
+      text: 'וְהָאָרֶץ הָיְתָה תֹהוּ וָבֹהוּ.',
+      translation: 'And the earth was waste and empty. (Genesis 1:2)',
+      clozeWord: 'הָאָרֶץ',
+      clozeIndex: 0,
       wordRank: 110,
       collection: 'top500',
     },
@@ -824,6 +850,32 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
       )
       .get() as { c: number };
     expect(afUnderGrc.c).toBe(0);
+  });
+
+  test('seeds the Hebrew verse bank under hbo, isolated from Afrikaans', async () => {
+    setActiveLanguage('af');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('hbo');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const hbo = db
+      .prepare(
+        `SELECT language, clozeWord, translation FROM clozeSentences WHERE tatoebaSentenceId IN (${HBO_VERSE_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string; translation: string }[];
+    expect(hbo.length).toBe(2);
+    expect(hbo.every((r) => r.language === 'hbo')).toBe(true);
+    expect(hbo.some((r) => r.clozeWord === 'בָּרָא')).toBe(true);
+    expect(hbo.some((r) => r.translation.endsWith('(Genesis 1:1)'))).toBe(true);
+
+    const afUnderHbo = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'hbo' AND tatoebaSentenceId IN (${TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(afUnderHbo.c).toBe(0);
   });
 
   test('seeds the Turkish bank under tr, isolated from Afrikaans (eleventh language)', async () => {
