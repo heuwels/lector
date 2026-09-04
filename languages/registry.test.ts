@@ -70,7 +70,7 @@ describe('registry pronunciation conformance', () => {
   // tokenize as two words and then key as one.
   it('Afrikaans, Italian and Ukrainian join and fold the apostrophe; French and Dutch do not', () => {
     const withJoiners = getAllLanguages().filter((lang) => lang.script.extraJoiners);
-    expect(withJoiners.map((lang) => lang.code)).toEqual(['af', 'it', 'uk']);
+    expect(withJoiners.map((lang) => lang.code)).toEqual(['af', 'hbo', 'it', 'uk']);
     const withFold = getAllLanguages().filter((lang) => lang.script.foldApostrophes);
     expect(withFold.map((lang) => lang.code)).toEqual(['af', 'it', 'uk']);
 
@@ -119,6 +119,27 @@ describe('registry pronunciation conformance', () => {
     expect(LANGUAGES.hu.ttsCode).toBe('hu-HU');
     expect(LANGUAGES.hu.ttsVoice).toBe('hu-HU-Standard-B');
     expect(LANGUAGES.hu.pronunciation.audio).toEqual(['google']);
+  });
+
+  it('Biblical Hebrew is audio-none RTL with niqqud folding and no voice fields', () => {
+    const hbo = LANGUAGES.hbo;
+    expect(hbo.name).toBe('Biblical Hebrew');
+    expect(hbo.code).toBe('hbo');
+    expect(hbo.flag).toBe('\u{1F4DC}');
+    expect(hbo.pronunciation.audio).toBe('none');
+    expect(hbo.ttsCode).toBeUndefined();
+    expect(hbo.ttsVoice).toBeUndefined();
+    expect(hbo.tatoebaCode).toBe('hbo');
+    expect(hbo.script.bcp47).toBe('hbo');
+    expect(hbo.script.direction).toBe('rtl');
+    expect(hbo.script.kind).toBe('alpha-spaced');
+    expect(hbo.script.hasCase).toBe(false);
+    expect(hbo.script.practiceLeniency).toBe('fold-marks');
+    expect(hbo.script.sentenceTerminators).toBe('.!?׃');
+    expect(hbo.script.extraJoiners).toBe('\u05BE');
+    expect(hbo.morphology?.prefixes).toEqual(['ו', 'ה', 'ב', 'ל', 'כ', 'מ', 'ש']);
+    expect(hbo.morphology?.maxPrefixes).toBe(3);
+    expect(hbo.morphology?.minStem).toBe(2);
   });
 
   it('Modern Greek reuses the Koine script seams and stays a separate pack', () => {

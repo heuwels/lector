@@ -46,7 +46,7 @@ function legacyWords(text: string): string[] {
 const CORPUS: Record<
   Exclude<
     LanguageCode,
-    'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'
+    'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hbo' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'
   >,
   string[]
 > = {
@@ -163,7 +163,7 @@ const CORPUS: Record<
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
   for (const [code, texts] of Object.entries(CORPUS) as [
-    Exclude<LanguageCode, 'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'>,
+    Exclude<LanguageCode, 'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hbo' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'>,
     string[],
   ][]) {
     const pack = LANGUAGES[code];
@@ -292,7 +292,7 @@ const grc = LANGUAGES.grc;
 // engine needs no per-script code for Arabic: the pack adds a direction, a
 // terminator and a fold, and no character ranges at all.
 const ar = LANGUAGES.ar;
-const hbo = synth({ bcp47: 'he', direction: 'rtl', hasCase: false });
+const hbo = LANGUAGES.hbo;
 // Korean is a real pack now (#289), not a synthetic one. It is the only
 // `hangul` pack, and its goldens below prove the spaced engine needs no
 // per-script code for it.
@@ -339,9 +339,10 @@ describe('multi-script goldens (synthetic packs — no per-language code)', () =
     expect(words).toEqual(['كتب', 'الولد', 'رسالة', 'ماذا']);
   });
 
-  it('tokenizes pointed Hebrew: marks stay in the word, maqaf splits', () => {
+  it('tokenizes pointed Hebrew: marks stay in the word, maqaf joins', () => {
     const words = tokenizeWords('בְּרֵאשִׁית אֵת־הַשָּׁמַיִם', hbo).map((t) => t.text);
-    expect(words).toEqual(['בְּרֵאשִׁית', 'אֵת', 'הַשָּׁמַיִם']);
+    expect(words).toEqual(['בְּרֵאשִׁית', 'אֵת־הַשָּׁמַיִם']);
+    expect(tokenizeWords('גַם־שְׁנֵיהֶם', hbo).map((t) => t.text)).toEqual(['גַם־שְׁנֵיהֶם']);
   });
 
   it('tokenizes Korean eojeol (spaced) with the same engine', () => {
@@ -956,10 +957,11 @@ describe('Arabic pack (real manifest)', () => {
     expect(countWords('ذهب الولد إلى المدرسة', ar)).toBe(4);
   });
 
-  it('declares rtl, and it is the only pack that does', () => {
+  it('declares rtl, with Biblical Hebrew as the second rtl pack', () => {
     expect(ar.script.direction).toBe('rtl');
+    expect(hbo.script.direction).toBe('rtl');
     const rtl = Object.values(LANGUAGES).filter((pack) => pack.script.direction === 'rtl');
-    expect(rtl.map((pack) => pack.code)).toEqual(['ar']);
+    expect(rtl.map((pack) => pack.code)).toEqual(['ar', 'hbo']);
   });
 
   it('is a spaced pack, so it needs no segmenter', () => {
