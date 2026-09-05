@@ -272,7 +272,7 @@ export default function StatsPage() {
         <StatCard
           label="Journal words all time"
           value={stats.journalWords.lifetime}
-          sublabel="Saved entries only"
+          sublabel="Finished pages only"
           color="purple"
           icon={<PenLine size="24" />}
         />

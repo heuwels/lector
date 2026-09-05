@@ -184,6 +184,7 @@ function getDb(): Database {
 
     CREATE TABLE IF NOT EXISTS journal_entries (
       id TEXT PRIMARY KEY,
+      title TEXT,
       body TEXT NOT NULL DEFAULT '',
       correctedBody TEXT,
       corrections TEXT,
@@ -512,6 +513,10 @@ function getDb(): Database {
   }
   if (journalCols.length > 0 && !journalCols.some((c) => c.name === 'critique')) {
     _db.exec('ALTER TABLE journal_entries ADD COLUMN critique TEXT');
+  }
+  // Optional learner-written title. The UI falls back to the first line of the body.
+  if (journalCols.length > 0 && !journalCols.some((c) => c.name === 'title')) {
+    _db.exec('ALTER TABLE journal_entries ADD COLUMN title TEXT');
   }
 
   // Drop the legacy UNIQUE constraint on journal_entries.entryDate (multiple
@@ -1228,6 +1233,7 @@ export function migrateCompositeTenantKeys(database: Database) {
         CREATE TABLE journal_entries_new (
           userId TEXT NOT NULL DEFAULT 'local',
           id TEXT NOT NULL,
+          title TEXT,
           body TEXT NOT NULL DEFAULT '',
           correctedBody TEXT,
           corrections TEXT,
@@ -1244,6 +1250,7 @@ export function migrateCompositeTenantKeys(database: Database) {
       columns: [
         'userId',
         'id',
+        'title',
         'body',
         'correctedBody',
         'corrections',
@@ -1785,6 +1792,7 @@ export type JournalStatus = 'draft' | 'submitted';
 export interface JournalEntryRow {
   userId: string;
   id: string;
+  title: string | null;
   body: string;
   correctedBody: string | null;
   corrections: string | null;

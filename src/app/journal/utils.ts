@@ -10,6 +10,36 @@ export function formatDate(dateStr: string) {
   });
 }
 
+/** "Thu 4" — the day marker on the timeline. The month header carries the rest. */
+export function formatTimelineDay(dateStr: string) {
+  const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric' });
+}
+
+/** "September 2026" — a month divider on the timeline. */
+export function formatMonth(dateStr: string) {
+  const d = new Date(dateStr.slice(0, 10) + 'T00:00:00');
+  return d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+}
+
+/** The first line of the body with content, or an empty string. */
+export function firstLine(body: string): string {
+  return (
+    body
+      .split('\n')
+      .find((line) => line.trim())
+      ?.trim() ?? ''
+  );
+}
+
+/**
+ * What to call an entry: the learner's title when they wrote one, otherwise
+ * the first line of the text. Empty when the entry has neither.
+ */
+export function entryLabel(entry: { title: string | null; body: string }): string {
+  return entry.title?.trim() || firstLine(entry.body);
+}
+
 export function formatDateTime(isoStr: string) {
   const d = new Date(isoStr);
   return (

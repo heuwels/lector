@@ -19,7 +19,7 @@ export default function StatusBadge({
   if (badge === 'saved') {
     return (
       <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-        Saved
+        Finished
       </span>
     );
   }

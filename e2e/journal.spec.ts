@@ -102,8 +102,8 @@ test.describe('Journal', () => {
     await page.getByRole('button', { name: 'New Entry' }).click();
 
     await expect(page.getByPlaceholder(/journal entry in/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save Draft' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Finish page' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Finish & get correction' })).toBeVisible();
   });
 
   test('should save draft via UI and show in history', async ({ page }) => {
@@ -112,11 +112,11 @@ test.describe('Journal', () => {
 
     await page.getByRole('button', { name: 'New Entry' }).click();
 
+    // No save button for drafts: the page autosaves three seconds after typing stops.
     const textarea = page.getByPlaceholder(/journal entry in/i);
     await textarea.fill('Ek het vandag geoefen.');
-    await page.getByRole('button', { name: 'Save Draft' }).click();
 
-    await expect(page.getByText('Draft saved')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Draft saved')).toBeVisible({ timeout: 8000 });
     await expect(page.getByText('Draft').first()).toBeVisible();
 
     // Clean up
@@ -167,7 +167,7 @@ test.describe('Journal', () => {
     await page.waitForLoadState('load');
     await page.getByRole('button', { name: 'New Entry' }).click();
     await page.getByPlaceholder(/journal entry in/i).fill("Vandag was 'n stil dag.");
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('button', { name: 'Finish page' }).click();
 
     await expect(page.getByText('Get AI correction')).toBeVisible({
       timeout: 5000,
@@ -187,9 +187,7 @@ test.describe('Journal', () => {
     }
   });
 
-  test('word counts cover saved entries only, on the journal and the stats page', async ({
-    page,
-  }) => {
+  test('word counts cover saved entries only, on the stats page', async ({ page }) => {
     const before = await page.request.get(apiUrl('/api/journal?limit=200'));
     for (const e of await before.json()) {
       await page.request.delete(apiUrl(`/api/journal/${e.id}`));
@@ -209,13 +207,6 @@ test.describe('Journal', () => {
     await page.request.post(apiUrl('/api/journal'), {
       data: { body: 'Nog drie woorde', entryDate: localToday() },
     });
-
-    await page.goto('/journal');
-    await page.waitForLoadState('load');
-    await expect(page.getByTestId('journal-word-counts')).toHaveText(
-      '5 words this month · 5 this year · 5 all time',
-      { timeout: 10000 },
-    );
 
     await page.goto('/stats');
     await page.waitForLoadState('load');
@@ -298,22 +289,36 @@ test.describe('Journal', () => {
       .getByPlaceholder(/journal entry in/i)
       .fill('Gister ek het na die stoor gaan. Ek het koop baie dinge.');
 
-    await page.getByRole('button', { name: 'Save Draft' }).click();
-    await expect(page.getByText('Draft saved')).toBeVisible({ timeout: 5000 });
+    // With no title, the header and the timeline show the first line of the text.
+    await expect(page.getByTestId('journal-title-input')).toHaveAttribute(
+      'placeholder',
+      'Gister ek het na die stoor gaan. Ek het koop baie dinge.',
+    );
+
+    // Autosave creates the draft and puts it on the timeline.
+    await expect(page.getByText('Draft saved')).toBeVisible({ timeout: 8000 });
+    const timeline = page.getByTestId('journal-timeline');
+    await expect(timeline.getByText('Gister ek het na die stoor gaan.')).toBeVisible();
+
+    // A title replaces the first-line fallback everywhere.
+    await page.getByTestId('journal-title-input').fill('Die winkel');
+    await expect(timeline.getByText('Die winkel')).toBeVisible({ timeout: 8000 });
 
     await page.goto('/vocab');
     await page.waitForLoadState('load');
 
     await page.goto('/journal');
     await page.waitForLoadState('load');
-    await expect(page.getByText('Gister ek het na die stoor gaan.').first()).toBeVisible();
+    await expect(timeline.getByText('Die winkel')).toBeVisible();
 
-    await page.getByText('Gister ek het na die stoor gaan.').first().click();
+    await timeline.getByText('Die winkel').click();
     await expect(page.getByPlaceholder(/journal entry in/i)).toHaveValue(
       'Gister ek het na die stoor gaan. Ek het koop baie dinge.',
     );
+    await expect(page.getByTestId('journal-title-input')).toHaveValue('Die winkel');
 
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('button', { name: 'Finish page' }).click();
+    await expect(page.getByTestId('journal-title')).toHaveText('Die winkel');
     await expect(page.getByRole('button', { name: 'Get AI correction' })).toBeVisible({
       timeout: 5000,
     });

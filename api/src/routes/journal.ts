@@ -23,6 +23,22 @@ import { getTodayDate } from '../lib/dates';
 
 const app = new Hono();
 
+export const MAX_TITLE_LENGTH = 120;
+
+/**
+ * Validate an optional title. Returns the trimmed title (or null for blank),
+ * or an error string.
+ */
+function parseTitle(raw: unknown): { title: string | null } | { error: string } {
+  if (raw === undefined || raw === null) return { title: null };
+  if (typeof raw !== 'string') return { error: 'title must be a string' };
+  const title = raw.trim();
+  if (title.length > MAX_TITLE_LENGTH) {
+    return { error: `title must be ${MAX_TITLE_LENGTH} characters or fewer` };
+  }
+  return { title: title || null };
+}
+
 const withParsedFields = (e: JournalEntryRow) => ({
   ...e,
   corrections: e.corrections ? JSON.parse(e.corrections) : null,
@@ -116,10 +132,12 @@ app.get('/stats', (c) => {
 // POST /api/journal - create a new draft entry
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
-  const { body, entryDate, language } = await c.req.json();
+  const { body, title, entryDate, language } = await c.req.json();
   if (body !== undefined && typeof body !== 'string') {
     return c.json({ error: 'body must be a string' }, 400);
   }
+  const parsedTitle = parseTitle(title);
+  if ('error' in parsedTitle) return c.json({ error: parsedTitle.error }, 400);
   const entryDateError = validateDateKey(entryDate, 'entryDate');
   if (entryDateError) return c.json({ error: entryDateError }, 400);
   const languageError = validateOptionalLanguage(language);
@@ -130,7 +148,7 @@ app.post('/', async (c) => {
   const bodyText = body || '';
   const wordCount = countTypedWords(bodyText, getLanguageConfig(lang));
   const id = randomUUID();
-  const contentBytes = journalContentBytes({ body: bodyText });
+  const contentBytes = journalContentBytes({ title: parsedTitle.title, body: bodyText });
   const checks: AtomicLimitCheck[] = [
     { metric: 'maxJournalEntries' },
     ...(wordCount > 0 ? [{ metric: 'journalWordsPerMonth' as const, requested: wordCount }] : []),
@@ -144,9 +162,9 @@ app.post('/', async (c) => {
   // without the save landing (#222 review).
   const verdict = entitlements.reserveCount(userId, checks, () => {
     db.prepare(
-      `INSERT INTO journal_entries (id, body, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
-       VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
-    ).run(id, bodyText, wordCount, date, lang, now, now, userId);
+      `INSERT INTO journal_entries (id, title, body, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
+       VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
+    ).run(id, parsedTitle.title, bodyText, wordCount, date, lang, now, now, userId);
     if (wordCount > 0) entitlements.recordUsage(userId, 'journalWordsPerMonth', wordCount);
   });
 
@@ -170,7 +188,7 @@ app.get('/:id', (c) => {
   return c.json(withParsedFields(entry));
 });
 
-// PUT /api/journal/:id - update draft body
+// PUT /api/journal/:id - update draft body, title, status, or revision
 app.put('/:id', async (c) => {
   const id = c.req.param('id');
   const userId = getCurrentUserId(c);
@@ -180,6 +198,9 @@ app.put('/:id', async (c) => {
   if (body.body !== undefined && typeof body.body !== 'string') {
     return c.json({ error: 'body must be a string' }, 400);
   }
+  // The title is metadata, not graded text, so a saved entry can still take one.
+  const parsedTitle = body.title !== undefined ? parseTitle(body.title) : null;
+  if (parsedTitle && 'error' in parsedTitle) return c.json({ error: parsedTitle.error }, 400);
 
   const existing = db
     .prepare('SELECT * FROM journal_entries WHERE id = ? AND userId = ? AND language = ?')
@@ -212,7 +233,13 @@ app.put('/:id', async (c) => {
   const updates: string[] = ['updatedAt = ?'];
   const values: SQLQueryBindings[] = [now];
   let grown = 0;
-  let nextContentBytes = journalContentBytes(existing);
+  const nextRow = { ...existing };
+
+  if (parsedTitle) {
+    updates.push('title = ?');
+    nextRow.title = parsedTitle.title;
+    values.push(parsedTitle.title);
+  }
 
   if (body.body !== undefined) {
     updates.push('body = ?', 'wordCount = ?');
@@ -221,7 +248,7 @@ app.put('/:id', async (c) => {
     // double-charge the month's allowance. `existing.wordCount` was read above
     // in the same synchronous tick (no await since), so it can't be stale.
     grown = wordCount - existing.wordCount;
-    nextContentBytes = journalContentBytes({ ...existing, body: body.body });
+    nextRow.body = body.body;
     values.push(body.body, wordCount);
   }
 
@@ -231,13 +258,11 @@ app.put('/:id', async (c) => {
 
   if (body.revision !== undefined) {
     updates.push('revision = ?');
-    nextContentBytes = journalContentBytes({
-      ...existing,
-      body: body.body !== undefined ? body.body : existing.body,
-      revision: body.revision,
-    });
+    nextRow.revision = body.revision;
     values.push(body.revision);
   }
+
+  const nextContentBytes = journalContentBytes(nextRow);
 
   values.push(id);
   values.push(userId);

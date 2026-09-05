@@ -14,6 +14,8 @@ const FACE_LABELS: Record<JournalFace, string> = {
 
 export default function NotebookPage({
   title,
+  titlePlaceholder,
+  onTitleChange,
   entryDate,
   faces,
   face,
@@ -25,6 +27,10 @@ export default function NotebookPage({
   children,
 }: {
   title: string;
+  /** Shown in the title input when the learner has not typed a title. */
+  titlePlaceholder?: string;
+  /** When set, the header renders an input instead of a heading. */
+  onTitleChange?: (title: string) => void;
   entryDate: string;
   faces: JournalFace[];
   face: JournalFace;
@@ -38,13 +44,29 @@ export default function NotebookPage({
   const { day, month, year } = splitDateParts(entryDate);
 
   return (
-    <div className="relative flex min-h-[32rem] flex-1 flex-col">
+    <div className="relative flex min-h-[32rem] min-w-0 flex-1 flex-col md:min-h-0">
       <div className="absolute inset-y-3 -left-2 w-3 rounded-l-sm bg-[color-mix(in_srgb,var(--lip)_80%,var(--card))] md:inset-y-4" />
-      <div className="journal-spine relative flex min-h-[32rem] flex-1 flex-col overflow-hidden rounded-l-sm rounded-r-2xl border border-border bg-card">
-        <header className="flex h-16 items-center gap-3 border-b border-[var(--lip)] px-5 sm:px-8">
-          <h2 className="mr-auto truncate font-reading text-lg text-foreground sm:text-xl">
-            {title}
-          </h2>
+      <div className="journal-spine relative flex min-h-[32rem] flex-1 flex-col overflow-hidden rounded-l-sm rounded-r-2xl border border-border bg-card md:min-h-0">
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--lip)] px-5 sm:px-8">
+          {onTitleChange ? (
+            <input
+              type="text"
+              value={title}
+              onChange={(event) => onTitleChange(event.target.value)}
+              placeholder={titlePlaceholder}
+              maxLength={120}
+              aria-label="Entry title"
+              data-testid="journal-title-input"
+              className="mr-auto min-w-0 flex-1 truncate bg-transparent font-reading text-lg text-foreground placeholder:text-muted-foreground/70 focus:outline-none sm:text-xl"
+            />
+          ) : (
+            <h2
+              className="mr-auto truncate font-reading text-lg text-foreground sm:text-xl"
+              data-testid="journal-title"
+            >
+              {title}
+            </h2>
+          )}
           <div className="flex items-center gap-1 font-reading text-sm tracking-wide text-muted-foreground">
             <DateCell value={day} />
             <span>/</span>
@@ -54,12 +76,14 @@ export default function NotebookPage({
           </div>
         </header>
 
-        <div className="relative flex-1">
-          <div className="journal-margin absolute top-0 bottom-0 left-10 w-px sm:left-14" />
-          <div className="journal-lines h-full min-h-[24rem] pl-12 sm:pl-16">{children}</div>
+        <div className="relative flex-1 md:min-h-0 md:overflow-y-auto">
+          <div className="journal-lines relative flex min-h-[24rem] flex-col pl-12 sm:pl-16 md:min-h-full [&>*]:flex-1">
+            <div className="journal-margin absolute top-0 bottom-0 left-10 w-px sm:left-14" />
+            {children}
+          </div>
         </div>
 
-        <footer className="flex items-center justify-between gap-2 border-t border-[var(--lip)] px-3 py-2 sm:px-5">
+        <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-[var(--lip)] px-3 py-2 sm:px-5">
           <Button
             type="button"
             variant="ghost"

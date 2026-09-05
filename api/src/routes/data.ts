@@ -663,6 +663,9 @@ app.post(
       if (typeof row.body !== 'string') {
         return c.json({ error: 'journalEntries.body must be a string' }, 400);
       }
+      if (row.title !== undefined && row.title !== null && typeof row.title !== 'string') {
+        return c.json({ error: 'journalEntries.title must be a string or null' }, 400);
+      }
       if (row.status !== 'draft' && row.status !== 'submitted') {
         return c.json({ error: "journalEntries.status must be 'draft' or 'submitted'" }, 400);
       }
@@ -927,6 +930,7 @@ app.post(
     for (const row of data.journalEntries ?? []) {
       finalJournal.set(row.id as string, {
         ...row,
+        title: row.title ?? null,
         correctedBody: row.correctedBody ?? null,
         corrections: row.corrections ?? null,
       });
@@ -1408,10 +1412,10 @@ app.post(
       if (data.journalEntries?.length) {
         const stmt = db.prepare(`
           INSERT INTO journal_entries
-            (id, body, correctedBody, corrections, revision, critique, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, title, body, correctedBody, corrections, revision, critique, status, wordCount, entryDate, language, createdAt, updatedAt, userId)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(userId, id) DO UPDATE SET
-            body = excluded.body, correctedBody = excluded.correctedBody,
+            title = excluded.title, body = excluded.body, correctedBody = excluded.correctedBody,
             corrections = excluded.corrections, revision = excluded.revision,
             critique = excluded.critique, status = excluded.status,
             wordCount = excluded.wordCount, entryDate = excluded.entryDate,
@@ -1423,6 +1427,7 @@ app.post(
           const wordCount = countTypedWords(entry.body, packFor(entry.language));
           stmt.run(
             entry.id,
+            entry.title ?? null,
             entry.body,
             entry.correctedBody ?? null,
             entry.corrections ?? null,

@@ -138,6 +138,7 @@ function createOldSchema(db: Database) {
 
     CREATE TABLE journal_entries (
       id TEXT PRIMARY KEY,
+      title TEXT,
       body TEXT NOT NULL DEFAULT '',
       correctedBody TEXT,
       corrections TEXT,

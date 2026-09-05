@@ -175,8 +175,8 @@ export function buildUserExport(userId: string): UserExport {
     journalEntries: portableRows(
       db
         .prepare(
-          `SELECT id, body, correctedBody, corrections, revision, critique, status, wordCount, language,
-                  entryDate, createdAt, updatedAt
+          `SELECT id, title, body, correctedBody, corrections, revision, critique, status, wordCount,
+                  language, entryDate, createdAt, updatedAt
            FROM journal_entries WHERE userId = ?`,
         )
         .all(userId),

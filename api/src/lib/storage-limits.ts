@@ -49,6 +49,7 @@ export function clozeContentBytes(input: {
 }
 
 export function journalContentBytes(input: {
+  title?: unknown;
   body?: unknown;
   correctedBody?: unknown;
   corrections?: unknown;
@@ -56,6 +57,7 @@ export function journalContentBytes(input: {
   critique?: unknown;
 }): number {
   return (
+    utf8Bytes(input.title) +
     utf8Bytes(input.body) +
     utf8Bytes(input.correctedBody) +
     utf8Bytes(input.corrections) +

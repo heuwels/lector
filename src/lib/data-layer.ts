@@ -14,6 +14,7 @@ import {
   lookupByVocabKeys,
 } from './languages';
 import { apiFetch, apiUrl } from './api-base';
+import { dateStringInTimeZone } from './dates';
 import { activeTenantId, readLanguageCache } from './language-cache';
 import { cachedQuery, clearTenantQueries, invalidateQueries, type QueryKey } from './query-cache';
 
@@ -1065,6 +1066,8 @@ export interface JournalWordStats {
 
 export interface JournalEntry {
   id: string;
+  /** Learner-written title. The UI falls back to the first line of the body. */
+  title: string | null;
   body: string;
   correctedBody: string | null;
   corrections: Correction[] | null;
@@ -1096,29 +1099,33 @@ export async function getJournalEntry(id: string): Promise<JournalEntry | undefi
   return res.json();
 }
 
-export function createJournalEntry(body: string): Promise<Response> {
-  const entryDate = new Date().toISOString().split('T')[0];
+export function createJournalEntry(body: string, title?: string): Promise<Response> {
+  // The learner's calendar day, not UTC: an evening entry in Melbourne is still today.
+  const entryDate = dateStringInTimeZone(
+    new Date(),
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
 
   return apiFetch('/api/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body, entryDate, language: getActiveLanguage() }),
+    body: JSON.stringify({ body, title, entryDate, language: getActiveLanguage() }),
   });
 }
 
-export function updateJournalDraft(id: string, body: string): Promise<Response> {
+export function updateJournalDraft(id: string, body: string, title?: string): Promise<Response> {
   return apiFetch(`/api/journal/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body, title }),
   });
 }
 
-export function saveJournalEntry(id: string, body: string): Promise<Response> {
+export function saveJournalEntry(id: string, body: string, title?: string): Promise<Response> {
   return apiFetch(`/api/journal/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body, status: 'submitted' }),
+    body: JSON.stringify({ body, title, status: 'submitted' }),
   });
 }
 

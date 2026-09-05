@@ -94,6 +94,55 @@ describe('journal route', () => {
     expect(row.wordCount).toBe(3);
   });
 
+  test('POST / and PUT /:id store a trimmed title, and blank clears it', async () => {
+    const created = await app.request('/?language=af', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        body: 'Dag een',
+        title: '  My eerste dag  ',
+        entryDate: '2026-01-01',
+      }),
+    });
+    expect(created.status).toBe(200);
+    const { id } = (await created.json()) as { id: string };
+
+    let res = await app.request(`/${id}?language=af`);
+    expect(((await res.json()) as { title: string | null }).title).toBe('My eerste dag');
+
+    // A saved entry locks its body but still takes a title.
+    res = await app.request(`/${id}?language=af`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'submitted' }),
+    });
+    expect(res.status).toBe(200);
+    res = await app.request(`/${id}?language=af`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Later titel' }),
+    });
+    expect(res.status).toBe(200);
+    res = await app.request(`/${id}?language=af`);
+    expect(((await res.json()) as { title: string | null }).title).toBe('Later titel');
+
+    res = await app.request(`/${id}?language=af`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: '   ' }),
+    });
+    expect(res.status).toBe(200);
+    res = await app.request(`/${id}?language=af`);
+    expect(((await res.json()) as { title: string | null }).title).toBeNull();
+
+    res = await app.request(`/${id}?language=af`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'x'.repeat(121) }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   test('GET /:id returns 404 for a missing entry', async () => {
     expect((await app.request('/nope')).status).toBe(404);
   });
