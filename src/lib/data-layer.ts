@@ -14,6 +14,7 @@ import {
   lookupByVocabKeys,
 } from './languages';
 import { apiFetch, apiUrl } from './api-base';
+import { dateStringInTimeZone } from './dates';
 import { activeTenantId, readLanguageCache } from './language-cache';
 import { cachedQuery, clearTenantQueries, invalidateQueries, type QueryKey } from './query-cache';
 
@@ -1052,11 +1053,26 @@ export interface Correction {
   type: 'grammar' | 'spelling' | 'word_choice' | 'word_order' | 'missing_word' | 'extra_word';
 }
 
+export interface JournalCritique {
+  strengths: string[];
+  weaknesses: string[];
+}
+
+export interface JournalWordStats {
+  month: number;
+  year: number;
+  lifetime: number;
+}
+
 export interface JournalEntry {
   id: string;
+  /** Learner-written title. The UI falls back to the first line of the body. */
+  title: string | null;
   body: string;
   correctedBody: string | null;
   corrections: Correction[] | null;
+  revision: string | null;
+  critique: JournalCritique | null;
   status: 'draft' | 'submitted';
   wordCount: number;
   entryDate: string;
@@ -1083,31 +1099,60 @@ export async function getJournalEntry(id: string): Promise<JournalEntry | undefi
   return res.json();
 }
 
-export function createJournalEntry(body: string): Promise<Response> {
-  const entryDate = new Date().toISOString().split('T')[0];
+export function createJournalEntry(body: string, title?: string): Promise<Response> {
+  // The learner's calendar day, not UTC: an evening entry in Melbourne is still today.
+  const entryDate = dateStringInTimeZone(
+    new Date(),
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
 
   return apiFetch('/api/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body, entryDate, language: getActiveLanguage() }),
+    body: JSON.stringify({ body, title, entryDate, language: getActiveLanguage() }),
   });
 }
 
-export function updateJournalDraft(id: string, body: string): Promise<Response> {
+export function updateJournalDraft(id: string, body: string, title?: string): Promise<Response> {
   return apiFetch(`/api/journal/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body, title }),
   });
 }
 
-export async function submitJournalForCorrection(
-  id: string,
-): Promise<{ correctedBody: string; corrections: Correction[] }> {
+export function saveJournalEntry(id: string, body: string, title?: string): Promise<Response> {
+  return apiFetch(`/api/journal/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, title, status: 'submitted' }),
+  });
+}
+
+export function updateJournalRevision(id: string, revision: string): Promise<Response> {
+  return apiFetch(`/api/journal/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revision }),
+  });
+}
+
+export async function getJournalWordStats(): Promise<JournalWordStats> {
+  const res = await apiFetch(`/api/journal/stats${langParam('?')}`);
+  if (!res.ok) return { month: 0, year: 0, lifetime: 0 };
+  return res.json();
+}
+
+export async function submitJournalForCorrection(id: string): Promise<{
+  correctedBody: string;
+  corrections: Correction[];
+  critique: JournalCritique | null;
+}> {
   const res = await apiFetch(`/api/journal/${id}/correct`, { method: 'POST' });
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Correction failed');
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    // The status rides along so a 429 caller can defer to the plan-limit toast.
+    throw Object.assign(new Error(err.error || 'Correction failed'), { status: res.status });
   }
   return res.json();
 }

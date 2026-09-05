@@ -420,6 +420,30 @@
   .reading-sweep > i:nth-child(3)::after {
     animation-delay: 0.36s;
   }
+
+  /* Journal notebook: lined paper, a bound spine, and a red margin rule. */
+  .journal-spine {
+    box-shadow:
+      inset 10px 0 14px -12px color-mix(in srgb, var(--foreground) 28%, transparent),
+      0 1px 0 var(--border);
+  }
+  /* The pinned action bar has a solid background, so it repaints the spine
+     shadow the parent draws beneath it. */
+  .journal-actions {
+    box-shadow: inset 10px 0 14px -12px color-mix(in srgb, var(--foreground) 28%, transparent);
+  }
+  .journal-lines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent calc(2rem - 1px),
+      color-mix(in srgb, var(--lip) 100%, var(--border)) 2rem
+    );
+    background-position-y: 0;
+  }
+  .journal-margin {
+    background: color-mix(in srgb, var(--destructive) 55%, var(--lip));
+  }
 }
 
 @keyframes spin-ring-turn {
