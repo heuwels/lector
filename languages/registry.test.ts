@@ -97,6 +97,7 @@ describe('registry pronunciation conformance', () => {
     ['cs', 'ces'],
     ['id', 'ind'],
     ['sv', 'swe'],
+    ['nb', 'nob'],
     ['fi', 'fin'],
     ['hu', 'hun'],
   ] as const)('%s declares no fold locale and no apostrophe seam', (code, tatoebaCode) => {
@@ -112,13 +113,16 @@ describe('registry pronunciation conformance', () => {
     expect(pack.script.kind).toBe('alpha-spaced');
   });
 
-  it('Finnish and Hungarian keep the Polish control-case seams and name their voices', () => {
+  it('Finnish, Hungarian and Norwegian keep the Polish control-case seams and name their voices', () => {
     expect(LANGUAGES.fi.ttsCode).toBe('fi-FI');
     expect(LANGUAGES.fi.ttsVoice).toBe('fi-FI-Standard-B');
     expect(LANGUAGES.fi.pronunciation.audio).toEqual(['google']);
     expect(LANGUAGES.hu.ttsCode).toBe('hu-HU');
     expect(LANGUAGES.hu.ttsVoice).toBe('hu-HU-Standard-B');
     expect(LANGUAGES.hu.pronunciation.audio).toEqual(['google']);
+    expect(LANGUAGES.nb.ttsCode).toBe('nb-NO');
+    expect(LANGUAGES.nb.ttsVoice).toBe('nb-NO-Standard-A');
+    expect(LANGUAGES.nb.pronunciation.audio).toEqual(['google']);
   });
 
   it('Modern Greek reuses the Koine script seams and stays a separate pack', () => {

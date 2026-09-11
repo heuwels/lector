@@ -630,6 +630,22 @@ const PROFILES: Record<string, LangProfile> = {
     coverageCorpusRel: 'scripts/coverage-corpus-sv.txt',
     glossFilter: true,
   },
+  nb: {
+    // Canonical /Norwegian Bokmål/ URL. The directory keeps the space and å;
+    // the filename drops the space, matching Ancient Greek.
+    kaikkiUrls: [
+      'https://kaikki.org/dictionary/Norwegian%20Bokm%C3%A5l/kaikki.org-dictionary-NorwegianBokm%C3%A5l.jsonl',
+    ],
+    // a-z plus æ ø å. The apostrophe is a token boundary, matching sv/pl/cs.
+    // Hyphen stays a word char for compounds.
+    letterClass: 'a-zæøåA-ZÆØÅ-',
+    prefixes: [],
+    suffixes: [],
+    vowels: 'aeiouyæøå',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-nb.txt',
+    glossFilter: true,
+  },
   la: {
     // Canonical /Latin/ URL. 1.1 GB / ~840k words — Wiktionary's Latin
     // inflection coverage is near-total, so the streaming path is required.

@@ -106,6 +106,7 @@ Language packs ship for:
 - Korean
 - Latin
 - Mandarin Chinese
+- Norwegian
 - Polish
 - Portuguese
 - Russian

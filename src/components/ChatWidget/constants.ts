@@ -92,6 +92,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What is the difference between the imperfect and the perfect?',
     'When do I use the ablative versus the accusative?',
   ],
+  nb: [
+    'How does the definite suffix work, as in "hus" → "huset" → "husene"?',
+    'When do I use "en", "ei", and "et"?',
+    'What is the difference between "er" and "blir"?',
+  ],
   nl: [
     'When do I use "de" vs "het" as a noun\'s article?',
     'How do separable verbs work (e.g. "opbellen", "meenemen")?',

@@ -189,6 +189,7 @@ const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   pl: () => import('../lib/sentence-bank-pl.json'),
   pt: () => import('../lib/sentence-bank-pt.json'),
   ru: () => import('../lib/sentence-bank-ru.json'),
+  nb: () => import('../lib/sentence-bank-nb.json'),
   sv: () => import('../lib/sentence-bank-sv.json'),
   tr: () => import('../lib/sentence-bank-tr.json'),
   uk: () => import('../lib/sentence-bank-uk.json'),

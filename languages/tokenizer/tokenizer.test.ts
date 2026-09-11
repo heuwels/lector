@@ -159,6 +159,12 @@ const CORPUS: Record<
     'Hon läste tidningen — sedan drack hon kaffe.',
     'Han sa: „Det här är mitt hus.“',
   ],
+  nb: [
+    'Hei! Hvordan har du det?',
+    'Jeg kjøpte en ny bok for femti kroner år 1999.',
+    'Hun leste avisen — deretter drakk hun kaffe.',
+    'Han sa: „Dette er huset mitt.“',
+  ],
 };
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
@@ -847,6 +853,40 @@ describe('Swedish pack (real manifest)', () => {
   it('snaps a mid-word selection to Swedish word boundaries', () => {
     const text = 'Jag läser boken';
     expect(snapToWordBoundaries(text, 11, 13, sv)).toEqual({ start: 10, end: 15 });
+  });
+});
+
+const nb = LANGUAGES.nb;
+
+describe('Norwegian pack (real manifest)', () => {
+  it('keeps æ ø å inside word tokens', () => {
+    expect(tokenizeWords('Her er en rød bjørn.', nb).map((t) => t.text)).toEqual([
+      'Her',
+      'er',
+      'en',
+      'rød',
+      'bjørn',
+    ]);
+  });
+
+  it('joins hyphenated compounds', () => {
+    expect(tokenizeWords('Det er et sykehus-område.', nb).map((t) => t.text)).toEqual([
+      'Det',
+      'er',
+      'et',
+      'sykehus-område',
+    ]);
+  });
+
+  it('folds case with the default Unicode mapping', () => {
+    expect(foldWord('BOK', nb)).toBe('bok');
+    expect(foldWord('Her', nb)).toBe('her');
+    expect(foldWord('BJØRN', nb)).toBe('bjørn');
+  });
+
+  it('snaps a mid-word selection to Norwegian word boundaries', () => {
+    const text = 'Jeg leser boken';
+    expect(snapToWordBoundaries(text, 11, 13, nb)).toEqual({ start: 10, end: 15 });
   });
 });
 
@@ -1678,6 +1718,7 @@ describe('clozeTokens', () => {
     ['el', 'Αυτό είναι ένα καλό βιβλίο.'],
     ['fi', 'Tämä on suomalainen päivä.'],
     ['hu', 'Ez egy jó könyv.'],
+    ['nb', 'Dette er en norsk dag.'],
   ] as Array<[LanguageCode, string]>)(
     'keeps the whitespace split for %s so stored indices cannot move',
     (code, sentence) => {

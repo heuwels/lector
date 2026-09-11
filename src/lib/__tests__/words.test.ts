@@ -240,6 +240,14 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Jag köpte en ny bok.', 'bo', sv)).toBe(false);
   });
 
+  it('matches Norwegian tokens through the default case fold', () => {
+    const norwegian = LANGUAGES.nb;
+    expect(sentenceContainsWord('Jeg kjøpte en ny bok.', 'bok', norwegian)).toBe(true);
+    expect(sentenceContainsWord('Her er en rød bjørn.', 'bjørn', norwegian)).toBe(true);
+    expect(sentenceContainsWord('Hun leste avisen.', 'avisen', norwegian)).toBe(true);
+    expect(sentenceContainsWord('Jeg kjøpte en ny bok.', 'bo', norwegian)).toBe(false);
+  });
+
   it('matches Finnish tokens through the default case fold', () => {
     const fi = LANGUAGES.fi;
     expect(sentenceContainsWord('Ostin uuden kirjan.', 'kirjan', fi)).toBe(true);

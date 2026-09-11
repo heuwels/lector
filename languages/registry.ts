@@ -29,6 +29,7 @@ import { it } from './it/manifest';
 import { ja } from './ja/manifest';
 import { ko } from './ko/manifest';
 import { la } from './la/manifest';
+import { nb } from './nb/manifest';
 import { nl } from './nl/manifest';
 import { pl } from './pl/manifest';
 import { pt } from './pt/manifest';
@@ -61,6 +62,7 @@ const MANIFESTS = {
   ja,
   ko,
   la,
+  nb,
   nl,
   pl,
   pt,

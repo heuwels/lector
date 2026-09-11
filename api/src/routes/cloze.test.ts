@@ -28,6 +28,7 @@ const HI_TATOEBA_IDS = [1701, 1702];
 const EL_TATOEBA_IDS = [1801, 1802];
 const FI_TATOEBA_IDS = [1901, 1902];
 const HU_TATOEBA_IDS = [2101, 2102];
+const NB_TATOEBA_IDS = [2201, 2202];
 const GRC_VERSE_IDS = [40010010, 40030160];
 
 mock.module('../lib/sentence-bank-af.json', () => ({
@@ -552,6 +553,29 @@ mock.module('../lib/sentence-bank-hu.json', () => ({
   ],
 }));
 
+mock.module('../lib/sentence-bank-nb.json', () => ({
+  default: [
+    {
+      id: 2201,
+      text: 'Jeg kjøpte en ny bok i går.',
+      translation: 'I bought a new book yesterday.',
+      clozeWord: 'bok',
+      clozeIndex: 4,
+      wordRank: 45,
+      collection: 'top500',
+    },
+    {
+      id: 2202,
+      text: 'Her er en rød bjørn.',
+      translation: 'Here is a red bear.',
+      clozeWord: 'bjørn',
+      clozeIndex: 4,
+      wordRank: 110,
+      collection: 'top500',
+    },
+  ],
+}));
+
 const { default: app } = await import('../routes/cloze');
 
 function setActiveLanguage(code: string) {
@@ -563,7 +587,7 @@ function setActiveLanguage(code: string) {
 
 function reset() {
   db.prepare(
-    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...UK_TATOEBA_IDS, ...PL_TATOEBA_IDS, ...CS_TATOEBA_IDS, ...ID_TATOEBA_IDS, ...SV_TATOEBA_IDS, ...LA_TATOEBA_IDS, ...HI_TATOEBA_IDS, ...EL_TATOEBA_IDS, ...FI_TATOEBA_IDS, ...HU_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
+    `DELETE FROM clozeSentences WHERE tatoebaSentenceId IN (${[...TATOEBA_IDS, ...DE_TATOEBA_IDS, ...EO_TATOEBA_IDS, ...FR_TATOEBA_IDS, ...IT_TATOEBA_IDS, ...NL_TATOEBA_IDS, ...PT_TATOEBA_IDS, ...RU_TATOEBA_IDS, ...TR_TATOEBA_IDS, ...UK_TATOEBA_IDS, ...PL_TATOEBA_IDS, ...CS_TATOEBA_IDS, ...ID_TATOEBA_IDS, ...SV_TATOEBA_IDS, ...LA_TATOEBA_IDS, ...HI_TATOEBA_IDS, ...EL_TATOEBA_IDS, ...FI_TATOEBA_IDS, ...HU_TATOEBA_IDS, ...NB_TATOEBA_IDS, ...GRC_VERSE_IDS].join(',')}) OR id IN (?, ?)`,
   ).run(MINED_ID, STORED_MINED_ID);
   db.prepare("DELETE FROM settings WHERE key = 'targetLanguage'").run();
 }
@@ -1110,6 +1134,32 @@ describe('POST /api/cloze/seed — lazy per-language bank', () => {
     expect(hu.every((r) => r.language === 'hu')).toBe(true);
     expect(hu.some((r) => r.clozeWord === 'könyvet')).toBe(true);
     expect(hu.some((r) => r.clozeWord === 'ház')).toBe(true);
+  });
+
+  test('seeds the Norwegian bank under nb, isolated from Hungarian', async () => {
+    setActiveLanguage('hu');
+    await app.request('/seed', { method: 'POST' });
+    setActiveLanguage('nb');
+    const res = await app.request('/seed', { method: 'POST' });
+    const body = (await res.json()) as { seeded: number };
+    expect(body.seeded).toBe(2);
+
+    const norwegian = db
+      .prepare(
+        `SELECT language, clozeWord FROM clozeSentences WHERE tatoebaSentenceId IN (${NB_TATOEBA_IDS.join(',')})`,
+      )
+      .all() as { language: string; clozeWord: string }[];
+    expect(norwegian.length).toBe(2);
+    expect(norwegian.every((r) => r.language === 'nb')).toBe(true);
+    expect(norwegian.some((r) => r.clozeWord === 'bok')).toBe(true);
+    expect(norwegian.some((r) => r.clozeWord === 'bjørn')).toBe(true);
+
+    const huUnderNb = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM clozeSentences WHERE language = 'nb' AND tatoebaSentenceId IN (${HU_TATOEBA_IDS.join(',')})`,
+      )
+      .get() as { c: number };
+    expect(huUnderNb.c).toBe(0);
   });
 
   test('re-seeding is idempotent for mined entries', async () => {
