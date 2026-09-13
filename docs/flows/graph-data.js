@@ -91,7 +91,7 @@
     md: "practice.md",
   });
   N("domain:journal", "domain", "Journal", {
-    summary: "Learner text in the target language, then tutor correction.",
+    summary: "A log of learner text. Correction, critique, and revision are extra.",
     md: "journal.md",
   });
   N("domain:tutor", "domain", "Tutor", {
@@ -266,14 +266,24 @@
     summary: "Row stays in the table. Due queries exclude it.",
     steps: ["file:practice-page", "route:cloze-put", "table:clozeSentences"],
   });
-  N("flow:journal-submit", "flow", "Submit journal for correction", {
+  N("flow:journal-save", "flow", "Save a journal entry", {
     domain: "journal",
-    md: "journal.md#submit-journal-for-correction",
-    summary: "Create or update a draft, then POST /api/journal/:id/correct. LLM returns correctedBody and corrections.",
+    md: "journal.md#save-a-journal-entry",
+    summary: "Save writes the body and sets status to submitted. No model call.",
     steps: [
-      "fn:journal-handleSubmit",
+      "fn:journal-handleSave",
       "fn:createJournalEntry",
       "route:journal-create",
+      "fn:saveJournalEntry",
+      "route:journal-put",
+    ],
+  });
+  N("flow:journal-submit", "flow", "Ask for a correction", {
+    domain: "journal",
+    md: "journal.md#ask-for-a-correction",
+    summary: "Get AI correction runs POST /api/journal/:id/correct. LLM returns correctedBody, corrections, and critique.",
+    steps: [
+      "fn:journal-handleCorrect",
       "fn:submitJournalForCorrection",
       "route:journal-correct",
       "fn:correctJournalText",
@@ -284,6 +294,12 @@
     md: "journal.md#save-journal-draft",
     summary: "Save Draft writes the row. No LLM call. After first create, a 3 second timer also writes.",
     steps: ["file:journal-page", "fn:createJournalEntry", "route:journal-create", "fn:updateJournalDraft", "route:journal-put"],
+  });
+  N("flow:journal-revision", "flow", "Add a revision", {
+    domain: "journal",
+    md: "journal.md#add-a-revision",
+    summary: "After a correction, the learner writes a revision. No model call.",
+    steps: ["fn:journal-handleSaveRevision", "fn:updateJournalRevision", "route:journal-put"],
   });
   N("flow:tutor-chat", "flow", "Tutor chat", {
     domain: "tutor",
@@ -623,9 +639,13 @@
   N("fn:commitRoundReview", "fn", "commitRoundReview", { path: "src/app/practice/use-cloze-round.ts" });
   N("fn:persistReview", "fn", "persistReview", { path: "src/app/practice/persist-review.ts" });
   N("fn:updateClozeAfterReview", "fn", "updateClozeAfterReview", { path: "src/lib/data-layer.ts" });
-  N("fn:journal-handleSubmit", "fn", "JournalPage.handleSubmit", { path: "src/app/journal/page.tsx" });
+  N("fn:journal-handleSave", "fn", "JournalPage.handleSave", { path: "src/app/journal/page.tsx" });
+  N("fn:journal-handleCorrect", "fn", "JournalPage.handleCorrect", { path: "src/app/journal/page.tsx" });
+  N("fn:journal-handleSaveRevision", "fn", "JournalPage.handleSaveRevision", { path: "src/app/journal/page.tsx" });
   N("fn:createJournalEntry", "fn", "createJournalEntry", { path: "src/lib/data-layer.ts" });
   N("fn:updateJournalDraft", "fn", "updateJournalDraft", { path: "src/lib/data-layer.ts" });
+  N("fn:saveJournalEntry", "fn", "saveJournalEntry", { path: "src/lib/data-layer.ts" });
+  N("fn:updateJournalRevision", "fn", "updateJournalRevision", { path: "src/lib/data-layer.ts" });
   N("fn:submitJournalForCorrection", "fn", "submitJournalForCorrection", { path: "src/lib/data-layer.ts" });
   N("fn:correctJournalText", "fn", "correctJournalText", { path: "api/src/lib/journal-correct.ts" });
   N("fn:getProvider", "fn", "getProvider", { path: "api/src/lib/llm/index.ts" });
@@ -699,6 +719,7 @@
   N("route:cloze-review", "route", "POST /api/cloze/:id/review", { path: "api/src/routes/cloze.ts" });
   N("route:cloze-put", "route", "PUT /api/cloze/:id", { path: "api/src/routes/cloze.ts" });
   N("route:journal-list", "route", "GET /api/journal", { path: "api/src/routes/journal.ts" });
+  N("route:journal-stats", "route", "GET /api/journal/stats", { path: "api/src/routes/journal.ts" });
   N("route:journal-create", "route", "POST /api/journal", { path: "api/src/routes/journal.ts" });
   N("route:journal-put", "route", "PUT /api/journal/:id", { path: "api/src/routes/journal.ts" });
   N("route:journal-correct", "route", "POST /api/journal/:id/correct", { path: "api/src/routes/journal.ts" });
@@ -832,7 +853,7 @@
   ]);
   domainFlows("vocabulary", ["flow:save-vocab", "flow:vocab-list", "flow:known-word-import"]);
   domainFlows("practice", ["flow:practice-word", "flow:dictation", "flow:blacklist"]);
-  domainFlows("journal", ["flow:journal-submit", "flow:journal-draft"]);
+  domainFlows("journal", ["flow:journal-save", "flow:journal-draft", "flow:journal-submit", "flow:journal-revision"]);
   domainFlows("tutor", ["flow:tutor-chat", "flow:cloze-explain"]);
   domainFlows("listen", ["flow:speak-word", "flow:listen-along", "flow:youtube-captions"]);
   domainFlows("anki", ["flow:anki-push", "flow:anki-sync"]);
@@ -859,7 +880,9 @@
   edge("flow:language-setup", "flow:practice-word", "then");
   edge("flow:cache-translation", "flow:translate-word", "then");
   edge("flow:phrase-selection", "flow:save-vocab", "then");
-  edge("flow:journal-draft", "flow:journal-submit", "then");
+  edge("flow:journal-draft", "flow:journal-save", "then");
+  edge("flow:journal-save", "flow:journal-submit", "then");
+  edge("flow:journal-submit", "flow:journal-revision", "then");
 
   // ── Load library item ─────────────────────────────────────────────────────
 
@@ -1098,11 +1121,15 @@
 
   // ── Journal ───────────────────────────────────────────────────────────────
 
-  edge("flow:journal-submit", "fn:journal-handleSubmit", "starts");
-  edge("fn:journal-handleSubmit", "file:journal-page", "in");
-  edge("fn:journal-handleSubmit", "fn:createJournalEntry", "calls");
-  edge("fn:journal-handleSubmit", "fn:updateJournalDraft", "calls");
-  edge("fn:journal-handleSubmit", "fn:submitJournalForCorrection", "calls");
+  edge("flow:journal-save", "fn:journal-handleSave", "starts");
+  edge("fn:journal-handleSave", "file:journal-page", "in");
+  edge("fn:journal-handleSave", "fn:createJournalEntry", "calls");
+  edge("fn:journal-handleSave", "fn:saveJournalEntry", "calls");
+  edge("fn:saveJournalEntry", "file:data-layer", "in");
+  edge("fn:saveJournalEntry", "route:journal-put", "http");
+  edge("flow:journal-submit", "fn:journal-handleCorrect", "starts");
+  edge("fn:journal-handleCorrect", "file:journal-page", "in");
+  edge("fn:journal-handleCorrect", "fn:submitJournalForCorrection", "calls");
   edge("fn:createJournalEntry", "file:data-layer", "in");
   edge("fn:createJournalEntry", "route:journal-create", "http");
   edge("route:journal-create", "file:route-journal", "in");
@@ -1118,8 +1145,15 @@
   edge("route:journal-correct", "file:entitlements", "meters");
   edge("file:journal-page", "file:correction-view", "opens");
   edge("route:journal-list", "table:journal_entries", "reads");
+  edge("route:journal-stats", "file:route-journal", "in");
+  edge("route:journal-stats", "table:journal_entries", "reads");
   edge("flow:journal-draft", "fn:createJournalEntry", "calls");
   edge("flow:journal-draft", "fn:updateJournalDraft", "calls");
+  edge("flow:journal-revision", "fn:journal-handleSaveRevision", "starts");
+  edge("fn:journal-handleSaveRevision", "file:journal-page", "in");
+  edge("fn:journal-handleSaveRevision", "fn:updateJournalRevision", "calls");
+  edge("fn:updateJournalRevision", "file:data-layer", "in");
+  edge("fn:updateJournalRevision", "route:journal-put", "http");
   edge("fn:completeJson", "file:llm", "in");
 
   // ── Tutor ─────────────────────────────────────────────────────────────────

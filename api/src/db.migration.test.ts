@@ -138,9 +138,12 @@ function createOldSchema(db: Database) {
 
     CREATE TABLE journal_entries (
       id TEXT PRIMARY KEY,
+      title TEXT,
       body TEXT NOT NULL DEFAULT '',
       correctedBody TEXT,
       corrections TEXT,
+      revision TEXT,
+      critique TEXT,
       status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
       wordCount INTEGER DEFAULT 0,
       entryDate TEXT NOT NULL,

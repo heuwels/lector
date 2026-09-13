@@ -3,49 +3,44 @@ import CorrectionBadge from './CorrectionBadge';
 import HighlightedText from './HighlightedText';
 
 export default function CorrectionView({ entry }: { entry: JournalEntry }) {
-  const corrections = entry.corrections || [];
+  const corrections = entry.corrections ?? [];
 
   return (
-    <div className="space-y-6">
-      {/* Original with inline highlights */}
+    <div className="space-y-6 px-5 py-4">
       <div>
-        <h3 className="mb-2 text-sm font-medium text-muted-foreground">Your text</h3>
-        <div className="rounded-lg bg-muted p-4 text-sm leading-relaxed whitespace-pre-wrap">
+        <h3 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          Your text
+        </h3>
+        <div className="font-reading text-base leading-8 whitespace-pre-wrap">
           <HighlightedText body={entry.body} corrections={corrections} />
         </div>
         {corrections.length > 0 && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Click highlighted words to see corrections
-          </p>
+          <p className="mt-2 text-xs text-muted-foreground">Tap a marked word to see the fix.</p>
         )}
       </div>
 
-      {/* Corrected version */}
       {entry.correctedBody && entry.correctedBody !== entry.body && (
         <div>
-          <h3 className="mb-2 text-sm font-medium text-muted-foreground">Corrected</h3>
-          <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] p-4 text-sm leading-relaxed whitespace-pre-wrap">
+          <h3 className="mb-1 text-xs font-medium tracking-wide text-primary uppercase">
+            Corrected
+          </h3>
+          <div className="font-reading text-base leading-8 whitespace-pre-wrap text-foreground">
             {entry.correctedBody}
           </div>
         </div>
       )}
 
-      {/* Summary */}
       {corrections.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            {corrections.length} correction{corrections.length !== 1 ? 's' : ''}:
+            {corrections.length} correction{corrections.length === 1 ? '' : 's'}:
           </span>
-          {corrections.map((c, i) => (
-            <CorrectionBadge key={i} type={c.type} />
+          {corrections.map((correction, index) => (
+            <CorrectionBadge key={index} type={correction.type} />
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] p-4 text-center">
-          <p className="font-medium text-primary">
-            Perfect! No corrections needed.
-          </p>
-        </div>
+        <p className="font-reading text-base leading-8 text-primary">Perfect. No corrections.</p>
       )}
     </div>
   );

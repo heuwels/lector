@@ -6025,11 +6025,18 @@
                 "properties": {
                   "body": {
                     "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "submitted"
+                    ]
+                  },
+                  "revision": {
+                    "type": "string"
                   }
-                },
-                "required": [
-                  "body"
-                ]
+                }
               }
             }
           }
@@ -6046,7 +6053,7 @@
             }
           },
           "400": {
-            "description": "The entry is already submitted, so the text is locked.",
+            "description": "The body is locked, or the revision is not allowed yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6121,7 +6128,7 @@
       "post": {
         "operationId": "postApiJournalByIdCorrect",
         "summary": "Correct a journal entry",
-        "description": "Runs the language model over the entry, stores the corrected text, and sets the status to `submitted`.",
+        "description": "Runs the language model over the entry. Stores the corrected text and a critique. Sets the status to `submitted`.",
         "tags": [
           "Journal"
         ],
@@ -6157,6 +6164,26 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Correction"
+                      }
+                    },
+                    "critique": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "strengths": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "weaknesses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
                       }
                     }
                   }
@@ -6224,6 +6251,97 @@
           }
         ],
         "x-token-scope": "collections:write"
+      }
+    },
+    "/api/journal/stats": {
+      "get": {
+        "operationId": "getApiJournalStats",
+        "summary": "Count words in saved journal entries",
+        "tags": [
+          "Journal"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LanguageQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Word counts for submitted entries in the open language.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "type": "integer"
+                    },
+                    "year": {
+                      "type": "integer"
+                    },
+                    "lifetime": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "month",
+                    "year",
+                    "lifetime"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential is missing, invalid or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token does not carry the scope this endpoint needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A plan limit or a rate limit stopped the call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanLimitError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The API failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalAccessToken": []
+          },
+          {
+            "SessionCookie": []
+          }
+        ],
+        "x-token-scope": "collections:read"
       }
     },
     "/api/known-words": {
@@ -11872,6 +11990,34 @@
               "$ref": "#/components/schemas/Correction"
             }
           },
+          "revision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The learner revision after a correction. No model call."
+          },
+          "critique": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Strengths and weak points from the correction pass.",
+            "properties": {
+              "strengths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "weaknesses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -12230,6 +12376,19 @@
               "null"
             ],
             "description": "The corrections, as a JSON string."
+          },
+          "revision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "critique": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The critique, as a JSON string."
           },
           "status": {
             "type": "string",
