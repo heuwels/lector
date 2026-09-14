@@ -90,6 +90,7 @@ Language packs ship for:
 
 - Afrikaans
 - Bengali
+- Biblical Hebrew
 - Czech
 - Dutch
 - Esperanto

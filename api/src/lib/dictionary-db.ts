@@ -7,6 +7,7 @@ import {
   DEFAULT_LANGUAGE,
   foldWord,
   getLanguageConfig,
+  hebrewLooseKey,
   isValidLanguageCode,
   latinLookupVariants,
   stripMarks,
@@ -1108,6 +1109,41 @@ function resolveWord(
                 : 'form of';
             return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
           }
+        }
+      }
+    }
+
+    // Step 3-hbo: final-form fallback (#255). Running text and typed input
+    // mix ך/כ ם/מ ן/נ ף/פ ץ/צ. The build registers hebrewLooseKey of every
+    // key as an alias (type 'unpointed'); retry both steps with the loose key.
+    // Only after the exact steps missed, so מלך keeps its own entry.
+    if (language === 'hbo') {
+      const loose = hebrewLooseKey(lower);
+      if (loose !== lower) {
+        const looseExact = stmts.selectEntry.get(loose) as EntryRow | undefined;
+        if (looseExact) return buildEntry(looseExact, stmts, lower);
+        const looseInfl = stmts.selectInflectionLemma.get(loose) as
+          | { lemma: string; type: string | null }
+          | undefined;
+        if (looseInfl) {
+          const lemmaRow = stmts.selectEntry.get(looseInfl.lemma) as EntryRow | undefined;
+          if (lemmaRow) {
+            const label =
+              looseInfl.type && looseInfl.type !== 'unpointed'
+                ? `${looseInfl.type.replace(/,/g, ' ')} form of`
+                : 'form of';
+            return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
+          }
+        }
+      }
+      // Maqaf joins two lexemes into one reader token. The compound is not a
+      // headword. The host is last. Resolve each part after the compound
+      // itself missed; recursion is safe because a part has no maqaf.
+      if (lower.includes('\u05BE')) {
+        const parts = lower.split('\u05BE').filter((part) => part.length > 0);
+        for (const part of parts.reverse()) {
+          const host = resolveWord(userId, part, language);
+          if (host) return host;
         }
       }
     }

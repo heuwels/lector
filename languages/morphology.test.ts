@@ -188,6 +188,33 @@ describe('Arabic stemCandidates (#253)', () => {
   });
 });
 
+const hebrewMorph = LANGUAGES.hbo.morphology as MorphologyConfig;
+
+describe('Biblical Hebrew stemCandidates (#255)', () => {
+  it('peels one proclitic', () => {
+    expect(keys('והארץ', hebrewMorph)).toContain('הארץ');
+    expect(keys('השמים', hebrewMorph)).toContain('שמים');
+    expect(keys('בראשית', hebrewMorph)).toContain('ראשית');
+  });
+
+  it('peels a stack of prefixes', () => {
+    expect(keys('ובשמים', hebrewMorph)).toContain('שמים');
+    expect(keys('והשמים', hebrewMorph)).toContain('שמים');
+  });
+
+  it('peels a possessive suffix', () => {
+    // The peeler does not restore final forms. ארצו loses ו and leaves
+    // medial tzadi. Lookup still reaches ארץ via hebrewLooseKey aliases.
+    expect(keys('ארצו', hebrewMorph)).toContain('ארצ');
+    expect(keys('דברי', hebrewMorph)).toContain('דבר');
+  });
+
+  it('never peels a stem below two letters', () => {
+    for (const key of keys('כי', hebrewMorph)) expect(key.length).toBeGreaterThanOrEqual(2);
+    for (const key of keys('וכי', hebrewMorph)) expect(key.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe('maxPrefixes defaults to one pass', () => {
   it('does not stack prefixes for a pack that never asked to', () => {
     // id peels ONE voice prefix. `memberi` must not lose `mem` and then `beri`'s

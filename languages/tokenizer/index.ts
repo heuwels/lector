@@ -12,8 +12,8 @@
 //   Arabic-Indic digits (U+0660-0669) are deliberately NOT word characters —
 //   they act as boundaries, per #289.
 // - Only true hyphens join compounds: ASCII '-', U+2010 hyphen, U+2011
-//   non-breaking hyphen. En/em dashes and the Hebrew maqaf (U+05BE) are
-//   boundaries (maqaf-joined words are separate tokens, per #289 Phase 3).
+//   non-breaking hyphen. En/em dashes are boundaries. The Hebrew maqaf
+//   (U+05BE) is a boundary by default; hbo opts in via extraJoiners.
 // - Apostrophes split words by default (fr: l'eau → l + eau; nl: foto's →
 //   foto + s); packs opt into apostrophe-bearing tokens via
 //   `script.extraTokenPatterns` (af 'n), `script.extraWordChars`, or
