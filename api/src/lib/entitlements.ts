@@ -213,8 +213,8 @@ const DEFAULT_PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxCollectionGroups: 50,
     maxVocabEntries: 10_000,
     maxKnownWords: 25_000,
-    // Roughly two to three complete bundled language banks. Learners can delete
-    // an old bank before seeding another language; vocabulary remains portable.
+    // About two complete bundled banks. The seed route inserts only the rows
+    // that fit this ceiling, so a larger bank still opens Practice.
     maxClozeSentences: 25_000,
     maxAcceptedDictionaryEntries: 1_000,
     maxAcceptedDictionaryBytesTotal: 2 * 1024 * 1024,

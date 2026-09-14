@@ -1357,7 +1357,8 @@ const practiceOps: Record<string, OperationDoc> = {
   },
   'POST /api/cloze/seed': {
     summary: 'Seed cards from the built-in bank',
-    description: 'Adds the missing cards for the language. Repeat calls are safe.',
+    description:
+      'Adds the missing cards for the language. A Free plan inserts only the cards that fit the practice ceiling. Repeat calls are safe.',
     tag: 'Practice',
     sharedParams: LANG,
     responses: {
