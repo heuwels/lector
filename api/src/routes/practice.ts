@@ -8,10 +8,13 @@ const app = new Hono();
 
 // POST /api/practice/srs-queue
 // Returns a prioritized queue of up to 50 words for SRS review.
-// Body: { levels: number[], bookId?: string }
-// Filters: srs_level IN (levels) AND next_review <= NOW()
-// Optional book filter: word_id IN (SELECT word_id FROM book_words WHERE book_id = ?)
-// Sorting: ORDER BY next_review ASC, srs_level ASC
+// Body: { levels: number[], bookId?: string, language?: string }
+// The word's learning level lives in `state` (`level1`..`level7`) — the reader
+// assigns it and updateSRS advances it. A word is due when it has never been
+// reviewed (`next_review IS NULL`) or its scheduled date has passed.
+// Filters: state IN ('levelN' for the requested levels) AND next_review due
+// Optional book filter: vocab.bookId = ?
+// Sorting: ORDER BY next_review ASC (NULLs first), srs_level ASC
 // Limit: 50
 app.post('/srs-queue', async (c) => {
   const userId = getCurrentUserId(c);
@@ -39,17 +42,17 @@ app.post('/srs-queue', async (c) => {
   const safeLimit = 50;
   const lang = resolveLanguage(body.language, userId);
 
-  // Build the query
-  const placeholders = levels.map(() => '?').join(',');
-  const params: SQLQueryBindings[] = [userId, lang, new Date().toISOString(), ...levels];
+  // A level N word is stored as state 'levelN'.
+  const levelStates = levels.map((level: number) => `level${level}`);
+  const placeholders = levelStates.map(() => '?').join(',');
+  const params: SQLQueryBindings[] = [userId, lang, new Date().toISOString(), ...levelStates];
 
   let query = `
     SELECT * FROM vocab
     WHERE userId = ?
     AND language = ?
-    AND next_review IS NOT NULL
-    AND next_review <= ?
-    AND srs_level IN (${placeholders})
+    AND (next_review IS NULL OR next_review <= ?)
+    AND state IN (${placeholders})
   `;
 
   // Book filter: filter by vocab.bookId column

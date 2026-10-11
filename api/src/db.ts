@@ -605,6 +605,10 @@ function getDb(): Database {
   // (rebuilds assume the (userId, id) PK) and before migrateFoldWordKeys.
   migrateVocabSrsLevels(_db);
 
+  // `srs_level` mirrors the level in `state`; align rows that predate the
+  // reader feeding the review queue. Idempotent (guarded on mismatch).
+  backfillSrsLevelFromState(_db);
+
   // lessons audio columns (#185) — audio-backed lessons (podcast import). NULL
   // on ordinary text lessons. Added after migrateCompositeTenantKeys (which
   // rebuilds lessons for the compound PK) so the columns survive that rebuild
@@ -1380,6 +1384,25 @@ export function migrateVocabSrsLevels(database: Database) {
       `);
     })();
   }
+}
+
+/**
+ * Align `srs_level` with the level encoded in `state`. `state` owns the level;
+ * `srs_level` mirrors it for interval bookkeeping. Before the reader's level
+ * assignment fed the review queue, `srs_level` was written only by a review and
+ * defaulted to 1 on migration, so older rows carry a stale 1 while `state`
+ * already names a level. Guarded on mismatch, so a reviewed row (the two are
+ * already equal) keeps its progress and every later boot is a no-op.
+ */
+export function backfillSrsLevelFromState(database: Database) {
+  database
+    .prepare(
+      `UPDATE vocab
+       SET srs_level = CAST(substr(state, 6) AS INTEGER)
+       WHERE state IN ('level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7')
+         AND srs_level <> CAST(substr(state, 6) AS INTEGER)`,
+    )
+    .run();
 }
 
 /**

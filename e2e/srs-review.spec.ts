@@ -5,9 +5,9 @@ import { apiUrl } from './api';
  * E2E for the Practice "SRS Review" mode (levels 1-7 saved-word review).
  *
  * The round is scoped to a private lesson via the Book ID filter, so the queue
- * cannot pick up rows other specs seeded into the shared e2e database. Each
- * seeded word is graded wrong once to set `next_review` to now, which makes it
- * due at level 1.
+ * cannot pick up rows other specs seeded into the shared e2e database. Seeding
+ * a saved word at `state: 'level1'` is enough to make it due: a word that has
+ * never been reviewed has no `next_review`, and the queue treats that as due.
  */
 
 const TRANSLATIONS: Record<string, string> = {
@@ -48,9 +48,6 @@ async function seedLesson(page: Page): Promise<{ collectionId: string; lessonId:
         pushedToAnki: false,
         language: 'af',
       },
-    });
-    await page.request.patch(apiUrl('/api/vocab/update-srs'), {
-      data: { wordId: id, isCorrect: false },
     });
   }
 

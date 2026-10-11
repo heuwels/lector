@@ -638,6 +638,7 @@ export async function getSrsQueue(
     text: string;
     sentence: string;
     translation: string;
+    state: string;
     srs_level: number;
     type: string;
   }>

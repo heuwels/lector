@@ -4,10 +4,13 @@ import { db } from '../db';
 
 const { default: app } = await import('../routes/practice');
 
-// POST /api/practice/srs-queue — the SRS review picker. Two invariants matter
-// beyond the level/date window: it must stay inside one language (a global
-// query surfaced other languages' words before this), and it must respect the
-// requested level set.
+// POST /api/practice/srs-queue — the SRS review picker.
+//
+// The queue is driven by the word's learning level, which lives in `state`
+// (`level1`..`level7`), and by `next_review`: a word is due when it has never
+// been reviewed (NULL) or its date has passed. Three invariants matter: it
+// stays inside one language, it respects the requested level set, and it never
+// returns future-scheduled or non-level words.
 
 const TS = '2026-01-01T00:00:00Z';
 const DUE = '2025-01-01T00:00:00Z';
@@ -17,13 +20,14 @@ function seedSrs(
   id: string,
   text: string,
   language: string,
-  level: number,
+  state: string,
   nextReview: string | null,
+  srsLevel = 1,
 ) {
   db.prepare(
     `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, srs_level, next_review)
-     VALUES (?, ?, 'word', 's', 't', 'new', ?, ?, ?, ?, ?)`,
-  ).run(id, text, TS, TS, language, level, nextReview);
+     VALUES (?, ?, 'word', 's', 't', ?, ?, ?, ?, ?, ?)`,
+  ).run(id, text, state, TS, TS, language, srsLevel, nextReview);
 }
 
 describe('POST /api/practice/srs-queue', () => {
@@ -49,22 +53,25 @@ describe('POST /api/practice/srs-queue', () => {
     return data.words.map((w) => w.text);
   }
 
-  test('returns only the requested language’s due words', async () => {
-    seedSrs('v_af', 'huis', 'af', 1, DUE);
-    seedSrs('v_de', 'haus', 'de', 1, DUE);
-    seedSrs('v_af_future', 'kat', 'af', 1, FUTURE);
-    seedSrs('v_af_unscheduled', 'boom', 'af', 1, null);
+  test('returns never-reviewed and overdue words, scoped to the language', async () => {
+    seedSrs('v_af_new', 'huis', 'af', 'level2', null);
+    seedSrs('v_af_overdue', 'kat', 'af', 'level2', DUE);
+    seedSrs('v_af_future', 'boom', 'af', 'level2', FUTURE);
+    seedSrs('v_af_known', 'hond', 'af', 'known', null);
+    seedSrs('v_de', 'haus', 'de', 'level2', null);
 
-    expect(await texts({ levels: [1, 2, 3], language: 'af' })).toEqual(['huis']);
+    // NULL sorts before a past date, so the never-reviewed word is first.
+    expect(await texts({ levels: [1, 2, 3], language: 'af' })).toEqual(['huis', 'kat']);
     expect(await texts({ levels: [1, 2, 3], language: 'de' })).toEqual(['haus']);
   });
 
   test('respects the selected level set', async () => {
-    seedSrs('v1', 'een', 'af', 1, DUE);
-    seedSrs('v4', 'vier', 'af', 4, DUE);
+    seedSrs('v1', 'een', 'af', 'level1', null);
+    seedSrs('v4', 'vier', 'af', 'level4', null);
 
     expect(await texts({ levels: [1], language: 'af' })).toEqual(['een']);
     expect(await texts({ levels: [4], language: 'af' })).toEqual(['vier']);
+    expect(await texts({ levels: [2, 3], language: 'af' })).toEqual([]);
   });
 
   test('rejects an empty or out-of-range level set', async () => {

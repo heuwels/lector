@@ -40,6 +40,14 @@ const WORD_STATES = new Set([
   'ignored',
 ] as const);
 
+// The learning level lives in `state` as 'levelN' — the reader assigns it and
+// updateSRS advances it. `srs_level` mirrors it for interval bookkeeping. A
+// non-level state (new/known/ignored) has no level.
+function srsLevelFromState(state: string): SrsLevel | null {
+  const match = /^level([1-7])$/.exec(state);
+  return match ? (Number(match[1]) as SrsLevel) : null;
+}
+
 // GET /api/vocab
 app.get('/', (c) => {
   const userId = getCurrentUserId(c);
@@ -164,18 +172,19 @@ app.post('/', async (c) => {
   // Upsert on the composite (userId, id) PK (#279): ids are per-tenant, so a
   // client-supplied id belonging to another tenant is simply a different row —
   // re-posting your own id updates it, someone else's id creates yours.
+  const srsLevel = srsLevelFromState(body.state ?? 'new') ?? 1;
   const verdict = entitlements.reserveCount(userId, checks, () => {
     db.prepare(
       `
-      INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId, srs_level)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(userId, id) DO UPDATE SET
         text = excluded.text, type = excluded.type, sentence = excluded.sentence,
         translation = excluded.translation, state = excluded.state,
         stateUpdatedAt = excluded.stateUpdatedAt, reviewCount = excluded.reviewCount,
         bookId = excluded.bookId, chapter = excluded.chapter, createdAt = excluded.createdAt,
         pushedToAnki = excluded.pushedToAnki, ankiNoteId = excluded.ankiNoteId,
-        language = excluded.language
+        language = excluded.language, srs_level = excluded.srs_level
     `,
     ).run(
       id,
@@ -193,6 +202,7 @@ app.post('/', async (c) => {
       body.ankiNoteId ?? null,
       lang,
       userId,
+      srsLevel,
     );
 
     db.prepare(
@@ -253,8 +263,8 @@ app.put('/:id', async (c) => {
   let knownWrite: { word: string; language: string; state: string } | null = null;
 
   if (body.state !== undefined) {
-    updates.push('state = ?', 'stateUpdatedAt = ?');
-    values.push(body.state, new Date().toISOString());
+    updates.push('state = ?', 'stateUpdatedAt = ?', 'srs_level = ?');
+    values.push(body.state, new Date().toISOString(), srsLevelFromState(body.state) ?? 1);
     const vocabLang = existing.language;
     const vocabPack = getLanguageConfig(resolveLanguage(vocabLang, userId));
     knownWrite = {
@@ -459,12 +469,16 @@ export function updateSRS(
   userId: string,
 ): { success: true; newLevel: number; nextReview: string } | { success: false; error: string } {
   const row = db
-    .prepare('SELECT srs_level FROM vocab WHERE id = ? AND userId = ?')
-    .get(wordId, userId) as { srs_level: number } | undefined;
+    .prepare('SELECT text, language, state, srs_level FROM vocab WHERE id = ? AND userId = ?')
+    .get(wordId, userId) as
+    | { text: string; language: string; state: string; srs_level: number }
+    | undefined;
 
   if (!row) return { success: false, error: 'Vocab not found' };
 
-  const currentLevel = row.srs_level as SrsLevel;
+  // `state` is the level the drawer shows; fall back to the scheduling column
+  // for a row that has one but no level state.
+  const currentLevel = srsLevelFromState(row.state) ?? (row.srs_level as SrsLevel) ?? 1;
   let newLevel: SrsLevel;
   let nextReview: string;
 
@@ -480,9 +494,18 @@ export function updateSRS(
   }
 
   const lastReview = new Date().toISOString();
+  const newState = `level${newLevel}`;
   db.prepare(
-    'UPDATE vocab SET srs_level = ?, next_review = ?, last_review = ? WHERE id = ? AND userId = ?',
-  ).run(newLevel, nextReview, lastReview, wordId, userId);
+    `UPDATE vocab SET state = ?, stateUpdatedAt = ?, srs_level = ?, next_review = ?, last_review = ?
+     WHERE id = ? AND userId = ?`,
+  ).run(newState, lastReview, newLevel, nextReview, lastReview, wordId, userId);
+
+  // Keep the knownWords mirror in step with the level the drawer shows.
+  const pack = getLanguageConfig(resolveLanguage(row.language, userId));
+  db.prepare(
+    `INSERT INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)
+     ON CONFLICT(userId, word, language) DO UPDATE SET state = excluded.state`,
+  ).run(userId, foldWord(row.text, pack), row.language, newState);
 
   return { success: true, newLevel, nextReview };
 }

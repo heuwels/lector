@@ -8431,7 +8431,7 @@
       "post": {
         "operationId": "postApiPracticeSrsQueue",
         "summary": "Fetch a prioritized queue of words for SRS review",
-        "description": "Returns up to 50 vocabulary entries whose `next_review` is due, filtered by SRS level and optionally by book. The queue is ordered by `next_review` ascending, then by `srs_level` ascending (most overdue, lowest-level words first).",
+        "description": "Returns up to 50 vocabulary entries that are due for review, filtered by learning level and optionally by book. A word is due when it has never been reviewed (`next_review` is null) or its `next_review` is in the past. The learning level is the `levelN` encoded in the entry `state`. The queue is ordered by `next_review` ascending (never-reviewed first), then by `srs_level` ascending.",
         "tags": [
           "Vocabulary"
         ],

@@ -44,6 +44,7 @@ import {
   calculatePoints,
   buildMultipleChoiceOptions,
   buildSrsMcOptions,
+  srsLevelFromState,
   checkAnswer,
   diffDictation,
   getFuzzyStatus,
@@ -1765,7 +1766,9 @@ export default function PracticePage() {
 
                 <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
                   <span>Level:</span>
-                  <span className="font-semibold text-foreground">{currentSrsWord.srs_level}</span>
+                  <span className="font-semibold text-foreground">
+                    {srsLevelFromState(currentSrsWord.state) ?? currentSrsWord.srs_level}
+                  </span>
                 </div>
               </div>
             )}

@@ -8,6 +8,7 @@ import {
   calculatePoints,
   buildMultipleChoiceOptions,
   buildSrsMcOptions,
+  srsLevelFromState,
   generateDistractors,
   shuffle,
 } from '../utils';
@@ -516,5 +517,18 @@ describe('buildSrsMcOptions', () => {
 
     expect(options).toEqual(['cat']);
     expect(correctIndex).toBe(0);
+  });
+});
+
+describe('srsLevelFromState', () => {
+  it('parses level states', () => {
+    expect(srsLevelFromState('level1')).toBe(1);
+    expect(srsLevelFromState('level7')).toBe(7);
+  });
+
+  it('returns null for non-level states and malformed values', () => {
+    for (const state of ['new', 'known', 'ignored', 'level8', 'level0', 'level', '']) {
+      expect(srsLevelFromState(state), state).toBeNull();
+    }
   });
 });

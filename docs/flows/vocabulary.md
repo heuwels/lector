@@ -104,4 +104,6 @@ flowchart TD
 | Client | `src/lib/data-layer.ts` | `getSrsQueue`, `updateSrsReview` |
 | API | `api/src/routes/practice.ts`, `api/src/routes/vocab.ts` | `POST /api/practice/srs-queue`, `PATCH /api/vocab/update-srs` |
 
-A correct answer moves the level up one, to a maximum of 7. A wrong answer moves the level down one, to a minimum of 1. Interval days per level: level1=0, level2=1, level3=3, level4=7, level5=14, level6=30, level7=90. `next_review` sets the due time. The queue reads `srs_level` and `next_review`, and returns up to 50 words, oldest due first. It is scoped to the active language.
+A word's review level is the `level1`-`level7` encoded in its `state`; the reader assigns it, and a review advances it. A word is due when it has never been reviewed (`next_review IS NULL`) or `next_review` has passed. The queue matches the requested levels against `state` and returns up to 50 words, oldest due first, scoped to the active language. A correct answer moves the level up one (max 7) and sets `next_review` per the interval table (`state`, `srs_level`, and `next_review` are written together); a wrong answer drops the level one step (min 1) and sets `next_review` to now so the word returns this session. `srs_level` mirrors `state` for interval bookkeeping.
+
+Interval days per level: level1=0, level2=1, level3=3, level4=7, level5=14, level6=30, level7=90.

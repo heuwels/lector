@@ -4,6 +4,7 @@ import { Database } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
 import {
+  backfillSrsLevelFromState,
   migrateAcceptedCacheUserKey,
   migrateCompositeTenantKeys,
   migrateVocabSrsLevels,
@@ -19,6 +20,7 @@ import {
 const DB_FILE = path.join(process.env.DATA_DIR!, 'composite-pk-migration.db');
 
 const TS = '2026-01-01T00:00:00Z';
+const FUTURE_ISO = '2999-01-01T00:00:00Z';
 
 const TABLES = [
   'collection_groups',
@@ -452,6 +454,58 @@ describe('migrateVocabSrsLevels', () => {
     expect(db.prepare("SELECT srs_level FROM vocab WHERE id = 'v2'").get()).toEqual({
       srs_level: 1,
     });
+  });
+});
+
+describe('backfillSrsLevelFromState', () => {
+  beforeEach(() => {
+    // Mirror a real install after the SRS columns landed but before the
+    // backfill: add srs_level/next_review and widen the state CHECK to level1-7.
+    migrateVocabSrsLevels(db);
+    db.prepare('DELETE FROM vocab').run();
+  });
+
+  test('aligns srs_level with the level in state, leaving reviewed rows alone', () => {
+    // A row levelled in the reader but never reviewed: state names the level,
+    // the column is the stale default.
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, srs_level)
+       VALUES ('v_level', 'huis', 'word', 's', 't', 'level4', ?, ?, 'af', 1)`,
+    ).run(TS, TS);
+    // A reviewed row already has the two equal — the guard must skip it.
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, srs_level, next_review)
+       VALUES ('v_reviewed', 'kat', 'word', 's', 't', 'level6', ?, ?, 'af', 6, ?)`,
+    ).run(TS, TS, FUTURE_ISO);
+    // A non-level state has no level to copy.
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, srs_level)
+       VALUES ('v_known', 'hond', 'word', 's', 't', 'known', ?, ?, 'af', 1)`,
+    ).run(TS, TS);
+
+    backfillSrsLevelFromState(db);
+
+    const rows = db
+      .prepare('SELECT id, state, srs_level, next_review FROM vocab ORDER BY id')
+      .all() as { id: string; state: string; srs_level: number; next_review: string | null }[];
+    expect(rows).toEqual([
+      { id: 'v_known', state: 'known', srs_level: 1, next_review: null },
+      { id: 'v_level', state: 'level4', srs_level: 4, next_review: null },
+      { id: 'v_reviewed', state: 'level6', srs_level: 6, next_review: FUTURE_ISO },
+    ]);
+  });
+
+  test('is idempotent', () => {
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, srs_level)
+       VALUES ('v_level', 'huis', 'word', 's', 't', 'level3', ?, ?, 'af', 1)`,
+    ).run(TS, TS);
+
+    backfillSrsLevelFromState(db);
+    const before = db.prepare('SELECT * FROM vocab').all();
+    backfillSrsLevelFromState(db);
+
+    expect(db.prepare('SELECT * FROM vocab').all()).toEqual(before);
   });
 });
 

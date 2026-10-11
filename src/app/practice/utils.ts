@@ -229,6 +229,16 @@ export function buildSrsMcOptions(
   return { options, correctIndex: options.indexOf(word.translation) };
 }
 
+/**
+ * The learning level a word state carries: 'levelN' → N, anything else (new,
+ * known, ignored) → null. The SRS card shows this, not the mirrored
+ * `srs_level` column, which can lag a reader-assigned level.
+ */
+export function srsLevelFromState(state: string): number | null {
+  const match = /^level([1-7])$/.exec(state);
+  return match ? Number(match[1]) : null;
+}
+
 // --- Dictation scoring ------------------------------------------------------
 
 // Compare what the user typed against the actual sentence at the word level.
