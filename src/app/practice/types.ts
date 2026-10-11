@@ -12,6 +12,17 @@ export type PracticeMode = 'type' | 'mc';
 // sentence is presented and answered.
 export type PracticeFormat = 'cloze' | 'dictation' | 'srs';
 
+// One saved word from the SRS review queue (POST /api/practice/srs-queue).
+// Only the fields the recall question needs; the grade goes back by id.
+export interface SrsWord {
+  id: string;
+  text: string;
+  sentence: string;
+  translation: string;
+  srs_level: number;
+  type: string;
+}
+
 export type RoundSize = (typeof ROUND_SIZES)[number];
 export type RoundType = 'new' | 'review';
 

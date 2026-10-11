@@ -208,6 +208,27 @@ export function buildMultipleChoiceOptions(
   return { options, correctIndex };
 }
 
+// Translation-recall options for SRS review: the word's own translation plus up
+// to three distinct translations drawn from the rest of the queue. Distinctness
+// is on the raw gloss string, so a gloss two words share cannot appear twice.
+export function buildSrsMcOptions(
+  word: { id: string; translation: string },
+  pool: Array<{ id: string; translation: string }>,
+): { options: string[]; correctIndex: number } {
+  const seen = new Set<string>([word.translation]);
+  const distractors: string[] = [];
+  for (const candidate of pool) {
+    if (candidate.id === word.id || !candidate.translation || seen.has(candidate.translation)) {
+      continue;
+    }
+    seen.add(candidate.translation);
+    distractors.push(candidate.translation);
+  }
+
+  const options = shuffle([word.translation, ...shuffle(distractors).slice(0, 3)]);
+  return { options, correctIndex: options.indexOf(word.translation) };
+}
+
 // --- Dictation scoring ------------------------------------------------------
 
 // Compare what the user typed against the actual sentence at the word level.

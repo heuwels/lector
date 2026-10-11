@@ -8,6 +8,9 @@ describe('STATE_SHORTCUTS', () => {
     expect(STATE_SHORTCUTS['2']).toBe('level2');
     expect(STATE_SHORTCUTS['3']).toBe('level3');
     expect(STATE_SHORTCUTS['4']).toBe('level4');
+    expect(STATE_SHORTCUTS['5']).toBe('level5');
+    expect(STATE_SHORTCUTS['6']).toBe('level6');
+    expect(STATE_SHORTCUTS['7']).toBe('level7');
   });
 
   it('maps k to known and x to ignored', () => {

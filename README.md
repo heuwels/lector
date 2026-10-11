@@ -68,7 +68,7 @@ If you do not want to run a server, use the hosted app at [app.lector.dev](https
 
 ## Features
 
-- **Reader.** Import a file or a stream. Each word has a state: new, learning, or known. Tap a word for a translation. The reader accepts:
+- **Reader.** Import a file or a stream. Each word has a state: new, a learning level from 1 to 7, known, or ignored. Tap a word for a translation. The reader accepts:
 
   - an EPUB file
   - a Markdown file
@@ -78,7 +78,8 @@ If you do not want to run a server, use the hosted app at [app.lector.dev](https
   - a podcast
 
 - **Cloze practice.** Frequency-ordered sentences. Choose an answer from a list, or type the missing word. Spaced repetition (SRS) with mastery levels.
-- **Vocabulary.** Save words as you read. Track known and learning states. Save phrases as well as single words.
+- **Vocabulary.** Save words as you read. Set a learning level from 1 to 7. Or mark a word known or ignored. Save phrases as well as single words.
+- **Vocabulary review.** Review saved words with spaced repetition. Open Practice, then SRS Review. Select the levels to review. Or review only the words from one book. In the reader, select Review words.
 - **Anki.** The [Lector Sync add-on](https://ankiweb.net/shared/info/1098736891) on AnkiWeb is the recommended integration. The add-on code is `1098736891`. Cloud mode and a remote HTTPS self-host always use it. A local self-host can instead push cards to AnkiConnect on the computer that runs Anki. Reviews in Anki can update mastery in Lector.
 - **Tutor and journal.** Ask grammar questions in plain language. Write in the target language. The tutor returns corrections. Use the Claude API or a local model.
 - **Listen.** Optional text-to-speech (TTS). YouTube captions stay timestamped. A podcast upload can become a transcript and a listen-along lesson.

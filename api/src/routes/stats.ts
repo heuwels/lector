@@ -144,12 +144,22 @@ app.get('/fluency', (c) => {
     level2: countMap['level2'] || 0,
     level3: countMap['level3'] || 0,
     level4: countMap['level4'] || 0,
+    level5: countMap['level5'] || 0,
+    level6: countMap['level6'] || 0,
+    level7: countMap['level7'] || 0,
     known: countMap['known'] || 0,
     ignored: countMap['ignored'] || 0,
   };
 
   const totalKnownWords = byState.known;
-  const totalLearning = byState.level1 + byState.level2 + byState.level3 + byState.level4;
+  const totalLearning =
+    byState.level1 +
+    byState.level2 +
+    byState.level3 +
+    byState.level4 +
+    byState.level5 +
+    byState.level6 +
+    byState.level7;
   const totalNew = byState.new;
 
   // Determine CEFR-style level + progress through the current band.

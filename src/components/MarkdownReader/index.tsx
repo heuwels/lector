@@ -352,7 +352,7 @@ export default function MarkdownReader({
   usePhraseTouchSelection(containerRef, handleTouchPhrase);
 
   // Keyboard navigation: arrows move focus between words, Shift+Arrow extends
-  // a phrase selection, k/x/1-4 assign vocab state + auto-advance (when the
+  // a phrase selection, k/x/1-7 assign vocab state + auto-advance (when the
   // drawer is open), Escape clears selection then closes drawer, 's' saves.
   if (onReaderStateShortcut && onReaderLookUpWord && onReaderCloseDrawer) {
     useReaderKeyboardNavigation(containerRef, wordPanelOpen, activeWord, {

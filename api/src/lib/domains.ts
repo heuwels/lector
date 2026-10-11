@@ -107,6 +107,9 @@ export const STATE_WEIGHT = {
   level2: 0.15,
   level3: 0.3,
   level4: 0.5,
+  level5: 0.65,
+  level6: 0.8,
+  level7: 0.9,
   known: 1,
   ignored: 0,
 } as const;
@@ -119,7 +122,16 @@ export type WeightedState = keyof typeof STATE_WEIGHT;
  * the classifier worker's candidate query and the radar's `pending` count both
  * key off this list, so keep it here rather than re-listing the states inline.
  */
-export const MASTERY_STATES = ['level1', 'level2', 'level3', 'level4', 'known'] as const;
+export const MASTERY_STATES = [
+  'level1',
+  'level2',
+  'level3',
+  'level4',
+  'level5',
+  'level6',
+  'level7',
+  'known',
+] as const;
 
 /**
  * Words needed for a domain to read as "full" (axis 100 / Expert). A rough,

@@ -56,6 +56,9 @@ export default function VocabDetailModal({
         { value: 'level2', label: 'Level 2', color: 'bg-[var(--w-l2-bd)]' },
         { value: 'level3', label: 'Level 3', color: 'bg-[var(--w-l3-bd)]' },
         { value: 'level4', label: 'Level 4', color: 'bg-[var(--w-l4-bd)]' },
+        { value: 'level5', label: 'Level 5', color: 'bg-[var(--w-l5-bd)]' },
+        { value: 'level6', label: 'Level 6', color: 'bg-[var(--w-l6-bd)]' },
+        { value: 'level7', label: 'Level 7', color: 'bg-[var(--w-l7-bd)]' },
         { value: 'known', label: 'Known', color: 'bg-primary' },
         { value: 'ignored', label: 'Ignored', color: 'bg-muted-foreground' },
     ];

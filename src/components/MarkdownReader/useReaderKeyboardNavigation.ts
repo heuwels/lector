@@ -13,6 +13,9 @@ export const STATE_SHORTCUTS: Record<string, WordState> = {
   '2': 'level2',
   '3': 'level3',
   '4': 'level4',
+  '5': 'level5',
+  '6': 'level6',
+  '7': 'level7',
   k: 'known',
   x: 'ignored',
   i: 'ignored',
@@ -292,7 +295,7 @@ export function useReaderKeyboardNavigation(
         return;
       }
 
-      // --- State shortcuts (1-4, k, x, i): assign state + auto-advance ---
+      // --- State shortcuts (1-7, k, x, i): assign state + auto-advance ---
       const key = event.key.toLowerCase();
       if (STATE_SHORTCUTS[key]) {
         event.preventDefault();

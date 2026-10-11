@@ -868,7 +868,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   );
 
   // Keyboard-navigation callbacks for the reader.
-  // k/x/1-4 dispatch to the state setters; the reader auto-advances afterwards.
+  // k/x/1-7 dispatch to the state setters; the reader auto-advances afterwards.
   const handleStateShortcut = useCallback(
     async (state: WordState) => {
       if (state === 'known') {
@@ -876,7 +876,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
       } else if (state === 'ignored') {
         await ignoreWord();
       } else if (state.startsWith('level')) {
-        const level = parseInt(state.charAt(state.length - 1)) as 1 | 2 | 3 | 4;
+        const level = parseInt(state.charAt(state.length - 1)) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
         await setWordLevel(level);
       }
     },

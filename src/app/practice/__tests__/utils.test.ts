@@ -7,6 +7,7 @@ import {
   calculateNextReview,
   calculatePoints,
   buildMultipleChoiceOptions,
+  buildSrsMcOptions,
   generateDistractors,
   shuffle,
 } from '../utils';
@@ -469,5 +470,51 @@ describe('shuffle', () => {
     const copy = [...input];
     shuffle(input);
     expect(input).toEqual(copy);
+  });
+});
+
+describe('buildSrsMcOptions', () => {
+  const word = { id: 'a', translation: 'cat' };
+
+  it('includes the correct translation and marks its index', () => {
+    const { options, correctIndex } = buildSrsMcOptions(word, [
+      { id: 'b', translation: 'dog' },
+      { id: 'c', translation: 'bird' },
+    ]);
+
+    expect(options[correctIndex]).toBe('cat');
+  });
+
+  it('draws up to three distinct distractors from the pool', () => {
+    const { options } = buildSrsMcOptions(word, [
+      { id: 'b', translation: 'dog' },
+      { id: 'c', translation: 'bird' },
+      { id: 'd', translation: 'fish' },
+      { id: 'e', translation: 'horse' },
+    ]);
+
+    expect(options).toHaveLength(4);
+    expect(new Set(options).size).toBe(4);
+  });
+
+  it('never repeats the correct translation as a distractor', () => {
+    const { options, correctIndex } = buildSrsMcOptions(word, [
+      { id: 'b', translation: 'cat' },
+      { id: 'c', translation: 'dog' },
+    ]);
+
+    expect(options.filter((option) => option === 'cat')).toHaveLength(1);
+    expect(options[correctIndex]).toBe('cat');
+    expect(options).toContain('dog');
+  });
+
+  it('skips empty glosses and returns a single option for an empty pool', () => {
+    const { options, correctIndex } = buildSrsMcOptions(word, [
+      { id: 'b', translation: '' },
+      { id: 'a', translation: 'cat' },
+    ]);
+
+    expect(options).toEqual(['cat']);
+    expect(correctIndex).toBe(0);
   });
 });

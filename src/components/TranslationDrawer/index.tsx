@@ -568,7 +568,7 @@ export default function TranslationDrawer({
                     <span className="font-semibold text-foreground">
                       {onboardingSaveProgress.currentWordSaved
                         ? 'Added to your first review'
-                        : 'Choose level 1–4 to add this word'}
+                        : 'Choose a level to add this word'}
                     </span>
                     <span className="shrink-0 font-bold text-[var(--gold-strong)]">
                       {Math.min(onboardingSaveProgress.savedCount, onboardingSaveProgress.target)}/

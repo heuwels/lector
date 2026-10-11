@@ -23,7 +23,7 @@ export function getContent({
         title: savedCount === 0 ? 'Add this word to your review' : 'Choose another useful word',
         body:
           savedCount === 0
-            ? 'Choose level 1-4 in the definition panel. You will see this word fill the review progress below.'
+            ? 'Choose a level (1-7) in the definition panel. You will see this word fill the review progress below.'
             : 'Close the definition, choose a different highlighted word, then set its level to add it.',
       };
     case 'phrase':

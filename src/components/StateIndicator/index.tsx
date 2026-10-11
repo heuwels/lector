@@ -38,6 +38,27 @@ export default function StateIndicator({ state }: { state: WordState }) {
                     title="Level 4 - Almost known"
                 />
             );
+        case "level5":
+            return (
+                <span
+                    className="inline-block h-3 w-3 rounded-full bg-[var(--w-l5-bd)]"
+                    title="Level 5 - Known well"
+                />
+            );
+        case "level6":
+            return (
+                <span
+                    className="inline-block h-3 w-3 rounded-full bg-[var(--w-l6-bd)]"
+                    title="Level 6 - Strong"
+                />
+            );
+        case "level7":
+            return (
+                <span
+                    className="inline-block h-3 w-3 rounded-full bg-[var(--w-l7-bd)]"
+                    title="Level 7 - Nearly mastered"
+                />
+            );
         case "known":
             return (
                 <Check className="h-4 w-4 text-primary" strokeWidth={3} aria-label="Known">

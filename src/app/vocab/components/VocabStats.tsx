@@ -10,7 +10,10 @@ export default function VocabStats({
         stats.byState.level1 +
         stats.byState.level2 +
         stats.byState.level3 +
-        stats.byState.level4;
+        stats.byState.level4 +
+        stats.byState.level5 +
+        stats.byState.level6 +
+        stats.byState.level7;
 
     return (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

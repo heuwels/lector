@@ -25,7 +25,6 @@ import { translateGloss, translateWord } from '@/lib/claude';
 import {
   lookupWordRemote,
   getHint,
-  type HintResult,
   type ExpandedDictionaryEntry,
   type HintResponse,
 } from '@/lib/dictionary-client';
@@ -44,6 +43,7 @@ import {
   calculateDictationPoints,
   calculatePoints,
   buildMultipleChoiceOptions,
+  buildSrsMcOptions,
   checkAnswer,
   diffDictation,
   getFuzzyStatus,
@@ -58,6 +58,7 @@ import type {
   PracticeMode,
   RoundSize,
   RoundType,
+  SrsWord,
 } from './types';
 import { useClozeRound } from './use-cloze-round';
 import {
@@ -69,7 +70,7 @@ import {
   SRS_DEFAULT_LEVELS,
   SRS_LEVEL_LABELS,
 } from './constants';
-import { getSrsQueue } from '@/lib/data-layer';
+import { getSrsQueue, updateSrsReview } from '@/lib/data-layer';
 import BlacklistSentence from './components/BlacklistSentence';
 import { Button } from '@/components/ui/button';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
@@ -145,32 +146,17 @@ export default function PracticePage() {
   const [roundType, setRoundType] = useState<RoundType>('new');
 
   // SRS Review mode state
-  const [srsLevels, setSrsLevels] = useState<number[]>([1, 2, 3]);
+  const [srsLevels, setSrsLevels] = useState<number[]>([...SRS_DEFAULT_LEVELS]);
   const [srsBookId, setSrsBookId] = useState<string | null>(null);
-  const [srsWords, setSrsWords] = useState<
-    Array<{
-      id: string;
-      text: string;
-      sentence: string;
-      translation: string;
-      srs_level: number;
-      type: string;
-    }>
-  >([]);
-  const [currentSrsWord, setCurrentSrsWord] = useState<{
-    id: string;
-    text: string;
-    sentence: string;
-    translation: string;
-    srs_level: number;
-    type: string;
-  } | null>(null);
+  const [srsWords, setSrsWords] = useState<SrsWord[]>([]);
+  const [currentSrsWord, setCurrentSrsWord] = useState<SrsWord | null>(null);
   const [srsMcOptions, setSrsMcOptions] = useState<string[]>([]);
   const [srsMcSelected, setSrsMcSelected] = useState<number | null>(null);
   const [srsMcCorrectIdx, setSrsMcCorrectIdx] = useState<number>(0);
   const [srsMcLocked, setSrsMcLocked] = useState(false);
   const [srsRoundProgress, setSrsRoundProgress] = useState(0);
-  const [srsRoundSize, setSrsRoundSize] = useState(20);
+  const [srsRoundSize, setSrsRoundSize] = useState(0);
+  const [srsRoundCorrect, setSrsRoundCorrect] = useState(0);
   const [srsPoints, setSrsPoints] = useState(0);
 
   // Dictation result (the graded diff), shown on the feedback screen
@@ -559,6 +545,45 @@ export default function PracticePage() {
     [beginRound, presentRound, setState],
   );
 
+  // Prepare MC options for an SRS word (translation recall)
+  const prepareSrsMcOptions = useCallback((word: SrsWord, pool: SrsWord[]) => {
+    const { options, correctIndex } = buildSrsMcOptions(word, pool);
+
+    setSrsMcOptions(options);
+    setSrsMcCorrectIdx(correctIndex);
+    setSrsMcSelected(null);
+    setSrsMcLocked(false);
+  }, []);
+
+  const handleSrsAnswer = useCallback(
+    async (word: SrsWord, isCorrect: boolean) => {
+      try {
+        const result = await updateSrsReview(word.id, isCorrect);
+        if (!result) {
+          console.error('Failed to update SRS level');
+        }
+
+        if (isCorrect) {
+          setSrsPoints((p) => p + 5);
+          setSrsRoundCorrect((c) => c + 1);
+        }
+
+        const currentIndex = srsWords.findIndex((w) => w.id === word.id);
+        if (currentIndex >= 0 && currentIndex + 1 < srsWords.length) {
+          const nextWord = srsWords[currentIndex + 1];
+          setCurrentSrsWord(nextWord);
+          setSrsRoundProgress((p) => p + 1);
+          prepareSrsMcOptions(nextWord, srsWords);
+        } else {
+          setState('complete');
+        }
+      } catch (error) {
+        console.error('Failed to submit SRS answer:', error);
+      }
+    },
+    [srsWords, prepareSrsMcOptions, setState],
+  );
+
   // Start an SRS Review round using the priority queue endpoint
   const startSrsRound = useCallback(async () => {
     if (srsLevels.length === 0) return;
@@ -579,9 +604,10 @@ export default function PracticePage() {
         setCurrentSrsWord(words[0]);
         setSrsRoundSize(words.length);
         setSrsRoundProgress(0);
+        setSrsRoundCorrect(0);
         setSrsPoints(0);
         setState('practicing');
-        prepareSrsMcOptions(words[0]);
+        prepareSrsMcOptions(words[0], words);
       } else {
         setState('empty');
       }
@@ -589,37 +615,7 @@ export default function PracticePage() {
       console.error('Failed to start SRS round:', error);
       setState('complete');
     }
-  }, [srsLevels, srsBookId, beginRound, setState]);
-
-  // Prepare MC options for an SRS word (translation recall)
-  const prepareSrsMcOptions = useCallback(
-    (word: {
-      id: string;
-      text: string;
-      sentence: string;
-      translation: string;
-      srs_level: number;
-      type: string;
-    }) => {
-      // Generate MC options from the SRS words pool
-      const otherWords = srsWords.filter((w) => w.id !== word.id);
-      const otherTranslations = otherWords.map((w) => w.translation);
-
-      // Shuffle and pick 3 distractors
-      const shuffled = [...otherTranslations].sort(() => Math.random() - 0.5);
-      const distractors = shuffled.slice(0, 3);
-
-      // Mix correct answer with distractors
-      const allOptions = [word.translation, ...distractors].sort(() => Math.random() - 0.5);
-      const correctIdx = allOptions.indexOf(word.translation);
-
-      setSrsMcOptions(allOptions);
-      setSrsMcCorrectIdx(correctIdx);
-      setSrsMcSelected(null);
-      setSrsMcLocked(false);
-    },
-    [srsWords],
-  );
+  }, [srsLevels, srsBookId, beginRound, setState, prepareSrsMcOptions]);
 
   // Handle SRS MC selection
   const handleSrsMcSelect = useCallback(
@@ -642,67 +638,7 @@ export default function PracticePage() {
         void handleSrsAnswer(currentSrsWord, isCorrect);
       }, delay);
     },
-    [srsMcLocked, currentSrsWord, srsMcCorrectIdx, srsWords],
-  );
-
-  // Handle SRS answer and call updateSRS API
-  const handleSrsAnswer = useCallback(
-    async (
-      word: {
-        id: string;
-        text: string;
-        sentence: string;
-        translation: string;
-        srs_level: number;
-        type: string;
-      },
-      isCorrect: boolean,
-    ) => {
-      try {
-        const response = await fetch('/api/vocab', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: word.id,
-            // We'll update via the updateSRS function - need to add an API endpoint
-            // For now, we'll call the vocab route's updateSRS
-          }),
-        });
-
-        // Actually, let's call the updateSRS function directly via a new API endpoint
-        // We'll add a POST /api/vocab/update-srs endpoint
-        const res = await fetch('/api/vocab/update-srs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ wordId: word.id, isCorrect }),
-        });
-
-        const result = await res.json();
-        if (!result.success) {
-          console.error('Failed to update SRS:', result.error);
-        }
-
-        // Update local state
-        if (isCorrect) {
-          setSrsPoints((p) => p + 5);
-        }
-
-        // Move to next word
-        const currentIndex = srsWords.findIndex((w) => w.id === word.id);
-        if (currentIndex >= 0 && currentIndex + 1 < srsWords.length) {
-          const nextWord = srsWords[currentIndex + 1];
-          setCurrentSrsWord(nextWord);
-          setSrsRoundProgress((p) => p + 1);
-          prepareSrsMcOptions(nextWord);
-        } else {
-          // Round complete
-          setState('complete');
-        }
-      } catch (error) {
-        console.error('Failed to submit SRS answer:', error);
-      }
-    },
-    [srsWords, prepareSrsMcOptions],
+    [srsMcLocked, currentSrsWord, srsMcCorrectIdx, handleSrsAnswer],
   );
 
   // Start a round using current state values
@@ -1044,6 +980,22 @@ export default function PracticePage() {
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
+    // Number keys 1-4 choose an SRS translation-recall option.
+    if (state === 'practicing' && practiceFormat === 'srs' && !srsMcLocked) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (isInteractiveKeyTarget(e)) return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (e.key >= '1' && e.key <= '4') {
+          const idx = parseInt(e.key) - 1;
+          if (idx < srsMcOptions.length) {
+            e.preventDefault();
+            handleSrsMcSelect(idx);
+          }
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
     // Space to trigger TTS in type mode when input is not focused
     if (state === 'practicing' && practiceFormat === 'cloze' && practiceMode === 'type') {
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -1065,6 +1017,9 @@ export default function PracticePage() {
     mcOptions,
     handleMcSelect,
     current,
+    srsMcLocked,
+    srsMcOptions,
+    handleSrsMcSelect,
   ]);
 
   // Alt+T toggles translation visibility (while practicing and on feedback)
@@ -1097,6 +1052,8 @@ export default function PracticePage() {
   }, [blacklistCurrent, prepareSentence]);
 
   const progressPercent = roundSize > 0 ? Math.min((roundProgress / roundSize) * 100, 100) : 0;
+  const srsProgressPercent =
+    srsRoundSize > 0 ? Math.min((srsRoundProgress / srsRoundSize) * 100, 100) : 0;
   const onboardingEncounteredCount = encounteredOnboardingTerms(onboardingSnapshot).length;
   const onboardingSavedCount = savedOnboardingWords(onboardingSnapshot).length;
   const onboardingProgress = onboardingSnapshot?.progress;
@@ -1367,7 +1324,7 @@ export default function PracticePage() {
                 ) : (
                   <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--gold-strong)]">
                     <Star className="h-4 w-4" fill="currentColor" />
-                    {points.toLocaleString()}
+                    {(practiceFormat === 'srs' ? srsPoints : points).toLocaleString()}
                   </span>
                 )}
               </div>
@@ -1378,16 +1335,22 @@ export default function PracticePage() {
                   <span>
                     {onboardingMode
                       ? 'Words from your starter lesson'
-                      : COLLECTION_LABELS[selectedCollection]}
+                      : practiceFormat === 'srs'
+                        ? 'SRS Review'
+                        : COLLECTION_LABELS[selectedCollection]}
                   </span>
                   <span className="font-medium">
-                    {roundProgress}/{roundSize}
+                    {practiceFormat === 'srs'
+                      ? `${srsRoundProgress}/${srsRoundSize}`
+                      : `${roundProgress}/${roundSize}`}
                   </span>
                 </div>
                 <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-[color-mix(in_srgb,var(--primary)_55%,#fff)] to-primary transition-all duration-500"
-                    style={{ width: `${progressPercent}%` }}
+                    style={{
+                      width: `${practiceFormat === 'srs' ? srsProgressPercent : progressPercent}%`,
+                    }}
                   />
                 </div>
               </div>
@@ -1732,6 +1695,81 @@ export default function PracticePage() {
                 );
               })()}
 
+            {/* Practice state — SRS translation recall. Keyed by word id so the
+                card and its selection state reset per word. */}
+            {state === 'practicing' && currentSrsWord && practiceFormat === 'srs' && (
+              <div key={currentSrsWord.id}>
+                <div className="mb-6">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Choose the correct translation
+                  </span>
+                  <p
+                    dir={getActivePack().script.direction}
+                    lang={getActivePack().script.bcp47}
+                    className="mt-3 text-3xl leading-tight font-bold text-foreground"
+                    style={{ unicodeBidi: 'isolate' }}
+                    data-testid="srs-word"
+                  >
+                    {currentSrsWord.text}
+                  </p>
+                  {currentSrsWord.sentence && (
+                    <p
+                      dir={getActivePack().script.direction}
+                      lang={getActivePack().script.bcp47}
+                      className="mt-2 text-base text-muted-foreground italic"
+                      style={{ unicodeBidi: 'isolate' }}
+                    >
+                      {currentSrsWord.sentence}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {srsMcOptions.map((option, idx) => {
+                    let btnClass = 'border-border bg-card text-foreground hover:bg-accent';
+
+                    if (srsMcSelected !== null) {
+                      if (idx === srsMcCorrectIdx) {
+                        btnClass =
+                          'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary';
+                      } else if (idx === srsMcSelected) {
+                        btnClass =
+                          'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive';
+                      } else {
+                        btnClass = 'border-border bg-card text-muted-foreground opacity-60';
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        data-testid="srs-mc-option"
+                        onClick={() => handleSrsMcSelect(idx)}
+                        disabled={srsMcLocked}
+                        className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left text-lg font-medium transition-all active:scale-[0.98] ${btnClass}`}
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
+                          {idx + 1}
+                        </span>
+                        <bdi
+                          dir={getActivePack().script.direction}
+                          lang={getActivePack().script.bcp47}
+                        >
+                          {option}
+                        </bdi>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <span>Level:</span>
+                  <span className="font-semibold text-foreground">{currentSrsWord.srs_level}</span>
+                </div>
+              </div>
+            )}
+
             {/* Feedback state — dictation */}
             {state === 'feedback' &&
               current &&
@@ -1755,7 +1793,30 @@ export default function PracticePage() {
               />
             )}
 
-            {state === 'complete' && !onboardingMode && (
+            {state === 'complete' && !onboardingMode && practiceFormat === 'srs' && (
+              <div className="py-8 text-center" data-testid="srs-complete">
+                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary">
+                  <CheckCircle className="h-8 w-8" />
+                </div>
+                <h2 className="mb-2 text-xl font-bold text-foreground">Review Complete!</h2>
+                <p className="mb-1 text-muted-foreground">
+                  {srsRoundCorrect}/{srsRoundSize} correct
+                </p>
+                <p className="mb-6 text-sm text-muted-foreground">
+                  {srsPoints.toLocaleString()} total points
+                </p>
+                <div className="flex justify-center gap-3">
+                  <Button variant={'secondary'} type="button" onClick={handleBackPressed}>
+                    Change Settings
+                  </Button>
+                  <Button type="button" onClick={startSrsRound}>
+                    Review Again
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {state === 'complete' && !onboardingMode && practiceFormat !== 'srs' && (
               <div className="py-8 text-center">
                 <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary">
                   <CheckCircle className="h-8 w-8" />
@@ -1912,7 +1973,23 @@ export default function PracticePage() {
               </div>
             )}
 
-            {state === 'empty' && !onboardingMode && (
+            {state === 'empty' && !onboardingMode && practiceFormat === 'srs' && (
+              <div className="py-8 text-center" data-testid="srs-empty">
+                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <CheckCircle className="h-8 w-8" />
+                </div>
+                <h2 className="mb-2 text-xl font-bold text-foreground">No words due</h2>
+                <p className="mx-auto mb-6 max-w-md text-muted-foreground">
+                  No saved words match the selected levels right now. Try more levels, or come back
+                  when words are due.
+                </p>
+                <Button type="button" variant="secondary" onClick={handleBackPressed}>
+                  Change Settings
+                </Button>
+              </div>
+            )}
+
+            {state === 'empty' && !onboardingMode && practiceFormat !== 'srs' && (
               <EmptyState
                 roundType={roundType}
                 onBackPressed={handleBackPressed}

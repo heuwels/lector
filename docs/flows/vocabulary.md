@@ -77,3 +77,31 @@ Settings, Import Known Words. A plain list writes `knownWords` only. A LingQ CSV
 | API | `api/src/routes/known-words.ts` | `POST /` |
 
 New rows have `domain IS NULL` until the classifier runs. See [stats.md](stats.md).
+
+## Review saved words
+
+**App domain:** Vocabulary
+
+The Practice page has an SRS Review tab. It queues due saved words from `vocab`. Select levels 1 to 7. Optionally filter by one book. The reader has a Review words button that opens the same tab for the current book.
+
+```mermaid
+flowchart TD
+  entry[Practice SRS tab, or reader Review words] --> start[startSrsRound]
+  start --> client[getSrsQueue]
+  client --> queue[POST /api/practice/srs-queue]
+  queue --> table[(vocab)]
+  start --> grade[Answer a translation-recall question]
+  grade --> answer[handleSrsAnswer]
+  answer --> persist[updateSrsReview]
+  persist --> patch[PATCH /api/vocab/update-srs]
+  patch --> table
+```
+
+| Role | Path | Function |
+| --- | --- | --- |
+| Practice | `src/app/practice/page.tsx` | `startSrsRound`, `handleSrsAnswer`, `prepareSrsMcOptions` |
+| Reader | `src/app/read/[bookId]/page.tsx` | Review words button (`format=srs`, `bookId`) |
+| Client | `src/lib/data-layer.ts` | `getSrsQueue`, `updateSrsReview` |
+| API | `api/src/routes/practice.ts`, `api/src/routes/vocab.ts` | `POST /api/practice/srs-queue`, `PATCH /api/vocab/update-srs` |
+
+A correct answer moves the level up one, to a maximum of 7. A wrong answer moves the level down one, to a minimum of 1. Interval days per level: level1=0, level2=1, level3=3, level4=7, level5=14, level6=30, level7=90. `next_review` sets the due time. The queue reads `srs_level` and `next_review`, and returns up to 50 words, oldest due first. It is scoped to the active language.
