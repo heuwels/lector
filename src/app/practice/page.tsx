@@ -1756,6 +1756,7 @@ export default function PracticePage() {
                         <bdi
                           dir={getActivePack().script.direction}
                           lang={getActivePack().script.bcp47}
+                          className="min-w-0 break-words"
                         >
                           {option}
                         </bdi>

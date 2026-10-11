@@ -8,6 +8,7 @@ import {
   calculatePoints,
   buildMultipleChoiceOptions,
   buildSrsMcOptions,
+  glossLabel,
   srsLevelFromState,
   generateDistractors,
   shuffle,
@@ -517,6 +518,51 @@ describe('buildSrsMcOptions', () => {
 
     expect(options).toEqual(['cat']);
     expect(correctIndex).toBe(0);
+  });
+
+  it('compresses long multi-sense glosses so no option is huge', () => {
+    const { options, correctIndex } = buildSrsMcOptions(
+      { id: 'a', translation: 'Expressing distance or motion.; From (a place); off.; Since.' },
+      [
+        { id: 'b', translation: 'The first letter of the English alphabet, called a; Numeral.' },
+        {
+          id: 'c',
+          translation: 'Used to indicate location, inclusion, or position within limits.',
+        },
+        { id: 'd', translation: 'word '.repeat(30).trim() },
+      ],
+    );
+
+    expect(options[correctIndex]).toBe('Expressing distance or motion');
+    for (const option of options) {
+      expect(option.length, option).toBeLessThanOrEqual(65);
+    }
+  });
+});
+
+describe('glossLabel', () => {
+  it('keeps a short single-sense gloss as is', () => {
+    expect(glossLabel('apple')).toBe('apple');
+    expect(glossLabel('  to be able to  ')).toBe('to be able to');
+  });
+
+  it('reduces a sense list to its first sense', () => {
+    expect(
+      glossLabel('Expressing distance or motion.; From (a place); off.; Since, from a time'),
+    ).toBe('Expressing distance or motion');
+  });
+
+  it('caps a long single sense at a word boundary with an ellipsis', () => {
+    const label = glossLabel('word '.repeat(40).trim());
+
+    expect(label.length).toBeLessThanOrEqual(65);
+    expect(label.endsWith('…')).toBe(true);
+    expect(label).not.toMatch(/\s…$/);
+  });
+
+  it('returns an empty string for an empty translation', () => {
+    expect(glossLabel('')).toBe('');
+    expect(glossLabel('   ')).toBe('');
   });
 });
 

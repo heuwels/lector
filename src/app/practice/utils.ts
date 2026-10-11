@@ -208,25 +208,54 @@ export function buildMultipleChoiceOptions(
   return { options, correctIndex };
 }
 
-// Translation-recall options for SRS review: the word's own translation plus up
-// to three distinct translations drawn from the rest of the queue. Distinctness
-// is on the raw gloss string, so a gloss two words share cannot appear twice.
+// A stored translation for a dictionary-backed word is every sense joined with
+// '; ' (the reader assembles it that way), so it can run to thousands of
+// characters. A multiple-choice option only needs the first sense, capped so the
+// list stays scannable.
+export function glossLabel(translation: string, maxLen = 64): string {
+  const trimmed = translation.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return '';
+
+  const firstSense = trimmed.split(/[;.。！？!?\n]/, 1)[0].trim();
+  const base = firstSense || trimmed;
+  if (base.length <= maxLen) return base;
+
+  const slice = base.slice(0, maxLen);
+  const lastSpace = slice.lastIndexOf(' ');
+  const cut = lastSpace > maxLen * 0.6 ? slice.slice(0, lastSpace) : slice;
+  return `${cut.trimEnd()}…`;
+}
+
+// Translation-recall options for SRS review: the word's own gloss plus up to
+// three distinct glosses drawn from the rest of the queue. Options are reduced
+// to their first sense and capped (glossLabel), and distractors are chosen
+// close in length to the answer so a short gloss is not paired with a much
+// longer one. Distinctness is on the label, so two glosses that share a first
+// sense cannot both appear.
 export function buildSrsMcOptions(
   word: { id: string; translation: string },
   pool: Array<{ id: string; translation: string }>,
 ): { options: string[]; correctIndex: number } {
-  const seen = new Set<string>([word.translation]);
+  const correct = glossLabel(word.translation) || word.translation;
+  const seen = new Set<string>([correct]);
   const distractors: string[] = [];
   for (const candidate of pool) {
-    if (candidate.id === word.id || !candidate.translation || seen.has(candidate.translation)) {
-      continue;
-    }
-    seen.add(candidate.translation);
-    distractors.push(candidate.translation);
+    if (candidate.id === word.id) continue;
+    const label = glossLabel(candidate.translation);
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    distractors.push(label);
   }
 
-  const options = shuffle([word.translation, ...shuffle(distractors).slice(0, 3)]);
-  return { options, correctIndex: options.indexOf(word.translation) };
+  const correctLen = correct.length;
+  const ranked = distractors
+    .map((label) => ({ label, distance: Math.abs(label.length - correctLen) }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 12)
+    .map((c) => c.label);
+
+  const options = shuffle([correct, ...shuffle(ranked).slice(0, 3)]);
+  return { options, correctIndex: options.indexOf(correct) };
 }
 
 /**

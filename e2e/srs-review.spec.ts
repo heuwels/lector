@@ -8,14 +8,26 @@ import { apiUrl } from './api';
  * cannot pick up rows other specs seeded into the shared e2e database. Seeding
  * a saved word at `state: 'level1'` is enough to make it due: a word that has
  * never been reviewed has no `next_review`, and the queue treats that as due.
+ *
+ * Two seeded translations carry a multi-sense gloss (the shape the reader saves
+ * for dictionary words). The option text must be the compressed first sense, so
+ * a regression that renders the raw joined string fails here.
  */
 
-const TRANSLATIONS: Record<string, string> = {
-  srsappel: 'apple',
-  srshond: 'dog',
-  srskaas: 'cheese',
-  srstafel: 'table',
-};
+const WORDS = [
+  { text: 'srsappel', translation: 'apple', label: 'apple' },
+  {
+    text: 'srshond',
+    translation: 'dog.; a domesticated canine; to follow persistently',
+    label: 'dog',
+  },
+  { text: 'srskaas', translation: 'cheese', label: 'cheese' },
+  {
+    text: 'srstafel',
+    translation: 'table.; a piece of furniture with a flat top, supported by legs',
+    label: 'table',
+  },
+];
 
 async function seedLesson(page: Page): Promise<{ collectionId: string; lessonId: string }> {
   const stamp = Date.now().toString(36);
@@ -24,22 +36,22 @@ async function seedLesson(page: Page): Promise<{ collectionId: string; lessonId:
   });
   const { id: collectionId } = (await colRes.json()) as { id: string };
   await page.request.post(apiUrl(`/api/collections/${collectionId}/lessons`), {
-    data: { title: 'SRS words', textContent: Object.keys(TRANSLATIONS).join(' ') },
+    data: { title: 'SRS words', textContent: WORDS.map((w) => w.text).join(' ') },
   });
   const lessons = (await (
     await page.request.get(apiUrl(`/api/collections/${collectionId}/lessons`))
   ).json()) as Array<{ id: string }>;
   const lessonId = lessons[0].id;
 
-  for (const [text, translation] of Object.entries(TRANSLATIONS)) {
-    const id = `e2e-srs-${stamp}-${text}`;
+  for (const word of WORDS) {
+    const id = `e2e-srs-${stamp}-${word.text}`;
     await page.request.post(apiUrl('/api/vocab'), {
       data: {
         id,
-        text,
+        text: word.text,
         type: 'word',
-        sentence: `Die ${text} is hier.`,
-        translation,
+        sentence: `Die ${word.text} is hier.`,
+        translation: word.translation,
         state: 'level1',
         stateUpdatedAt: new Date().toISOString(),
         reviewCount: 0,
@@ -85,12 +97,19 @@ test.describe('SRS Review', () => {
       const card = page.getByTestId('srs-word');
       await expect(card).toBeVisible({ timeout: 15000 });
 
-      for (let step = 0; step < Object.keys(TRANSLATIONS).length; step++) {
+      for (let step = 0; step < WORDS.length; step++) {
         const word = (await card.textContent())?.trim() ?? '';
-        const gloss = TRANSLATIONS[word];
-        expect(gloss, `unexpected SRS word "${word}"`).toBeTruthy();
+        const entry = WORDS.find((w) => w.text === word);
+        expect(entry, `unexpected SRS word "${word}"`).toBeTruthy();
 
-        await page.getByTestId('srs-mc-option').filter({ hasText: gloss }).click();
+        // Every option is a compressed gloss, never the raw joined definition.
+        const optionTexts = await page.getByTestId('srs-mc-option').locator('bdi').allInnerTexts();
+        expect(optionTexts.length).toBeGreaterThan(0);
+        for (const text of optionTexts) {
+          expect(text.length, text).toBeLessThanOrEqual(65);
+        }
+
+        await page.getByTestId('srs-mc-option').filter({ hasText: entry!.label }).click();
 
         // The card advances (or the round completes) after the answer delay.
         await page.waitForFunction(
