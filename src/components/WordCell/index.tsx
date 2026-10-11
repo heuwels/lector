@@ -25,6 +25,10 @@ export interface WordCellProps {
    */
   readingOverhangs?: boolean;
   testId?: string;
+  /** The block identifier, for keyboard-navigation queries. */
+  blockId?: number;
+  /** The zero-based word index within its block. */
+  wordIndex?: number;
 }
 
 /**
@@ -45,6 +49,8 @@ export default function WordCell({
   reading,
   readingOverhangs = false,
   testId = 'reader-word',
+  blockId,
+  wordIndex,
 }: WordCellProps) {
   const colorClass = state ? stateClasses[state] : stateClasses.new;
   const isHighlighted = isPhraseHighlighted || isActive;
@@ -61,6 +67,8 @@ export default function WordCell({
       // Marks the span as one word: `usePhraseTouchSelection` selects on this
       // attribute, and the e2e suite asserts the state it carries.
       data-word-state={state ?? 'new'}
+      data-block-id={blockId}
+      data-word-index={wordIndex}
       role={interactive ? 'button' : undefined}
       tabIndex={interactive ? 0 : undefined}
       aria-label={interactive ? `Look up ${text}` : undefined}
@@ -77,7 +85,7 @@ export default function WordCell({
       // the full chip turned the page into a grid of buttons instead of prose.
       // A wide annotation keeps ruby layout and the original padding, because it
       // needs that room to avoid the neighbouring word.
-      className={`rounded-[7px] ${interactive ? 'cursor-pointer hover:ring-2 hover:ring-ring/50' : ''} ${
+      className={`rounded-[7px] ${interactive ? 'cursor-pointer hover:ring-2 hover:ring-ring/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2' : ''} ${
         reading && readingOverhangs ? 'relative border-transparent px-[3px]' : 'px-[7px]'
       } ${colorClass} ${isActive ? 'ring-2 ring-[var(--clay)]' : ''}`}
       // The weight is a reader setting (#570). The fallback is the 700 this used

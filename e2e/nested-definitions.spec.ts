@@ -129,7 +129,7 @@ test.describe('Nested dictionary definitions (reader)', () => {
 
     // The underlying word can be marked known directly
     await drawer.getByRole('button', { name: '✓ Known' }).click();
-    await expect(drawer).toHaveClass(/translate-x-full/, { timeout: 5000 });
+    await expect(drawer.getByTestId('translation-drawer-empty')).toBeVisible({ timeout: 5000 });
 
     const entries = await vocabByText(page, 'vrug');
     expect(entries).toHaveLength(1);

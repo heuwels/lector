@@ -124,9 +124,12 @@ test.describe('Reader word/phrase copy + active highlight', () => {
     await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
     await expect(page.locator('[data-active-word]')).toHaveCount(1);
 
+    // First Escape (docked at 1280px): clears the active-word highlight.
     await page.keyboard.press('Escape');
 
-    await expect(drawer).toHaveClass(/translate-x-full/, { timeout: 5000 });
+    // Second Escape: returns the drawer to its idle empty state.
+    await page.keyboard.press('Escape');
+    await expect(drawer.getByTestId('translation-drawer-empty')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-active-word]')).toHaveCount(0);
   });
 
@@ -145,10 +148,13 @@ test.describe('Reader word/phrase copy + active highlight', () => {
     await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
     expect(await page.locator('[data-phrase-highlighted]').count()).toBeGreaterThanOrEqual(2);
 
+    // First Escape: clears the phrase highlight, drawer stays open (docked).
     await page.keyboard.press('Escape');
-
-    await expect(drawer).toHaveClass(/translate-x-full/, { timeout: 5000 });
     await expect(page.locator('[data-phrase-highlighted]')).toHaveCount(0);
+
+    // Second Escape: returns the drawer to its idle empty state.
+    await page.keyboard.press('Escape');
+    await expect(drawer.getByTestId('translation-drawer-empty')).toBeVisible({ timeout: 5000 });
   });
 
   test('Cmd/Ctrl+C copies a selected phrase WITH spaces', async ({ page }) => {

@@ -119,7 +119,7 @@ test.describe('Translation drawer — dictionary lookup pipeline', () => {
     }
   });
 
-  test('drawer slides in (translate-x-0) and out (translate-x-full) on a small screen', async ({
+  test('drawer slides in (translate-y-0) and out (translate-y-full) as a bottom sheet on a small screen', async ({
     page,
   }) => {
     await page.setViewportSize({
@@ -130,13 +130,13 @@ test.describe('Translation drawer — dictionary lookup pipeline', () => {
 
     const drawer = page.getByTestId('translation-drawer');
     // Closed-state class is asserted before any click
-    await expect(drawer).toHaveClass(/translate-x-full/);
+    await expect(drawer).toHaveClass(/translate-y-full/);
 
     await page.locator('[data-testid="cloze-word"]').first().click();
-    await expect(drawer).toHaveClass(/translate-x-0/, { timeout: 5000 });
+    await expect(drawer).toHaveClass(/translate-y-0/, { timeout: 5000 });
 
     await page.keyboard.press('Escape');
-    await expect(drawer).toHaveClass(/translate-x-full/);
+    await expect(drawer).toHaveClass(/translate-y-full/);
   });
 
   test('drawer stays in the layout on large screens', async ({ page }) => {

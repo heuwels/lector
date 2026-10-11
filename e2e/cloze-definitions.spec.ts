@@ -39,18 +39,27 @@ async function startTypeRound(page: Page) {
   });
 }
 
-// The drawer is always present in the DOM but slides offscreen when closed.
-// A "visible" drawer = translated to translate-x-0 (we assert this via class).
+// The drawer is always present in the DOM. On lg+ it docks as a sidebar
+// (always translate-x-0, idle empty state when no word is selected); below lg
+// it slides on/off (translate-y-0 open, translate-y-full closed).
 async function expectDrawerOpen(page: Page) {
   const drawer = page.getByTestId("translation-drawer");
   await expect(drawer).toBeVisible({ timeout: 5000 });
-  await expect(drawer).toHaveClass(/translate-x-0/);
+  await expect(drawer).toHaveClass(/translate-(x|y)-0/);
   return drawer;
 }
 
 async function expectDrawerClosed(page: Page) {
   const drawer = page.getByTestId("translation-drawer");
-  await expect(drawer).toHaveClass(/translate-x-full/);
+  const offScreen = await drawer.evaluate((el) =>
+    el.classList.contains("translate-x-full") ||
+    el.classList.contains("translate-y-full"),
+  );
+  if (offScreen) return;
+  // Docked (lg+): drawer stays in the layout but shows the idle empty state.
+  await expect(drawer.getByTestId("translation-drawer-empty")).toBeVisible({
+    timeout: 5000,
+  });
 }
 
 test.describe("Cloze Inline Definitions (drawer)", () => {

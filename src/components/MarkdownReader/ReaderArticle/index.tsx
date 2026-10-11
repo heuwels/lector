@@ -156,6 +156,8 @@ const ReaderBlock = memo(function ReaderBlock({
             isPhraseHighlighted={isPhraseHighlighted}
             reading={wordReading(annotationMode, readings, key, state)}
             readingOverhangs={overhangs}
+            blockId={blockId}
+            wordIndex={wordIndex}
             onActivate={(text, element) => {
               onClearPhrase();
               onActivateWord({ blockId, wordIndex });

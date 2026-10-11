@@ -13,14 +13,11 @@ async function importHyphenatedLesson(page: Page) {
   await page.request.post(apiUrl(`/api/collections/${collectionId}/lessons`), {
     data: {
       title: 'Hoofstuk 1',
-      textContent:
-        'Die Perdekraal-fees is baie gewild. Ons gaan na die Klein-Karoo toe.',
+      textContent: 'Die Perdekraal-fees is baie gewild. Ons gaan na die Klein-Karoo toe.',
     },
   });
 
-  const lessonsRes = await page.request.get(
-    apiUrl(`/api/collections/${collectionId}/lessons`)
-  );
+  const lessonsRes = await page.request.get(apiUrl(`/api/collections/${collectionId}/lessons`));
   const lessons = await lessonsRes.json();
 
   await page.goto(`/read/${lessons[0].id}`);
@@ -61,7 +58,11 @@ test.describe('Reader word handling', () => {
     // Word dict-misses now stream a plain-text gloss from /translate/gloss.
     await page.route('**/api/translate/gloss', async (route) => {
       const body = JSON.parse(route.request().postData() || '{}');
-      await route.fulfill({ status: 200, contentType: 'text/plain', body: `[translated: ${body.word}]` });
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/plain',
+        body: `[translated: ${body.word}]`,
+      });
     });
 
     // Clean up any leftover test collections
@@ -89,9 +90,7 @@ test.describe('Reader word handling', () => {
     }
   });
 
-  test('clicking a hyphenated word should translate the full token', async ({
-    page,
-  }) => {
+  test('clicking a hyphenated word should translate the full token', async ({ page }) => {
     // "Perdekraal-fees" should be a single clickable span
     const hyphenatedWord = page.locator('article span.cursor-pointer', {
       hasText: 'Perdekraal-fees',
@@ -117,7 +116,9 @@ test.describe('Reader word handling', () => {
     await expect(drawer.getByRole('heading', { name: 'Perdekraal-fees' })).toBeVisible();
   });
 
-  test('updates one word optimistically without refetching the known-words map', async ({ page }) => {
+  test('updates one word optimistically without refetching the known-words map', async ({
+    page,
+  }) => {
     let releaseWrite!: () => void;
     let writeStarted!: () => void;
     const writeGate = new Promise<void>((resolve) => {
@@ -144,7 +145,7 @@ test.describe('Reader word handling', () => {
     await expect(word).not.toHaveClass(/w-new-bg/);
 
     releaseWrite();
-    await expect(drawer).toHaveClass(/translate-x-full/);
+    await expect(drawer.getByTestId('translation-drawer-empty')).toBeVisible({ timeout: 5000 });
     await expect.poll(() => knownWordsFetches).toBe(1);
   });
 
@@ -196,7 +197,7 @@ test.describe('Reader word handling', () => {
 
     await page.evaluate(() => {
       window.dispatchEvent(
-        new KeyboardEvent('keydown', { key: '1', metaKey: true, bubbles: true })
+        new KeyboardEvent('keydown', { key: '1', metaKey: true, bubbles: true }),
       );
     });
     await page.waitForTimeout(300);
@@ -207,7 +208,11 @@ test.describe('Reader word handling', () => {
     const classes = await levelButton.getAttribute('class');
     expect(classes).not.toContain('ring-2');
 
+    // Pressing '1' assigns level 1 and auto-advances to the next word.
     await page.keyboard.press('1');
-    await expect(levelButton).toHaveClass(/ring-2/, { timeout: 3000 });
+
+    // The word chip for Perdekraal-fees should reflect the new level.
+    const wordChip = page.getByRole('button', { name: 'Look up Perdekraal-fees' });
+    await expect(wordChip).toHaveAttribute('data-word-state', 'level1', { timeout: 3000 });
   });
 });

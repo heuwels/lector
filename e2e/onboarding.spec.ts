@@ -393,7 +393,7 @@ test.describe('guided onboarding — selfhost', () => {
       }
 
       await page.keyboard.press('Escape');
-      await expect(page.getByTestId('translation-drawer')).toHaveClass(/translate-x-full/);
+      await expect(page.getByTestId('translation-drawer-empty')).toBeVisible();
       await expect(trigger).not.toHaveAttribute('data-active-word', 'true');
     }
 

@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-10-11 10:16
+
+- Fix Shift+Arrow phrase selection: words now visually highlight and the sidebar shows the phrase with spaces and punctuation (e.g. "the cat," not "thecat").
+  - `src/components/MarkdownReader/useReaderKeyboardNavigation.ts`: replaced `.map(el => el.textContent).join('')` (which concatenated word spans without spaces) with `readableRangeText(range)` using a DOM `Range` from before the first span to after the last span — same approach as `handleTouchPhrase`. This preserves spaces, punctuation, and skips ruby annotations.
+  - Added `onClearPhrase` callback to `NavigationCallbacks` so plain arrow navigation clears the phrase highlight (previously it lingered after Shift+Arrow).
+  - `src/components/MarkdownReader/index.tsx`: wired `onClearPhrase` to `clearPhraseHighlight`.
+  - `e2e/reader-keyboard-navigation.spec.ts`: fixed selectors from `[data-phrase-highlighted=""]` to `[data-phrase-highlighted]` to match the attribute value convention; added test verifying sidebar displays phrase with spaces.
+
+## 2026-10-11 02:00
+
+- Fix Shift+Arrow to extend phrase selection from a fixed anchor (like text editors) instead of restarting from the cursor on each press. Also triggers a phrase lookup in the drawer as the selection grows.
+  - `src/components/MarkdownReader/useReaderKeyboardNavigation.ts`: added `anchorRef` that captures the word position on the first Shift+Arrow press and stays fixed while the cursor extends; each subsequent Shift+Arrow rebuilds the phrase from anchor to cursor via `wordSpansBetween` and calls both `onSelectPhrase` (highlight) and `onLookUpWord` (drawer update); anchor is cleared on plain arrow, Escape, state shortcuts, and mouse click.
+  - `src/components/MarkdownReader/index.tsx`: `onSelectPhrase` callback now clears the phrase highlight when the selection collapses to a single word (so the visual state matches a plain cursor).
+
+## 2026-10-11 01:42
+
+- Reader sidebar layout upgrade: docked sidebar extended from `2xl` to `lg+`; mobile drawer converted from right-slide-in panel to bottom sheet (≤45vh); added click-outside-to-close; added auto-scroll of clicked word above the bottom sheet; fixed Escape two-stage conflict with page-level handler; fixed ignore button tooltip to show both `X` and `I` keys.
+  - `src/components/TranslationDrawer/slot.tsx`: breakpoint `2xl:flex` → `lg:flex`.
+  - `src/components/TranslationDrawer/index.tsx`: `docked` now `screenSize !== 'xs' && screenSize !== 'sm'` (was `=== '2xl'`); mobile drawer repositioned to `fixed inset-x-0 bottom-0 max-h-[45vh]` with `translate-y` slide animation; added `pointerdown` outside-click handler (skips `[data-testid="reader-word"]` targets); added auto-scroll effect for `[data-active-word]` above the 45vh sheet; Escape-to-close handler now active in docked mode (shadowed by hook on reader page); `idle = docked && (!rawIsOpen || !word.trim())` so docked sidebar shows empty state after close.
+  - `src/app/read/[bookId]/page.tsx`: layout `2xl:flex-row` → `lg:flex-row`; removed page-level Escape/S keyboard handlers that conflicted with the hook's two-stage Escape and auto-advance.
+  - `e2e/reader-sidebar-layout.spec.ts` (new): 5 e2e tests at 1280px (docked layout, Escape ordering) and 800px (bottom sheet, outside-click, word-switch, auto-scroll).
+  - `e2e/cloze-definitions.spec.ts`, `e2e/translation-drawer.spec.ts`, `e2e/reader-copy.spec.ts`, `e2e/reader-keyboard-navigation.spec.ts`, `e2e/reader-word-handling.spec.ts`, `e2e/nested-definitions.spec.ts`, `e2e/onboarding.spec.ts`, `e2e/practice.spec.ts`: updated assertions from `translate-x-full` / `not.toBeVisible()` to empty-state checks to match docked sidebar behavior.
+  - Rationale: the `lg` breakpoint (1024px) is the standard tablet/desktop threshold, making the sidebar usable on more screens. Bottom-sheet is the conventional mobile pattern and keeps reader content peekable. Outside-click via `pointerdown` (capture) avoids the mousedown/click race that previously prevented it.
+
+## 2026-10-11 00:33
+
+- Add keyboard navigation to the reader article (arrows, Shift+Arrow selection, Escape, k/x/1-4 shortcuts with auto-advance).
+  - `src/components/WordCell/index.tsx`: added `blockId` and `wordIndex` props, rendered as `data-block-id` and `data-word-index` attributes for DOM-based navigation queries; added `focus-visible:ring-2` style for keyboard focus.
+  - `src/components/MarkdownReader/ReaderArticle/index.tsx`: passes `blockId` and `wordIndex` to each `WordCell`.
+  - `src/components/MarkdownReader/useReaderKeyboardNavigation.ts` (new): custom hook listening on `window` for arrow navigation, Shift+Arrow phrase selection, Escape (close drawer), 's' (save word), and k/x/1-4 state shortcuts with auto-advance.
+  - `src/components/MarkdownReader/index.tsx`: integrates the hook; added `onReaderStateShortcut`, `onReaderCloseDrawer`, `onReaderSaveWord`, `onReaderLookUpWord` props to `MarkdownReaderProps`; internally wires `onNavigate`, `onSelectPhrase`, `onClearSelection`.
+  - `src/components/MarkdownReader/types.ts`: added the four new optional callback props.
+  - `src/app/read/[bookId]/page.tsx`: added `handleStateShortcut`, `handleReaderCloseDrawer`, `handleReaderSaveWord`, `handleLookUpWord` callbacks; removed k/x/1-4/escape/s from the window-level keyboard handler (now handled by the hook with auto-advance); kept Cmd+C.
+  - `src/components/MarkdownReader/__tests__/useReaderKeyboardNavigation.test.ts` (new): 9 unit tests covering `STATE_SHORTCUTS` mapping and `parseWordElement`.
+  - `e2e/reader-keyboard-navigation.spec.ts` (new): 11 e2e tests covering arrow navigation (incl. body focus), Shift+Arrow selection, Escape, Enter lookup, state shortcuts with auto-advance, 's' save, and body/drawer focus edge cases.
+  - `e2e/reader-word-handling.spec.ts`: updated `Cmd+number` test to assert `data-word-state` attribute instead of level-button ring (auto-advance moves the drawer to the next word).
+  - Rationale: enables rapid vocabulary building — navigate and assign states without touching the mouse. The window-level listener catches keys regardless of focus (reader, body, or portaled drawer).
+  - Fix 2026-10-11 01:30: Bug fix batch — (1) Arrow navigation now uses a persistent cursor ref synced from activeWord, so arrows advance from the clicked word instead of always jumping to the first word. (2) Up/Down arrows use getBoundingClientRect geometry to follow visual line wrapping, not DOM order. (3) 'i' added as an alias for the ignore key alongside 'x'. (4) Escape now clears selection on first press and closes the drawer on second press. (5) 's' restored to original behavior (save word to vocab, not level assignment). (6) State shortcuts (k/x/i/1-4) now work from any focus (body, reader, drawer) since the listener is on `window`.
+
 ## 2026-09-30 12:55
 
 - Fix read-page handler routing multi-token CJK selections (newline-separated text, accidental multi-sentence drags) to the phrase-translation endpoint instead of failing the word-gloss server guard with `Word must be a single token` (400).

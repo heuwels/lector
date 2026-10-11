@@ -149,7 +149,7 @@ test.describe.serial("Practice - Type Mode Full Journey", () => {
     await expect(announcement).toContainText("Definition loaded");
 
     await drawer.getByRole("button", { name: "Close" }).click();
-    await expect(drawer).toHaveClass(/translate-x-full/);
+    await expect(drawer.getByTestId("translation-drawer-empty")).toBeVisible({ timeout: 5000 });
     await lookupWord.focus();
     await page.keyboard.press("Space");
     await expect(drawer).toHaveClass(/translate-x-0/);

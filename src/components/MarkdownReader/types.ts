@@ -26,4 +26,13 @@ export interface MarkdownReaderProps {
   nextLesson?: LessonSummary | null;
   /** Extra header button(s), e.g. the listen-along toggle on audio lessons (#185). */
   headerAction?: ReactNode;
+  /** Assign a vocab state to the drawer's current word via keyboard shortcut
+   *  (k/x/1-4). The reader handles auto-advancing to the next word. */
+  onReaderStateShortcut?: (state: WordState) => void | Promise<void>;
+  /** Close the word/phrase drawer (Escape). */
+  onReaderCloseDrawer?: () => void;
+  /** Save the current word to vocab ('s' shortcut). */
+  onReaderSaveWord?: () => void;
+  /** Trigger a lookup for the given word text (auto-advance after state shortcut). */
+  onReaderLookUpWord?: (word: string) => void;
 }

@@ -71,23 +71,58 @@ export default function TranslationDrawer({
     setClozeStatus('idle');
   }
 
-  const docked = screenSize === '2xl';
+  const docked = screenSize !== 'xs' && screenSize !== 'sm';
   const isOpen = useMemo(() => docked || rawIsOpen, [docked, rawIsOpen]);
-  const idle = docked && !word.trim();
+  const idle = docked && (!rawIsOpen || !word.trim());
 
+  // Escape-to-close fallback. On the reader page, useReaderKeyboardNavigation's
+  // two-stage handler (window capture) takes priority via stopPropagation and this
+  // never fires. On the practice page (no hook) this single-escape handler closes
+  // the drawer, which is the expected behaviour there.
   useEffect(() => {
-    if (!isOpen || docked) return;
+    if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [isOpen, onClose, docked]);
+  }, [isOpen, onClose]);
 
-  // Click-outside-to-close intentionally omitted: it races with the
-  // new-word click handler (mousedown closes the drawer before the click
-  // fires on the new word). Users dismiss with Esc or the close button,
-  // and clicking another word simply switches the drawer to that word.
+  // Click-outside-to-close. Fires on pointerdown (capture phase) so that a
+  // click on a word token — which switches the drawer content — is not
+  // intercepted as an outside click and causes flicker.
+  useEffect(() => {
+    if (docked || !isOpen || idle) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (drawerRef.current?.contains(target)) return;
+      // Allow word-token clicks to switch words without closing first.
+      const closest = (e.target as Element | null)?.closest?.('[data-testid="reader-word"]');
+      if (closest) return;
+      onClose();
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+  }, [isOpen, onClose, docked, idle]);
+
+  // Auto-scroll: when the bottom sheet opens on mobile, ensure the active word
+  // is not obscured by scrolling it above the 45vh sheet.
+  useEffect(() => {
+    if (docked || !isOpen || idle) return;
+    const active = document.querySelector('[data-active-word]');
+    if (!(active instanceof HTMLElement)) return;
+    const rect = active.getBoundingClientRect();
+    const sheetHeight = window.innerHeight * 0.45;
+    const safeBottom = window.innerHeight - sheetHeight;
+    if (rect.bottom <= safeBottom) return;
+    const overlap = rect.bottom - safeBottom;
+    const container = active.closest('.overflow-auto') as HTMLElement | null;
+    if (container) {
+      container.scrollTop += overlap;
+    } else {
+      window.scrollBy(0, overlap);
+    }
+  }, [isOpen, docked, idle]);
 
   const handleSpeakWord = useCallback(() => onSpeak(word), [onSpeak, word]);
   const handleSpeakSentence = useCallback(() => onSpeak(sentence), [onSpeak, sentence]);
@@ -122,12 +157,12 @@ export default function TranslationDrawer({
       data-testid="translation-drawer"
       aria-hidden={docked ? false : !isOpen}
       className={clsx(
-        'flex flex-col border-l border-border bg-popover print:hidden',
+        'flex flex-col bg-popover print:hidden',
         docked
-          ? 'relative h-full w-full translate-x-0 shadow-none'
+          ? 'relative h-full w-full translate-x-0 border-l border-border shadow-none'
           : [
-              'fixed inset-y-0 right-0 z-50 max-h-screen w-full max-w-full shadow-2xl transition-transform duration-300 ease-out sm:max-w-96',
-              isOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full',
+              'fixed inset-x-0 bottom-0 z-50 max-h-[45vh] w-full border-t border-border shadow-2xl transition-transform duration-300 ease-out',
+              isOpen ? 'translate-y-0' : 'pointer-events-none translate-y-full',
             ],
       )}
       ref={drawerRef}
@@ -602,7 +637,7 @@ export default function TranslationDrawer({
                           ? 'bg-muted-foreground text-card ring-2 ring-muted-foreground ring-offset-1 ring-offset-popover'
                           : 'bg-muted text-foreground hover:bg-accent'
                       }`}
-                      title="Ignore (X)"
+                      title="Ignore (X or I)"
                     >
                       ✕ Ignore
                     </button>

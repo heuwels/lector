@@ -16,6 +16,7 @@ import {
 } from '@/lib/languages';
 import { parseSegmentWords, readableRangeText, readableText } from './utils';
 import { usePhraseTouchSelection } from './usePhraseTouchSelection';
+import { useReaderKeyboardNavigation } from './useReaderKeyboardNavigation';
 import { useActiveLanguage, useProseStyleSettings } from '@/utils/hooks';
 import { resolveProseStyle } from '@/lib/prose-style';
 import { MarkdownReaderProps } from './types';
@@ -38,6 +39,10 @@ export default function MarkdownReader({
   prevLesson,
   nextLesson,
   headerAction,
+  onReaderStateShortcut,
+  onReaderCloseDrawer,
+  onReaderSaveWord,
+  onReaderLookUpWord,
 }: MarkdownReaderProps) {
   const router = useRouter();
   const activeLang = useActiveLanguage();
@@ -277,6 +282,11 @@ export default function MarkdownReader({
     setHighlightedPhrase([]);
   }, []);
 
+  const handleClearSelection = useCallback(() => {
+    setActiveWord(null);
+    setHighlightedPhrase([]);
+  }, []);
+
   // Drop the word/phrase highlight when the drawer closes (Esc, the X, or a
   // click away), so a dismissed lookup doesn't leave the reader marked up.
   // Only acts on close — opening/re-targeting keeps whatever was just set.
@@ -340,6 +350,31 @@ export default function MarkdownReader({
   );
 
   usePhraseTouchSelection(containerRef, handleTouchPhrase);
+
+  // Keyboard navigation: arrows move focus between words, Shift+Arrow extends
+  // a phrase selection, k/x/1-4 assign vocab state + auto-advance (when the
+  // drawer is open), Escape clears selection then closes drawer, 's' saves.
+  if (onReaderStateShortcut && onReaderLookUpWord && onReaderCloseDrawer) {
+    useReaderKeyboardNavigation(containerRef, wordPanelOpen, activeWord, {
+      onNavigate: setActiveWord,
+      onSelectPhrase: (text) => {
+        const words = phraseWords(text);
+        if (words.length >= 2) {
+          setHighlightedPhrase(words);
+        } else {
+          // Selection collapsed to a single word or empty — clear the
+          // phrase highlight so the visual state matches the single-word focus.
+          setHighlightedPhrase([]);
+        }
+      },
+      onClearPhrase: clearPhraseHighlight,
+      onClearSelection: handleClearSelection,
+      onCloseDrawer: onReaderCloseDrawer,
+      onStateShortcut: onReaderStateShortcut,
+      onLookUpWord: onReaderLookUpWord,
+      onSaveWord: onReaderSaveWord,
+    });
+  }
 
   return (
     <div className="flex h-full flex-col bg-card print:block print:h-auto">
