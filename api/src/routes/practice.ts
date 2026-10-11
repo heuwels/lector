@@ -1,8 +1,8 @@
 import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
-import { db, VocabRow, SRS_INTERVAL_DAYS, type SrsLevel } from '../db';
+import { db, VocabRow } from '../db';
 import { getCurrentUserId } from '../lib/user';
-import { validateSafeInteger } from '../lib/persisted-input';
+import { resolveLanguage } from '../lib/active-language';
 
 const app = new Hono();
 
@@ -37,14 +37,16 @@ app.post('/srs-queue', async (c) => {
   }
 
   const safeLimit = 50;
+  const lang = resolveLanguage(body.language, userId);
 
   // Build the query
   const placeholders = levels.map(() => '?').join(',');
-  const params: SQLQueryBindings[] = [userId, new Date().toISOString(), ...levels];
+  const params: SQLQueryBindings[] = [userId, lang, new Date().toISOString(), ...levels];
 
   let query = `
     SELECT * FROM vocab
     WHERE userId = ?
+    AND language = ?
     AND next_review IS NOT NULL
     AND next_review <= ?
     AND srs_level IN (${placeholders})

@@ -3,7 +3,11 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
-import { migrateAcceptedCacheUserKey, migrateCompositeTenantKeys } from './db';
+import {
+  migrateAcceptedCacheUserKey,
+  migrateCompositeTenantKeys,
+  migrateVocabSrsLevels,
+} from './db';
 
 // #279 — the composite (userId, id) rebuild, exercised against a synthetic
 // PRE-migration database (not the singleton `db`, which is already migrated).
@@ -348,6 +352,106 @@ describe('migrateCompositeTenantKeys (#279)', () => {
         .get() as { n: number }
     ).n;
     expect(n).toBe(2);
+  });
+});
+
+describe('migrateVocabSrsLevels', () => {
+  // Mirrors the getDb order: the composite-PK rebuild first, then this one.
+  const upgrade = () => {
+    migrateCompositeTenantKeys(db);
+    migrateVocabSrsLevels(db);
+  };
+
+  const tableSql = (table: string): string =>
+    (
+      db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?").get(table) as {
+        sql: string;
+      }
+    ).sql;
+
+  test('accepts level5-7 and adds the SRS scheduling columns', () => {
+    // createOldSchema models the aged vocab table but no knownWords; add the
+    // pre-SRS known-word table so its CHECK upgrade is exercised too.
+    db.exec(`
+      CREATE TABLE knownWords (
+        userId TEXT NOT NULL DEFAULT 'local',
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+        domain TEXT,
+        PRIMARY KEY (userId, word, language)
+      );
+      INSERT INTO knownWords (userId, word, language, state, domain)
+        VALUES ('local', 'kat', 'af', 'level2', NULL);
+    `);
+
+    upgrade();
+
+    expect(tableSql('vocab')).toContain("'level7'");
+    expect(tableSql('knownWords')).toContain("'level7'");
+
+    const vocabCols = (db.prepare('PRAGMA table_info(vocab)').all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    for (const col of ['srs_level', 'next_review', 'last_review']) {
+      expect(vocabCols, `vocab.${col}`).toContain(col);
+    }
+
+    db.prepare(
+      `INSERT INTO vocab (userId, id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language)
+       VALUES ('local', 'v5', 'vyf', 'word', 'x', 'five', 'level5', ?, ?, 'af')`,
+    ).run(TS, TS);
+    expect(db.prepare("SELECT state FROM vocab WHERE id = 'v5'").get()).toEqual({
+      state: 'level5',
+    });
+
+    db.prepare(
+      "UPDATE knownWords SET state = 'level7' WHERE userId = 'local' AND word = 'kat' AND language = 'af'",
+    ).run();
+    expect(db.prepare("SELECT state FROM knownWords WHERE word = 'kat'").get()).toEqual({
+      state: 'level7',
+    });
+
+    // Existing rows survive, defaulting the new column rather than nulling it.
+    expect(db.prepare("SELECT text, srs_level FROM vocab WHERE id = 'v1'").get()).toEqual({
+      text: 'kat',
+      srs_level: 1,
+    });
+
+    const indexes = (
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_vocab%'")
+        .all() as { name: string }[]
+    ).map((r) => r.name);
+    expect(indexes).toContain('idx_vocab_srs_next_review');
+  });
+
+  test('is idempotent — a second run leaves schema and data untouched', () => {
+    upgrade();
+    const before = dumpAll(db);
+    const schemaBefore = tableSql('vocab');
+
+    migrateVocabSrsLevels(db);
+
+    expect(dumpAll(db)).toEqual(before);
+    expect(tableSql('vocab')).toBe(schemaBefore);
+  });
+
+  // An earlier SRS iteration wrote a camelCase `srsLevel`; a real install that
+  // already ran the composite rebuild carries that column. Its value must not
+  // be lost when the snake_case columns land.
+  test('carries a legacy camelCase srsLevel into srs_level', () => {
+    db.exec('ALTER TABLE vocab ADD COLUMN srsLevel INTEGER DEFAULT 0');
+    db.prepare("UPDATE vocab SET srsLevel = 4 WHERE id = 'v1'").run();
+
+    migrateVocabSrsLevels(db);
+
+    expect(db.prepare("SELECT srs_level FROM vocab WHERE id = 'v1'").get()).toEqual({
+      srs_level: 4,
+    });
+    expect(db.prepare("SELECT srs_level FROM vocab WHERE id = 'v2'").get()).toEqual({
+      srs_level: 1,
+    });
   });
 });
 

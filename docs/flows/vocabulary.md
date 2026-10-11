@@ -41,7 +41,7 @@ Practice mastery 100 calls `updateWordState` in `persistReview`. That is `POST /
 
 ### Word states
 
-`new`, `level1`, `level2`, `level3`, `level4`, `known`, `ignored`.
+`new`, `level1`, `level2`, `level3`, `level4`, `level5`, `level6`, `level7`, `known`, `ignored`.
 
 ### Tables
 

@@ -284,3 +284,62 @@ describe('POST /api/vocab/bulk-delete (#569)', () => {
     expect(vocabIds()).toEqual(['v1']);
   });
 });
+
+// The SRS feature added level5-7 to WordState, but the route whitelist stopped
+// at level4, so a reader level 5/6/7 save came back 400 and the UI reported a
+// connection error. These pin the accepted range at the route boundary.
+describe('word states level5-7 (SRS)', () => {
+  const clear = () => {
+    db.prepare('DELETE FROM knownWords').run();
+    db.prepare('DELETE FROM vocab').run();
+  };
+  beforeEach(clear);
+  afterEach(clear);
+
+  test('POST accepts and persists level5-7', async () => {
+    for (const level of [5, 6, 7] as const) {
+      const res = await app.request('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `word-${level}`,
+          text: `woord${level}`,
+          type: 'word',
+          sentence: 's',
+          translation: 't',
+          state: `level${level}`,
+          createdAt: TS,
+          language: 'af',
+        }),
+      });
+      expect(res.status, `POST level${level}`).toBe(200);
+    }
+    const states = db.prepare('SELECT state FROM vocab ORDER BY id').all() as { state: string }[];
+    expect(states.map((s) => s.state)).toEqual(['level5', 'level6', 'level7']);
+  });
+
+  test('PUT accepts and persists level5-7', async () => {
+    seed('v1', 'huis', 'af');
+    for (const level of [5, 6, 7] as const) {
+      const res = await app.request('/v1', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: `level${level}` }),
+      });
+      expect(res.status, `PUT level${level}`).toBe(200);
+      expect(db.prepare("SELECT state FROM vocab WHERE id = 'v1'").get()).toEqual({
+        state: `level${level}`,
+      });
+    }
+  });
+
+  test('rejects a state outside the set', async () => {
+    seed('v1', 'huis', 'af');
+    const res = await app.request('/v1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: 'level8' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});

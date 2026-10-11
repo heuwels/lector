@@ -19,6 +19,9 @@ const WORD_STATES = new Set([
   'level2',
   'level3',
   'level4',
+  'level5',
+  'level6',
+  'level7',
   'known',
   'ignored',
 ] as const);

@@ -33,6 +33,9 @@ const WORD_STATES = new Set([
   'level2',
   'level3',
   'level4',
+  'level5',
+  'level6',
+  'level7',
   'known',
   'ignored',
 ] as const);
@@ -454,9 +457,7 @@ export function updateSRS(
   wordId: string,
   isCorrect: boolean,
   userId: string,
-):
-  | { success: boolean; newLevel?: number; nextReview?: string }
-  | { success: false; error: string } {
+): { success: true; newLevel: number; nextReview: string } | { success: false; error: string } {
   const row = db
     .prepare('SELECT srs_level FROM vocab WHERE id = ? AND userId = ?')
     .get(wordId, userId) as { srs_level: number } | undefined;

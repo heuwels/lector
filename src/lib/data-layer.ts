@@ -642,13 +642,10 @@ export async function getSrsQueue(
     type: string;
   }>
 > {
-  const params = new URLSearchParams({ language: getActiveLanguage() });
-  params.set('levels', levels.join(','));
-  if (bookId) params.set('bookId', bookId);
   const res = await apiFetch(`/api/practice/srs-queue`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ levels, bookId }),
+    body: JSON.stringify({ levels, bookId, language: getActiveLanguage() }),
   });
   if (!res.ok) return [];
   const data = await res.json();

@@ -120,9 +120,20 @@ const NULLABLE_STRING: JsonSchema = { type: ['string', 'null'] };
 
 const WORD_STATE: JsonSchema = {
   type: 'string',
-  enum: ['new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored'],
+  enum: [
+    'new',
+    'level1',
+    'level2',
+    'level3',
+    'level4',
+    'level5',
+    'level6',
+    'level7',
+    'known',
+    'ignored',
+  ],
   description:
-    'How well the account knows a word. `level1` to `level4` are the learning steps between `new` and `known`. `ignored` hides the word.',
+    'How well the account knows a word. `level1` to `level7` are the learning steps between `new` and `known`. `ignored` hides the word.',
 };
 
 /** Reusable schemas. Referenced from operations as `{ $ref: '#/components/schemas/<name>' }`. */
@@ -1510,6 +1521,10 @@ const practiceOps: Record<string, OperationDoc> = {
           bookId: {
             type: ['string', 'null'],
             description: 'Optional book/lesson ID to filter words from a specific source.',
+          },
+          language: {
+            type: 'string',
+            description: 'Language pack code. Defaults to the account’s active language.',
           },
         },
         required: ['levels'],
