@@ -133,6 +133,12 @@ export const schemas: Record<string, JsonSchema> = {
     required: ['error'],
   },
 
+  ErrorResponse: {
+    type: 'object',
+    properties: { error: { type: 'string', description: 'What went wrong.' } },
+    required: ['error'],
+  },
+
   PlanLimitError: {
     type: 'object',
     description: 'A plan limit stopped the call.',
@@ -1482,6 +1488,103 @@ const practiceOps: Record<string, OperationDoc> = {
       },
     },
     responses: { '200': { description: 'The answer is recorded.', schema: ref('Success') } },
+  },
+  'POST /api/practice/srs-queue': {
+    summary: 'Fetch a prioritized queue of words for SRS review',
+    description:
+      'Returns up to 50 vocabulary entries whose `next_review` is due, filtered by SRS ' +
+      'level and optionally by book. The queue is ordered by `next_review` ascending, ' +
+      'then by `srs_level` ascending (most overdue, lowest-level words first).',
+    tag: 'Vocabulary',
+    requestBody: {
+      required: true,
+      schema: {
+        type: 'object',
+        properties: {
+          levels: {
+            type: 'array',
+            items: { type: 'integer', minimum: 1, maximum: 7 },
+            description: 'SRS levels to include in the queue (1-7).',
+            minItems: 1,
+          },
+          bookId: {
+            type: ['string', 'null'],
+            description: 'Optional book/lesson ID to filter words from a specific source.',
+          },
+        },
+        required: ['levels'],
+      },
+    },
+    responses: {
+      '200': {
+        description: 'The prioritized review queue.',
+        schema: {
+          type: 'object',
+          properties: {
+            words: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  text: { type: 'string' },
+                  type: { type: 'string', enum: ['word', 'phrase'] },
+                  sentence: { type: 'string' },
+                  translation: { type: 'string' },
+                  state: WORD_STATE,
+                  stateUpdatedAt: ISO_DATE_TIME,
+                  reviewCount: { type: 'integer' },
+                  bookId: { type: ['string', 'null'] },
+                  chapter: { type: ['integer', 'null'] },
+                  createdAt: ISO_DATE_TIME,
+                  pushedToAnki: { type: 'boolean' },
+                  ankiNoteId: { type: ['integer', 'null'] },
+                  srs_level: { type: 'integer', minimum: 1, maximum: 7 },
+                  next_review: { type: ['string', 'null'], format: 'date-time' },
+                  last_review: { type: ['string', 'null'], format: 'date-time' },
+                },
+              },
+            },
+          },
+          required: ['words'],
+        },
+      },
+    },
+  },
+  'PATCH /api/vocab/update-srs': {
+    summary: 'Update SRS level and review timestamps for a vocabulary entry',
+    description:
+      'Updates the spaced-repetition state after a review. Correct answers advance the ' +
+      'level (max 7) and schedule the next review per the interval map; incorrect answers ' +
+      'reset the level toward 1 and set next_review to now. The `state` column is also ' +
+      'synced to reflect the new SRS level.',
+    tag: 'Vocabulary',
+    requestBody: {
+      required: true,
+      schema: {
+        type: 'object',
+        properties: {
+          wordId: { type: 'string', description: 'Vocabulary entry identifier.' },
+          isCorrect: { type: 'boolean', description: 'Whether the answer was correct.' },
+        },
+        required: ['wordId', 'isCorrect'],
+      },
+    },
+    responses: {
+      '200': {
+        description: 'SRS state updated.',
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            newLevel: { type: 'integer', minimum: 1, maximum: 7 },
+            nextReview: { type: 'string', format: 'date-time', nullable: true },
+          },
+          required: ['success'],
+        },
+      },
+      '404': { description: 'Vocabulary entry not found.', schema: ref('ErrorResponse') },
+    },
   },
 };
 

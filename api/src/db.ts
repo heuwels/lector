@@ -86,22 +86,26 @@ function getDb(): Database {
       type TEXT NOT NULL CHECK (type IN ('word', 'phrase')),
       sentence TEXT NOT NULL,
       translation TEXT NOT NULL,
-      state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+      state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored')),
       stateUpdatedAt TEXT NOT NULL,
       reviewCount INTEGER DEFAULT 0,
       bookId TEXT,
       chapter INTEGER,
       createdAt TEXT NOT NULL,
       pushedToAnki INTEGER DEFAULT 0,
-      ankiNoteId INTEGER
+      ankiNoteId INTEGER,
+      srs_level INTEGER DEFAULT 1,
+      next_review TEXT,
+      last_review TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_vocab_text ON vocab(text);
     CREATE INDEX IF NOT EXISTS idx_vocab_state ON vocab(state);
     CREATE INDEX IF NOT EXISTS idx_vocab_bookId ON vocab(bookId);
+    CREATE INDEX IF NOT EXISTS idx_vocab_srs_next_review ON vocab(srs_level, next_review);
 
     CREATE TABLE IF NOT EXISTS knownWords (
       word TEXT PRIMARY KEY,
-      state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored'))
+      state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored'))
     );
 
     CREATE TABLE IF NOT EXISTS clozeSentences (
@@ -1744,6 +1748,17 @@ export type VocabType = 'word' | 'phrase';
 export type ClozeMasteryLevel = 0 | 25 | 50 | 75 | 100;
 export type ClozeSource = 'tatoeba' | 'mined';
 export type ClozeCollection = 'top500' | 'top1000' | 'top2000' | 'mined' | 'random';
+export type SrsLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+export const SRS_INTERVAL_DAYS: Record<SrsLevel, number> = {
+  1: 0,
+  2: 1,
+  3: 3,
+  4: 7,
+  5: 14,
+  6: 30,
+  7: 90,
+};
 
 export interface CollectionRow {
   userId: string;
@@ -1840,6 +1855,9 @@ export interface VocabRow {
   createdAt: string;
   pushedToAnki: number;
   ankiNoteId: number | null;
+  srs_level: number;
+  next_review: string | null;
+  last_review: string | null;
 }
 
 export interface KnownWordRow {

@@ -629,6 +629,32 @@ export async function getVocabForBook(bookId: string): Promise<VocabEntry[]> {
   });
 }
 
+export async function getSrsQueue(
+  levels: number[],
+  bookId?: string,
+): Promise<
+  Array<{
+    id: string;
+    text: string;
+    sentence: string;
+    translation: string;
+    srs_level: number;
+    type: string;
+  }>
+> {
+  const params = new URLSearchParams({ language: getActiveLanguage() });
+  params.set('levels', levels.join(','));
+  if (bookId) params.set('bookId', bookId);
+  const res = await apiFetch(`/api/practice/srs-queue`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ levels, bookId }),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.words ?? [];
+}
+
 export async function getUnpushedVocab(): Promise<VocabEntry[]> {
   return cachedQuery(activeLanguageQueryKey(VOCAB_QUERY_SCOPE, ['unpushed']), async () => {
     const res = await apiFetch(`/api/vocab${langParam()}&unpushed=true`);

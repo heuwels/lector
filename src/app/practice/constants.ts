@@ -33,3 +33,16 @@ export const DICTATION_MAX_REPLAYS = 3;
 
 // Playback speed multipliers offered during dictation (× the normal TTS rate).
 export const DICTATION_SPEEDS = [1, 0.75, 0.5] as const;
+
+// SRS level settings for the new 1-7 SRS Review mode
+export const SRS_LEVELS = [1, 2, 3, 4, 5, 6, 7] as const;
+export const SRS_DEFAULT_LEVELS = [1, 2, 3] as const;
+export const SRS_LEVEL_LABELS: Record<number, string> = {
+  1: 'Level 1 (0 days)',
+  2: 'Level 2 (1 day)',
+  3: 'Level 3 (3 days)',
+  4: 'Level 4 (7 days)',
+  5: 'Level 5 (14 days)',
+  6: 'Level 6 (30 days)',
+  7: 'Level 7 (90 days)',
+};

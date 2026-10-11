@@ -779,10 +779,17 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   ]);
 
   const setWordLevel = useCallback(
-    async (level: 1 | 2 | 3 | 4) => {
+    async (level: 1 | 2 | 3 | 4 | 5 | 6 | 7) => {
       if (!wordPanel.translation) return;
 
-      const state = `level${level}` as 'level1' | 'level2' | 'level3' | 'level4';
+      const state = `level${level}` as
+        | 'level1'
+        | 'level2'
+        | 'level3'
+        | 'level4'
+        | 'level5'
+        | 'level6'
+        | 'level7';
       const rollbackReaderState = applyReaderWordState(wordPanel.word, state);
       let existing: VocabEntry | undefined;
       try {
@@ -1313,16 +1320,43 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
             onReaderLookUpWord={handleLookUpWord}
             headerAction={
               segments.length > 0 ? (
-                <button
-                  onClick={() => setListenMode(true)}
-                  title="Listen along"
-                  aria-label="Listen along"
-                  data-testid="listen-along-toggle"
-                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent"
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setListenMode(true)}
+                    title="Listen along"
+                    aria-label="Listen along"
+                    data-testid="listen-along-toggle"
+                    className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent"
+                  >
+                    <Headphones className="h-5 w-5" />
+                  </button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      const params = new URLSearchParams({ format: 'srs', bookId: lessonId });
+                      router.push(`/practice?${params.toString()}`);
+                    }}
+                    className="gap-1.5"
+                    aria-label="Review words from this book"
+                  >
+                    <Headphones className="h-4 w-4" />
+                    <span className="hidden sm:inline">Review words</span>
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    const params = new URLSearchParams({ format: 'srs', bookId: lessonId });
+                    router.push(`/practice?${params.toString()}`);
+                  }}
+                  className="gap-1.5"
+                  aria-label="Review words from this book"
                 >
-                  <Headphones className="h-5 w-5" />
-                </button>
-              ) : undefined
+                  <Headphones className="h-4 w-4" />
+                  <span className="hidden sm:inline">Review words</span>
+                </Button>
+              )
             }
           />
         )}

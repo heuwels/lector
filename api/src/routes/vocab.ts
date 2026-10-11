@@ -1,6 +1,6 @@
 import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
-import { db, VocabRow } from '../db';
+import { db, VocabRow, SRS_INTERVAL_DAYS, type SrsLevel } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { foldWord, getLanguageConfig, normalizeText } from '../lib/languages';
 import { getCurrentUserId } from '../lib/user';
@@ -428,5 +428,62 @@ app.post('/bulk-delete', async (c) => {
     message: `Deleted ${deleted} of ${vocabIDs.length}`,
   });
 });
+
+// PATCH /api/vocab/update-srs — update SRS level based on review result
+app.patch('/update-srs', async (c) => {
+  const userId = getCurrentUserId(c);
+  const body = await c.req.json();
+
+  if (typeof body.wordId !== 'string' || !body.wordId.trim()) {
+    return c.json({ error: 'wordId is required' }, 400);
+  }
+  if (typeof body.isCorrect !== 'boolean') {
+    return c.json({ error: 'isCorrect must be a boolean' }, 400);
+  }
+
+  const result = updateSRS(body.wordId, body.isCorrect, userId);
+  if (!result.success) {
+    return c.json({ error: result.error }, 404);
+  }
+
+  return c.json({ success: true, newLevel: result.newLevel, nextReview: result.nextReview });
+});
+
+// SRS update function
+export function updateSRS(
+  wordId: string,
+  isCorrect: boolean,
+  userId: string,
+):
+  | { success: boolean; newLevel?: number; nextReview?: string }
+  | { success: false; error: string } {
+  const row = db
+    .prepare('SELECT srs_level FROM vocab WHERE id = ? AND userId = ?')
+    .get(wordId, userId) as { srs_level: number } | undefined;
+
+  if (!row) return { success: false, error: 'Vocab not found' };
+
+  const currentLevel = row.srs_level as SrsLevel;
+  let newLevel: SrsLevel;
+  let nextReview: string;
+
+  if (isCorrect) {
+    newLevel = Math.min(7, currentLevel + 1) as SrsLevel;
+    const days = SRS_INTERVAL_DAYS[newLevel];
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    nextReview = d.toISOString();
+  } else {
+    newLevel = Math.max(1, currentLevel - 1) as SrsLevel;
+    nextReview = new Date().toISOString();
+  }
+
+  const lastReview = new Date().toISOString();
+  db.prepare(
+    'UPDATE vocab SET srs_level = ?, next_review = ?, last_review = ? WHERE id = ? AND userId = ?',
+  ).run(newLevel, nextReview, lastReview, wordId, userId);
+
+  return { success: true, newLevel, nextReview };
+}
 
 export default app;

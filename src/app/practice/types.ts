@@ -10,7 +10,7 @@ export type PracticeMode = 'type' | 'mc';
 // Dictation (hear the whole sentence, type it back). Both draw from the same
 // clozeSentences pool and share the SRS card, so the only difference is how the
 // sentence is presented and answered.
-export type PracticeFormat = 'cloze' | 'dictation';
+export type PracticeFormat = 'cloze' | 'dictation' | 'srs';
 
 export type RoundSize = (typeof ROUND_SIZES)[number];
 export type RoundType = 'new' | 'review';

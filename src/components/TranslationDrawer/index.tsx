@@ -590,15 +590,19 @@ export default function TranslationDrawer({
               {(onSetLevel || onMarkKnown || onIgnore) && (
                 <div className="flex flex-wrap items-center gap-2">
                   {onSetLevel && (
-                    <div className="flex gap-1">
-                      {[1, 2, 3, 4].map((level) => {
+                    <div className="flex flex-wrap gap-1">
+                      {[1, 2, 3, 4, 5, 6, 7].map((level) => {
                         const stateKey = `level${level}` as WordState;
                         const isActive = currentState === stateKey;
-                        const colors = wordStateColors[stateKey];
+                        const colors = wordStateColors[stateKey] ?? {
+                          bg: 'bg-muted',
+                          text: 'text-muted-foreground',
+                          ring: 'ring-muted',
+                        };
                         return (
                           <button
                             key={level}
-                            onClick={() => onSetLevel(level as 1 | 2 | 3 | 4)}
+                            onClick={() => onSetLevel(level as 1 | 2 | 3 | 4 | 5 | 6 | 7)}
                             data-testid={`word-level-${level}`}
                             aria-label={`Save at learning level ${level}`}
                             className={`h-9 w-9 rounded-lg text-sm font-semibold transition-all ${

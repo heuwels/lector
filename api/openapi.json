@@ -8424,6 +8424,215 @@
         "x-token-scope": "stats:write"
       }
     },
+    "/api/practice/srs-queue": {
+      "post": {
+        "operationId": "postApiPracticeSrsQueue",
+        "summary": "Fetch a prioritized queue of words for SRS review",
+        "description": "Returns up to 50 vocabulary entries whose `next_review` is due, filtered by SRS level and optionally by book. The queue is ordered by `next_review` ascending, then by `srs_level` ascending (most overdue, lowest-level words first).",
+        "tags": [
+          "Vocabulary"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "levels": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    "description": "SRS levels to include in the queue (1-7).",
+                    "minItems": 1
+                  },
+                  "bookId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Optional book/lesson ID to filter words from a specific source."
+                  }
+                },
+                "required": [
+                  "levels"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The prioritized review queue.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "words": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "word",
+                              "phrase"
+                            ]
+                          },
+                          "sentence": {
+                            "type": "string"
+                          },
+                          "translation": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "new",
+                              "level1",
+                              "level2",
+                              "level3",
+                              "level4",
+                              "known",
+                              "ignored"
+                            ],
+                            "description": "How well the account knows a word. `level1` to `level4` are the learning steps between `new` and `known`. `ignored` hides the word."
+                          },
+                          "stateUpdatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "reviewCount": {
+                            "type": "integer"
+                          },
+                          "bookId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "chapter": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "pushedToAnki": {
+                            "type": "boolean"
+                          },
+                          "ankiNoteId": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "srs_level": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 7
+                          },
+                          "next_review": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "last_review": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "words"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is malformed, or a field is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential is missing, invalid or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token does not carry the scope this endpoint needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A plan limit or a rate limit stopped the call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanLimitError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The API failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalAccessToken": []
+          },
+          {
+            "SessionCookie": []
+          }
+        ],
+        "x-token-scope": "vocab:write"
+      }
+    },
     "/api/settings": {
       "get": {
         "operationId": "getApiSettings",
@@ -11216,6 +11425,139 @@
         "x-token-scope": "vocab:write"
       }
     },
+    "/api/vocab/update-srs": {
+      "patch": {
+        "operationId": "patchApiVocabUpdateSrs",
+        "summary": "Update SRS level and review timestamps for a vocabulary entry",
+        "description": "Updates the spaced-repetition state after a review. Correct answers advance the level (max 7) and schedule the next review per the interval map; incorrect answers reset the level toward 1 and set next_review to now. The `state` column is also synced to reflect the new SRS level.",
+        "tags": [
+          "Vocabulary"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "wordId": {
+                    "type": "string",
+                    "description": "Vocabulary entry identifier."
+                  },
+                  "isCorrect": {
+                    "type": "boolean",
+                    "description": "Whether the answer was correct."
+                  }
+                },
+                "required": [
+                  "wordId",
+                  "isCorrect"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SRS state updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "newLevel": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    "nextReview": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is malformed, or a field is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential is missing, invalid or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token does not carry the scope this endpoint needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Vocabulary entry not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A plan limit or a rate limit stopped the call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanLimitError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The API failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalAccessToken": []
+          },
+          {
+            "SessionCookie": []
+          }
+        ],
+        "x-token-scope": "vocab:write"
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -11284,6 +11626,18 @@
     },
     "schemas": {
       "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "What went wrong."
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ErrorResponse": {
         "type": "object",
         "properties": {
           "error": {

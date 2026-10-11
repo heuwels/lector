@@ -4,7 +4,17 @@
  * shapes returned by the API routes and consumed via src/lib/data-layer.ts.
  */
 
-export type WordState = 'new' | 'level1' | 'level2' | 'level3' | 'level4' | 'known' | 'ignored';
+export type WordState =
+  | 'new'
+  | 'level1'
+  | 'level2'
+  | 'level3'
+  | 'level4'
+  | 'level5'
+  | 'level6'
+  | 'level7'
+  | 'known'
+  | 'ignored';
 export type VocabType = 'word' | 'phrase';
 export type ClozeMasteryLevel = 0 | 25 | 50 | 75 | 100;
 export type ClozeSource = 'tatoeba' | 'mined';
