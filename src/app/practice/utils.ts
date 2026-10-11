@@ -36,6 +36,34 @@ export function createBlankedSentence(
   return words.join(separator);
 }
 
+/**
+ * Blank the word in its context sentence for SRS cloze. Returns null when the
+ * word is not in the sentence, so the caller can fall back to a gloss prompt.
+ * A single word matches one token; a phrase matches a contiguous run.
+ */
+export function blankWordInSentence(
+  sentence: string,
+  word: string,
+  pack?: LanguageConfig,
+): string | null {
+  const tokens = resolveClozeTokens(sentence, null, pack);
+  const needle = normalize(word, pack);
+  if (!needle) return null;
+
+  const index = tokens.findIndex((token) => normalize(token, pack) === needle);
+  if (index >= 0) return createBlankedSentence(sentence, index, tokens, pack);
+
+  const phrase = needle.split(/\s+/).filter(Boolean);
+  if (phrase.length < 2) return null;
+  for (let i = 0; i + phrase.length <= tokens.length; i++) {
+    if (!phrase.every((part, j) => normalize(tokens[i + j], pack) === part)) continue;
+    const replaced = [...tokens];
+    replaced.splice(i, phrase.length, '_____');
+    return replaced.join(clozeTokenSeparator(sentence, tokens, pack));
+  }
+  return null;
+}
+
 // Helper export function to normalize text for comparison. NFC first (#289):
 // decomposed typed input (macOS dead keys, some IMEs) must compare equal to
 // the bank's precomposed text. The ano teleia · is Greek's strong colon —

@@ -1572,9 +1572,10 @@ const practiceOps: Record<string, OperationDoc> = {
     summary: 'Update SRS level and review timestamps for a vocabulary entry',
     description:
       'Updates the spaced-repetition state after a review. Correct answers advance the ' +
-      'level (max 7) and schedule the next review per the interval map; incorrect answers ' +
-      'reset the level toward 1 and set next_review to now. The `state` column is also ' +
-      'synced to reflect the new SRS level.',
+      'level (max 7) and schedule the next review per the interval map. An incorrect ' +
+      'answer sets next_review to now: in `recall` mode it drops the level by one (min 1), ' +
+      'and in `cloze` mode it resets the level to 1. The `state` column is also synced to ' +
+      'reflect the new SRS level.',
     tag: 'Vocabulary',
     requestBody: {
       required: true,
@@ -1583,6 +1584,12 @@ const practiceOps: Record<string, OperationDoc> = {
         properties: {
           wordId: { type: 'string', description: 'Vocabulary entry identifier.' },
           isCorrect: { type: 'boolean', description: 'Whether the answer was correct.' },
+          mode: {
+            type: 'string',
+            enum: ['recall', 'cloze'],
+            description:
+              'Review mode. Defaults to `recall`; `cloze` applies the harder penalty on a miss.',
+          },
         },
         required: ['wordId', 'isCorrect'],
       },

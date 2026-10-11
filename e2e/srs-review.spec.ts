@@ -36,7 +36,12 @@ async function seedLesson(page: Page): Promise<{ collectionId: string; lessonId:
   });
   const { id: collectionId } = (await colRes.json()) as { id: string };
   await page.request.post(apiUrl(`/api/collections/${collectionId}/lessons`), {
-    data: { title: 'SRS words', textContent: WORDS.map((w) => w.text).join(' ') },
+    data: {
+      title: 'SRS words',
+      // A sentence per word, so the server can derive `vocab.sentence` from the
+      // lesson for the cloze card (the vocab POSTs below send none).
+      textContent: WORDS.map((w) => `Die ${w.text} is hier.`).join(' '),
+    },
   });
   const lessons = (await (
     await page.request.get(apiUrl(`/api/collections/${collectionId}/lessons`))
@@ -119,6 +124,52 @@ test.describe('SRS Review', () => {
             return !!current && current.textContent?.trim() !== previous;
           },
           word,
+          { timeout: 6000 },
+        );
+      }
+
+      await expect(page.getByTestId('srs-complete')).toBeVisible({ timeout: 10000 });
+    } finally {
+      await page.request.delete(apiUrl(`/api/collections/${collectionId}`));
+    }
+  });
+
+  test('cloze mode types the word into its blanked sentence', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const { collectionId, lessonId } = await seedLesson(page);
+
+    try {
+      await page.goto('/practice');
+      const srsTab = page.getByRole('button', { name: 'SRS Review', exact: true });
+      await expect(srsTab).toBeVisible({ timeout: 30000 });
+
+      await srsTab.click();
+      await page.getByRole('button', { name: 'Cloze (type the word)' }).click();
+      await page.getByPlaceholder('Enter book ID...').fill(lessonId);
+      await page.getByRole('button', { name: 'Start SRS Review' }).click();
+
+      const sentence = page.getByTestId('srs-cloze-sentence');
+      await expect(sentence).toBeVisible({ timeout: 15000 });
+
+      for (let step = 0; step < WORDS.length; step++) {
+        // The sentence is blanked and the gloss (the cue) names which word.
+        await expect(sentence).toContainText('_____');
+        const gloss = (await page.getByTestId('srs-cloze-gloss').textContent()) ?? '';
+        const entry = WORDS.find((w) => gloss.includes(w.label));
+        expect(entry, `unexpected gloss "${gloss}"`).toBeTruthy();
+
+        const input = page.getByTestId('srs-cloze-input');
+        await input.fill(entry!.text);
+        await input.press('Enter');
+
+        // The card advances (or the round completes) after the answer delay.
+        await page.waitForFunction(
+          (previous) => {
+            if (document.querySelector('[data-testid="srs-complete"]')) return true;
+            const current = document.querySelector('[data-testid="srs-cloze-sentence"]');
+            return !!current && current.textContent?.trim() !== previous;
+          },
+          `Die ${entry!.text} is hier.`,
           { timeout: 6000 },
         );
       }

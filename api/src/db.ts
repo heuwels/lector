@@ -4,6 +4,7 @@ import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { parseEpub } from './lib/epub-parser';
 import { countWords } from './lib/html-to-markdown';
+import { deriveContextSentence } from './lib/context-sentence';
 import {
   DEFAULT_LANGUAGE,
   foldWord,
@@ -608,6 +609,10 @@ function getDb(): Database {
   // `srs_level` mirrors the level in `state`; align rows that predate the
   // reader feeding the review queue. Idempotent (guarded on mismatch).
   backfillSrsLevelFromState(_db);
+
+  // Older saves left `vocab.sentence` empty; fill it from the lesson so SRS
+  // cloze has a sentence. Idempotent (guarded on an empty sentence).
+  backfillVocabSentences(_db);
 
   // lessons audio columns (#185) — audio-backed lessons (podcast import). NULL
   // on ordinary text lessons. Added after migrateCompositeTenantKeys (which
@@ -1403,6 +1408,46 @@ export function backfillSrsLevelFromState(database: Database) {
          AND srs_level <> CAST(substr(state, 6) AS INTEGER)`,
     )
     .run();
+}
+
+/**
+ * Fill `vocab.sentence` for rows that have none, from the lesson the word was
+ * saved in. Saves made before the reader carried its context left it empty,
+ * which would leave SRS cloze with no sentence to blank. Guarded on an empty
+ * sentence, so each row is filled once and later boots are a no-op.
+ */
+export function backfillVocabSentences(database: Database) {
+  const rows = database
+    .prepare(
+      `SELECT id, text, language, bookId FROM vocab
+       WHERE (sentence IS NULL OR trim(sentence) = '') AND bookId IS NOT NULL AND bookId <> ''`,
+    )
+    .all() as { id: string; text: string; language: string; bookId: string }[];
+  if (rows.length === 0) return;
+
+  const lessonTextCache = new Map<string, string | null>();
+  const lessonText = (lessonId: string): string | null => {
+    if (!lessonTextCache.has(lessonId)) {
+      const lesson = database
+        .prepare('SELECT textContent FROM lessons WHERE id = ?')
+        .get(lessonId) as { textContent: string } | undefined;
+      lessonTextCache.set(lessonId, lesson?.textContent ?? null);
+    }
+    return lessonTextCache.get(lessonId) ?? null;
+  };
+
+  const update = database.prepare('UPDATE vocab SET sentence = ? WHERE id = ?');
+  database.transaction(() => {
+    for (const row of rows) {
+      const text = lessonText(row.bookId);
+      if (!text) continue;
+      const code: LanguageCode = isValidLanguageCode(row.language)
+        ? row.language
+        : DEFAULT_LANGUAGE;
+      const sentence = deriveContextSentence(text, row.text, getLanguageConfig(code));
+      if (sentence) update.run(sentence, row.id);
+    }
+  })();
 }
 
 /**

@@ -46,3 +46,7 @@ export const SRS_LEVEL_LABELS: Record<number, string> = {
   6: 'Level 6 (30 days)',
   7: 'Level 7 (90 days)',
 };
+
+// localStorage key for the SRS Review presentation: 'recall' (choose the
+// translation) or 'cloze' (type the word into its blanked sentence).
+export const SRS_MODE_SETTING_KEY = 'lector-srs-review-mode';

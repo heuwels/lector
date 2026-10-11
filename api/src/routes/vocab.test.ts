@@ -364,11 +364,11 @@ describe('SRS level scheduling', () => {
     });
   }
 
-  function review(wordId: string, isCorrect: boolean) {
+  function review(wordId: string, isCorrect: boolean, mode?: 'recall' | 'cloze') {
     return app.request('/update-srs', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wordId, isCorrect }),
+      body: JSON.stringify({ wordId, isCorrect, ...(mode ? { mode } : {}) }),
     });
   }
 
@@ -452,5 +452,28 @@ describe('SRS level scheduling', () => {
     expect(
       db.prepare("SELECT state FROM knownWords WHERE word = 'huis' AND language = 'af'").get(),
     ).toEqual({ state: 'level2' });
+  });
+
+  test('a wrong cloze answer resets to level 1, not one step down', async () => {
+    seed('v1', 'huis', 'af');
+    await assignLevel('v1', 'level5');
+
+    const res = await review('v1', false, 'cloze');
+
+    expect(((await res.json()) as { newLevel: number }).newLevel).toBe(1);
+    expect(db.prepare("SELECT state, srs_level FROM vocab WHERE id = 'v1'").get()).toEqual({
+      state: 'level1',
+      srs_level: 1,
+    });
+  });
+
+  test('rejects an unknown review mode', async () => {
+    seed('v1', 'huis', 'af');
+    const res = await app.request('/update-srs', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wordId: 'v1', isCorrect: true, mode: 'bogus' }),
+    });
+    expect(res.status).toBe(400);
   });
 });

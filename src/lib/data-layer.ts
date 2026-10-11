@@ -657,11 +657,12 @@ export async function getSrsQueue(
 export async function updateSrsReview(
   wordId: string,
   isCorrect: boolean,
+  mode: 'recall' | 'cloze' = 'recall',
 ): Promise<{ newLevel: number; nextReview: string } | null> {
   const res = await apiFetch(`/api/vocab/update-srs`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ wordId, isCorrect }),
+    body: JSON.stringify({ wordId, isCorrect, mode }),
   });
   if (!res.ok) return null;
   const data = await res.json();

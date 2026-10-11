@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { db, VocabRow, SRS_INTERVAL_DAYS, type SrsLevel } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { foldWord, getLanguageConfig, normalizeText } from '../lib/languages';
+import { deriveContextSentence } from '../lib/context-sentence';
 import { getCurrentUserId } from '../lib/user';
 import { randomUUID } from 'crypto';
 import { entitlements, planLimitResponse, type AtomicLimitCheck } from '../lib/entitlements';
@@ -146,7 +147,17 @@ app.post('/', async (c) => {
   const pack = getLanguageConfig(lang);
   // Text ingress (#289): NFC the stored form; the knownWords key is folded.
   const text = normalizeText(body.text);
-  const sentence = body.sentence ?? '';
+  // Fill a missing context sentence from the lesson text, so SRS cloze has one
+  // to blank even when the save did not carry the reader's context.
+  let sentence = body.sentence ?? '';
+  if (!sentence.trim() && body.bookId) {
+    const lesson = db
+      .prepare('SELECT textContent FROM lessons WHERE id = ? AND userId = ?')
+      .get(body.bookId, userId) as { textContent: string } | undefined;
+    if (lesson?.textContent) {
+      sentence = deriveContextSentence(lesson.textContent, text, pack) ?? '';
+    }
+  }
   const translation = body.translation ?? '';
   const foldedText = foldWord(text, pack);
   const existing = db
@@ -277,9 +288,21 @@ app.put('/:id', async (c) => {
     updates.push('translation = ?');
     values.push(body.translation);
   }
-  if (body.sentence !== undefined) {
+  // Fill a missing context sentence from the lesson text (see POST), so a word
+  // levelled before its sentence was captured still has one for SRS cloze.
+  let resolvedSentence = body.sentence !== undefined ? body.sentence : existing.sentence;
+  if (!resolvedSentence.trim() && existing.bookId) {
+    const lesson = db
+      .prepare('SELECT textContent FROM lessons WHERE id = ? AND userId = ?')
+      .get(existing.bookId, userId) as { textContent: string } | undefined;
+    if (lesson?.textContent) {
+      const pack = getLanguageConfig(resolveLanguage(existing.language, userId));
+      resolvedSentence = deriveContextSentence(lesson.textContent, existing.text, pack) ?? '';
+    }
+  }
+  if (resolvedSentence !== existing.sentence) {
     updates.push('sentence = ?');
-    values.push(body.sentence);
+    values.push(resolvedSentence);
   }
   if (body.reviewCount !== undefined) {
     updates.push('reviewCount = ?');
@@ -297,7 +320,7 @@ app.put('/:id', async (c) => {
   const previousVocabBytes = vocabContentBytes(existing);
   const nextVocabBytes = vocabContentBytes({
     text: existing.text,
-    sentence: body.sentence !== undefined ? body.sentence : existing.sentence,
+    sentence: resolvedSentence,
     translation: body.translation !== undefined ? body.translation : existing.translation,
   });
   const knownExists =
@@ -453,8 +476,12 @@ app.patch('/update-srs', async (c) => {
   if (typeof body.isCorrect !== 'boolean') {
     return c.json({ error: 'isCorrect must be a boolean' }, 400);
   }
+  if (body.mode !== undefined && body.mode !== 'recall' && body.mode !== 'cloze') {
+    return c.json({ error: "mode must be 'recall' or 'cloze' if provided" }, 400);
+  }
+  const mode: SrsReviewMode = body.mode === 'cloze' ? 'cloze' : 'recall';
 
-  const result = updateSRS(body.wordId, body.isCorrect, userId);
+  const result = updateSRS(body.wordId, body.isCorrect, userId, mode);
   if (!result.success) {
     return c.json({ error: result.error }, 404);
   }
@@ -462,11 +489,16 @@ app.patch('/update-srs', async (c) => {
   return c.json({ success: true, newLevel: result.newLevel, nextReview: result.nextReview });
 });
 
+// Cloze grading is harsher than recall: a miss resets to level 1 rather than
+// dropping one step.
+export type SrsReviewMode = 'recall' | 'cloze';
+
 // SRS update function
 export function updateSRS(
   wordId: string,
   isCorrect: boolean,
   userId: string,
+  mode: SrsReviewMode = 'recall',
 ): { success: true; newLevel: number; nextReview: string } | { success: false; error: string } {
   const row = db
     .prepare('SELECT text, language, state, srs_level FROM vocab WHERE id = ? AND userId = ?')
@@ -489,7 +521,7 @@ export function updateSRS(
     d.setDate(d.getDate() + days);
     nextReview = d.toISOString();
   } else {
-    newLevel = Math.max(1, currentLevel - 1) as SrsLevel;
+    newLevel = mode === 'cloze' ? 1 : (Math.max(1, currentLevel - 1) as SrsLevel);
     nextReview = new Date().toISOString();
   }
 

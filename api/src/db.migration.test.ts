@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import {
   backfillSrsLevelFromState,
+  backfillVocabSentences,
   migrateAcceptedCacheUserKey,
   migrateCompositeTenantKeys,
   migrateVocabSrsLevels,
@@ -506,6 +507,53 @@ describe('backfillSrsLevelFromState', () => {
     backfillSrsLevelFromState(db);
 
     expect(db.prepare('SELECT * FROM vocab').all()).toEqual(before);
+  });
+});
+
+describe('backfillVocabSentences', () => {
+  const seedLessonAndWords = () => {
+    db.prepare(
+      `INSERT INTO lessons (id, title, textContent, createdAt, lastReadAt, language, userId)
+       VALUES ('l1', 'L', 'The quick brown fox jumps. A lazy dog sleeps.', ?, ?, 'af', 'local')`,
+    ).run(TS, TS);
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, bookId)
+       VALUES ('v_empty', 'fox', 'word', '', 't', 'level1', ?, ?, 'af', 'l1')`,
+    ).run(TS, TS);
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, bookId)
+       VALUES ('v_has', 'dog', 'word', 'A lazy dog sleeps.', 't', 'level1', ?, ?, 'af', 'l1')`,
+    ).run(TS, TS);
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, bookId)
+       VALUES ('v_nobook', 'cat', 'word', '', 't', 'level1', ?, ?, 'af', '')`,
+    ).run(TS, TS);
+  };
+
+  test('fills an empty sentence from the lesson text, leaving the rest alone', () => {
+    seedLessonAndWords();
+
+    backfillVocabSentences(db);
+
+    expect(db.prepare("SELECT sentence FROM vocab WHERE id = 'v_empty'").get()).toEqual({
+      sentence: 'The quick brown fox jumps.',
+    });
+    expect(db.prepare("SELECT sentence FROM vocab WHERE id = 'v_has'").get()).toEqual({
+      sentence: 'A lazy dog sleeps.',
+    });
+    expect(db.prepare("SELECT sentence FROM vocab WHERE id = 'v_nobook'").get()).toEqual({
+      sentence: '',
+    });
+  });
+
+  test('is idempotent', () => {
+    seedLessonAndWords();
+
+    backfillVocabSentences(db);
+    const before = db.prepare('SELECT * FROM vocab ORDER BY id').all();
+    backfillVocabSentences(db);
+
+    expect(db.prepare('SELECT * FROM vocab ORDER BY id').all()).toEqual(before);
   });
 });
 

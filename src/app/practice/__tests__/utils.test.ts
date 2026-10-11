@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   createBlankedSentence,
+  blankWordInSentence,
   normalize,
   checkAnswer,
   getFuzzyStatus,
@@ -576,5 +577,26 @@ describe('srsLevelFromState', () => {
     for (const state of ['new', 'known', 'ignored', 'level8', 'level0', 'level', '']) {
       expect(srsLevelFromState(state), state).toBeNull();
     }
+  });
+});
+
+describe('blankWordInSentence', () => {
+  it('blanks the word, matching case- and punctuation-insensitively', () => {
+    expect(blankWordInSentence('The quick brown fox jumps.', 'fox')).toBe(
+      'The quick brown _____ jumps.',
+    );
+    expect(blankWordInSentence('A Fox runs.', 'fox')).toBe('A _____ runs.');
+    expect(blankWordInSentence('A lazy dog.', 'dog')).toBe('A lazy _____.');
+  });
+
+  it('blanks a contiguous phrase', () => {
+    expect(blankWordInSentence('He was struck by lightning yesterday.', 'struck by lightning')).toBe(
+      'He was _____ yesterday.',
+    );
+  });
+
+  it('returns null when the word is not in the sentence', () => {
+    expect(blankWordInSentence('A lazy dog.', 'cat')).toBeNull();
+    expect(blankWordInSentence('A lazy dog.', '')).toBeNull();
   });
 });

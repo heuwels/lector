@@ -44,6 +44,8 @@ import {
   calculatePoints,
   buildMultipleChoiceOptions,
   buildSrsMcOptions,
+  blankWordInSentence,
+  glossLabel,
   srsLevelFromState,
   checkAnswer,
   diffDictation,
@@ -70,6 +72,7 @@ import {
   SRS_LEVELS,
   SRS_DEFAULT_LEVELS,
   SRS_LEVEL_LABELS,
+  SRS_MODE_SETTING_KEY,
 } from './constants';
 import { getSrsQueue, updateSrsReview } from '@/lib/data-layer';
 import BlacklistSentence from './components/BlacklistSentence';
@@ -159,6 +162,12 @@ export default function PracticePage() {
   const [srsRoundSize, setSrsRoundSize] = useState(0);
   const [srsRoundCorrect, setSrsRoundCorrect] = useState(0);
   const [srsPoints, setSrsPoints] = useState(0);
+  const [srsMode, setSrsMode] = useState<'recall' | 'cloze'>('recall');
+  const [srsCloze, setSrsCloze] = useState<string | null>(null);
+  const [srsGloss, setSrsGloss] = useState('');
+  const [srsTyped, setSrsTyped] = useState('');
+  const [srsClozeResult, setSrsClozeResult] = useState<'correct' | 'wrong' | null>(null);
+  const [srsClozeLocked, setSrsClozeLocked] = useState(false);
 
   // Dictation result (the graded diff), shown on the feedback screen
   const [dictationResult, setDictationResult] = useState<DictationResult | null>(null);
@@ -261,6 +270,11 @@ export default function PracticePage() {
         const urlBookId = searchParams.get('bookId');
         if (urlBookId) {
           setSrsBookId(urlBookId);
+        }
+
+        const savedSrsMode = localStorage.getItem(SRS_MODE_SETTING_KEY);
+        if (savedSrsMode === 'recall' || savedSrsMode === 'cloze') {
+          setSrsMode(savedSrsMode);
         }
       }
 
@@ -556,10 +570,34 @@ export default function PracticePage() {
     setSrsMcLocked(false);
   }, []);
 
-  const handleSrsAnswer = useCallback(
-    async (word: SrsWord, isCorrect: boolean) => {
+  // Prepare the cloze card: blank the word in its sentence (null when the word
+  // is not in the sentence, so the gloss alone becomes the prompt), show the
+  // gloss as the cue, and clear the input.
+  const prepareSrsCloze = useCallback(
+    (word: SrsWord) => {
+      setSrsCloze(blankWordInSentence(word.sentence, word.text, activePack) ?? null);
+      setSrsGloss(glossLabel(word.translation));
+      setSrsTyped('');
+      setSrsClozeResult(null);
+      setSrsClozeLocked(false);
+    },
+    [activePack],
+  );
+
+  const prepareSrsWord = useCallback(
+    (word: SrsWord, pool: SrsWord[]) => {
+      if (srsMode === 'cloze') prepareSrsCloze(word);
+      else prepareSrsMcOptions(word, pool);
+    },
+    [srsMode, prepareSrsCloze, prepareSrsMcOptions],
+  );
+
+  // Grade a review, then advance (or finish). Cloze passes its harder penalty
+  // to the server on a miss.
+  const gradeSrs = useCallback(
+    async (word: SrsWord, isCorrect: boolean, mode: 'recall' | 'cloze') => {
       try {
-        const result = await updateSrsReview(word.id, isCorrect);
+        const result = await updateSrsReview(word.id, isCorrect, mode);
         if (!result) {
           console.error('Failed to update SRS level');
         }
@@ -574,7 +612,7 @@ export default function PracticePage() {
           const nextWord = srsWords[currentIndex + 1];
           setCurrentSrsWord(nextWord);
           setSrsRoundProgress((p) => p + 1);
-          prepareSrsMcOptions(nextWord, srsWords);
+          prepareSrsWord(nextWord, srsWords);
         } else {
           setState('complete');
         }
@@ -582,7 +620,12 @@ export default function PracticePage() {
         console.error('Failed to submit SRS answer:', error);
       }
     },
-    [srsWords, prepareSrsMcOptions, setState],
+    [srsWords, prepareSrsWord, setState],
+  );
+
+  const handleSrsAnswer = useCallback(
+    (word: SrsWord, isCorrect: boolean) => gradeSrs(word, isCorrect, 'recall'),
+    [gradeSrs],
   );
 
   // Start an SRS Review round using the priority queue endpoint
@@ -608,7 +651,7 @@ export default function PracticePage() {
         setSrsRoundCorrect(0);
         setSrsPoints(0);
         setState('practicing');
-        prepareSrsMcOptions(words[0], words);
+        prepareSrsWord(words[0], words);
       } else {
         setState('empty');
       }
@@ -616,7 +659,7 @@ export default function PracticePage() {
       console.error('Failed to start SRS round:', error);
       setState('complete');
     }
-  }, [srsLevels, srsBookId, beginRound, setState, prepareSrsMcOptions]);
+  }, [srsLevels, srsBookId, beginRound, setState, prepareSrsWord]);
 
   // Handle SRS MC selection
   const handleSrsMcSelect = useCallback(
@@ -641,6 +684,36 @@ export default function PracticePage() {
     },
     [srsMcLocked, currentSrsWord, srsMcCorrectIdx, handleSrsAnswer],
   );
+
+  // Submit a typed cloze answer.
+  const handleSrsClozeSubmit = useCallback(
+    (event: React.FormEvent) => {
+      event.preventDefault();
+      if (srsClozeLocked || !currentSrsWord) return;
+
+      const isCorrect = checkAnswer(srsTyped, currentSrsWord.text, activePack);
+      setSrsClozeResult(isCorrect ? 'correct' : 'wrong');
+      setSrsClozeLocked(true);
+
+      if (isCorrect) {
+        playCorrectSound();
+      } else {
+        playIncorrectSound();
+      }
+
+      const delay = isCorrect ? 800 : 1600;
+      mcTimerRef.current = setTimeout(() => {
+        mcTimerRef.current = null;
+        void gradeSrs(currentSrsWord, isCorrect, 'cloze');
+      }, delay);
+    },
+    [srsClozeLocked, currentSrsWord, srsTyped, activePack, gradeSrs],
+  );
+
+  const handleSetSrsMode = useCallback((mode: 'recall' | 'cloze') => {
+    setSrsMode(mode);
+    localStorage.setItem(SRS_MODE_SETTING_KEY, mode);
+  }, []);
 
   // Start a round using current state values
   const startRound = useCallback(() => {
@@ -982,7 +1055,12 @@ export default function PracticePage() {
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
     // Number keys 1-4 choose an SRS translation-recall option.
-    if (state === 'practicing' && practiceFormat === 'srs' && !srsMcLocked) {
+    if (
+      state === 'practicing' &&
+      practiceFormat === 'srs' &&
+      srsMode === 'recall' &&
+      !srsMcLocked
+    ) {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (isInteractiveKeyTarget(e)) return;
         if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1018,6 +1096,7 @@ export default function PracticePage() {
     mcOptions,
     handleMcSelect,
     current,
+    srsMode,
     srsMcLocked,
     srsMcOptions,
     handleSrsMcSelect,
@@ -1159,6 +1238,23 @@ export default function PracticePage() {
             {/* SRS Review mode: level checkboxes + optional bookId + Start button */}
             {practiceFormat === 'srs' && (
               <div className="mb-8 rounded-2xl border border-border bg-card p-5">
+                <h2 className="mb-3 text-base font-semibold text-foreground">Review mode</h2>
+                <div className="mb-5 grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={srsMode === 'recall' ? 'default' : 'secondary'}
+                    onClick={() => handleSetSrsMode('recall')}
+                  >
+                    Recall (choose translation)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={srsMode === 'cloze' ? 'default' : 'secondary'}
+                    onClick={() => handleSetSrsMode('cloze')}
+                  >
+                    Cloze (type the word)
+                  </Button>
+                </div>
                 <h2 className="mb-4 text-base font-semibold text-foreground">SRS Levels</h2>
                 <div className="mb-4 flex flex-wrap gap-2">
                   {SRS_LEVELS.map((level) => (
@@ -1698,81 +1794,168 @@ export default function PracticePage() {
 
             {/* Practice state — SRS translation recall. Keyed by word id so the
                 card and its selection state reset per word. */}
-            {state === 'practicing' && currentSrsWord && practiceFormat === 'srs' && (
-              <div key={currentSrsWord.id}>
-                <div className="mb-6">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Choose the correct translation
-                  </span>
-                  <p
-                    dir={getActivePack().script.direction}
-                    lang={getActivePack().script.bcp47}
-                    className="mt-3 text-3xl leading-tight font-bold text-foreground"
-                    style={{ unicodeBidi: 'isolate' }}
-                    data-testid="srs-word"
-                  >
-                    {currentSrsWord.text}
-                  </p>
-                  {currentSrsWord.sentence && (
+            {state === 'practicing' &&
+              currentSrsWord &&
+              practiceFormat === 'srs' &&
+              srsMode === 'recall' && (
+                <div key={currentSrsWord.id}>
+                  <div className="mb-6">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Choose the correct translation
+                    </span>
                     <p
                       dir={getActivePack().script.direction}
                       lang={getActivePack().script.bcp47}
-                      className="mt-2 text-base text-muted-foreground italic"
+                      className="mt-3 text-3xl leading-tight font-bold text-foreground"
                       style={{ unicodeBidi: 'isolate' }}
+                      data-testid="srs-word"
                     >
-                      {currentSrsWord.sentence}
+                      {currentSrsWord.text}
+                    </p>
+                    {currentSrsWord.sentence && (
+                      <p
+                        dir={getActivePack().script.direction}
+                        lang={getActivePack().script.bcp47}
+                        className="mt-2 text-base text-muted-foreground italic"
+                        style={{ unicodeBidi: 'isolate' }}
+                      >
+                        {currentSrsWord.sentence}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {srsMcOptions.map((option, idx) => {
+                      let btnClass = 'border-border bg-card text-foreground hover:bg-accent';
+
+                      if (srsMcSelected !== null) {
+                        if (idx === srsMcCorrectIdx) {
+                          btnClass =
+                            'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary';
+                        } else if (idx === srsMcSelected) {
+                          btnClass =
+                            'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive';
+                        } else {
+                          btnClass = 'border-border bg-card text-muted-foreground opacity-60';
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          data-testid="srs-mc-option"
+                          onClick={() => handleSrsMcSelect(idx)}
+                          disabled={srsMcLocked}
+                          className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left text-lg font-medium transition-all active:scale-[0.98] ${btnClass}`}
+                        >
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
+                            {idx + 1}
+                          </span>
+                          <bdi
+                            dir={getActivePack().script.direction}
+                            lang={getActivePack().script.bcp47}
+                            className="min-w-0 break-words"
+                          >
+                            {option}
+                          </bdi>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <span>Level:</span>
+                    <span className="font-semibold text-foreground">
+                      {srsLevelFromState(currentSrsWord.state) ?? currentSrsWord.srs_level}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+            {/* Practice state — SRS cloze: type the word into its sentence. */}
+            {state === 'practicing' &&
+              currentSrsWord &&
+              practiceFormat === 'srs' &&
+              srsMode === 'cloze' && (
+                <div key={currentSrsWord.id}>
+                  <div className="mb-6">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Type the missing word
+                    </span>
+                    {srsGloss && (
+                      <p className="mt-2 text-base text-foreground" data-testid="srs-cloze-gloss">
+                        <span className="text-muted-foreground">Meaning: </span>
+                        {srsGloss}
+                      </p>
+                    )}
+                    {srsCloze ? (
+                      <p
+                        dir={getActivePack().script.direction}
+                        lang={getActivePack().script.bcp47}
+                        className="mt-3 text-2xl leading-relaxed font-medium text-foreground"
+                        style={{ unicodeBidi: 'isolate' }}
+                        data-testid="srs-cloze-sentence"
+                      >
+                        {srsCloze}
+                      </p>
+                    ) : (
+                      <p
+                        className="mt-3 text-base text-muted-foreground"
+                        data-testid="srs-cloze-sentence"
+                      >
+                        Type the word for this meaning.
+                      </p>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleSrsClozeSubmit} className="mb-4">
+                    <input
+                      type="text"
+                      value={srsTyped}
+                      onChange={(e) => setSrsTyped(e.target.value)}
+                      disabled={srsClozeLocked}
+                      autoFocus
+                      autoComplete="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      dir={getActivePack().script.direction}
+                      lang={getActivePack().script.bcp47}
+                      data-testid="srs-cloze-input"
+                      className={`w-full rounded-xl border-2 px-4 py-3 text-lg text-foreground transition-colors outline-none ${
+                        srsClozeResult === 'correct'
+                          ? 'border-primary bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))]'
+                          : srsClozeResult === 'wrong'
+                            ? 'border-destructive bg-[color-mix(in_srgb,var(--destructive)_10%,var(--card))]'
+                            : 'border-border bg-background focus:border-primary'
+                      }`}
+                    />
+                    <Button
+                      type="submit"
+                      disabled={srsClozeLocked || !srsTyped.trim()}
+                      className="mt-3 w-full"
+                    >
+                      Check
+                    </Button>
+                  </form>
+
+                  {srsClozeResult === 'wrong' && (
+                    <p
+                      className="text-center text-sm text-foreground"
+                      data-testid="srs-cloze-answer"
+                    >
+                      Answer: <span className="font-semibold">{currentSrsWord.text}</span>
                     </p>
                   )}
+
+                  <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <span>Level:</span>
+                    <span className="font-semibold text-foreground">
+                      {srsLevelFromState(currentSrsWord.state) ?? currentSrsWord.srs_level}
+                    </span>
+                  </div>
                 </div>
-
-                <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {srsMcOptions.map((option, idx) => {
-                    let btnClass = 'border-border bg-card text-foreground hover:bg-accent';
-
-                    if (srsMcSelected !== null) {
-                      if (idx === srsMcCorrectIdx) {
-                        btnClass =
-                          'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-primary';
-                      } else if (idx === srsMcSelected) {
-                        btnClass =
-                          'border-destructive bg-[color-mix(in_srgb,var(--destructive)_12%,var(--card))] text-destructive';
-                      } else {
-                        btnClass = 'border-border bg-card text-muted-foreground opacity-60';
-                      }
-                    }
-
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        data-testid="srs-mc-option"
-                        onClick={() => handleSrsMcSelect(idx)}
-                        disabled={srsMcLocked}
-                        className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left text-lg font-medium transition-all active:scale-[0.98] ${btnClass}`}
-                      >
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
-                          {idx + 1}
-                        </span>
-                        <bdi
-                          dir={getActivePack().script.direction}
-                          lang={getActivePack().script.bcp47}
-                          className="min-w-0 break-words"
-                        >
-                          {option}
-                        </bdi>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <span>Level:</span>
-                  <span className="font-semibold text-foreground">
-                    {srsLevelFromState(currentSrsWord.state) ?? currentSrsWord.srs_level}
-                  </span>
-                </div>
-              </div>
-            )}
+              )}
 
             {/* Feedback state — dictation */}
             {state === 'feedback' &&
