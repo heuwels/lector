@@ -183,8 +183,27 @@ test.describe('Reader keyboard navigation', () => {
     await page.keyboard.press('Shift+ArrowRight');
 
     // The highlighted phrase should be visible
-    const highlighted = page.locator('[data-phrase-highlighted=""]');
+    const highlighted = page.locator('[data-phrase-highlighted]');
     await expect(highlighted).toHaveCount(2, { timeout: 3000 });
+  });
+
+  test('Shift+ArrowRight shows phrase with spaces in the sidebar', async ({ page }) => {
+    const words = page.locator('[data-word-state]');
+    await words.first().click();
+
+    const drawer = page.getByTestId('translation-drawer');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+
+    // Shift+Right extends the selection; with the drawer open this also
+    // triggers a live lookup so the sidebar heading updates.
+    await page.keyboard.press('Shift+ArrowRight');
+    await page.waitForTimeout(500);
+
+    // The sidebar heading should show the two-word phrase joined by a space,
+    // not two words concatenated without a space ("Diekat" vs "Die kat").
+    const headingText = await drawer.getByRole('heading').textContent();
+    expect(headingText).toContain(' ');
+    expect(headingText).not.toContain('Diekat');
   });
 
   test('Shift+ArrowRight extends the phrase with each press (anchor stays fixed)', async ({
@@ -195,17 +214,17 @@ test.describe('Reader keyboard navigation', () => {
 
     // First Shift+Right: selects words 0-1 (2 words)
     await page.keyboard.press('Shift+ArrowRight');
-    let highlighted = page.locator('[data-phrase-highlighted=""]');
+    let highlighted = page.locator('[data-phrase-highlighted]');
     await expect(highlighted).toHaveCount(2, { timeout: 3000 });
 
     // Second Shift+Right: extends to words 0-2 (3 words) — does NOT restart from word 1
     await page.keyboard.press('Shift+ArrowRight');
-    highlighted = page.locator('[data-phrase-highlighted=""]');
+    highlighted = page.locator('[data-phrase-highlighted]');
     await expect(highlighted).toHaveCount(3, { timeout: 3000 });
 
     // Third Shift+Right: extends to words 0-3 (4 words)
     await page.keyboard.press('Shift+ArrowRight');
-    highlighted = page.locator('[data-phrase-highlighted=""]');
+    highlighted = page.locator('[data-phrase-highlighted]');
     await expect(highlighted).toHaveCount(4, { timeout: 3000 });
   });
 
@@ -216,12 +235,12 @@ test.describe('Reader keyboard navigation', () => {
     await page.keyboard.press('Shift+ArrowRight');
     await page.keyboard.press('Shift+ArrowRight');
 
-    let highlighted = page.locator('[data-phrase-highlighted=""]');
+    let highlighted = page.locator('[data-phrase-highlighted]');
     await expect(highlighted).toHaveCount(3, { timeout: 3000 });
 
     // Plain Arrow clears the shift-selection anchor and highlight
     await page.keyboard.press('ArrowRight');
-    highlighted = page.locator('[data-phrase-highlighted=""]');
+    highlighted = page.locator('[data-phrase-highlighted]');
     await expect(highlighted).toHaveCount(0, { timeout: 3000 });
   });
 
@@ -231,12 +250,12 @@ test.describe('Reader keyboard navigation', () => {
 
     // Shift+Left: selects words 3-4 (2 words)
     await page.keyboard.press('Shift+ArrowLeft');
-    let highlighted = page.locator('[data-phrase-highlighted=""]');
+    let highlighted = page.locator('[data-phrase-highlighted]');
     await expect(highlighted).toHaveCount(2, { timeout: 3000 });
 
     // Shift+Left again: extends to words 2-4 (3 words)
     await page.keyboard.press('Shift+ArrowLeft');
-    highlighted = page.locator('[data-phrase-highlighted=""]');
+    highlighted = page.locator('[data-phrase-highlighted]');
     await expect(highlighted).toHaveCount(3, { timeout: 3000 });
   });
 
@@ -253,7 +272,7 @@ test.describe('Reader keyboard navigation', () => {
 
     // First Escape: clears the phrase highlight
     await page.keyboard.press('Escape');
-    await expect(page.locator('[data-phrase-highlighted=""]')).toHaveCount(0);
+    await expect(page.locator('[data-phrase-highlighted]')).toHaveCount(0);
 
     // Second Escape: returns drawer to idle empty state
     await page.keyboard.press('Escape');

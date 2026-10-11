@@ -4,7 +4,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import { isComposing } from '@/lib/keyboard';
 import type { WordState } from '@/types';
 import type { ActiveReaderWord } from './ReaderArticle';
-import { wordSpansBetween } from './utils';
+import { readableRangeText, wordSpansBetween } from './utils';
 
 const WORD_SELECTOR = '[data-word-state]';
 
@@ -22,6 +22,8 @@ export interface NavigationCallbacks {
   onNavigate: (word: ActiveReaderWord) => void;
   /** Build phrase highlight from a contiguous range of word elements. */
   onSelectPhrase: (text: string) => void;
+  /** Clear phrase highlight (keeps active word — used by plain arrow navigation). */
+  onClearPhrase: () => void;
   onClearSelection: () => void;
   onCloseDrawer: () => void;
   onStateShortcut: (state: WordState) => void | Promise<void>;
@@ -236,18 +238,23 @@ export function useReaderKeyboardNavigation(
             const anchorEl = elementAt(anchorRef.current, words);
             if (anchorEl) {
               const span = wordSpansBetween(anchorEl, next, words);
-              const text = span
-                .map((el) => el.textContent || '')
-                .join('')
-                .trim();
-              callbacksRef.current.onSelectPhrase(text);
-              if (wordPanelOpen) {
-                callbacksRef.current.onLookUpWord(text);
+              const first = span[0];
+              const last = span[span.length - 1];
+              if (first && last) {
+                const range = document.createRange();
+                range.setStartBefore(first);
+                range.setEndAfter(last);
+                const text = readableRangeText(range).trim();
+                callbacksRef.current.onSelectPhrase(text);
+                if (wordPanelOpen) {
+                  callbacksRef.current.onLookUpWord(text);
+                }
               }
             }
           } else {
-            // Plain arrow: clear the shift anchor and move the cursor.
+            // Plain arrow: clear the shift anchor, phrase highlight, and move cursor.
             anchorRef.current = null;
+            callbacksRef.current.onClearPhrase();
             callbacksRef.current.onNavigate(nextPos);
             if (wordPanelOpen) {
               callbacksRef.current.onLookUpWord(next.textContent || '');

@@ -367,6 +367,7 @@ export default function MarkdownReader({
           setHighlightedPhrase([]);
         }
       },
+      onClearPhrase: clearPhraseHighlight,
       onClearSelection: handleClearSelection,
       onCloseDrawer: onReaderCloseDrawer,
       onStateShortcut: onReaderStateShortcut,

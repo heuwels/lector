@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-11 10:16
+
+- Fix Shift+Arrow phrase selection: words now visually highlight and the sidebar shows the phrase with spaces and punctuation (e.g. "the cat," not "thecat").
+  - `src/components/MarkdownReader/useReaderKeyboardNavigation.ts`: replaced `.map(el => el.textContent).join('')` (which concatenated word spans without spaces) with `readableRangeText(range)` using a DOM `Range` from before the first span to after the last span — same approach as `handleTouchPhrase`. This preserves spaces, punctuation, and skips ruby annotations.
+  - Added `onClearPhrase` callback to `NavigationCallbacks` so plain arrow navigation clears the phrase highlight (previously it lingered after Shift+Arrow).
+  - `src/components/MarkdownReader/index.tsx`: wired `onClearPhrase` to `clearPhraseHighlight`.
+  - `e2e/reader-keyboard-navigation.spec.ts`: fixed selectors from `[data-phrase-highlighted=""]` to `[data-phrase-highlighted]` to match the attribute value convention; added test verifying sidebar displays phrase with spaces.
+
 ## 2026-10-11 02:00
 
 - Fix Shift+Arrow to extend phrase selection from a fixed anchor (like text editors) instead of restarting from the cursor on each press. Also triggers a phrase lookup in the drawer as the selection grows.
