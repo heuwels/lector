@@ -10,7 +10,27 @@ export type PracticeMode = 'type' | 'mc';
 // Dictation (hear the whole sentence, type it back). Both draw from the same
 // clozeSentences pool and share the SRS card, so the only difference is how the
 // sentence is presented and answered.
-export type PracticeFormat = 'cloze' | 'dictation';
+export type PracticeFormat = 'cloze' | 'dictation' | 'srs';
+
+// One saved word from the SRS review queue (POST /api/practice/srs-queue).
+// Only the fields the recall question needs; the grade goes back by id.
+export interface SrsWord {
+  id: string;
+  text: string;
+  sentence: string;
+  translation: string;
+  state: string;
+  srs_level: number;
+  type: string;
+}
+
+// A graded SRS card. `typed` and `selectedIndex` record what the user entered
+// so a revisited card can be shown locked, exactly as it was answered.
+export interface SrsCardDone {
+  result: 'correct' | 'wrong';
+  typed: string;
+  selectedIndex: number | null;
+}
 
 export type RoundSize = (typeof ROUND_SIZES)[number];
 export type RoundType = 'new' | 'review';

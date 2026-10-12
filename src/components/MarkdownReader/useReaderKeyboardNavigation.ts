@@ -13,6 +13,9 @@ export const STATE_SHORTCUTS: Record<string, WordState> = {
   '2': 'level2',
   '3': 'level3',
   '4': 'level4',
+  '5': 'level5',
+  '6': 'level6',
+  '7': 'level7',
   k: 'known',
   x: 'ignored',
   i: 'ignored',
@@ -114,12 +117,17 @@ function findWordByGeometry(
  *
  * `containerRef` is used only for DOM queries (finding word spans), not for
  * the event listener.
+ *
+ * `enabled` false leaves the hook installed but attaches no listener, so a host
+ * that does not supply the reader callbacks can still call the hook
+ * unconditionally (Rules of Hooks) without hijacking its keys.
  */
 export function useReaderKeyboardNavigation(
   containerRef: RefObject<HTMLElement | null>,
   wordPanelOpen: boolean,
   activeWord: ActiveReaderWord | null,
   callbacks: NavigationCallbacks,
+  enabled: boolean = true,
 ) {
   const callbacksRef = useRef(callbacks);
   useEffect(() => {
@@ -156,6 +164,7 @@ export function useReaderKeyboardNavigation(
   }, [activeWord]);
 
   useEffect(() => {
+    if (!enabled) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (
@@ -292,7 +301,7 @@ export function useReaderKeyboardNavigation(
         return;
       }
 
-      // --- State shortcuts (1-4, k, x, i): assign state + auto-advance ---
+      // --- State shortcuts (1-7, k, x, i): assign state + auto-advance ---
       const key = event.key.toLowerCase();
       if (STATE_SHORTCUTS[key]) {
         event.preventDefault();
@@ -332,5 +341,5 @@ export function useReaderKeyboardNavigation(
 
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [containerRef, wordPanelOpen]);
+  }, [containerRef, wordPanelOpen, enabled]);
 }

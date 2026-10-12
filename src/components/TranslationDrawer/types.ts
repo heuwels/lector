@@ -67,8 +67,8 @@ export interface TranslationDrawerProps {
 
   onClose: () => void;
   onSpeak: (text: string) => void;
-  /** Optional — provide to enable level 1-4 buttons in the footer. */
-  onSetLevel?: (level: 1 | 2 | 3 | 4) => void;
+  /** Optional — provide to enable level 1-7 buttons in the footer. */
+  onSetLevel?: (level: 1 | 2 | 3 | 4 | 5 | 6 | 7) => void;
   /** Optional — provide to enable the Known action. */
   onMarkKnown?: () => void;
   /** Optional — provide to enable the Ignore action. */

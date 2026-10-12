@@ -3,7 +3,13 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
-import { migrateAcceptedCacheUserKey, migrateCompositeTenantKeys } from './db';
+import {
+  backfillSrsLevelFromState,
+  backfillVocabSentences,
+  migrateAcceptedCacheUserKey,
+  migrateCompositeTenantKeys,
+  migrateVocabSrsLevels,
+} from './db';
 
 // #279 — the composite (userId, id) rebuild, exercised against a synthetic
 // PRE-migration database (not the singleton `db`, which is already migrated).
@@ -15,6 +21,7 @@ import { migrateAcceptedCacheUserKey, migrateCompositeTenantKeys } from './db';
 const DB_FILE = path.join(process.env.DATA_DIR!, 'composite-pk-migration.db');
 
 const TS = '2026-01-01T00:00:00Z';
+const FUTURE_ISO = '2999-01-01T00:00:00Z';
 
 const TABLES = [
   'collection_groups',
@@ -348,6 +355,205 @@ describe('migrateCompositeTenantKeys (#279)', () => {
         .get() as { n: number }
     ).n;
     expect(n).toBe(2);
+  });
+});
+
+describe('migrateVocabSrsLevels', () => {
+  // Mirrors the getDb order: the composite-PK rebuild first, then this one.
+  const upgrade = () => {
+    migrateCompositeTenantKeys(db);
+    migrateVocabSrsLevels(db);
+  };
+
+  const tableSql = (table: string): string =>
+    (
+      db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?").get(table) as {
+        sql: string;
+      }
+    ).sql;
+
+  test('accepts level5-7 and adds the SRS scheduling columns', () => {
+    // createOldSchema models the aged vocab table but no knownWords; add the
+    // pre-SRS known-word table so its CHECK upgrade is exercised too.
+    db.exec(`
+      CREATE TABLE knownWords (
+        userId TEXT NOT NULL DEFAULT 'local',
+        word TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'af',
+        state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+        domain TEXT,
+        PRIMARY KEY (userId, word, language)
+      );
+      INSERT INTO knownWords (userId, word, language, state, domain)
+        VALUES ('local', 'kat', 'af', 'level2', NULL);
+    `);
+
+    upgrade();
+
+    expect(tableSql('vocab')).toContain("'level7'");
+    expect(tableSql('knownWords')).toContain("'level7'");
+
+    const vocabCols = (db.prepare('PRAGMA table_info(vocab)').all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    for (const col of ['srs_level', 'next_review', 'last_review']) {
+      expect(vocabCols, `vocab.${col}`).toContain(col);
+    }
+
+    db.prepare(
+      `INSERT INTO vocab (userId, id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language)
+       VALUES ('local', 'v5', 'vyf', 'word', 'x', 'five', 'level5', ?, ?, 'af')`,
+    ).run(TS, TS);
+    expect(db.prepare("SELECT state FROM vocab WHERE id = 'v5'").get()).toEqual({
+      state: 'level5',
+    });
+
+    db.prepare(
+      "UPDATE knownWords SET state = 'level7' WHERE userId = 'local' AND word = 'kat' AND language = 'af'",
+    ).run();
+    expect(db.prepare("SELECT state FROM knownWords WHERE word = 'kat'").get()).toEqual({
+      state: 'level7',
+    });
+
+    // Existing rows survive, defaulting the new column rather than nulling it.
+    expect(db.prepare("SELECT text, srs_level FROM vocab WHERE id = 'v1'").get()).toEqual({
+      text: 'kat',
+      srs_level: 1,
+    });
+
+    const indexes = (
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_vocab%'")
+        .all() as { name: string }[]
+    ).map((r) => r.name);
+    expect(indexes).toContain('idx_vocab_srs_next_review');
+  });
+
+  test('is idempotent — a second run leaves schema and data untouched', () => {
+    upgrade();
+    const before = dumpAll(db);
+    const schemaBefore = tableSql('vocab');
+
+    migrateVocabSrsLevels(db);
+
+    expect(dumpAll(db)).toEqual(before);
+    expect(tableSql('vocab')).toBe(schemaBefore);
+  });
+
+  // An earlier SRS iteration wrote a camelCase `srsLevel`; a real install that
+  // already ran the composite rebuild carries that column. Its value must not
+  // be lost when the snake_case columns land.
+  test('carries a legacy camelCase srsLevel into srs_level', () => {
+    db.exec('ALTER TABLE vocab ADD COLUMN srsLevel INTEGER DEFAULT 0');
+    db.prepare("UPDATE vocab SET srsLevel = 4 WHERE id = 'v1'").run();
+
+    migrateVocabSrsLevels(db);
+
+    expect(db.prepare("SELECT srs_level FROM vocab WHERE id = 'v1'").get()).toEqual({
+      srs_level: 4,
+    });
+    expect(db.prepare("SELECT srs_level FROM vocab WHERE id = 'v2'").get()).toEqual({
+      srs_level: 1,
+    });
+  });
+});
+
+describe('backfillSrsLevelFromState', () => {
+  beforeEach(() => {
+    // Mirror a real install after the SRS columns landed but before the
+    // backfill: add srs_level/next_review and widen the state CHECK to level1-7.
+    migrateVocabSrsLevels(db);
+    db.prepare('DELETE FROM vocab').run();
+  });
+
+  test('aligns srs_level with the level in state, leaving reviewed rows alone', () => {
+    // A row levelled in the reader but never reviewed: state names the level,
+    // the column is the stale default.
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, srs_level)
+       VALUES ('v_level', 'huis', 'word', 's', 't', 'level4', ?, ?, 'af', 1)`,
+    ).run(TS, TS);
+    // A reviewed row already has the two equal — the guard must skip it.
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, srs_level, next_review)
+       VALUES ('v_reviewed', 'kat', 'word', 's', 't', 'level6', ?, ?, 'af', 6, ?)`,
+    ).run(TS, TS, FUTURE_ISO);
+    // A non-level state has no level to copy.
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, srs_level)
+       VALUES ('v_known', 'hond', 'word', 's', 't', 'known', ?, ?, 'af', 1)`,
+    ).run(TS, TS);
+
+    backfillSrsLevelFromState(db);
+
+    const rows = db
+      .prepare('SELECT id, state, srs_level, next_review FROM vocab ORDER BY id')
+      .all() as { id: string; state: string; srs_level: number; next_review: string | null }[];
+    expect(rows).toEqual([
+      { id: 'v_known', state: 'known', srs_level: 1, next_review: null },
+      { id: 'v_level', state: 'level4', srs_level: 4, next_review: null },
+      { id: 'v_reviewed', state: 'level6', srs_level: 6, next_review: FUTURE_ISO },
+    ]);
+  });
+
+  test('is idempotent', () => {
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, srs_level)
+       VALUES ('v_level', 'huis', 'word', 's', 't', 'level3', ?, ?, 'af', 1)`,
+    ).run(TS, TS);
+
+    backfillSrsLevelFromState(db);
+    const before = db.prepare('SELECT * FROM vocab').all();
+    backfillSrsLevelFromState(db);
+
+    expect(db.prepare('SELECT * FROM vocab').all()).toEqual(before);
+  });
+});
+
+describe('backfillVocabSentences', () => {
+  const seedLessonAndWords = () => {
+    db.prepare(
+      `INSERT INTO lessons (id, title, textContent, createdAt, lastReadAt, language, userId)
+       VALUES ('l1', 'L', 'The quick brown fox jumps. A lazy dog sleeps.', ?, ?, 'af', 'local')`,
+    ).run(TS, TS);
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, bookId)
+       VALUES ('v_empty', 'fox', 'word', '', 't', 'level1', ?, ?, 'af', 'l1')`,
+    ).run(TS, TS);
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, bookId)
+       VALUES ('v_has', 'dog', 'word', 'A lazy dog sleeps.', 't', 'level1', ?, ?, 'af', 'l1')`,
+    ).run(TS, TS);
+    db.prepare(
+      `INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, createdAt, language, bookId)
+       VALUES ('v_nobook', 'cat', 'word', '', 't', 'level1', ?, ?, 'af', '')`,
+    ).run(TS, TS);
+  };
+
+  test('fills an empty sentence from the lesson text, leaving the rest alone', () => {
+    seedLessonAndWords();
+
+    backfillVocabSentences(db);
+
+    expect(db.prepare("SELECT sentence FROM vocab WHERE id = 'v_empty'").get()).toEqual({
+      sentence: 'The quick brown fox jumps.',
+    });
+    expect(db.prepare("SELECT sentence FROM vocab WHERE id = 'v_has'").get()).toEqual({
+      sentence: 'A lazy dog sleeps.',
+    });
+    expect(db.prepare("SELECT sentence FROM vocab WHERE id = 'v_nobook'").get()).toEqual({
+      sentence: '',
+    });
+  });
+
+  test('is idempotent', () => {
+    seedLessonAndWords();
+
+    backfillVocabSentences(db);
+    const before = db.prepare('SELECT * FROM vocab ORDER BY id').all();
+    backfillVocabSentences(db);
+
+    expect(db.prepare('SELECT * FROM vocab ORDER BY id').all()).toEqual(before);
   });
 });
 

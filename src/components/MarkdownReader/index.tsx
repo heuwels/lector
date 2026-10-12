@@ -28,6 +28,8 @@ import TranscriptReader from './TranscriptReader';
 import YouTubePlayer, { type SeekTarget } from '@/components/YouTubePlayer';
 import type { TranscriptSegment, YouTubeSourceMeta } from '@/types';
 
+const noop = () => {};
+
 export default function MarkdownReader({
   lesson,
   onWordClick,
@@ -352,10 +354,15 @@ export default function MarkdownReader({
   usePhraseTouchSelection(containerRef, handleTouchPhrase);
 
   // Keyboard navigation: arrows move focus between words, Shift+Arrow extends
-  // a phrase selection, k/x/1-4 assign vocab state + auto-advance (when the
+  // a phrase selection, k/x/1-7 assign vocab state + auto-advance (when the
   // drawer is open), Escape clears selection then closes drawer, 's' saves.
-  if (onReaderStateShortcut && onReaderLookUpWord && onReaderCloseDrawer) {
-    useReaderKeyboardNavigation(containerRef, wordPanelOpen, activeWord, {
+  // Called unconditionally (Rules of Hooks); `enabled` keeps the window
+  // listener off when the host supplies no reader callbacks.
+  useReaderKeyboardNavigation(
+    containerRef,
+    wordPanelOpen,
+    activeWord,
+    {
       onNavigate: setActiveWord,
       onSelectPhrase: (text) => {
         const words = phraseWords(text);
@@ -369,12 +376,13 @@ export default function MarkdownReader({
       },
       onClearPhrase: clearPhraseHighlight,
       onClearSelection: handleClearSelection,
-      onCloseDrawer: onReaderCloseDrawer,
-      onStateShortcut: onReaderStateShortcut,
-      onLookUpWord: onReaderLookUpWord,
+      onCloseDrawer: onReaderCloseDrawer ?? noop,
+      onStateShortcut: onReaderStateShortcut ?? noop,
+      onLookUpWord: onReaderLookUpWord ?? noop,
       onSaveWord: onReaderSaveWord,
-    });
-  }
+    },
+    !!(onReaderStateShortcut && onReaderLookUpWord && onReaderCloseDrawer),
+  );
 
   return (
     <div className="flex h-full flex-col bg-card print:block print:h-auto">

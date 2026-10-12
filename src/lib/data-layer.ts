@@ -629,6 +629,46 @@ export async function getVocabForBook(bookId: string): Promise<VocabEntry[]> {
   });
 }
 
+export async function getSrsQueue(
+  levels: number[],
+  bookId?: string,
+): Promise<
+  Array<{
+    id: string;
+    text: string;
+    sentence: string;
+    translation: string;
+    state: string;
+    srs_level: number;
+    type: string;
+  }>
+> {
+  const res = await apiFetch(`/api/practice/srs-queue`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ levels, bookId, language: getActiveLanguage() }),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.words ?? [];
+}
+
+/** Grade one SRS review. The server advances or lowers the level. */
+export async function updateSrsReview(
+  wordId: string,
+  isCorrect: boolean,
+  mode: 'recall' | 'cloze' = 'recall',
+): Promise<{ newLevel: number; nextReview: string } | null> {
+  const res = await apiFetch(`/api/vocab/update-srs`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ wordId, isCorrect, mode }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return { newLevel: data.newLevel, nextReview: data.nextReview };
+}
+
 export async function getUnpushedVocab(): Promise<VocabEntry[]> {
   return cachedQuery(activeLanguageQueryKey(VOCAB_QUERY_SCOPE, ['unpushed']), async () => {
     const res = await apiFetch(`/api/vocab${langParam()}&unpushed=true`);
@@ -796,6 +836,19 @@ export async function getClozeSentence(id: string): Promise<ClozeSentence | unde
   };
 }
 
+/**
+ * Revive a cloze sentence's date fields from the API's ISO strings. The row
+ * otherwise already matches ClozeSentence, so spread it and override the two
+ * dates; without the cast the spread of an unknown record erases the shape.
+ */
+function parseClozeSentence(row: Record<string, unknown>): ClozeSentence {
+  return {
+    ...(row as unknown as ClozeSentence),
+    nextReview: new Date(row.nextReview as string),
+    lastReviewed: row.lastReviewed ? new Date(row.lastReviewed as string) : undefined,
+  };
+}
+
 export async function saveClozeSentence(sentence: ClozeSentence): Promise<string> {
   const res = await apiFetch('/api/cloze', {
     method: 'POST',
@@ -816,11 +869,7 @@ export async function getClozeSentencesDueForReview(limit: number = 20): Promise
   const res = await apiFetch(`/api/cloze/due?limit=${limit}${langParam('&')}`);
   const sentences = await res.json();
   if (!Array.isArray(sentences)) return [];
-  return sentences.map((s: Record<string, unknown>) => ({
-    ...s,
-    nextReview: new Date(s.nextReview as string),
-    lastReviewed: s.lastReviewed ? new Date(s.lastReviewed as string) : undefined,
-  }));
+  return sentences.map(parseClozeSentence);
 }
 
 export async function updateClozeAfterReview(
@@ -845,11 +894,7 @@ export async function getAllClozeSentences(): Promise<ClozeSentence[]> {
   const res = await apiFetch(`/api/cloze${langParam()}&limit=10000`);
   const sentences = await res.json();
   if (!Array.isArray(sentences)) return [];
-  return sentences.map((s: Record<string, unknown>) => ({
-    ...s,
-    nextReview: new Date(s.nextReview as string),
-    lastReviewed: s.lastReviewed ? new Date(s.lastReviewed as string) : undefined,
-  }));
+  return sentences.map(parseClozeSentence);
 }
 
 export async function getClozeTotals(): Promise<{ timesCorrect: number; timesIncorrect: number }> {
@@ -868,11 +913,7 @@ export async function getClozeSentencesForWord(word: string): Promise<ClozeSente
   const res = await apiFetch(`/api/cloze${langParam()}&word=${encodeURIComponent(word)}`);
   const sentences = await res.json();
   if (!Array.isArray(sentences)) return [];
-  return sentences.map((s: Record<string, unknown>) => ({
-    ...s,
-    nextReview: new Date(s.nextReview as string),
-    lastReviewed: s.lastReviewed ? new Date(s.lastReviewed as string) : undefined,
-  }));
+  return sentences.map(parseClozeSentence);
 }
 
 export async function bulkSaveClozeSentences(sentences: ClozeSentence[]): Promise<void> {
@@ -934,11 +975,7 @@ export async function getClozeSentencesByCollection(
   const res = await apiFetch(`/api/cloze/due?${params}`);
   const sentences = await res.json();
   if (!Array.isArray(sentences)) return [];
-  return sentences.map((s: Record<string, unknown>) => ({
-    ...s,
-    nextReview: new Date(s.nextReview as string),
-    lastReviewed: s.lastReviewed ? new Date(s.lastReviewed as string) : undefined,
-  }));
+  return sentences.map(parseClozeSentence);
 }
 
 export async function getNewSentencesByCollection(
@@ -959,11 +996,7 @@ export async function getNewSentencesByCollection(
   const res = await apiFetch(`/api/cloze/due?${params}`);
   const sentences = await res.json();
   if (!Array.isArray(sentences)) return [];
-  return sentences.map((s: Record<string, unknown>) => ({
-    ...s,
-    nextReview: new Date(s.nextReview as string),
-    lastReviewed: s.lastReviewed ? new Date(s.lastReviewed as string) : undefined,
-  }));
+  return sentences.map(parseClozeSentence);
 }
 
 export async function getCollectionCounts(): Promise<
@@ -1333,11 +1366,7 @@ export async function getOnboardingCloze(vocabIds: string[]): Promise<ClozeSente
   if (!res.ok) return [];
   const sentences = await res.json();
   if (!Array.isArray(sentences)) return [];
-  return sentences.map((sentence: Record<string, unknown>) => ({
-    ...sentence,
-    nextReview: new Date(sentence.nextReview as string),
-    lastReviewed: sentence.lastReviewed ? new Date(sentence.lastReviewed as string) : undefined,
-  }));
+  return sentences.map(parseClozeSentence);
 }
 
 // ============================================================================

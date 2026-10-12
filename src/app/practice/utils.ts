@@ -36,6 +36,34 @@ export function createBlankedSentence(
   return words.join(separator);
 }
 
+/**
+ * Blank the word in its context sentence for SRS cloze. Returns null when the
+ * word is not in the sentence, so the caller can fall back to a gloss prompt.
+ * A single word matches one token; a phrase matches a contiguous run.
+ */
+export function blankWordInSentence(
+  sentence: string,
+  word: string,
+  pack?: LanguageConfig,
+): string | null {
+  const tokens = resolveClozeTokens(sentence, null, pack);
+  const needle = normalize(word, pack);
+  if (!needle) return null;
+
+  const index = tokens.findIndex((token) => normalize(token, pack) === needle);
+  if (index >= 0) return createBlankedSentence(sentence, index, tokens, pack);
+
+  const phrase = needle.split(/\s+/).filter(Boolean);
+  if (phrase.length < 2) return null;
+  for (let i = 0; i + phrase.length <= tokens.length; i++) {
+    if (!phrase.every((part, j) => normalize(tokens[i + j], pack) === part)) continue;
+    const replaced = [...tokens];
+    replaced.splice(i, phrase.length, '_____');
+    return replaced.join(clozeTokenSeparator(sentence, tokens, pack));
+  }
+  return null;
+}
+
 // Helper export function to normalize text for comparison. NFC first (#289):
 // decomposed typed input (macOS dead keys, some IMEs) must compare equal to
 // the bank's precomposed text. The ano teleia · is Greek's strong colon —
@@ -206,6 +234,66 @@ export function buildMultipleChoiceOptions(
   const correctIndex = options.findIndex((option) => normalize(option) === normalize(cleanCorrect));
 
   return { options, correctIndex };
+}
+
+// A stored translation for a dictionary-backed word is every sense joined with
+// '; ' (the reader assembles it that way), so it can run to thousands of
+// characters. A multiple-choice option only needs the first sense, capped so the
+// list stays scannable.
+export function glossLabel(translation: string, maxLen = 64): string {
+  const trimmed = translation.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return '';
+
+  const firstSense = trimmed.split(/[;.。！？!?\n]/, 1)[0].trim();
+  const base = firstSense || trimmed;
+  if (base.length <= maxLen) return base;
+
+  const slice = base.slice(0, maxLen);
+  const lastSpace = slice.lastIndexOf(' ');
+  const cut = lastSpace > maxLen * 0.6 ? slice.slice(0, lastSpace) : slice;
+  return `${cut.trimEnd()}…`;
+}
+
+// Translation-recall options for SRS review: the word's own gloss plus up to
+// three distinct glosses drawn from the rest of the queue. Options are reduced
+// to their first sense and capped (glossLabel), and distractors are chosen
+// close in length to the answer so a short gloss is not paired with a much
+// longer one. Distinctness is on the label, so two glosses that share a first
+// sense cannot both appear.
+export function buildSrsMcOptions(
+  word: { id: string; translation: string },
+  pool: Array<{ id: string; translation: string }>,
+): { options: string[]; correctIndex: number } {
+  const correct = glossLabel(word.translation) || word.translation;
+  const seen = new Set<string>([correct]);
+  const distractors: string[] = [];
+  for (const candidate of pool) {
+    if (candidate.id === word.id) continue;
+    const label = glossLabel(candidate.translation);
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    distractors.push(label);
+  }
+
+  const correctLen = correct.length;
+  const ranked = distractors
+    .map((label) => ({ label, distance: Math.abs(label.length - correctLen) }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 12)
+    .map((c) => c.label);
+
+  const options = shuffle([correct, ...shuffle(ranked).slice(0, 3)]);
+  return { options, correctIndex: options.indexOf(correct) };
+}
+
+/**
+ * The learning level a word state carries: 'levelN' → N, anything else (new,
+ * known, ignored) → null. The SRS card shows this, not the mirrored
+ * `srs_level` column, which can lag a reader-assigned level.
+ */
+export function srsLevelFromState(state: string): number | null {
+  const match = /^level([1-7])$/.exec(state);
+  return match ? Number(match[1]) : null;
 }
 
 // --- Dictation scoring ------------------------------------------------------

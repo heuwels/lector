@@ -17,8 +17,11 @@ const STATE_RANK: Record<WordState, number> = {
   level2: 2,
   level3: 3,
   level4: 4,
-  known: 5,
-  ignored: 5,
+  level5: 5,
+  level6: 6,
+  level7: 6,
+  known: 7,
+  ignored: 7,
 };
 
 export function stateRank(state: WordState): number {

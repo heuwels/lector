@@ -49,6 +49,7 @@ export const SCOPE_MAP: Record<string, { read: string; write: string }> = {
   vocab: { read: 'vocab:read', write: 'vocab:write' },
   'known-words': { read: 'vocab:read', write: 'vocab:write' },
   cloze: { read: 'vocab:read', write: 'vocab:write' },
+  practice: { read: 'vocab:read', write: 'vocab:write' },
   stats: { read: 'stats:read', write: 'stats:write' },
   settings: { read: 'settings:read', write: 'settings:write' },
   translate: { read: 'vocab:read', write: 'vocab:read' },

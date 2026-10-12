@@ -2,6 +2,8 @@
 
 This domain runs cloze and dictation with spaced repetition (SRS). Cards live in `clozeSentences`. Mastery 100 also writes the Vocabulary domain.
 
+A third tab, SRS Review, reviews saved `vocab` words by level. It lives in the Vocabulary domain. See [vocabulary.md](vocabulary.md#review-saved-words).
+
 Intervals in days come from `calculateNextReview`:
 
 | Mastery | Days |

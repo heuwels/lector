@@ -1,8 +1,9 @@
 import type { SQLQueryBindings } from 'bun:sqlite';
 import { Hono } from 'hono';
-import { db, VocabRow } from '../db';
+import { db, VocabRow, SRS_INTERVAL_DAYS, type SrsLevel } from '../db';
 import { resolveLanguage } from '../lib/active-language';
 import { foldWord, getLanguageConfig, normalizeText } from '../lib/languages';
+import { deriveContextSentence } from '../lib/context-sentence';
 import { getCurrentUserId } from '../lib/user';
 import { randomUUID } from 'crypto';
 import { entitlements, planLimitResponse, type AtomicLimitCheck } from '../lib/entitlements';
@@ -33,9 +34,20 @@ const WORD_STATES = new Set([
   'level2',
   'level3',
   'level4',
+  'level5',
+  'level6',
+  'level7',
   'known',
   'ignored',
 ] as const);
+
+// The learning level lives in `state` as 'levelN' — the reader assigns it and
+// updateSRS advances it. `srs_level` mirrors it for interval bookkeeping. A
+// non-level state (new/known/ignored) has no level.
+function srsLevelFromState(state: string): SrsLevel | null {
+  const match = /^level([1-7])$/.exec(state);
+  return match ? (Number(match[1]) as SrsLevel) : null;
+}
 
 // GET /api/vocab
 app.get('/', (c) => {
@@ -135,7 +147,17 @@ app.post('/', async (c) => {
   const pack = getLanguageConfig(lang);
   // Text ingress (#289): NFC the stored form; the knownWords key is folded.
   const text = normalizeText(body.text);
-  const sentence = body.sentence ?? '';
+  // Fill a missing context sentence from the lesson text, so SRS cloze has one
+  // to blank even when the save did not carry the reader's context.
+  let sentence = body.sentence ?? '';
+  if (!sentence.trim() && body.bookId) {
+    const lesson = db
+      .prepare('SELECT textContent FROM lessons WHERE id = ? AND userId = ?')
+      .get(body.bookId, userId) as { textContent: string } | undefined;
+    if (lesson?.textContent) {
+      sentence = deriveContextSentence(lesson.textContent, text, pack) ?? '';
+    }
+  }
   const translation = body.translation ?? '';
   const foldedText = foldWord(text, pack);
   const existing = db
@@ -161,18 +183,19 @@ app.post('/', async (c) => {
   // Upsert on the composite (userId, id) PK (#279): ids are per-tenant, so a
   // client-supplied id belonging to another tenant is simply a different row —
   // re-posting your own id updates it, someone else's id creates yours.
+  const srsLevel = srsLevelFromState(body.state ?? 'new') ?? 1;
   const verdict = entitlements.reserveCount(userId, checks, () => {
     db.prepare(
       `
-      INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO vocab (id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, createdAt, pushedToAnki, ankiNoteId, language, userId, srs_level)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(userId, id) DO UPDATE SET
         text = excluded.text, type = excluded.type, sentence = excluded.sentence,
         translation = excluded.translation, state = excluded.state,
         stateUpdatedAt = excluded.stateUpdatedAt, reviewCount = excluded.reviewCount,
         bookId = excluded.bookId, chapter = excluded.chapter, createdAt = excluded.createdAt,
         pushedToAnki = excluded.pushedToAnki, ankiNoteId = excluded.ankiNoteId,
-        language = excluded.language
+        language = excluded.language, srs_level = excluded.srs_level
     `,
     ).run(
       id,
@@ -190,6 +213,7 @@ app.post('/', async (c) => {
       body.ankiNoteId ?? null,
       lang,
       userId,
+      srsLevel,
     );
 
     db.prepare(
@@ -250,8 +274,8 @@ app.put('/:id', async (c) => {
   let knownWrite: { word: string; language: string; state: string } | null = null;
 
   if (body.state !== undefined) {
-    updates.push('state = ?', 'stateUpdatedAt = ?');
-    values.push(body.state, new Date().toISOString());
+    updates.push('state = ?', 'stateUpdatedAt = ?', 'srs_level = ?');
+    values.push(body.state, new Date().toISOString(), srsLevelFromState(body.state) ?? 1);
     const vocabLang = existing.language;
     const vocabPack = getLanguageConfig(resolveLanguage(vocabLang, userId));
     knownWrite = {
@@ -264,9 +288,21 @@ app.put('/:id', async (c) => {
     updates.push('translation = ?');
     values.push(body.translation);
   }
-  if (body.sentence !== undefined) {
+  // Fill a missing context sentence from the lesson text (see POST), so a word
+  // levelled before its sentence was captured still has one for SRS cloze.
+  let resolvedSentence = body.sentence !== undefined ? body.sentence : existing.sentence;
+  if (!resolvedSentence.trim() && existing.bookId) {
+    const lesson = db
+      .prepare('SELECT textContent FROM lessons WHERE id = ? AND userId = ?')
+      .get(existing.bookId, userId) as { textContent: string } | undefined;
+    if (lesson?.textContent) {
+      const pack = getLanguageConfig(resolveLanguage(existing.language, userId));
+      resolvedSentence = deriveContextSentence(lesson.textContent, existing.text, pack) ?? '';
+    }
+  }
+  if (resolvedSentence !== existing.sentence) {
     updates.push('sentence = ?');
-    values.push(body.sentence);
+    values.push(resolvedSentence);
   }
   if (body.reviewCount !== undefined) {
     updates.push('reviewCount = ?');
@@ -284,7 +320,7 @@ app.put('/:id', async (c) => {
   const previousVocabBytes = vocabContentBytes(existing);
   const nextVocabBytes = vocabContentBytes({
     text: existing.text,
-    sentence: body.sentence !== undefined ? body.sentence : existing.sentence,
+    sentence: resolvedSentence,
     translation: body.translation !== undefined ? body.translation : existing.translation,
   });
   const knownExists =
@@ -428,5 +464,82 @@ app.post('/bulk-delete', async (c) => {
     message: `Deleted ${deleted} of ${vocabIDs.length}`,
   });
 });
+
+// PATCH /api/vocab/update-srs — update SRS level based on review result
+app.patch('/update-srs', async (c) => {
+  const userId = getCurrentUserId(c);
+  const body = await c.req.json();
+
+  if (typeof body.wordId !== 'string' || !body.wordId.trim()) {
+    return c.json({ error: 'wordId is required' }, 400);
+  }
+  if (typeof body.isCorrect !== 'boolean') {
+    return c.json({ error: 'isCorrect must be a boolean' }, 400);
+  }
+  if (body.mode !== undefined && body.mode !== 'recall' && body.mode !== 'cloze') {
+    return c.json({ error: "mode must be 'recall' or 'cloze' if provided" }, 400);
+  }
+  const mode: SrsReviewMode = body.mode === 'cloze' ? 'cloze' : 'recall';
+
+  const result = updateSRS(body.wordId, body.isCorrect, userId, mode);
+  if (!result.success) {
+    return c.json({ error: result.error }, 404);
+  }
+
+  return c.json({ success: true, newLevel: result.newLevel, nextReview: result.nextReview });
+});
+
+// Cloze grading is harsher than recall: a miss resets to level 1 rather than
+// dropping one step.
+export type SrsReviewMode = 'recall' | 'cloze';
+
+// SRS update function
+export function updateSRS(
+  wordId: string,
+  isCorrect: boolean,
+  userId: string,
+  mode: SrsReviewMode = 'recall',
+): { success: true; newLevel: number; nextReview: string } | { success: false; error: string } {
+  const row = db
+    .prepare('SELECT text, language, state, srs_level FROM vocab WHERE id = ? AND userId = ?')
+    .get(wordId, userId) as
+    | { text: string; language: string; state: string; srs_level: number }
+    | undefined;
+
+  if (!row) return { success: false, error: 'Vocab not found' };
+
+  // `state` is the level the drawer shows; fall back to the scheduling column
+  // for a row that has one but no level state.
+  const currentLevel = srsLevelFromState(row.state) ?? (row.srs_level as SrsLevel) ?? 1;
+  let newLevel: SrsLevel;
+  let nextReview: string;
+
+  if (isCorrect) {
+    newLevel = Math.min(7, currentLevel + 1) as SrsLevel;
+    const days = SRS_INTERVAL_DAYS[newLevel];
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    nextReview = d.toISOString();
+  } else {
+    newLevel = mode === 'cloze' ? 1 : (Math.max(1, currentLevel - 1) as SrsLevel);
+    nextReview = new Date().toISOString();
+  }
+
+  const lastReview = new Date().toISOString();
+  const newState = `level${newLevel}`;
+  db.prepare(
+    `UPDATE vocab SET state = ?, stateUpdatedAt = ?, srs_level = ?, next_review = ?, last_review = ?
+     WHERE id = ? AND userId = ?`,
+  ).run(newState, lastReview, newLevel, nextReview, lastReview, wordId, userId);
+
+  // Keep the knownWords mirror in step with the level the drawer shows.
+  const pack = getLanguageConfig(resolveLanguage(row.language, userId));
+  db.prepare(
+    `INSERT INTO knownWords (userId, word, language, state) VALUES (?, ?, ?, ?)
+     ON CONFLICT(userId, word, language) DO UPDATE SET state = excluded.state`,
+  ).run(userId, foldWord(row.text, pack), row.language, newState);
+
+  return { success: true, newLevel, nextReview };
+}
 
 export default app;

@@ -120,14 +120,31 @@ const NULLABLE_STRING: JsonSchema = { type: ['string', 'null'] };
 
 const WORD_STATE: JsonSchema = {
   type: 'string',
-  enum: ['new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored'],
+  enum: [
+    'new',
+    'level1',
+    'level2',
+    'level3',
+    'level4',
+    'level5',
+    'level6',
+    'level7',
+    'known',
+    'ignored',
+  ],
   description:
-    'How well the account knows a word. `level1` to `level4` are the learning steps between `new` and `known`. `ignored` hides the word.',
+    'How well the account knows a word. `level1` to `level7` are the learning steps between `new` and `known`. `ignored` hides the word.',
 };
 
 /** Reusable schemas. Referenced from operations as `{ $ref: '#/components/schemas/<name>' }`. */
 export const schemas: Record<string, JsonSchema> = {
   Error: {
+    type: 'object',
+    properties: { error: { type: 'string', description: 'What went wrong.' } },
+    required: ['error'],
+  },
+
+  ErrorResponse: {
     type: 'object',
     properties: { error: { type: 'string', description: 'What went wrong.' } },
     required: ['error'],
@@ -1482,6 +1499,116 @@ const practiceOps: Record<string, OperationDoc> = {
       },
     },
     responses: { '200': { description: 'The answer is recorded.', schema: ref('Success') } },
+  },
+  'POST /api/practice/srs-queue': {
+    summary: 'Fetch a prioritized queue of words for SRS review',
+    description:
+      'Returns up to 50 vocabulary entries that are due for review, filtered by learning ' +
+      'level and optionally by book. A word is due when it has never been reviewed ' +
+      '(`next_review` is null) or its `next_review` is in the past. The learning level is ' +
+      'the `levelN` encoded in the entry `state`. The queue is ordered by `next_review` ' +
+      'ascending (never-reviewed first), then by `srs_level` ascending.',
+    tag: 'Vocabulary',
+    requestBody: {
+      required: true,
+      schema: {
+        type: 'object',
+        properties: {
+          levels: {
+            type: 'array',
+            items: { type: 'integer', minimum: 1, maximum: 7 },
+            description: 'SRS levels to include in the queue (1-7).',
+            minItems: 1,
+          },
+          bookId: {
+            type: ['string', 'null'],
+            description: 'Optional book/lesson ID to filter words from a specific source.',
+          },
+          language: {
+            type: 'string',
+            description: 'Language pack code. Defaults to the account’s active language.',
+          },
+        },
+        required: ['levels'],
+      },
+    },
+    responses: {
+      '200': {
+        description: 'The prioritized review queue.',
+        schema: {
+          type: 'object',
+          properties: {
+            words: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  text: { type: 'string' },
+                  type: { type: 'string', enum: ['word', 'phrase'] },
+                  sentence: { type: 'string' },
+                  translation: { type: 'string' },
+                  state: WORD_STATE,
+                  stateUpdatedAt: ISO_DATE_TIME,
+                  reviewCount: { type: 'integer' },
+                  bookId: { type: ['string', 'null'] },
+                  chapter: { type: ['integer', 'null'] },
+                  createdAt: ISO_DATE_TIME,
+                  pushedToAnki: { type: 'boolean' },
+                  ankiNoteId: { type: ['integer', 'null'] },
+                  srs_level: { type: 'integer', minimum: 1, maximum: 7 },
+                  next_review: { type: ['string', 'null'], format: 'date-time' },
+                  last_review: { type: ['string', 'null'], format: 'date-time' },
+                },
+              },
+            },
+          },
+          required: ['words'],
+        },
+      },
+    },
+  },
+  'PATCH /api/vocab/update-srs': {
+    summary: 'Update SRS level and review timestamps for a vocabulary entry',
+    description:
+      'Updates the spaced-repetition state after a review. Correct answers advance the ' +
+      'level (max 7) and schedule the next review per the interval map. An incorrect ' +
+      'answer sets next_review to now: in `recall` mode it drops the level by one (min 1), ' +
+      'and in `cloze` mode it resets the level to 1. The `state` column is also synced to ' +
+      'reflect the new SRS level.',
+    tag: 'Vocabulary',
+    requestBody: {
+      required: true,
+      schema: {
+        type: 'object',
+        properties: {
+          wordId: { type: 'string', description: 'Vocabulary entry identifier.' },
+          isCorrect: { type: 'boolean', description: 'Whether the answer was correct.' },
+          mode: {
+            type: 'string',
+            enum: ['recall', 'cloze'],
+            description:
+              'Review mode. Defaults to `recall`; `cloze` applies the harder penalty on a miss.',
+          },
+        },
+        required: ['wordId', 'isCorrect'],
+      },
+    },
+    responses: {
+      '200': {
+        description: 'SRS state updated.',
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            newLevel: { type: 'integer', minimum: 1, maximum: 7 },
+            nextReview: { type: 'string', format: 'date-time', nullable: true },
+          },
+          required: ['success'],
+        },
+      },
+      '404': { description: 'Vocabulary entry not found.', schema: ref('ErrorResponse') },
+    },
   },
 };
 

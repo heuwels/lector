@@ -203,7 +203,6 @@ test.describe('Reader bottom-sheet behaviour (800px — sm)', () => {
   test('auto-scrolls a bottom-of-viewport word above the bottom sheet', async ({ page }) => {
     const words = page.locator('[data-word-state]');
     const last = words.last();
-    const lastText = await last.textContent();
 
     // Scroll the last word to the very bottom so it would be covered by the sheet
     await last.scrollIntoViewIfNeeded();
@@ -220,10 +219,8 @@ test.describe('Reader bottom-sheet behaviour (800px — sm)', () => {
     // top edge should be above the sheet's bottom edge.
     const sheetBottom = await page.evaluate(() => window.innerHeight);
     const wordRect = await last.boundingBox();
-    if (wordRect && lastText) {
-      const cleanWord = lastText.replace(/[.,!?;:'")\]]+$/, '');
-      // Either the word is still above the sheet, or it was scrolled up
-      expect(wordRect.bottom).toBeLessThanOrEqual(sheetBottom - 1);
-    }
+    if (!wordRect) throw new Error('last word has no bounding box');
+    // boundingBox has no DOMRect.bottom; the bottom edge is y + height.
+    expect(wordRect.y + wordRect.height).toBeLessThanOrEqual(sheetBottom - 1);
   });
 });

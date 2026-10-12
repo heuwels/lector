@@ -1,12 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   createBlankedSentence,
+  blankWordInSentence,
   normalize,
   checkAnswer,
   getFuzzyStatus,
   calculateNextReview,
   calculatePoints,
   buildMultipleChoiceOptions,
+  buildSrsMcOptions,
+  glossLabel,
+  srsLevelFromState,
   generateDistractors,
   shuffle,
 } from '../utils';
@@ -469,5 +473,130 @@ describe('shuffle', () => {
     const copy = [...input];
     shuffle(input);
     expect(input).toEqual(copy);
+  });
+});
+
+describe('buildSrsMcOptions', () => {
+  const word = { id: 'a', translation: 'cat' };
+
+  it('includes the correct translation and marks its index', () => {
+    const { options, correctIndex } = buildSrsMcOptions(word, [
+      { id: 'b', translation: 'dog' },
+      { id: 'c', translation: 'bird' },
+    ]);
+
+    expect(options[correctIndex]).toBe('cat');
+  });
+
+  it('draws up to three distinct distractors from the pool', () => {
+    const { options } = buildSrsMcOptions(word, [
+      { id: 'b', translation: 'dog' },
+      { id: 'c', translation: 'bird' },
+      { id: 'd', translation: 'fish' },
+      { id: 'e', translation: 'horse' },
+    ]);
+
+    expect(options).toHaveLength(4);
+    expect(new Set(options).size).toBe(4);
+  });
+
+  it('never repeats the correct translation as a distractor', () => {
+    const { options, correctIndex } = buildSrsMcOptions(word, [
+      { id: 'b', translation: 'cat' },
+      { id: 'c', translation: 'dog' },
+    ]);
+
+    expect(options.filter((option) => option === 'cat')).toHaveLength(1);
+    expect(options[correctIndex]).toBe('cat');
+    expect(options).toContain('dog');
+  });
+
+  it('skips empty glosses and returns a single option for an empty pool', () => {
+    const { options, correctIndex } = buildSrsMcOptions(word, [
+      { id: 'b', translation: '' },
+      { id: 'a', translation: 'cat' },
+    ]);
+
+    expect(options).toEqual(['cat']);
+    expect(correctIndex).toBe(0);
+  });
+
+  it('compresses long multi-sense glosses so no option is huge', () => {
+    const { options, correctIndex } = buildSrsMcOptions(
+      { id: 'a', translation: 'Expressing distance or motion.; From (a place); off.; Since.' },
+      [
+        { id: 'b', translation: 'The first letter of the English alphabet, called a; Numeral.' },
+        {
+          id: 'c',
+          translation: 'Used to indicate location, inclusion, or position within limits.',
+        },
+        { id: 'd', translation: 'word '.repeat(30).trim() },
+      ],
+    );
+
+    expect(options[correctIndex]).toBe('Expressing distance or motion');
+    for (const option of options) {
+      expect(option.length, option).toBeLessThanOrEqual(65);
+    }
+  });
+});
+
+describe('glossLabel', () => {
+  it('keeps a short single-sense gloss as is', () => {
+    expect(glossLabel('apple')).toBe('apple');
+    expect(glossLabel('  to be able to  ')).toBe('to be able to');
+  });
+
+  it('reduces a sense list to its first sense', () => {
+    expect(
+      glossLabel('Expressing distance or motion.; From (a place); off.; Since, from a time'),
+    ).toBe('Expressing distance or motion');
+  });
+
+  it('caps a long single sense at a word boundary with an ellipsis', () => {
+    const label = glossLabel('word '.repeat(40).trim());
+
+    expect(label.length).toBeLessThanOrEqual(65);
+    expect(label.endsWith('…')).toBe(true);
+    expect(label).not.toMatch(/\s…$/);
+  });
+
+  it('returns an empty string for an empty translation', () => {
+    expect(glossLabel('')).toBe('');
+    expect(glossLabel('   ')).toBe('');
+  });
+});
+
+describe('srsLevelFromState', () => {
+  it('parses level states', () => {
+    expect(srsLevelFromState('level1')).toBe(1);
+    expect(srsLevelFromState('level7')).toBe(7);
+  });
+
+  it('returns null for non-level states and malformed values', () => {
+    for (const state of ['new', 'known', 'ignored', 'level8', 'level0', 'level', '']) {
+      expect(srsLevelFromState(state), state).toBeNull();
+    }
+  });
+});
+
+describe('blankWordInSentence', () => {
+  it('blanks the word, matching case- and punctuation-insensitively', () => {
+    expect(blankWordInSentence('The quick brown fox jumps.', 'fox')).toBe(
+      'The quick brown _____ jumps.',
+    );
+    expect(blankWordInSentence('A Fox runs.', 'fox')).toBe('A _____ runs.');
+    expect(blankWordInSentence('A lazy dog.', 'dog')).toBe('A lazy _____.');
+  });
+
+  it('blanks a contiguous phrase', () => {
+    expect(blankWordInSentence('He was struck by lightning yesterday.', 'struck by lightning')).toBe(
+      'He was _____ yesterday.',
+    );
+  });
+
+  it('returns null when the word is not in the sentence', () => {
+    expect(blankWordInSentence('A lazy dog.', 'cat')).toBeNull();
+    expect(blankWordInSentence('A lazy dog.', '')).toBeNull();
   });
 });

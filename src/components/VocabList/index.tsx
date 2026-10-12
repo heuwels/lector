@@ -88,7 +88,7 @@ export default function VocabList({
     // Apply state filter
     if (stateFilter !== 'all') {
       if (stateFilter === 'learning') {
-        // "Learning" includes new, level1-4 (not known or ignored)
+        // "Learning" includes new, level1-7 (not known or ignored)
         result = result.filter((e) => e.state !== 'known' && e.state !== 'ignored');
       } else {
         result = result.filter((e) => e.state === stateFilter);

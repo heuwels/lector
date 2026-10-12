@@ -93,6 +93,24 @@ export function WordStateBreakdown({ byState }: { byState: Record<WordState, num
       bgColor: 'bg-primary',
     },
     {
+      key: 'level7',
+      label: 'Level 7',
+      color: 'text-[var(--w-l7-fg)]',
+      bgColor: 'bg-[var(--w-l7-bd)]',
+    },
+    {
+      key: 'level6',
+      label: 'Level 6',
+      color: 'text-[var(--w-l6-fg)]',
+      bgColor: 'bg-[var(--w-l6-bd)]',
+    },
+    {
+      key: 'level5',
+      label: 'Level 5',
+      color: 'text-[var(--w-l5-fg)]',
+      bgColor: 'bg-[var(--w-l5-bd)]',
+    },
+    {
       key: 'level4',
       label: 'Level 4',
       color: 'text-primary',

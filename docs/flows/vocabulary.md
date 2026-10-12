@@ -41,7 +41,7 @@ Practice mastery 100 calls `updateWordState` in `persistReview`. That is `POST /
 
 ### Word states
 
-`new`, `level1`, `level2`, `level3`, `level4`, `known`, `ignored`.
+`new`, `level1`, `level2`, `level3`, `level4`, `level5`, `level6`, `level7`, `known`, `ignored`.
 
 ### Tables
 
@@ -77,3 +77,35 @@ Settings, Import Known Words. A plain list writes `knownWords` only. A LingQ CSV
 | API | `api/src/routes/known-words.ts` | `POST /` |
 
 New rows have `domain IS NULL` until the classifier runs. See [stats.md](stats.md).
+
+## Review saved words
+
+**App domain:** Vocabulary
+
+The Practice page has an SRS Review tab. It queues due saved words from `vocab`. Select levels 1 to 7. Optionally filter by one book. The reader has a Review words button that opens the same tab for the current book.
+
+SRS Review has two modes, chosen on the setup screen and remembered. Recall shows the word and asks for the translation. Cloze shows the word's gloss and its sentence with the word blanked, and asks the learner to type the word. A word with no sentence falls back to the gloss alone. While practising, Previous/Next move through the queue; a checked card keeps its result and cannot be re-graded.
+
+```mermaid
+flowchart TD
+  entry[Practice SRS tab, or reader Review words] --> start[startSrsRound]
+  start --> client[getSrsQueue]
+  client --> queue[POST /api/practice/srs-queue]
+  queue --> table[(vocab)]
+  start --> grade[Answer a translation-recall question]
+  grade --> answer[handleSrsAnswer]
+  answer --> persist[updateSrsReview]
+  persist --> patch[PATCH /api/vocab/update-srs]
+  patch --> table
+```
+
+| Role | Path | Function |
+| --- | --- | --- |
+| Practice | `src/app/practice/page.tsx` | `startSrsRound`, `handleSrsAnswer`, `prepareSrsMcOptions` |
+| Reader | `src/app/read/[bookId]/page.tsx` | Review words button (`format=srs`, `bookId`) |
+| Client | `src/lib/data-layer.ts` | `getSrsQueue`, `updateSrsReview` |
+| API | `api/src/routes/practice.ts`, `api/src/routes/vocab.ts` | `POST /api/practice/srs-queue`, `PATCH /api/vocab/update-srs` |
+
+A word's review level is the `level1`-`level7` encoded in its `state`; the reader assigns it, and a review advances it. A word is due when it has never been reviewed (`next_review IS NULL`) or `next_review` has passed. The queue matches the requested levels against `state` and returns up to 50 words, oldest due first, scoped to the active language. A correct answer moves the level up one (max 7) and sets `next_review` per the interval table (`state`, `srs_level`, and `next_review` are written together); a wrong answer drops the level one step (min 1) and sets `next_review` to now so the word returns this session. `srs_level` mirrors `state` for interval bookkeeping.
+
+Interval days per level: level1=0, level2=1, level3=3, level4=7, level5=14, level6=30, level7=90.

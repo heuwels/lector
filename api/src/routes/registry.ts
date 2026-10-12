@@ -14,6 +14,7 @@ import youtubeImport from './youtube-import';
 import anki from './anki';
 import lessons from './lessons';
 import vocab from './vocab';
+import practice from './practice';
 import cloze from './cloze';
 import stats from './stats';
 import settings from './settings';
@@ -76,6 +77,7 @@ export const routeMounts: readonly RouteMount[] = [
   { prefix: '/api/anki', app: anki },
   { prefix: '/api/lessons', app: lessons },
   { prefix: '/api/vocab', app: vocab },
+  { prefix: '/api/practice', app: practice },
   { prefix: '/api/cloze', app: cloze },
   { prefix: '/api/stats', app: stats },
   { prefix: '/api/settings', app: settings },

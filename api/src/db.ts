@@ -4,6 +4,7 @@ import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { parseEpub } from './lib/epub-parser';
 import { countWords } from './lib/html-to-markdown';
+import { deriveContextSentence } from './lib/context-sentence';
 import {
   DEFAULT_LANGUAGE,
   foldWord,
@@ -86,14 +87,17 @@ function getDb(): Database {
       type TEXT NOT NULL CHECK (type IN ('word', 'phrase')),
       sentence TEXT NOT NULL,
       translation TEXT NOT NULL,
-      state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+      state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored')),
       stateUpdatedAt TEXT NOT NULL,
       reviewCount INTEGER DEFAULT 0,
       bookId TEXT,
       chapter INTEGER,
       createdAt TEXT NOT NULL,
       pushedToAnki INTEGER DEFAULT 0,
-      ankiNoteId INTEGER
+      ankiNoteId INTEGER,
+      srs_level INTEGER DEFAULT 1,
+      next_review TEXT,
+      last_review TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_vocab_text ON vocab(text);
     CREATE INDEX IF NOT EXISTS idx_vocab_state ON vocab(state);
@@ -101,7 +105,7 @@ function getDb(): Database {
 
     CREATE TABLE IF NOT EXISTS knownWords (
       word TEXT PRIMARY KEY,
-      state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored'))
+      state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored'))
     );
 
     CREATE TABLE IF NOT EXISTS clozeSentences (
@@ -598,6 +602,18 @@ function getDb(): Database {
   // ensurePartitionIndexes (the rebuilds drop every index on the way).
   migrateCompositeTenantKeys(_db);
 
+  // SRS levels 5-7 + scheduling columns. Runs after migrateCompositeTenantKeys
+  // (rebuilds assume the (userId, id) PK) and before migrateFoldWordKeys.
+  migrateVocabSrsLevels(_db);
+
+  // `srs_level` mirrors the level in `state`; align rows that predate the
+  // reader feeding the review queue. Idempotent (guarded on mismatch).
+  backfillSrsLevelFromState(_db);
+
+  // Older saves left `vocab.sentence` empty; fill it from the lesson so SRS
+  // cloze has a sentence. Idempotent (guarded on an empty sentence).
+  backfillVocabSentences(_db);
+
   // lessons audio columns (#185) — audio-backed lessons (podcast import). NULL
   // on ordinary text lessons. Added after migrateCompositeTenantKeys (which
   // rebuilds lessons for the compound PK) so the columns survive that rebuild
@@ -899,7 +915,7 @@ function migrateAddUserIdColumn(database: Database) {
           userId TEXT NOT NULL DEFAULT 'local',
           word TEXT NOT NULL,
           language TEXT NOT NULL DEFAULT 'af',
-          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored')),
           domain TEXT,
           PRIMARY KEY (userId, word, language)
         );
@@ -1095,7 +1111,7 @@ export function migrateCompositeTenantKeys(database: Database) {
           type TEXT NOT NULL CHECK (type IN ('word', 'phrase')),
           sentence TEXT NOT NULL,
           translation TEXT NOT NULL,
-          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored')),
           stateUpdatedAt TEXT NOT NULL,
           reviewCount INTEGER DEFAULT 0,
           bookId TEXT,
@@ -1268,6 +1284,173 @@ export function migrateCompositeTenantKeys(database: Database) {
 }
 
 /**
+ * SRS levels 5-7 and the per-word scheduling columns (srs_level, next_review,
+ * last_review). The base schema and the older `vocab`/`knownWords` rebuilds
+ * predate them, so an install created before this shipped keeps a `state`
+ * CHECK that rejects `level5`-`level7` and has no scheduling columns — a
+ * `level5` write fails with a CHECK violation even when the route accepts it.
+ * Guarded, transactional, idempotent: rebuilds only the stale table, and
+ * carries a legacy camelCase `srsLevel` column forward into `srs_level`.
+ * Must run after migrateCompositeTenantKeys (needs the (userId, id) PK) and
+ * before migrateFoldWordKeys (which re-keys vocab/knownWords rows).
+ */
+export function migrateVocabSrsLevels(database: Database) {
+  const vocabSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='vocab'")
+    .get() as { sql: string } | undefined;
+
+  if (vocabSql) {
+    const vocabCols = database.prepare('PRAGMA table_info(vocab)').all() as { name: string }[];
+    const has = (name: string) => vocabCols.some((c) => c.name === name);
+    const stale =
+      !vocabSql.sql.includes("'level7'") ||
+      !has('srs_level') ||
+      !has('next_review') ||
+      !has('last_review');
+
+    if (stale) {
+      const userIdExpr = has('userId') ? 'userId' : "'local'";
+      const srsLevelExpr = has('srs_level')
+        ? 'COALESCE(srs_level, 1)'
+        : has('srsLevel')
+          ? 'CASE WHEN srsLevel BETWEEN 1 AND 7 THEN srsLevel ELSE 1 END'
+          : '1';
+      const nextReviewExpr = has('next_review') ? 'next_review' : 'NULL';
+      const lastReviewExpr = has('last_review') ? 'last_review' : 'NULL';
+
+      database.transaction(() => {
+        database.exec(`
+          CREATE TABLE vocab_new (
+            userId TEXT NOT NULL DEFAULT 'local',
+            id TEXT NOT NULL,
+            text TEXT NOT NULL,
+            type TEXT NOT NULL CHECK (type IN ('word', 'phrase')),
+            sentence TEXT NOT NULL,
+            translation TEXT NOT NULL,
+            state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored')),
+            stateUpdatedAt TEXT NOT NULL,
+            reviewCount INTEGER DEFAULT 0,
+            bookId TEXT,
+            chapter INTEGER,
+            language TEXT NOT NULL DEFAULT 'af',
+            createdAt TEXT NOT NULL,
+            pushedToAnki INTEGER DEFAULT 0,
+            ankiNoteId INTEGER,
+            srs_level INTEGER DEFAULT 1,
+            next_review TEXT,
+            last_review TEXT,
+            PRIMARY KEY (userId, id)
+          );
+          INSERT INTO vocab_new (userId, id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, language, createdAt, pushedToAnki, ankiNoteId, srs_level, next_review, last_review)
+            SELECT ${userIdExpr}, id, text, type, sentence, translation, state, stateUpdatedAt, reviewCount, bookId, chapter, language, createdAt, pushedToAnki, ankiNoteId,
+              ${srsLevelExpr}, ${nextReviewExpr}, ${lastReviewExpr}
+            FROM vocab;
+          DROP TABLE vocab;
+          ALTER TABLE vocab_new RENAME TO vocab;
+          CREATE INDEX IF NOT EXISTS idx_vocab_text ON vocab(text);
+          CREATE INDEX IF NOT EXISTS idx_vocab_state ON vocab(state);
+          CREATE INDEX IF NOT EXISTS idx_vocab_bookId ON vocab(bookId);
+        `);
+      })();
+    }
+
+    // Outlives the guarded rebuild: a table that already has the columns but
+    // lost the index (or never had it) still gets one.
+    database.exec(
+      'CREATE INDEX IF NOT EXISTS idx_vocab_srs_next_review ON vocab(srs_level, next_review)',
+    );
+  }
+
+  const knownSql = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='knownWords'")
+    .get() as { sql: string } | undefined;
+
+  if (knownSql && !knownSql.sql.includes("'level7'")) {
+    const knownCols = database.prepare('PRAGMA table_info(knownWords)').all() as { name: string }[];
+    const has = (name: string) => knownCols.some((c) => c.name === name);
+    const userIdExpr = has('userId') ? 'userId' : "'local'";
+    const languageExpr = has('language') ? 'language' : "'af'";
+    const domainExpr = has('domain') ? 'domain' : 'NULL';
+
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE knownWords_new (
+          userId TEXT NOT NULL DEFAULT 'local',
+          word TEXT NOT NULL,
+          language TEXT NOT NULL DEFAULT 'af',
+          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored')),
+          domain TEXT,
+          PRIMARY KEY (userId, word, language)
+        );
+        INSERT INTO knownWords_new (userId, word, language, state, domain)
+          SELECT ${userIdExpr}, word, ${languageExpr}, state, ${domainExpr} FROM knownWords;
+        DROP TABLE knownWords;
+        ALTER TABLE knownWords_new RENAME TO knownWords;
+      `);
+    })();
+  }
+}
+
+/**
+ * Align `srs_level` with the level encoded in `state`. `state` owns the level;
+ * `srs_level` mirrors it for interval bookkeeping. Before the reader's level
+ * assignment fed the review queue, `srs_level` was written only by a review and
+ * defaulted to 1 on migration, so older rows carry a stale 1 while `state`
+ * already names a level. Guarded on mismatch, so a reviewed row (the two are
+ * already equal) keeps its progress and every later boot is a no-op.
+ */
+export function backfillSrsLevelFromState(database: Database) {
+  database
+    .prepare(
+      `UPDATE vocab
+       SET srs_level = CAST(substr(state, 6) AS INTEGER)
+       WHERE state IN ('level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7')
+         AND srs_level <> CAST(substr(state, 6) AS INTEGER)`,
+    )
+    .run();
+}
+
+/**
+ * Fill `vocab.sentence` for rows that have none, from the lesson the word was
+ * saved in. Saves made before the reader carried its context left it empty,
+ * which would leave SRS cloze with no sentence to blank. Guarded on an empty
+ * sentence, so each row is filled once and later boots are a no-op.
+ */
+export function backfillVocabSentences(database: Database) {
+  const rows = database
+    .prepare(
+      `SELECT id, text, language, bookId FROM vocab
+       WHERE (sentence IS NULL OR trim(sentence) = '') AND bookId IS NOT NULL AND bookId <> ''`,
+    )
+    .all() as { id: string; text: string; language: string; bookId: string }[];
+  if (rows.length === 0) return;
+
+  const lessonTextCache = new Map<string, string | null>();
+  const lessonText = (lessonId: string): string | null => {
+    if (!lessonTextCache.has(lessonId)) {
+      const lesson = database
+        .prepare('SELECT textContent FROM lessons WHERE id = ?')
+        .get(lessonId) as { textContent: string } | undefined;
+      lessonTextCache.set(lessonId, lesson?.textContent ?? null);
+    }
+    return lessonTextCache.get(lessonId) ?? null;
+  };
+
+  const update = database.prepare('UPDATE vocab SET sentence = ? WHERE id = ?');
+  database.transaction(() => {
+    for (const row of rows) {
+      const text = lessonText(row.bookId);
+      if (!text) continue;
+      const code: LanguageCode = isValidLanguageCode(row.language)
+        ? row.language
+        : DEFAULT_LANGUAGE;
+      const sentence = deriveContextSentence(text, row.text, getLanguageConfig(code));
+      if (sentence) update.run(sentence, row.id);
+    }
+  })();
+}
+
+/**
  * Collapse the legacy per-provider LLM settings (ollama / apfel / lmstudio) onto
  * the unified OpenAI-compatible keys (openaiUrl / openaiModel / openaiApiKey).
  * Idempotent: it flips `llmProvider` to 'openai' once done, so it never re-runs.
@@ -1347,7 +1530,7 @@ function migrateAddLanguageColumn(database: Database) {
         CREATE TABLE knownWords_new (
           word TEXT NOT NULL,
           language TEXT NOT NULL DEFAULT 'af',
-          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+          state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored')),
           PRIMARY KEY (word, language)
         );
         INSERT INTO knownWords_new (word, language, state) SELECT word, 'af', state FROM knownWords;
@@ -1565,7 +1748,7 @@ function migrateVocabForeignKey(database: Database) {
         type TEXT NOT NULL CHECK (type IN ('word', 'phrase')),
         sentence TEXT NOT NULL,
         translation TEXT NOT NULL,
-        state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored')),
+        state TEXT NOT NULL CHECK (state IN ('new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored')),
         stateUpdatedAt TEXT NOT NULL,
         reviewCount INTEGER DEFAULT 0,
         bookId TEXT,
@@ -1739,11 +1922,32 @@ export function getDatabaseInstance(): Database {
 }
 
 // Type definitions
-export type WordState = 'new' | 'level1' | 'level2' | 'level3' | 'level4' | 'known' | 'ignored';
+export type WordState =
+  | 'new'
+  | 'level1'
+  | 'level2'
+  | 'level3'
+  | 'level4'
+  | 'level5'
+  | 'level6'
+  | 'level7'
+  | 'known'
+  | 'ignored';
 export type VocabType = 'word' | 'phrase';
 export type ClozeMasteryLevel = 0 | 25 | 50 | 75 | 100;
 export type ClozeSource = 'tatoeba' | 'mined';
 export type ClozeCollection = 'top500' | 'top1000' | 'top2000' | 'mined' | 'random';
+export type SrsLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+export const SRS_INTERVAL_DAYS: Record<SrsLevel, number> = {
+  1: 0,
+  2: 1,
+  3: 3,
+  4: 7,
+  5: 14,
+  6: 30,
+  7: 90,
+};
 
 export interface CollectionRow {
   userId: string;
@@ -1840,6 +2044,9 @@ export interface VocabRow {
   createdAt: string;
   pushedToAnki: number;
   ankiNoteId: number | null;
+  srs_level: number;
+  next_review: string | null;
+  last_review: string | null;
 }
 
 export interface KnownWordRow {

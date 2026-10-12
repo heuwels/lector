@@ -169,7 +169,18 @@ function validateOptionalFiniteNumber(
     : `${label}.${field} must be a finite number`;
 }
 
-const WORD_STATES = new Set(['new', 'level1', 'level2', 'level3', 'level4', 'known', 'ignored']);
+const WORD_STATES = new Set([
+  'new',
+  'level1',
+  'level2',
+  'level3',
+  'level4',
+  'level5',
+  'level6',
+  'level7',
+  'known',
+  'ignored',
+]);
 const LEARNER_EVENT_TYPE_SET = new Set<string>(LEARNER_EVENT_TYPES);
 const APPROXIMATE_LEVELS = new Set(['new', 'beginner', 'intermediate', 'advanced', 'not_sure']);
 const LEARNER_INTERESTS = new Set([

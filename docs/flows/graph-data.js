@@ -241,6 +241,21 @@
     summary: "Plain list writes knownWords only. A LingQ CSV also writes vocab.",
     steps: ["file:known-words-import", "route:known-words-post", "table:knownWords"],
   });
+  N("flow:srs-review", "flow", "Review saved words", {
+    domain: "vocabulary",
+    md: "vocabulary.md#review-saved-words",
+    summary: "Practice SRS Review queues due saved words by level and book. A grade moves the level and reschedules.",
+    steps: [
+      "file:practice-page",
+      "fn:startSrsRound",
+      "fn:getSrsQueue",
+      "route:practice-srs-queue",
+      "table:vocab",
+      "fn:handleSrsAnswer",
+      "fn:updateSrsReview",
+      "route:vocab-update-srs",
+    ],
+  });
   N("flow:practice-word", "flow", "Practice word", {
     domain: "practice",
     md: "practice.md#practice-word",
@@ -549,6 +564,7 @@
   N("file:route-vocab", "file", "vocab.ts", { path: "api/src/routes/vocab.ts", domain: "vocabulary" });
   N("file:route-known-words", "file", "known-words.ts", { path: "api/src/routes/known-words.ts", domain: "vocabulary" });
   N("file:route-cloze", "file", "cloze.ts", { path: "api/src/routes/cloze.ts", domain: "practice" });
+  N("file:route-practice", "file", "practice.ts (API)", { path: "api/src/routes/practice.ts", domain: "vocabulary" });
   N("file:route-journal", "file", "journal.ts", { path: "api/src/routes/journal.ts", domain: "journal" });
   N("file:route-chat", "file", "chat.ts", { path: "api/src/routes/chat.ts", domain: "tutor" });
   N("file:route-explain", "file", "explain.ts", { path: "api/src/routes/explain.ts", domain: "tutor" });
@@ -611,6 +627,10 @@
   N("fn:patchWordState", "fn", "patchWordState", { path: "src/components/MarkdownReader/optimistic-word-state.ts" });
   N("fn:saveVocab", "fn", "saveVocab", { path: "src/lib/data-layer.ts" });
   N("fn:updateVocabState", "fn", "updateVocabState", { path: "src/lib/data-layer.ts" });
+  N("fn:getSrsQueue", "fn", "getSrsQueue", { path: "src/lib/data-layer.ts" });
+  N("fn:updateSrsReview", "fn", "updateSrsReview", { path: "src/lib/data-layer.ts" });
+  N("fn:startSrsRound", "fn", "PracticePage.startSrsRound", { path: "src/app/practice/page.tsx" });
+  N("fn:handleSrsAnswer", "fn", "PracticePage.handleSrsAnswer", { path: "src/app/practice/page.tsx" });
   N("fn:updateLessonProgress", "fn", "updateLessonProgress", { path: "src/lib/data-layer.ts" });
   N("fn:importEpub", "fn", "importEpub", { path: "src/lib/data-layer.ts" });
   N("fn:createStandaloneLesson", "fn", "createStandaloneLesson", { path: "src/lib/data-layer.ts" });
@@ -694,6 +714,8 @@
   N("route:vocab-get", "route", "GET /api/vocab", { path: "api/src/routes/vocab.ts" });
   N("route:vocab-post", "route", "POST /api/vocab", { path: "api/src/routes/vocab.ts" });
   N("route:vocab-put", "route", "PUT /api/vocab/:id", { path: "api/src/routes/vocab.ts" });
+  N("route:vocab-update-srs", "route", "PATCH /api/vocab/update-srs", { path: "api/src/routes/vocab.ts" });
+  N("route:practice-srs-queue", "route", "POST /api/practice/srs-queue", { path: "api/src/routes/practice.ts" });
   N("route:cloze-seed", "route", "POST /api/cloze/seed", { path: "api/src/routes/cloze.ts" });
   N("route:cloze-due", "route", "GET /api/cloze/due", { path: "api/src/routes/cloze.ts" });
   N("route:cloze-review", "route", "POST /api/cloze/:id/review", { path: "api/src/routes/cloze.ts" });
@@ -830,7 +852,7 @@
     "flow:enrich-nested",
     "flow:cache-translation",
   ]);
-  domainFlows("vocabulary", ["flow:save-vocab", "flow:vocab-list", "flow:known-word-import"]);
+  domainFlows("vocabulary", ["flow:save-vocab", "flow:vocab-list", "flow:known-word-import", "flow:srs-review"]);
   domainFlows("practice", ["flow:practice-word", "flow:dictation", "flow:blacklist"]);
   domainFlows("journal", ["flow:journal-submit", "flow:journal-draft"]);
   domainFlows("tutor", ["flow:tutor-chat", "flow:cloze-explain"]);
@@ -1060,6 +1082,21 @@
   edge("flow:known-word-import", "file:known-words-import", "starts");
   edge("file:known-words-import", "route:known-words-post", "http");
   edge("route:known-words-post", "table:knownWords", "writes");
+
+  edge("flow:srs-review", "file:practice-page", "starts");
+  edge("file:read-page", "flow:srs-review", "opens");
+  edge("fn:startSrsRound", "file:practice-page", "in");
+  edge("fn:startSrsRound", "fn:getSrsQueue", "calls");
+  edge("fn:getSrsQueue", "file:data-layer", "in");
+  edge("fn:getSrsQueue", "route:practice-srs-queue", "http");
+  edge("route:practice-srs-queue", "file:route-practice", "in");
+  edge("route:practice-srs-queue", "table:vocab", "reads");
+  edge("fn:handleSrsAnswer", "file:practice-page", "in");
+  edge("fn:handleSrsAnswer", "fn:updateSrsReview", "calls");
+  edge("fn:updateSrsReview", "file:data-layer", "in");
+  edge("fn:updateSrsReview", "route:vocab-update-srs", "http");
+  edge("route:vocab-update-srs", "file:route-vocab", "in");
+  edge("route:vocab-update-srs", "table:vocab", "writes");
 
   // ── Practice ──────────────────────────────────────────────────────────────
 

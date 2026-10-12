@@ -284,3 +284,196 @@ describe('POST /api/vocab/bulk-delete (#569)', () => {
     expect(vocabIds()).toEqual(['v1']);
   });
 });
+
+// The SRS feature added level5-7 to WordState, but the route whitelist stopped
+// at level4, so a reader level 5/6/7 save came back 400 and the UI reported a
+// connection error. These pin the accepted range at the route boundary.
+describe('word states level5-7 (SRS)', () => {
+  const clear = () => {
+    db.prepare('DELETE FROM knownWords').run();
+    db.prepare('DELETE FROM vocab').run();
+  };
+  beforeEach(clear);
+  afterEach(clear);
+
+  test('POST accepts and persists level5-7', async () => {
+    for (const level of [5, 6, 7] as const) {
+      const res = await app.request('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `word-${level}`,
+          text: `woord${level}`,
+          type: 'word',
+          sentence: 's',
+          translation: 't',
+          state: `level${level}`,
+          createdAt: TS,
+          language: 'af',
+        }),
+      });
+      expect(res.status, `POST level${level}`).toBe(200);
+    }
+    const states = db.prepare('SELECT state FROM vocab ORDER BY id').all() as { state: string }[];
+    expect(states.map((s) => s.state)).toEqual(['level5', 'level6', 'level7']);
+  });
+
+  test('PUT accepts and persists level5-7', async () => {
+    seed('v1', 'huis', 'af');
+    for (const level of [5, 6, 7] as const) {
+      const res = await app.request('/v1', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: `level${level}` }),
+      });
+      expect(res.status, `PUT level${level}`).toBe(200);
+      expect(db.prepare("SELECT state FROM vocab WHERE id = 'v1'").get()).toEqual({
+        state: `level${level}`,
+      });
+    }
+  });
+
+  test('rejects a state outside the set', async () => {
+    seed('v1', 'huis', 'af');
+    const res = await app.request('/v1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: 'level8' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+// The SRS review queue is driven by `state` (`level1`..`level7`); `srs_level`
+// mirrors it and `next_review` schedules the next check. A save records the
+// level, and a grade advances the level and reschedules — including dropping a
+// wrong answer to level1 due now, which is what makes it come back this round.
+describe('SRS level scheduling', () => {
+  const clear = () => {
+    db.prepare('DELETE FROM knownWords').run();
+    db.prepare('DELETE FROM vocab').run();
+  };
+  beforeEach(clear);
+  afterEach(clear);
+
+  function assignLevel(id: string, state: string) {
+    return app.request(`/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state }),
+    });
+  }
+
+  function review(wordId: string, isCorrect: boolean, mode?: 'recall' | 'cloze') {
+    return app.request('/update-srs', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wordId, isCorrect, ...(mode ? { mode } : {}) }),
+    });
+  }
+
+  test('POST records the assigned level in srs_level', async () => {
+    await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'v1',
+        text: 'huis',
+        type: 'word',
+        sentence: 's',
+        translation: 't',
+        state: 'level3',
+        createdAt: TS,
+        language: 'af',
+      }),
+    });
+
+    expect(db.prepare("SELECT state, srs_level FROM vocab WHERE id = 'v1'").get()).toEqual({
+      state: 'level3',
+      srs_level: 3,
+    });
+  });
+
+  test('PUT syncs srs_level with the assigned level', async () => {
+    seed('v1', 'huis', 'af');
+    await assignLevel('v1', 'level5');
+
+    expect(db.prepare("SELECT srs_level FROM vocab WHERE id = 'v1'").get()).toEqual({
+      srs_level: 5,
+    });
+  });
+
+  test('a correct review advances state + srs_level and schedules ahead', async () => {
+    seed('v1', 'huis', 'af');
+    await assignLevel('v1', 'level2');
+
+    expect((await review('v1', true)).status).toBe(200);
+
+    const row = db
+      .prepare("SELECT state, srs_level, next_review, last_review FROM vocab WHERE id = 'v1'")
+      .get() as { state: string; srs_level: number; next_review: string; last_review: string };
+    expect(row.state).toBe('level3');
+    expect(row.srs_level).toBe(3);
+    expect(row.last_review).not.toBeNull();
+    expect(new Date(row.next_review).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  test('a wrong review drops a level and is due immediately', async () => {
+    seed('v1', 'huis', 'af');
+    await assignLevel('v1', 'level3');
+
+    await review('v1', false);
+
+    const row = db
+      .prepare("SELECT state, srs_level, next_review FROM vocab WHERE id = 'v1'")
+      .get() as { state: string; srs_level: number; next_review: string };
+    expect(row.state).toBe('level2');
+    expect(row.srs_level).toBe(2);
+    expect(new Date(row.next_review).getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  test('a correct review at level7 stays at 7', async () => {
+    seed('v1', 'huis', 'af');
+    await assignLevel('v1', 'level7');
+
+    const res = await review('v1', true);
+    expect(((await res.json()) as { newLevel: number }).newLevel).toBe(7);
+    expect(db.prepare("SELECT state FROM vocab WHERE id = 'v1'").get()).toEqual({
+      state: 'level7',
+    });
+  });
+
+  test('a review mirrors the level into knownWords', async () => {
+    seed('v1', 'huis', 'af');
+    await assignLevel('v1', 'level1');
+
+    await review('v1', true);
+
+    expect(
+      db.prepare("SELECT state FROM knownWords WHERE word = 'huis' AND language = 'af'").get(),
+    ).toEqual({ state: 'level2' });
+  });
+
+  test('a wrong cloze answer resets to level 1, not one step down', async () => {
+    seed('v1', 'huis', 'af');
+    await assignLevel('v1', 'level5');
+
+    const res = await review('v1', false, 'cloze');
+
+    expect(((await res.json()) as { newLevel: number }).newLevel).toBe(1);
+    expect(db.prepare("SELECT state, srs_level FROM vocab WHERE id = 'v1'").get()).toEqual({
+      state: 'level1',
+      srs_level: 1,
+    });
+  });
+
+  test('rejects an unknown review mode', async () => {
+    seed('v1', 'huis', 'af');
+    const res = await app.request('/update-srs', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wordId: 'v1', isCorrect: true, mode: 'bogus' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
