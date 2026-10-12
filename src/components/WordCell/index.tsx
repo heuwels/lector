@@ -2,6 +2,7 @@
 
 import type { WordState } from '@/types';
 import { stateClasses } from '@/components/MarkdownReader/theme';
+import { useHighlightingSettings } from '@/app/settings/components/HighlightingSettings';
 
 export interface WordCellProps {
   text: string;
@@ -54,6 +55,7 @@ export default function WordCell({
 }: WordCellProps) {
   const colorClass = state ? stateClasses[state] : stateClasses.new;
   const isHighlighted = isPhraseHighlighted || isActive;
+  const { padding, transparency, highlightColor } = useHighlightingSettings();
   // A word with no handler is decoration — the settings preview (#570) draws the
   // chips to show a typography change, and there is nothing to look up. Button
   // semantics there would put five dead stops in the keyboard order and read
@@ -85,16 +87,22 @@ export default function WordCell({
       // the full chip turned the page into a grid of buttons instead of prose.
       // A wide annotation keeps ruby layout and the original padding, because it
       // needs that room to avoid the neighbouring word.
-      className={`rounded-[7px] ${interactive ? 'cursor-pointer hover:ring-2 hover:ring-ring/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2' : ''} ${
-        reading && readingOverhangs ? 'relative border-transparent px-[3px]' : 'px-[7px]'
-      } ${colorClass} ${isActive ? 'ring-2 ring-[var(--clay)]' : ''}`}
+      className={`transition-colors ${interactive ? 'cursor-pointer' : ''} ${
+        reading && readingOverhangs ? 'relative border-transparent rounded-[5px] px-[${padding}px]' : `rounded-[5px] px-[${padding}px]` 
+      } ${colorClass} ${isActive ? 'ring-1 ring-[var(--primary)]' : ''}`}
       // The weight is a reader setting (#570). The fallback is the 700 this used
       // to hardcode, so a surface outside the reader — listen-along, practice —
       // publishes no custom property and draws exactly as it did before.
       style={{
         fontWeight: 'var(--reader-font-weight, 700)',
         ...(isHighlighted
-          ? { backgroundColor: 'color-mix(in srgb, var(--clay) 22%, transparent)' }
+          ? { 
+              backgroundColor: highlightColor,
+              // Apply transparency based on mode - dark mode has less transparency
+              ...(document.documentElement.classList.contains('dark')
+                ? {}  // dark mode: use the color as-is (already less transparent)
+                : { opacity: transparency })  // light mode: apply transparency
+            }
           : {}),
       }}
     >

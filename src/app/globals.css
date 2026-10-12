@@ -552,6 +552,45 @@ html {
   background-color: color-mix(in srgb, var(--clay) 22%, transparent);
 }
 
+/* Rectangle border around a phrase selection (sentence highlight).
+   Applied to the first and last word of a multi-word selection.
+   Border color depends on the learning level (word state). */
+[data-phrase-border] {
+  @apply border-b-2 border-solid rounded-[5px] transition-colors duration-150;
+}
+
+/* Learning level border colors — use word-state ramp variables that flip in dark mode */
+[data-phrase-border-new] {
+  border-color: var(--w-new-bd);
+}
+[data-phrase-border-level1] {
+  border-color: var(--w-l1-bd);
+}
+[data-phrase-border-level2] {
+  border-color: var(--w-l2-bd);
+}
+[data-phrase-border-level3] {
+  border-color: var(--w-l3-bd);
+}
+[data-phrase-border-level4] {
+  border-color: var(--w-l4-bd);
+}
+[data-phrase-border-level5] {
+  border-color: var(--w-l5-bd);
+}
+[data-phrase-border-level6] {
+  border-color: var(--w-l6-bd);
+}
+[data-phrase-border-level7] {
+  border-color: var(--w-l7-bd);
+}
+[data-phrase-border-known] {
+  border-color: var(--primary);
+}
+[data-phrase-border-ignored] {
+  border-color: var(--muted-foreground);
+}
+
 @media (hover: none) and (pointer: coarse) {
   /* The long-press belongs to the phrase gesture, not to the iOS callout. This
      covers every word chip, so the settings preview and listen-along drop the

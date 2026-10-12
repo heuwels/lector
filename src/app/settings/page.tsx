@@ -18,6 +18,7 @@ import DeleteAccount from './components/DeleteAccount';
 import PageHeader from '@/components/PageHeader';
 import BYOKSettings from './components/BYOKSettings';
 import CloudPlanSettings from './components/CloudPlanSettings';
+import HighlightingSettings from './components/HighlightingSettings';
 import { lectorMode } from '@/lib/api-base';
 
 export default function SettingsPage() {
@@ -36,6 +37,7 @@ export default function SettingsPage() {
         <Timezone />
         <TwoFactorSettings />
         <APITokens />
+        <HighlightingSettings />
         <KnownWordsImport />
         <Export />
         <DataManagement />

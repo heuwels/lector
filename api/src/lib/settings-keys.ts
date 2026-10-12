@@ -38,6 +38,15 @@ const SETTING_VALUE_BYTE_LIMITS: Record<string, number> = {
   // A list of registry codes with no repeats, so the whole registry is the most
   // it can hold.
   enabledLanguages: Buffer.byteLength(JSON.stringify(Object.keys(LANGUAGES)), 'utf8'),
+  // Highlighting settings — small JSON values (numbers, strings, simple objects)
+  highlightPadding: 32,
+  highlightTransparency: 32,
+  highlightBorderRadius: 32,
+  highlightColor: 32,
+  phraseBorderStyle: 32,
+  // Persistence settings
+  persistHighlights: 16,
+  autoRestoreHighlights: 16,
 };
 
 export function settingValueByteLimit(key: string): number {
@@ -51,6 +60,15 @@ export const KNOWN_SETTING_KEYS = new Set([
   'targetLanguage',
   'enabledLanguages',
   'timezone',
+  // Highlighting configuration (Settings → Appearance → Reading Mode)
+  'highlightPadding',
+  'highlightTransparency',
+  'highlightBorderRadius',
+  'highlightColor',
+  'phraseBorderStyle',
+  // Highlighting persistence
+  'persistHighlights',
+  'autoRestoreHighlights',
   // LLM provider config (Settings → AI, setup)
   'llmProvider',
   'openaiPreset',
@@ -115,6 +133,39 @@ export function validateSettingWrite(key: string, value: unknown): string | null
     if (typeof value !== 'string' || !ANKI_TRANSPORTS.has(value)) {
       return "ankiTransport must be 'ankiconnect' or 'addon'";
     }
+  }
+  if (key === 'highlightPadding') {
+    if (typeof value !== 'number' || value < 1 || value > 20) {
+      return 'highlightPadding must be a number between 1 and 20';
+    }
+  }
+  if (key === 'highlightTransparency') {
+    if (typeof value !== 'number' || value < 0.1 || value > 1) {
+      return 'highlightTransparency must be a number between 0.1 and 1';
+    }
+  }
+  if (key === 'highlightBorderRadius') {
+    if (typeof value !== 'number' || value < 0 || value > 999) {
+      return 'highlightBorderRadius must be a number between 0 and 999';
+    }
+  }
+  if (key === 'highlightColor') {
+    if (typeof value !== 'string') return 'highlightColor must be a string';
+    // Allow any valid CSS color value
+    const colorRegex = /^(#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})|rgb\s*\([^)]+\)|rgba\s*\([^)]+\)|hsl\s*\([^)]+\)|hsla\s*\([^)]+\)|currentColor|var\([^)]+\))$/;
+    if (!colorRegex.test(value)) {
+      return 'highlightColor must be a valid CSS color';
+    }
+  }
+  if (key === 'phraseBorderStyle') {
+    if (typeof value !== 'string') return 'phraseBorderStyle must be a string';
+    const validStyles = ['solid', 'double', 'dashed', 'dotted'];
+    if (!validStyles.includes(value)) {
+      return 'phraseBorderStyle must be one of: ' + validStyles.join(', ');
+    }
+  }
+  if (key === 'persistHighlights' || key === 'autoRestoreHighlights') {
+    if (typeof value !== 'boolean') return `${key} must be a boolean`;
   }
   if (URL_SETTING_KEYS.has(key) && value !== '' && value !== null) {
     if (typeof value !== 'string') return `${key} must be a string URL`;

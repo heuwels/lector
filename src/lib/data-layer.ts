@@ -1281,6 +1281,93 @@ export async function getAllSettings(): Promise<Record<string, unknown>> {
 }
 
 // ============================================================================
+// Helper Functions - Highlights Persistence
+// ============================================================================
+
+export interface PhraseHighlight {
+  id: string;
+  userId: string;
+  phraseText: string;
+  wordIds: string; // JSON array
+  languageCode: string;
+  learningStage: string;
+  createdAt: string;
+  updatedAt: string;
+  reviewCount: number;
+}
+
+export async function savePhraseHighlight(
+  phraseText: string,
+  wordIds: string[],
+  languageCode: string,
+  learningStage: string,
+): Promise<{ success: boolean; id: string; updated: boolean }> {
+  const res = await apiFetch('/api/highlights/phrase', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phraseText, wordIds, languageCode, learningStage }),
+  });
+  await requireOk(res, 'Could not save phrase highlight');
+  return res.json();
+}
+
+export async function getPhraseHighlight(
+  phraseText: string,
+  languageCode: string,
+): Promise<PhraseHighlight | null> {
+  const res = await apiFetch(`/api/highlights/phrase?text=${encodeURIComponent(phraseText)}&language=${languageCode}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function getUserPhraseHighlights(
+  languageCode?: string,
+  learningStage?: string,
+  limit = 100,
+  offset = 0,
+): Promise<PhraseHighlight[]> {
+  const params = new URLSearchParams();
+  if (languageCode) params.set('languageCode', languageCode);
+  if (learningStage) params.set('learningStage', learningStage);
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  const res = await apiFetch(`/api/highlights/user?${params.toString()}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function deletePhraseHighlight(id: string): Promise<void> {
+  const res = await apiFetch(`/api/highlights/phrase/${id}`, { method: 'DELETE' });
+  await requireOk(res, 'Could not delete phrase highlight');
+}
+
+export async function restoreLessonHighlights(
+  lessonId: string,
+  languageCode: string,
+): Promise<PhraseHighlight[]> {
+  const res = await apiFetch('/api/highlights/restore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lessonId, languageCode }),
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getVocabIdsForWords(
+  words: string[],
+  languageCode: string,
+): Promise<string[]> {
+  if (words.length === 0) return [];
+  const res = await apiFetch(
+    `/api/vocab/by-text?texts=${encodeURIComponent(JSON.stringify(words))}&language=${languageCode}`,
+  );
+  if (!res.ok) return [];
+  const rows = (await res.json()) as { id: string; text: string }[];
+  return rows.map((r) => r.id);
+}
+
+// ============================================================================
 // Helper Functions - Starter Content (#315)
 // ============================================================================
 

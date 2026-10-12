@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ChevronLeft, ChevronRight, Languages, SquarePen } from 'lucide-react';
-import { getLessonReadings, updateLessonProgress } from '@/lib/data-layer';
+import { getLessonReadings, updateLessonProgress, getSetting, savePhraseHighlight, getVocabIdsForWords } from '@/lib/data-layer';
 import { createTrailingThrottle } from './throttle';
 import { snapToWordBoundaries } from './utils';
 import {
@@ -299,7 +299,26 @@ export default function MarkdownReader({
       setActiveWord(null);
       setHighlightedPhrase([]);
     }
-  }, [wordPanelOpen]);
+},
+  [wordPanelOpen]);
+
+  // Persist phrase highlight if user has enabled the setting
+  const persistPhraseHighlight = useCallback(
+    async (text: string, words: string[]) => {
+      const persist = await getSetting<boolean>('persistHighlights');
+      if (!persist) return;
+
+      // Get vocab IDs for these words via API
+      const wordIds = await getVocabIdsForWords(words, activeLang.code);
+      if (wordIds.length === 0) return;
+
+      // Derive learning stage from the first word's state (simplified)
+      const learningStage = 'new'; // Could be enhanced to derive from word states
+
+      await savePhraseHighlight(text, wordIds, activeLang.code, learningStage);
+    },
+    [activeLang.code],
+  );
 
   // Look up a selected phrase, whichever gesture selected it.
   //
@@ -316,11 +335,13 @@ export default function MarkdownReader({
       setActiveWord(null);
       setHighlightedPhrase(words);
 
-      onWordClick(text, wordElement ? findSentence(wordElement) : '');
-    },
-    [onWordClick, phraseWords, findSentence],
-  );
+      // Persist the phrase highlight if enabled
+      persistPhraseHighlight(text, words);
 
+      onWordClick(text, wordElement ? findSentence(wordElement) : '');
+},
+  [onWordClick, phraseWords, findSentence, persistPhraseHighlight],
+);
   // Handle text selection for phrases
   const handleMouseUp = useCallback(() => {
     const selection = window.getSelection();
@@ -368,6 +389,8 @@ export default function MarkdownReader({
         const words = phraseWords(text);
         if (words.length >= 2) {
           setHighlightedPhrase(words);
+          // Persist the phrase highlight if enabled
+          persistPhraseHighlight(text, words);
         } else {
           // Selection collapsed to a single word or empty — clear the
           // phrase highlight so the visual state matches the single-word focus.

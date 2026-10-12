@@ -2692,6 +2692,152 @@ const settingsOps: Record<string, OperationDoc> = {
   },
 };
 
+const highlightsOps: Record<string, OperationDoc> = {
+  'GET /api/highlights/phrase': {
+    summary: 'Check if a phrase has been highlighted',
+    description:
+      'Returns the highlight record if the user has previously highlighted this phrase, otherwise null.',
+    tag: 'Highlights',
+    queryParams: {
+      text: { type: 'string', description: 'The phrase text to check.' },
+      language: { type: 'string', description: 'Language code (default: active language).' },
+    },
+    responses: {
+      '200': {
+        description: 'The highlight record or null.',
+        schema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            userId: { type: 'string' },
+            phraseText: { type: 'string' },
+            wordIds: { type: 'string', description: 'JSON array of vocab IDs.' },
+            languageCode: { type: 'string' },
+            learningStage: { type: 'string' },
+            createdAt: { type: 'string' },
+            updatedAt: { type: 'string' },
+            reviewCount: { type: 'integer' },
+          },
+          nullable: true,
+        },
+      },
+    },
+  },
+  'POST /api/highlights/phrase': {
+    summary: 'Save or update a phrase highlight',
+    description:
+      'Creates a new phrase highlight or updates an existing one. Increments reviewCount on update.',
+    tag: 'Highlights',
+    requestBody: {
+      required: true,
+      schema: {
+        type: 'object',
+        required: ['phraseText', 'wordIds', 'languageCode', 'learningStage'],
+        properties: {
+          phraseText: { type: 'string' },
+          wordIds: { type: 'array', items: { type: 'string' }, minItems: 2 },
+          languageCode: { type: 'string' },
+          learningStage: { type: 'string', enum: ['new', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'known', 'ignored'] },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'The saved highlight.',
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            id: { type: 'string' },
+            updated: { type: 'boolean' },
+          },
+        },
+      },
+    },
+  },
+  'GET /api/highlights/user': {
+    summary: 'List all phrase highlights for the user',
+    description: 'Returns paginated highlights with optional filters.',
+    tag: 'Highlights',
+    queryParams: {
+      languageCode: { type: 'string', description: 'Filter by language.' },
+      learningStage: { type: 'string', description: 'Filter by learning stage.' },
+      limit: { type: 'integer', description: 'Max results (default 100, max 500).' },
+      offset: { type: 'integer', description: 'Pagination offset (default 0).' },
+    },
+    responses: {
+      '200': {
+        description: 'Array of highlight records.',
+        schema: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              userId: { type: 'string' },
+              phraseText: { type: 'string' },
+              wordIds: { type: 'string' },
+              languageCode: { type: 'string' },
+              learningStage: { type: 'string' },
+              createdAt: { type: 'string' },
+              updatedAt: { type: 'string' },
+              reviewCount: { type: 'integer' },
+            },
+          },
+        },
+      },
+    },
+  },
+  'DELETE /api/highlights/phrase/{id}': {
+    summary: 'Delete a phrase highlight',
+    tag: 'Highlights',
+    pathParams: { id: 'Highlight ID.' },
+    responses: {
+      '200': { description: 'The highlight was deleted.', schema: ref('Success') },
+      '404': { description: 'Not found.', schema: ref('Error') },
+    },
+  },
+  'POST /api/highlights/restore': {
+    summary: 'Restore highlights for a lesson',
+    description:
+      'Returns all highlights that contain words from the given lesson.',
+    tag: 'Highlights',
+    requestBody: {
+      required: true,
+      schema: {
+        type: 'object',
+        required: ['lessonId', 'languageCode'],
+        properties: {
+          lessonId: { type: 'string' },
+          languageCode: { type: 'string' },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Array of highlight records.',
+        schema: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              userId: { type: 'string' },
+              phraseText: { type: 'string' },
+              wordIds: { type: 'string' },
+              languageCode: { type: 'string' },
+              learningStage: { type: 'string' },
+              createdAt: { type: 'string' },
+              updatedAt: { type: 'string' },
+              reviewCount: { type: 'integer' },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 const dataOps: Record<string, OperationDoc> = {
   'GET /api/data': {
     summary: 'Export the learning data',
@@ -3051,6 +3197,7 @@ export const operations: Record<string, OperationDoc> = {
   ...statsOps,
   ...ankiOps,
   ...settingsOps,
+  ...highlightsOps,
   ...dataOps,
   ...chatOps,
   ...onboardingOps,

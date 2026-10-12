@@ -598,6 +598,10 @@ function getDb(): Database {
   // columns (language, domain, ankiReviews, …) already exist.
   migrateAddUserIdColumn(_db);
 
+  // User phrase highlights persistence (#NEW). Runs after migrateAddUserIdColumn
+  // so userId column exists. Creates userPhraseHighlights table if missing.
+  migrateUserPhraseHighlights(_db);
+
   // Runs after migrateAddUserIdColumn (needs the userId column) and before
   // ensurePartitionIndexes (the rebuilds drop every index on the way).
   migrateCompositeTenantKeys(_db);
@@ -1388,6 +1392,35 @@ export function migrateVocabSrsLevels(database: Database) {
         ALTER TABLE knownWords_new RENAME TO knownWords;
       `);
     })();
+  }
+}
+
+/**
+ * Migration: userPhraseHighlights table for persistent phrase highlights.
+ * Runs after migrateAddUserIdColumn so userId column exists in related tables.
+ * Creates the table and indexes if they don't exist.
+ */
+export function migrateUserPhraseHighlights(database: Database) {
+  const tableExists = database
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='userPhraseHighlights'")
+    .get();
+  if (!tableExists) {
+    database.exec(`
+      CREATE TABLE userPhraseHighlights (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL DEFAULT 'local',
+        phraseText TEXT NOT NULL,
+        wordIds TEXT NOT NULL,  -- JSON array of vocab IDs in the phrase
+        languageCode TEXT NOT NULL,
+        learningStage TEXT NOT NULL,  -- derived from lowest word stage in phrase
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        reviewCount INTEGER DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_userPhraseHighlights_user_lang ON userPhraseHighlights(userId, languageCode);
+      CREATE INDEX IF NOT EXISTS idx_userPhraseHighlights_user_stage ON userPhraseHighlights(userId, learningStage);
+      CREATE INDEX IF NOT EXISTS idx_userPhraseHighlights_phrase ON userPhraseHighlights(phraseText);
+    `);
   }
 }
 

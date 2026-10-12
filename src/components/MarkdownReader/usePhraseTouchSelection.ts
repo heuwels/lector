@@ -163,6 +163,23 @@ export function usePhraseTouchSelection(
         unpaint(painted);
       }, 0);
 
+      // Apply rectangle border around the phrase selection on the first/last word
+      // when two or more words are selected (sentence-level highlight).
+      // Border color depends on the learning level of the first word.
+      if (selected.length >= 2) {
+        const first = selected[0];
+        const last = selected[selected.length - 1];
+        const wordState = first.getAttribute('data-word-state') || 'new';
+        const borderClass = `data-phrase-border data-phrase-border-${wordState}`;
+        first.classList.add(borderClass);
+        last.classList.add(borderClass);
+        // Remove after one render cycle to avoid persisting beyond the selection
+        setTimeout(() => {
+          first.classList.remove(borderClass);
+          last.classList.remove(borderClass);
+        }, 0);
+      }
+
       swallowClick = true;
       event.preventDefault();
       onPhraseRef.current(first, last);

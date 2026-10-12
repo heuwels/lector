@@ -104,6 +104,40 @@ app.get('/', (c) => {
   );
 });
 
+// GET /api/vocab/by-text?texts=["word1","word2"]&language=af
+// Returns vocab IDs for the given texts (exact match, folded).
+app.get('/by-text', (c) => {
+  const userId = getCurrentUserId(c);
+  const textsParam = c.req.query('texts');
+  const lang = resolveLanguage(c.req.query('language'), userId);
+
+  if (!textsParam) {
+    return c.json({ error: 'texts parameter required (JSON array)' }, 400);
+  }
+
+  let texts: string[];
+  try {
+    texts = JSON.parse(textsParam);
+    if (!Array.isArray(texts)) throw new Error('not array');
+  } catch {
+    return c.json({ error: 'texts must be a JSON array of strings' }, 400);
+  }
+
+  if (texts.length === 0) {
+    return c.json([]);
+  }
+
+  const pack = getLanguageConfig(lang);
+  const foldedTexts = texts.map((t) => foldWord(t, pack));
+
+  // Build placeholders for IN clause
+  const placeholders = foldedTexts.map(() => '?').join(',');
+  const query = `SELECT id, text FROM vocab WHERE userId = ? AND language = ? AND text IN (${placeholders})`;
+  const rows = db.prepare(query).all(userId, lang, ...foldedTexts) as { id: string; text: string }[];
+
+  return c.json(rows);
+});
+
 // POST /api/vocab
 app.post('/', async (c) => {
   const userId = getCurrentUserId(c);
