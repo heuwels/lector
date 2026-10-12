@@ -170,13 +170,13 @@ export function usePhraseTouchSelection(
         const first = selected[0];
         const last = selected[selected.length - 1];
         const wordState = first.getAttribute('data-word-state') || 'new';
-        const borderClass = `data-phrase-border data-phrase-border-${wordState}`;
-        first.classList.add(borderClass);
-        last.classList.add(borderClass);
+        // Set data attributes (not classes) to match the CSS attribute selectors
+        first.setAttribute('data-phrase-border', wordState);
+        last.setAttribute('data-phrase-border', wordState);
         // Remove after one render cycle to avoid persisting beyond the selection
         setTimeout(() => {
-          first.classList.remove(borderClass);
-          last.classList.remove(borderClass);
+          first.removeAttribute('data-phrase-border');
+          last.removeAttribute('data-phrase-border');
         }, 0);
       }
 

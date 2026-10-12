@@ -2,7 +2,7 @@
 
 import type { WordState } from '@/types';
 import { stateClasses } from '@/components/MarkdownReader/theme';
-import { useHighlightingSettings } from '@/app/settings/components/HighlightingSettings';
+import { useHighlightingSettingsFromStore } from '@/lib/highlightingSettingsStore';
 
 export interface WordCellProps {
   text: string;
@@ -55,7 +55,8 @@ export default function WordCell({
 }: WordCellProps) {
   const colorClass = state ? stateClasses[state] : stateClasses.new;
   const isHighlighted = isPhraseHighlighted || isActive;
-  const { padding, transparency, highlightColor } = useHighlightingSettings();
+  const { padding, transparency, highlightColor, borderRadius, phraseBorderStyle, persistHighlights, autoRestoreHighlights } =
+    useHighlightingSettingsFromStore();
   // A word with no handler is decoration — the settings preview (#570) draws the
   // chips to show a typography change, and there is nothing to look up. Button
   // semantics there would put five dead stops in the keyboard order and read
@@ -88,13 +89,15 @@ export default function WordCell({
       // A wide annotation keeps ruby layout and the original padding, because it
       // needs that room to avoid the neighbouring word.
       className={`transition-colors ${interactive ? 'cursor-pointer' : ''} ${
-        reading && readingOverhangs ? 'relative border-transparent rounded-[5px] px-[${padding}px]' : `rounded-[5px] px-[${padding}px]` 
+        reading && readingOverhangs ? 'relative border-transparent rounded-[5px]' : 'rounded-[5px]'
       } ${colorClass} ${isActive ? 'ring-1 ring-[var(--primary)]' : ''}`}
       // The weight is a reader setting (#570). The fallback is the 700 this used
       // to hardcode, so a surface outside the reader — listen-along, practice —
       // publishes no custom property and draws exactly as it did before.
       style={{
         fontWeight: 'var(--reader-font-weight, 700)',
+        paddingLeft: `${padding}px`,
+        paddingRight: `${padding}px`,
         ...(isHighlighted
           ? { 
               backgroundColor: highlightColor,

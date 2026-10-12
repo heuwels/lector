@@ -1,77 +1,74 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getSetting, setSetting } from '@/lib/data-layer';
+import { ensureCache, cache } from '@/lib/highlightingSettingsStore';
 
 /**
  * Highlighting configuration settings for the reading mode.
  * Stored as part of the app settings (Settings → Appearance → Reading Mode).
+ *
+ * This hook now reads from the shared cache (single /api/settings request)
+ * instead of firing 7 per-key getSetting() calls on every mount.
  */
 export function useHighlightingSettings() {
-  const [padding, setPadding] = useState(3); // default 3px
-  const [transparency, setTransparency] = useState(0.2); // default 0.2 for light mode
-  const [borderRadius, setBorderRadius] = useState(5); // default 5px rounded corners
-  const [highlightColor, setHighlightColor] = useState('--primary'); // default uses primary CSS var
-  const [phraseBorderStyle, setPhraseBorderStyle] = useState('solid');
-  const [persistHighlights, setPersistHighlights] = useState(false);
-  const [autoRestoreHighlights, setAutoRestoreHighlights] = useState(false);
+  const [state, setState] = useState<{
+    padding: number;
+    transparency: number;
+    borderRadius: number;
+    highlightColor: string;
+    phraseBorderStyle: string;
+    persistHighlights: boolean;
+    autoRestoreHighlights: boolean;
+  }>({
+    padding: 3,
+    transparency: 0.2,
+    borderRadius: 5,
+    highlightColor: '--primary',
+    phraseBorderStyle: 'solid',
+    persistHighlights: false,
+    autoRestoreHighlights: false,
+  });
 
-  // Load settings from server on mount - run once effect
   useEffect(() => {
     ;(async () => {
-      const pv = await getSetting<number>('highlightPadding');
-      if (pv !== undefined) setPadding(pv);
-      const tv = await getSetting<number>('highlightTransparency');
-      if (tv !== undefined) setTransparency(tv);
-      const brv = await getSetting<number>('highlightBorderRadius');
-      if (brv !== undefined) setBorderRadius(brv);
-      const hcv = await getSetting<string>('highlightColor');
-      if (hcv !== undefined) setHighlightColor(hcv);
-      const pbsv = await getSetting<string>('phraseBorderStyle');
-      if (pbsv !== undefined) setPhraseBorderStyle(pbsv);
-      const persistV = await getSetting<boolean>('persistHighlights');
-      if (persistV !== undefined) setPersistHighlights(persistV);
-      const restoreV = await getSetting<boolean>('autoRestoreHighlights');
-      if (restoreV !== undefined) setAutoRestoreHighlights(restoreV);
+      // Populate the shared cache once; no per-key fetches.
+      const data = await ensureCache();
+      setState({
+        padding: (data.highlightPadding as number),
+        transparency: (data.highlightTransparency as number),
+        borderRadius: (data.highlightBorderRadius as number),
+        highlightColor: (data.highlightColor as string),
+        phraseBorderStyle: (data.phraseBorderStyle as string),
+        persistHighlights: data.persistHighlights === true,
+        autoRestoreHighlights: data.autoRestoreHighlights === true,
+      });
     })();
   }, []);
 
   const updateSetting = async (key: string, value: unknown) => {
-    await setSetting(key, value);
-    // Update local state immediately
-    switch (key) {
-      case 'highlightPadding':
-        setPadding(value as number);
-        break;
-      case 'highlightTransparency':
-        setTransparency(value as number);
-        break;
-      case 'highlightBorderRadius':
-        setBorderRadius(value as number);
-        break;
-      case 'highlightColor':
-        setHighlightColor(value as string);
-        break;
-      case 'phraseBorderStyle':
-        setPhraseBorderStyle(value as string);
-        break;
-      case 'persistHighlights':
-        setPersistHighlights(value as boolean);
-        break;
-      case 'autoRestoreHighlights':
-        setAutoRestoreHighlights(value as boolean);
-        break;
-    }
+    // Update the shared cache so other consumers (WordCell) see the change.
+    ;(cache as Record<string, unknown>)[key] = value;
+
+    // Update local UI state immediately.
+    setState((prev) => ({ ...prev, [key]: value }));
+
+    // Persist to server — this is an explicit user action, not per-word.
+    await fetch(`/api/settings/${key}`, {
+      method: 'PUT',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value }),
+    });
   };
 
   return {
-    padding,
-    transparency,
-    borderRadius,
-    highlightColor,
-    phraseBorderStyle,
-    persistHighlights,
-    autoRestoreHighlights,
+    padding: state.padding,
+    transparency: state.transparency,
+    borderRadius: state.borderRadius,
+    highlightColor: state.highlightColor,
+    phraseBorderStyle: state.phraseBorderStyle,
+    persistHighlights: state.persistHighlights,
+    autoRestoreHighlights: state.autoRestoreHighlights,
     updateSetting,
   };
 }
