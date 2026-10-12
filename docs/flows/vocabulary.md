@@ -84,6 +84,8 @@ New rows have `domain IS NULL` until the classifier runs. See [stats.md](stats.m
 
 The Practice page has an SRS Review tab. It queues due saved words from `vocab`. Select levels 1 to 7. Optionally filter by one book. The reader has a Review words button that opens the same tab for the current book.
 
+SRS Review has two modes, chosen on the setup screen and remembered. Recall shows the word and asks for the translation. Cloze shows the word's gloss and its sentence with the word blanked, and asks the learner to type the word. A word with no sentence falls back to the gloss alone. While practising, Previous/Next move through the queue; a checked card keeps its result and cannot be re-graded.
+
 ```mermaid
 flowchart TD
   entry[Practice SRS tab, or reader Review words] --> start[startSrsRound]

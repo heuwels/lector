@@ -24,6 +24,14 @@ export interface SrsWord {
   type: string;
 }
 
+// A graded SRS card. `typed` and `selectedIndex` record what the user entered
+// so a revisited card can be shown locked, exactly as it was answered.
+export interface SrsCardDone {
+  result: 'correct' | 'wrong';
+  typed: string;
+  selectedIndex: number | null;
+}
+
 export type RoundSize = (typeof ROUND_SIZES)[number];
 export type RoundType = 'new' | 'review';
 

@@ -149,12 +149,13 @@ test.describe('SRS Review', () => {
       await page.getByRole('button', { name: 'Start SRS Review' }).click();
 
       const sentence = page.getByTestId('srs-cloze-sentence');
+      const glossEl = page.getByTestId('srs-cloze-gloss');
       await expect(sentence).toBeVisible({ timeout: 15000 });
 
       for (let step = 0; step < WORDS.length; step++) {
         // The sentence is blanked and the gloss (the cue) names which word.
         await expect(sentence).toContainText('_____');
-        const gloss = (await page.getByTestId('srs-cloze-gloss').textContent()) ?? '';
+        const gloss = (await glossEl.textContent()) ?? '';
         const entry = WORDS.find((w) => gloss.includes(w.label));
         expect(entry, `unexpected gloss "${gloss}"`).toBeTruthy();
 
@@ -163,18 +164,67 @@ test.describe('SRS Review', () => {
         await input.press('Enter');
 
         // The card advances (or the round completes) after the answer delay.
+        // The blanked sentences share one shape, so the gloss is the signal.
         await page.waitForFunction(
           (previous) => {
             if (document.querySelector('[data-testid="srs-complete"]')) return true;
-            const current = document.querySelector('[data-testid="srs-cloze-sentence"]');
-            return !!current && current.textContent?.trim() !== previous;
+            const g = document.querySelector('[data-testid="srs-cloze-gloss"]');
+            return !!g && g.textContent?.trim() !== previous;
           },
-          `Die ${entry!.text} is hier.`,
+          gloss,
           { timeout: 6000 },
         );
       }
 
       await expect(page.getByTestId('srs-complete')).toBeVisible({ timeout: 10000 });
+    } finally {
+      await page.request.delete(apiUrl(`/api/collections/${collectionId}`));
+    }
+  });
+
+  test('navigates back and forward, and Check shows the result then advances', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const { collectionId, lessonId } = await seedLesson(page);
+
+    try {
+      await page.goto('/practice');
+      const srsTab = page.getByRole('button', { name: 'SRS Review', exact: true });
+      await expect(srsTab).toBeVisible({ timeout: 30000 });
+
+      await srsTab.click();
+      await page.getByRole('button', { name: 'Cloze (type the word)' }).click();
+      await page.getByPlaceholder('Enter book ID...').fill(lessonId);
+      await page.getByRole('button', { name: 'Start SRS Review' }).click();
+
+      const position = page.getByTestId('srs-position');
+      const sentence = page.getByTestId('srs-cloze-sentence');
+      const glossEl = page.getByTestId('srs-cloze-gloss');
+      await expect(sentence).toBeVisible({ timeout: 15000 });
+      await expect(position).toContainText('1 / 4');
+
+      // The card's gloss (the cue) is distinct per word, so it identifies the
+      // card; the blanked sentences all share one shape.
+      const firstGloss = (await glossEl.textContent()) ?? '';
+
+      // Forward past an unchecked card, then back to it.
+      await page.getByTestId('srs-next').click();
+      await expect(position).toContainText('2 / 4');
+      await expect(glossEl).not.toHaveText(firstGloss);
+
+      await page.getByRole('button', { name: 'Previous' }).click();
+      await expect(position).toContainText('1 / 4');
+      await expect(glossEl).toHaveText(firstGloss);
+
+      // Check a wrong answer: the result is shown, then it advances on its own.
+      const entry = WORDS.find((w) => firstGloss.includes(w.label));
+      expect(entry, `unexpected gloss "${firstGloss}"`).toBeTruthy();
+      const input = page.getByTestId('srs-cloze-input');
+      await input.fill('definitely-wrong');
+      await input.press('Enter');
+
+      await expect(page.getByTestId('srs-result')).toContainText('Incorrect');
+      await expect(page.getByTestId('srs-result')).toContainText(entry!.text);
+      await expect(position).toContainText('2 / 4', { timeout: 6000 });
     } finally {
       await page.request.delete(apiUrl(`/api/collections/${collectionId}`));
     }

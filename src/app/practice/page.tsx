@@ -61,6 +61,7 @@ import type {
   PracticeMode,
   RoundSize,
   RoundType,
+  SrsCardDone,
   SrsWord,
 } from './types';
 import { useClozeRound } from './use-cloze-round';
@@ -153,12 +154,14 @@ export default function PracticePage() {
   const [srsLevels, setSrsLevels] = useState<number[]>([...SRS_DEFAULT_LEVELS]);
   const [srsBookId, setSrsBookId] = useState<string | null>(null);
   const [srsWords, setSrsWords] = useState<SrsWord[]>([]);
-  const [currentSrsWord, setCurrentSrsWord] = useState<SrsWord | null>(null);
+  const [srsIndex, setSrsIndex] = useState(0);
+  const [srsDone, setSrsDone] = useState<Record<string, SrsCardDone>>({});
+  const [srsMcByWord, setSrsMcByWord] = useState<
+    Record<string, { options: string[]; correctIndex: number }>
+  >({});
   const [srsMcOptions, setSrsMcOptions] = useState<string[]>([]);
   const [srsMcSelected, setSrsMcSelected] = useState<number | null>(null);
   const [srsMcCorrectIdx, setSrsMcCorrectIdx] = useState<number>(0);
-  const [srsMcLocked, setSrsMcLocked] = useState(false);
-  const [srsRoundProgress, setSrsRoundProgress] = useState(0);
   const [srsRoundSize, setSrsRoundSize] = useState(0);
   const [srsRoundCorrect, setSrsRoundCorrect] = useState(0);
   const [srsPoints, setSrsPoints] = useState(0);
@@ -166,8 +169,13 @@ export default function PracticePage() {
   const [srsCloze, setSrsCloze] = useState<string | null>(null);
   const [srsGloss, setSrsGloss] = useState('');
   const [srsTyped, setSrsTyped] = useState('');
-  const [srsClozeResult, setSrsClozeResult] = useState<'correct' | 'wrong' | null>(null);
-  const [srsClozeLocked, setSrsClozeLocked] = useState(false);
+
+  // SRS Review is navigable: the current card is an index into the queue, and
+  // graded cards are recorded so they can be shown locked when revisited.
+  const currentSrsWord = srsWords[srsIndex] ?? null;
+  const currentSrsDone = currentSrsWord ? srsDone[currentSrsWord.id] : undefined;
+  const srsLocked = !!currentSrsDone;
+  const srsChecked = Object.keys(srsDone).length;
 
   // Dictation result (the graded diff), shown on the feedback screen
   const [dictationResult, setDictationResult] = useState<DictationResult | null>(null);
@@ -560,72 +568,84 @@ export default function PracticePage() {
     [beginRound, presentRound, setState],
   );
 
-  // Prepare MC options for an SRS word (translation recall)
-  const prepareSrsMcOptions = useCallback((word: SrsWord, pool: SrsWord[]) => {
-    const { options, correctIndex } = buildSrsMcOptions(word, pool);
+  // Show the card at `index`, replaying a locked card's recorded answer. Recall
+  // options are generated once per word and cached, so revisiting keeps the
+  // same layout.
+  const prepareSrsCard = useCallback(
+    (index: number, words: SrsWord[]) => {
+      const word = words[index];
+      if (!word) return;
+      const done = srsDone[word.id];
 
-    setSrsMcOptions(options);
-    setSrsMcCorrectIdx(correctIndex);
-    setSrsMcSelected(null);
-    setSrsMcLocked(false);
-  }, []);
-
-  // Prepare the cloze card: blank the word in its sentence (null when the word
-  // is not in the sentence, so the gloss alone becomes the prompt), show the
-  // gloss as the cue, and clear the input.
-  const prepareSrsCloze = useCallback(
-    (word: SrsWord) => {
-      setSrsCloze(blankWordInSentence(word.sentence, word.text, activePack) ?? null);
-      setSrsGloss(glossLabel(word.translation));
-      setSrsTyped('');
-      setSrsClozeResult(null);
-      setSrsClozeLocked(false);
+      if (srsMode === 'cloze') {
+        setSrsCloze(blankWordInSentence(word.sentence, word.text, activePack) ?? null);
+        setSrsGloss(glossLabel(word.translation));
+        setSrsTyped(done?.typed ?? '');
+      } else {
+        let mc = srsMcByWord[word.id];
+        if (!mc) {
+          mc = buildSrsMcOptions(word, words);
+          setSrsMcByWord((prev) => ({ ...prev, [word.id]: mc }));
+        }
+        setSrsMcOptions(mc.options);
+        setSrsMcCorrectIdx(mc.correctIndex);
+        setSrsMcSelected(done?.selectedIndex ?? null);
+      }
     },
-    [activePack],
+    [srsDone, srsMcByWord, srsMode, activePack],
   );
 
-  const prepareSrsWord = useCallback(
-    (word: SrsWord, pool: SrsWord[]) => {
-      if (srsMode === 'cloze') prepareSrsCloze(word);
-      else prepareSrsMcOptions(word, pool);
+  const goToSrsCard = useCallback(
+    (index: number, words: SrsWord[] = srsWords) => {
+      if (index < 0 || index >= words.length) return;
+      clearMcTimer();
+      setSrsIndex(index);
+      prepareSrsCard(index, words);
     },
-    [srsMode, prepareSrsCloze, prepareSrsMcOptions],
+    [srsWords, prepareSrsCard, clearMcTimer],
   );
 
-  // Grade a review, then advance (or finish). Cloze passes its harder penalty
-  // to the server on a miss.
+  // Move to the next card, or finish the round at the end of the queue.
+  const advanceSrs = useCallback(() => {
+    if (srsIndex + 1 < srsWords.length) goToSrsCard(srsIndex + 1);
+    else setState('complete');
+  }, [srsIndex, srsWords, goToSrsCard, setState]);
+
+  // Record a grade (once per card), then advance after the feedback pause.
   const gradeSrs = useCallback(
-    async (word: SrsWord, isCorrect: boolean, mode: 'recall' | 'cloze') => {
+    async (
+      word: SrsWord,
+      isCorrect: boolean,
+      mode: 'recall' | 'cloze',
+      typed: string,
+      selectedIndex: number | null,
+    ) => {
+      if (srsDone[word.id]) return;
+
+      setSrsDone((prev) => ({
+        ...prev,
+        [word.id]: { result: isCorrect ? 'correct' : 'wrong', typed, selectedIndex },
+      }));
+
+      if (isCorrect) {
+        setSrsPoints((p) => p + 5);
+        setSrsRoundCorrect((c) => c + 1);
+      }
+
       try {
-        const result = await updateSrsReview(word.id, isCorrect, mode);
-        if (!result) {
-          console.error('Failed to update SRS level');
-        }
-
-        if (isCorrect) {
-          setSrsPoints((p) => p + 5);
-          setSrsRoundCorrect((c) => c + 1);
-        }
-
-        const currentIndex = srsWords.findIndex((w) => w.id === word.id);
-        if (currentIndex >= 0 && currentIndex + 1 < srsWords.length) {
-          const nextWord = srsWords[currentIndex + 1];
-          setCurrentSrsWord(nextWord);
-          setSrsRoundProgress((p) => p + 1);
-          prepareSrsWord(nextWord, srsWords);
-        } else {
-          setState('complete');
-        }
+        const res = await updateSrsReview(word.id, isCorrect, mode);
+        if (!res) console.error('Failed to update SRS level');
       } catch (error) {
         console.error('Failed to submit SRS answer:', error);
       }
-    },
-    [srsWords, prepareSrsWord, setState],
-  );
 
-  const handleSrsAnswer = useCallback(
-    (word: SrsWord, isCorrect: boolean) => gradeSrs(word, isCorrect, 'recall'),
-    [gradeSrs],
+      const delay = isCorrect ? 800 : 1600;
+      mcTimerRef.current = setTimeout(() => {
+        mcTimerRef.current = null;
+        advanceSrs();
+      }, delay);
+    },
+    [srsDone, advanceSrs],
   );
 
   // Start an SRS Review round using the priority queue endpoint
@@ -645,13 +665,14 @@ export default function PracticePage() {
 
       if (words.length > 0) {
         setSrsWords(words);
-        setCurrentSrsWord(words[0]);
+        setSrsDone({});
+        setSrsMcByWord({});
+        setSrsIndex(0);
         setSrsRoundSize(words.length);
-        setSrsRoundProgress(0);
         setSrsRoundCorrect(0);
         setSrsPoints(0);
         setState('practicing');
-        prepareSrsWord(words[0], words);
+        prepareSrsCard(0, words);
       } else {
         setState('empty');
       }
@@ -659,55 +680,38 @@ export default function PracticePage() {
       console.error('Failed to start SRS round:', error);
       setState('complete');
     }
-  }, [srsLevels, srsBookId, beginRound, setState, prepareSrsWord]);
+  }, [srsLevels, srsBookId, beginRound, setState, prepareSrsCard]);
 
   // Handle SRS MC selection
   const handleSrsMcSelect = useCallback(
     (index: number) => {
-      if (srsMcLocked || !currentSrsWord) return;
+      const word = srsWords[srsIndex];
+      if (!word || srsDone[word.id]) return;
+
       setSrsMcSelected(index);
-      setSrsMcLocked(true);
-
       const isCorrect = index === srsMcCorrectIdx;
+      if (isCorrect) playCorrectSound();
+      else playIncorrectSound();
 
-      if (isCorrect) {
-        playCorrectSound();
-      } else {
-        playIncorrectSound();
-      }
-
-      const delay = isCorrect ? 600 : 1200;
-      mcTimerRef.current = setTimeout(() => {
-        mcTimerRef.current = null;
-        void handleSrsAnswer(currentSrsWord, isCorrect);
-      }, delay);
+      void gradeSrs(word, isCorrect, 'recall', '', index);
     },
-    [srsMcLocked, currentSrsWord, srsMcCorrectIdx, handleSrsAnswer],
+    [srsWords, srsIndex, srsDone, srsMcCorrectIdx, gradeSrs],
   );
 
   // Submit a typed cloze answer.
   const handleSrsClozeSubmit = useCallback(
     (event: React.FormEvent) => {
       event.preventDefault();
-      if (srsClozeLocked || !currentSrsWord) return;
+      const word = srsWords[srsIndex];
+      if (!word || srsDone[word.id]) return;
 
-      const isCorrect = checkAnswer(srsTyped, currentSrsWord.text, activePack);
-      setSrsClozeResult(isCorrect ? 'correct' : 'wrong');
-      setSrsClozeLocked(true);
+      const isCorrect = checkAnswer(srsTyped, word.text, activePack);
+      if (isCorrect) playCorrectSound();
+      else playIncorrectSound();
 
-      if (isCorrect) {
-        playCorrectSound();
-      } else {
-        playIncorrectSound();
-      }
-
-      const delay = isCorrect ? 800 : 1600;
-      mcTimerRef.current = setTimeout(() => {
-        mcTimerRef.current = null;
-        void gradeSrs(currentSrsWord, isCorrect, 'cloze');
-      }, delay);
+      void gradeSrs(word, isCorrect, 'cloze', srsTyped, null);
     },
-    [srsClozeLocked, currentSrsWord, srsTyped, activePack, gradeSrs],
+    [srsWords, srsIndex, srsDone, srsTyped, activePack, gradeSrs],
   );
 
   const handleSetSrsMode = useCallback((mode: 'recall' | 'cloze') => {
@@ -1055,12 +1059,7 @@ export default function PracticePage() {
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
     // Number keys 1-4 choose an SRS translation-recall option.
-    if (
-      state === 'practicing' &&
-      practiceFormat === 'srs' &&
-      srsMode === 'recall' &&
-      !srsMcLocked
-    ) {
+    if (state === 'practicing' && practiceFormat === 'srs' && srsMode === 'recall' && !srsLocked) {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (isInteractiveKeyTarget(e)) return;
         if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1097,7 +1096,7 @@ export default function PracticePage() {
     handleMcSelect,
     current,
     srsMode,
-    srsMcLocked,
+    srsLocked,
     srsMcOptions,
     handleSrsMcSelect,
   ]);
@@ -1132,8 +1131,9 @@ export default function PracticePage() {
   }, [blacklistCurrent, prepareSentence]);
 
   const progressPercent = roundSize > 0 ? Math.min((roundProgress / roundSize) * 100, 100) : 0;
+
   const srsProgressPercent =
-    srsRoundSize > 0 ? Math.min((srsRoundProgress / srsRoundSize) * 100, 100) : 0;
+    srsRoundSize > 0 ? Math.min((srsChecked / srsRoundSize) * 100, 100) : 0;
   const onboardingEncounteredCount = encounteredOnboardingTerms(onboardingSnapshot).length;
   const onboardingSavedCount = savedOnboardingWords(onboardingSnapshot).length;
   const onboardingProgress = onboardingSnapshot?.progress;
@@ -1438,7 +1438,7 @@ export default function PracticePage() {
                   </span>
                   <span className="font-medium">
                     {practiceFormat === 'srs'
-                      ? `${srsRoundProgress}/${srsRoundSize}`
+                      ? `${srsChecked}/${srsRoundSize}`
                       : `${roundProgress}/${roundSize}`}
                   </span>
                 </div>
@@ -1799,6 +1799,24 @@ export default function PracticePage() {
               practiceFormat === 'srs' &&
               srsMode === 'recall' && (
                 <div key={currentSrsWord.id}>
+                  {srsLocked && (
+                    <p
+                      data-testid="srs-result"
+                      className={`mb-4 text-center text-base font-semibold ${
+                        currentSrsDone?.result === 'correct' ? 'text-primary' : 'text-destructive'
+                      }`}
+                    >
+                      {currentSrsDone?.result === 'correct' ? (
+                        'Correct!'
+                      ) : (
+                        <>
+                          Incorrect — answer:{' '}
+                          <span className="font-bold">{srsMcOptions[srsMcCorrectIdx]}</span>
+                        </>
+                      )}
+                    </p>
+                  )}
+
                   <div className="mb-6">
                     <span className="text-sm font-medium text-muted-foreground">
                       Choose the correct translation
@@ -1846,7 +1864,7 @@ export default function PracticePage() {
                           type="button"
                           data-testid="srs-mc-option"
                           onClick={() => handleSrsMcSelect(idx)}
-                          disabled={srsMcLocked}
+                          disabled={srsLocked}
                           className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left text-lg font-medium transition-all active:scale-[0.98] ${btnClass}`}
                         >
                           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
@@ -1864,11 +1882,22 @@ export default function PracticePage() {
                     })}
                   </div>
 
-                  <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <span>Level:</span>
-                    <span className="font-semibold text-foreground">
-                      {srsLevelFromState(currentSrsWord.state) ?? currentSrsWord.srs_level}
+                  <div className="mt-6 flex items-center justify-between gap-3">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => goToSrsCard(srsIndex - 1)}
+                      disabled={srsIndex === 0}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground" data-testid="srs-position">
+                      Level {srsLevelFromState(currentSrsWord.state) ?? currentSrsWord.srs_level} ·{' '}
+                      {srsIndex + 1} / {srsRoundSize}
                     </span>
+                    <Button type="button" onClick={advanceSrs} data-testid="srs-next">
+                      {srsIndex + 1 < srsRoundSize ? 'Next' : 'Finish'}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1879,6 +1908,24 @@ export default function PracticePage() {
               practiceFormat === 'srs' &&
               srsMode === 'cloze' && (
                 <div key={currentSrsWord.id}>
+                  {srsLocked && (
+                    <p
+                      data-testid="srs-result"
+                      className={`mb-4 text-center text-base font-semibold ${
+                        currentSrsDone?.result === 'correct' ? 'text-primary' : 'text-destructive'
+                      }`}
+                    >
+                      {currentSrsDone?.result === 'correct' ? (
+                        'Correct!'
+                      ) : (
+                        <>
+                          Incorrect — answer:{' '}
+                          <span className="font-bold">{currentSrsWord.text}</span>
+                        </>
+                      )}
+                    </p>
+                  )}
+
                   <div className="mb-6">
                     <span className="text-sm font-medium text-muted-foreground">
                       Type the missing word
@@ -1914,7 +1961,7 @@ export default function PracticePage() {
                       type="text"
                       value={srsTyped}
                       onChange={(e) => setSrsTyped(e.target.value)}
-                      disabled={srsClozeLocked}
+                      disabled={srsLocked}
                       autoFocus
                       autoComplete="off"
                       autoCapitalize="off"
@@ -1923,36 +1970,38 @@ export default function PracticePage() {
                       lang={getActivePack().script.bcp47}
                       data-testid="srs-cloze-input"
                       className={`w-full rounded-xl border-2 px-4 py-3 text-lg text-foreground transition-colors outline-none ${
-                        srsClozeResult === 'correct'
+                        currentSrsDone?.result === 'correct'
                           ? 'border-primary bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))]'
-                          : srsClozeResult === 'wrong'
+                          : currentSrsDone?.result === 'wrong'
                             ? 'border-destructive bg-[color-mix(in_srgb,var(--destructive)_10%,var(--card))]'
                             : 'border-border bg-background focus:border-primary'
                       }`}
                     />
                     <Button
                       type="submit"
-                      disabled={srsClozeLocked || !srsTyped.trim()}
+                      disabled={srsLocked || !srsTyped.trim()}
                       className="mt-3 w-full"
                     >
                       Check
                     </Button>
                   </form>
 
-                  {srsClozeResult === 'wrong' && (
-                    <p
-                      className="text-center text-sm text-foreground"
-                      data-testid="srs-cloze-answer"
+                  <div className="mt-6 flex items-center justify-between gap-3">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => goToSrsCard(srsIndex - 1)}
+                      disabled={srsIndex === 0}
                     >
-                      Answer: <span className="font-semibold">{currentSrsWord.text}</span>
-                    </p>
-                  )}
-
-                  <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <span>Level:</span>
-                    <span className="font-semibold text-foreground">
-                      {srsLevelFromState(currentSrsWord.state) ?? currentSrsWord.srs_level}
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground" data-testid="srs-position">
+                      Level {srsLevelFromState(currentSrsWord.state) ?? currentSrsWord.srs_level} ·{' '}
+                      {srsIndex + 1} / {srsRoundSize}
                     </span>
+                    <Button type="button" onClick={advanceSrs} data-testid="srs-next">
+                      {srsIndex + 1 < srsRoundSize ? 'Next' : 'Finish'}
+                    </Button>
                   </div>
                 </div>
               )}
