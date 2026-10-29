@@ -163,6 +163,8 @@ YOUTUBE_RELAY_BASE youtube-relay-base
 YOUTUBE_RELAY_BASIC_AUTH youtube-relay-basic-auth
 SENTRY_DSN sentry-dsn
 SENTRY_TRACES_SAMPLE_RATE sentry-traces-sample-rate
+ANALYTICS_FORWARDING_URL analytics-forwarding-url
+ANALYTICS_WEBSITE_ID analytics-website-id
 MAPPINGS
 if ! set_image "$DESIRED_IMAGE"; then
   echo "could not pin $DESIRED_IMAGE in $COMPOSE" >&2
