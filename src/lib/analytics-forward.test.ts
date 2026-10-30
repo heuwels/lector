@@ -112,6 +112,7 @@ describe('bootSource', () => {
   it('sets the website id before the script address', () => {
     const source = bootSource(WEBSITE);
     expect(source.indexOf('data-website-id')).toBeLessThan(source.indexOf('el.src='));
+    expect(source.indexOf('data-fetch-credentials","same-origin"')).toBeLessThan(source.indexOf('el.src='));
     expect(source).toContain(WEBSITE);
     expect(source).toContain('umami.track');
     expect(() => new Function(source)).not.toThrow();

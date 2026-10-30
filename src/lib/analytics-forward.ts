@@ -123,6 +123,8 @@ export function bootSource(id: string): string {
     `(function(){var id=${literal};` +
     `var el=document.createElement("script");el.async=true;` +
     `el.setAttribute("data-website-id",id);` +
+    // The tracker sends no cookies unless asked. Staging Access refuses that collect call.
+    `el.setAttribute("data-fetch-credentials","same-origin");` +
     `el.addEventListener("load",function(){` +
     `var queued=(window.plausible&&window.plausible.q)||[];` +
     `window.plausible=function(){var options=arguments[1];var data=options&&options.props;` +
