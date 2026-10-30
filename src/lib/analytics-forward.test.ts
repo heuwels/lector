@@ -172,9 +172,9 @@ describe('handleAnalytics', () => {
     expect(sent.status).toBe(200);
     expect(sent.headers.get('x-umami-cache')).toBe('jwt');
     expect(sent.headers.get('set-cookie')).toBeNull();
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(fetchMock.mock.calls[0][0]).toBe('https://umami.example/api/send');
-    const headers = init.headers as Headers;
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://umami.example/api/send');
+    const headers = new Headers(init.headers);
     expect(headers.get('cookie')).toBeNull();
     expect(headers.get('user-agent')).toBe('TestBrowser/1');
     expect(headers.get('x-umami-cache')).toBe('prior');
