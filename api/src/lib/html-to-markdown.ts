@@ -15,6 +15,8 @@ export function htmlToMarkdown(html: string): string {
 
   markdown = markdown.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
   markdown = markdown.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  // Ruby text (furigana, pinyin) is a reading of the base text, not more text.
+  markdown = markdown.replace(/<(rt|rp)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
 
   markdown = markdown.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '\n# $1\n');
   markdown = markdown.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n## $1\n');
