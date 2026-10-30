@@ -79,6 +79,8 @@ Optional staging-only values follow the production suffixes in `README.md`, incl
 Plus prices, Resend, Turnstile, LLM/TTS keys, exempt accounts, and Sentry. The stack
 sets `SENTRY_ENVIRONMENT=staging`; production sets `production`.
 
+Analytics uses two more parameters. `analytics-forwarding-url` is the Umami origin with no path. `analytics-website-id` is the website UUID. Give staging a different UUID from production.
+
 To enable audio transcription (podcast import, #185), set `transcribe-worker=1`,
 `asr-url=https://openrouter.ai/api`, `asr-model=openai/whisper-large-v3`,
 `asr-max-bytes=26214400` (OpenRouter's multipart cap), and `asr-api-key`
