@@ -148,10 +148,18 @@ function plain(status: number): Response {
   return new Response(message, { status, headers: { 'cache-control': 'no-store' } });
 }
 
+// Workers accept "follow" or "manual". "error" throws before the request is sent.
+// A 3xx stays here. The proxy does not follow it.
+async function fetchUpstream(url: string, init: RequestInit = {}): Promise<Response> {
+  const upstream = await fetch(url, { ...init, redirect: 'manual' });
+  if (upstream.status >= 300 && upstream.status < 400) throw new Error('redirect');
+  return upstream;
+}
+
 async function proxyScript(origin: string): Promise<Response> {
   let upstream: Response;
   try {
-    upstream = await fetch(`${origin}/script.js`, { redirect: 'error' });
+    upstream = await fetchUpstream(`${origin}/script.js`);
   } catch {
     return plain(502);
   }
@@ -179,11 +187,10 @@ async function proxySend(request: Request, origin: string, website: string, host
 
   let upstream: Response;
   try {
-    upstream = await fetch(`${origin}/api/send`, {
+    upstream = await fetchUpstream(`${origin}/api/send`, {
       method: 'POST',
       headers,
       body: stamped.body,
-      redirect: 'error',
     });
   } catch {
     return plain(502);

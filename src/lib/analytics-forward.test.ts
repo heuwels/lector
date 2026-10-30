@@ -144,7 +144,7 @@ describe('handleAnalytics', () => {
     const script = await handleAnalytics(request('https://lector.dev/a/script.js'), ENV);
     expect(script.status).toBe(200);
     expect(script.headers.get('cache-control')).toBe('public, max-age=3600');
-    expect(fetchMock).toHaveBeenCalledWith('https://umami.example/script.js', { redirect: 'error' });
+    expect(fetchMock).toHaveBeenCalledWith('https://umami.example/script.js', { redirect: 'manual' });
   });
 
   it('forwards the collect call without cookies and rejects a foreign website', async () => {
@@ -191,6 +191,15 @@ describe('handleAnalytics', () => {
       ENV,
     );
     expect(blocked.status).toBe(400);
+  });
+
+  it('refuses a redirect from the tracker host', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 302, headers: { location: 'https://evil.example/script.js' } })),
+    );
+    const script = await handleAnalytics(request('https://lector.dev/a/script.js'), ENV);
+    expect(script.status).toBe(502);
   });
 
   it('returns 502 when the origin is down', async () => {
