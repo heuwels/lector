@@ -50,6 +50,7 @@ Maps of every app domain are in `docs/flows/`. Open `docs/flows/index.html` to w
 - Desktop sidebar is 56 units wide (`sm:ml-56` on page wrapper)
 - Dark mode uses `.dark` class on `<html>`, toggled via `ThemeToggle`
 - Practice page has type and MC modes with a fallback MC option
+- Put each script and data file that serves one language in `scripts/languages/<code>/`. Keep the language code in the file name. Shared tools such as `scripts/build-dictionary.ts` stay in `scripts/`.
 
 ## SRS Behaviour (implemented in `src/app/practice/page.tsx`)
 
