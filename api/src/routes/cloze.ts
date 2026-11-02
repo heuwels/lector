@@ -181,6 +181,7 @@ const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   fi: () => import('../lib/sentence-bank-fi.json'),
   grc: () => import('../lib/sentence-bank-grc.json'),
   hbo: () => import('../lib/sentence-bank-hbo.json'),
+  he: () => import('../lib/sentence-bank-he.json'),
   hi: () => import('../lib/sentence-bank-hi.json'),
   hu: () => import('../lib/sentence-bank-hu.json'),
   id: () => import('../lib/sentence-bank-id.json'),
