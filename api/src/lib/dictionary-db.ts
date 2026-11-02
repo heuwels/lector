@@ -1113,11 +1113,12 @@ function resolveWord(
       }
     }
 
-    // Step 3-hbo: final-form fallback (#255). Running text and typed input
-    // mix ך/כ ם/מ ן/נ ף/פ ץ/צ. The build registers hebrewLooseKey of every
-    // key as an alias (type 'unpointed'); retry both steps with the loose key.
-    // Only after the exact steps missed, so מלך keeps its own entry.
-    if (language === 'hbo') {
+    // Step 3-he / 3-hbo: final-form fallback (#255). Running text and typed
+    // input mix ך/כ ם/מ ן/נ ף/פ ץ/צ, and a peel can leave a medial letter at the
+    // end (שולחנ). The build registers hebrewLooseKey of every key as an alias
+    // (type 'unpointed'); retry both steps with the loose key. Only after the
+    // exact steps missed, so מלך keeps its own entry.
+    if (language === 'he' || language === 'hbo') {
       const loose = hebrewLooseKey(lower);
       if (loose !== lower) {
         const looseExact = stmts.selectEntry.get(loose) as EntryRow | undefined;
@@ -1139,7 +1140,7 @@ function resolveWord(
       // Maqaf joins two lexemes into one reader token. The compound is not a
       // headword. The host is last. Resolve each part after the compound
       // itself missed; recursion is safe because a part has no maqaf.
-      if (lower.includes('\u05BE')) {
+      if (language === 'hbo' && lower.includes('\u05BE')) {
         const parts = lower.split('\u05BE').filter((part) => part.length > 0);
         for (const part of parts.reverse()) {
           const host = resolveWord(userId, part, language);

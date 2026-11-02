@@ -46,6 +46,7 @@ export function foldWord(text: string, pack: LanguageConfig): string {
   if (pack.code === 'la') return foldLatinKey(cased);
   if (pack.code === 'ar') return foldArabicKey(cased);
   if (pack.code === 'hbo') return foldHebrewKey(cased);
+  if (pack.code === 'he') return foldModernHebrewKey(cased);
   return cased;
 }
 
@@ -155,6 +156,24 @@ export function foldHebrewKey(text: string): string {
   return text.replace(HEBREW_MARKS, '');
 }
 
+// Keyboards type ' and " for geresh ׳ and gershayim ״ (ג'ירפה, צה"ל). kaikki
+// keys the Hebrew marks.
+const HEBREW_GERESH_VARIANTS = /['‘’`´]/g;
+const HEBREW_GERSHAYIM_VARIANTS = /["“”]/g;
+const HEBREW_EDGE_MAQAF = /^\u05BE+|\u05BE+$/g;
+
+/**
+ * Modern Hebrew vocab key: foldHebrewKey, then spell geresh and gershayim with
+ * the Hebrew marks. kaikki writes a construct form with a trailing maqaf
+ * (כַּלְבֵי־), so an edge maqaf drops. A maqaf inside a word stays.
+ */
+export function foldModernHebrewKey(text: string): string {
+  return foldHebrewKey(text)
+    .replace(HEBREW_GERESH_VARIANTS, '\u05F3')
+    .replace(HEBREW_GERSHAYIM_VARIANTS, '\u05F4')
+    .replace(HEBREW_EDGE_MAQAF, '');
+}
+
 const HEBREW_FINAL_FORMS: Record<string, string> = {
   ך: 'כ',
   ם: 'מ',
@@ -164,9 +183,11 @@ const HEBREW_FINAL_FORMS: Record<string, string> = {
 };
 
 /**
- * The lenient Biblical Hebrew key (#255). Final ך ם ן ף ץ fold onto their
- * medial pairs. Exact keys win first, so מלך keeps its own entry and מלכ
- * reaches it only after that miss.
+ * The lenient Hebrew key (#255). Final ך ם ן ף ץ fold onto their medial
+ * pairs. Exact keys win first, so מלך keeps its own entry and מלכ reaches it
+ * only after that miss. A Modern Hebrew peel leaves a medial letter at the end
+ * of a stem (שולחנך gives שולחנ), and the build stores this key of every entry
+ * as an alias row.
  */
 export function hebrewLooseKey(key: string): string {
   return key.replace(/[ךםןףץ]/g, (letter) => HEBREW_FINAL_FORMS[letter] ?? letter);
@@ -235,5 +256,7 @@ export function foldForComparison(text: string, pack: LanguageConfig): string {
   if (pack.script.practiceLeniency !== 'fold-marks') return text;
   if (pack.code === 'ar') return foldArabicKey(text);
   if (pack.code === 'hbo') return hebrewLooseKey(foldHebrewKey(text));
+  if (pack.code === 'he')
+    return hebrewLooseKey(foldModernHebrewKey(text).replace(/[\u05F3\u05F4]/g, ''));
   return stripMarks(text);
 }

@@ -37,7 +37,7 @@ function legacyWords(text: string): string[] {
 // Only the languages that shipped BEFORE the script-agnostic engine belong
 // here: the oracle regex above is Latin-range-only, so byte-parity with it is
 // the contract for exactly those packs. Languages added after #289 get their
-// own goldens below instead — ar, bn, ru, grc, uk, ko, zh, ja and hi because
+// own goldens below instead — ar, bn, he, ru, grc, uk, ko, zh, ja and hi because
 // the oracle can't see their scripts (zh and ja doubly so: they have no
 // whitespace, so the oracle returns the whole paragraph), and tr because the
 // oracle applies the Afrikaans 'n alternative to every language, which
@@ -46,7 +46,7 @@ function legacyWords(text: string): string[] {
 const CORPUS: Record<
   Exclude<
     LanguageCode,
-    'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hbo' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'
+    'ar' | 'bn' | 'el' | 'he' | 'ru' | 'grc' | 'hbo' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'
   >,
   string[]
 > = {
@@ -169,7 +169,10 @@ const CORPUS: Record<
 
 describe('tokenize — byte-identical with the legacy reader for shipped languages', () => {
   for (const [code, texts] of Object.entries(CORPUS) as [
-    Exclude<LanguageCode, 'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hbo' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'>,
+    Exclude<
+      LanguageCode,
+      'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hbo' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'
+    >,
     string[],
   ][]) {
     const pack = LANGUAGES[code];
@@ -997,11 +1000,11 @@ describe('Arabic pack (real manifest)', () => {
     expect(countWords('ذهب الولد إلى المدرسة', ar)).toBe(4);
   });
 
-  it('declares rtl, with Biblical Hebrew as the second rtl pack', () => {
+  it('declares rtl, and only the Arabic and Hebrew packs do', () => {
     expect(ar.script.direction).toBe('rtl');
     expect(hbo.script.direction).toBe('rtl');
     const rtl = Object.values(LANGUAGES).filter((pack) => pack.script.direction === 'rtl');
-    expect(rtl.map((pack) => pack.code)).toEqual(['ar', 'hbo']);
+    expect(rtl.map((pack) => pack.code)).toEqual(['ar', 'hbo', 'he']);
   });
 
   it('is a spaced pack, so it needs no segmenter', () => {
@@ -1009,6 +1012,74 @@ describe('Arabic pack (real manifest)', () => {
     // model holds, so clozeIndex stays a whitespace-token index.
     expect(ar.script.kind).toBe('alpha-spaced');
     expect(clozeTokenSeparator('ذهب الولد', clozeTokens('ذهب الولد', ar))).toBe(' ');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Modern Hebrew pack goldens
+// ---------------------------------------------------------------------------
+
+const he = LANGUAGES.he;
+
+const HE_CORPUS = [
+  'שלום! מה שלומך?',
+  'הילד קרא ספר בבית־הספר.',
+  'צה"ל הוא צבא ההגנה לישראל.',
+  "אכלתי צ׳יפס עם ג'ירפה בשנת 1999.",
+  'שָׁלוֹם, אֲנִי לוֹמֵד עִבְרִית.',
+];
+
+describe('Modern Hebrew pack (real manifest)', () => {
+  it('reassembles Hebrew text byte-for-byte with correct offsets', () => {
+    for (const text of HE_CORPUS) {
+      const tokens = tokenize(text, he);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps niqqud inside the token, and the fold removes it', () => {
+    expect(tokenizeWords('שָׁלוֹם, אֲנִי לוֹמֵד', he).map((t) => t.text)).toEqual([
+      'שָׁלוֹם',
+      'אֲנִי',
+      'לוֹמֵד',
+    ]);
+    expect(foldWord('שָׁלוֹם', he)).toBe('שלום');
+  });
+
+  it('keeps geresh and gershayim inside a word, in every spelling', () => {
+    expect(tokenizeWords('צה"ל וצה״ל וצה”ל', he).map((t) => t.text)).toEqual([
+      'צה"ל',
+      'וצה״ל',
+      'וצה”ל',
+    ]);
+    expect(tokenizeWords("ג'ירפה וצ׳יפס", he).map((t) => t.text)).toEqual(["ג'ירפה", 'וצ׳יפס']);
+    expect(foldWord('צה"ל', he)).toBe('צה״ל');
+    expect(foldWord("ג'ירפה", he)).toBe('ג׳ירפה');
+  });
+
+  it('leaves a quote mark at a word edge outside the token', () => {
+    expect(tokenizeWords('הוא אמר "שלום" ויצא', he).map((t) => t.text)).toEqual([
+      'הוא',
+      'אמר',
+      'שלום',
+      'ויצא',
+    ]);
+  });
+
+  it('splits on maqaf, which modern prose rarely writes', () => {
+    expect(tokenizeWords('בית־הספר', he).map((t) => t.text)).toEqual(['בית', 'הספר']);
+  });
+
+  it('keeps final letter forms on the key', () => {
+    expect(foldWord('מֶלֶךְ', he)).toBe('מלך');
+  });
+
+  it('is a spaced pack with whitespace cloze tokens', () => {
+    expect(he.script.kind).toBe('alpha-spaced');
+    expect(clozeTokenSeparator('הילד קרא', clozeTokens('הילד קרא', he))).toBe(' ');
   });
 });
 
