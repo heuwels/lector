@@ -110,6 +110,12 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation('„Sind')).toEqual(['Sind', '']);
     expect(splitTrailingPunctuation("'n")).toEqual(["'n", '']);
   });
+
+  test('strips Greek, Arabic and Hebrew sentence marks like the client copy', () => {
+    expect(splitTrailingPunctuation('ζωή·')).toEqual(['ζωή', '·']);
+    expect(splitTrailingPunctuation('كتاب؟')).toEqual(['كتاب', '؟']);
+    expect(splitTrailingPunctuation('לֵאמֹֽר׃')).toEqual(['לֵאמֹֽר', '׃']);
+  });
 });
 
 describe('buildSourceLinkHtml (#334)', () => {

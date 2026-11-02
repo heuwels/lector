@@ -45,6 +45,7 @@ export function foldWord(text: string, pack: LanguageConfig): string {
   const cased = pack.script.hasCase ? lowerForPack(normalized, pack) : normalized;
   if (pack.code === 'la') return foldLatinKey(cased);
   if (pack.code === 'ar') return foldArabicKey(cased);
+  if (pack.code === 'hbo') return foldHebrewKey(cased);
   return cased;
 }
 
@@ -135,6 +136,42 @@ export function arabicLooseKey(key: string): string {
   return key.replace(/\u0629/g, '\u0647').replace(/\u0649/g, '\u064A');
 }
 
+// Cantillation (te'amim, U+0591–U+05AF) and niqqud (U+05B0–U+05BD, U+05BF,
+// U+05C1–U+05C2, U+05C4–U+05C5, U+05C7). Maqaf (U+05BE), paseq (U+05C0) and
+// sof pasuq (U+05C3) stay: they are punctuation, not vowel marks. hbo joins
+// on maqaf, so the mark must remain on the key for lookup to split it.
+const HEBREW_MARKS = /[\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]/g;
+
+/**
+ * Biblical Hebrew vocab key (#255): drop cantillation and niqqud.
+ *
+ * A verse prints בְּרֵאשִׁית and the dictionary keys בראשית. Final letter
+ * forms stay on the key. They fold only at lookup, via hebrewLooseKey, so a
+ * genuine headword keeps the final kaf a reader expects.
+ *
+ * Maqaf stays on a joined token (גם־שניהם) so lookup can split the parts.
+ */
+export function foldHebrewKey(text: string): string {
+  return text.replace(HEBREW_MARKS, '');
+}
+
+const HEBREW_FINAL_FORMS: Record<string, string> = {
+  ך: 'כ',
+  ם: 'מ',
+  ן: 'נ',
+  ף: 'פ',
+  ץ: 'צ',
+};
+
+/**
+ * The lenient Biblical Hebrew key (#255). Final ך ם ן ף ץ fold onto their
+ * medial pairs. Exact keys win first, so מלך keeps its own entry and מלכ
+ * reaches it only after that miss.
+ */
+export function hebrewLooseKey(key: string): string {
+  return key.replace(/[ךםןףץ]/g, (letter) => HEBREW_FINAL_FORMS[letter] ?? letter);
+}
+
 /** Every apostrophe variant a keyboard, an editor or an EPUB can produce. */
 const APOSTROPHE_VARIANTS = /[‘’ʼʹ`´]/g;
 
@@ -197,5 +234,6 @@ export function stripMarks(text: string): string {
 export function foldForComparison(text: string, pack: LanguageConfig): string {
   if (pack.script.practiceLeniency !== 'fold-marks') return text;
   if (pack.code === 'ar') return foldArabicKey(text);
+  if (pack.code === 'hbo') return hebrewLooseKey(foldHebrewKey(text));
   return stripMarks(text);
 }

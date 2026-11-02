@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   arabicLooseKey,
   foldArabicKey,
+  foldHebrewKey,
   foldWord,
+  hebrewLooseKey,
   latinLookupVariants,
   normalizeText,
 } from './text';
@@ -287,6 +289,53 @@ describe('arabicLooseKey (#253)', () => {
     // own entry. The loose form exists only as a fallback.
     expect(foldWord('مدرسة', ar)).toBe('مدرسة');
     expect(foldWord('على', ar)).toBe('على');
+  });
+});
+
+const hbo = LANGUAGES.hbo;
+
+describe('Hebrew keys (#255)', () => {
+  it('strips niqqud so a pointed verse and an unpointed key match', () => {
+    expect(foldWord('בְּרֵאשִׁית', hbo)).toBe('בראשית');
+    expect(foldWord('בָּרָא', hbo)).toBe('ברא');
+    expect(foldWord('אֱלֹהִים', hbo)).toBe('אלהים');
+  });
+
+  it('strips cantillation marks', () => {
+    expect(foldWord('בְּרֵאשִׁ֖ית', hbo)).toBe('בראשית');
+    expect(foldWord('אֱלֹהִ֑ים', hbo)).toBe('אלהים');
+  });
+
+  it('keeps final letter forms on the key', () => {
+    expect(foldWord('הַשָּׁמַיִם', hbo)).toBe('השמים');
+    expect(foldWord('אֶרֶץ', hbo)).toBe('ארץ');
+  });
+
+  it('keeps maqaf so a joined token can split at lookup', () => {
+    expect(foldWord('גַם־שְׁנֵיהֶם', hbo)).toBe('גם־שניהם');
+  });
+
+  it('does not lowercase, because Hebrew has no case', () => {
+    expect(hbo.script.hasCase).toBe(false);
+    expect(foldWord('Wi-Fi', hbo)).toBe('Wi-Fi');
+  });
+
+  it('is idempotent', () => {
+    const once = foldHebrewKey('בְּרֵאשִׁית');
+    expect(foldHebrewKey(once)).toBe(once);
+  });
+});
+
+describe('hebrewLooseKey (#255)', () => {
+  it('folds final forms onto their medial pairs', () => {
+    expect(hebrewLooseKey('מלך')).toBe('מלכ');
+    expect(hebrewLooseKey('שמים')).toBe('שמימ');
+    expect(hebrewLooseKey('ארץ')).toBe('ארצ');
+  });
+
+  it('is not applied to the key itself', () => {
+    expect(foldWord('השמים', hbo)).toBe('השמים');
+    expect(foldWord('מלך', hbo)).toBe('מלך');
   });
 });
 

@@ -57,6 +57,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What does the aorist tense mean compared to the imperfect?',
     'What\'s the difference between "οὐ" and "μή" for negation?',
   ],
+  hbo: [
+    'How do the prefixes ו, ה, ב, ל, כ, מ and ש attach, and in what order do they stack?',
+    'What is the difference between qal and hiphil for a root like קטל?',
+    'When do I read the ketiv and when do I read the qere?',
+  ],
   hi: [
     'When do I use ने after the subject, and what does it do to the verb?',
     'What is the difference between है, हैं, था and थी?',
