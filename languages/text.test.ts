@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   arabicLooseKey,
+  foldHebrewKey,
+  hebrewLooseKey,
   foldArabicKey,
+  foldForComparison,
   foldWord,
   latinLookupVariants,
   normalizeText,
@@ -287,6 +290,42 @@ describe('arabicLooseKey (#253)', () => {
     // own entry. The loose form exists only as a fallback.
     expect(foldWord('مدرسة', ar)).toBe('مدرسة');
     expect(foldWord('على', ar)).toBe('على');
+  });
+});
+
+describe('Hebrew keys', () => {
+  const he = LANGUAGES.he as LanguageConfig;
+
+  it('drops niqqud and cantillation', () => {
+    expect(foldHebrewKey('כֶּלֶב')).toBe('כלב');
+    expect(foldHebrewKey('בְּרֵאשִׁ֖ית')).toBe('בראשית');
+    expect(foldWord('שָׁלוֹם', he)).toBe('שלום');
+  });
+
+  it('keys geresh and gershayim as the Hebrew marks', () => {
+    expect(foldHebrewKey("ג'ירפה")).toBe('ג׳ירפה');
+    expect(foldHebrewKey('צ’יפס')).toBe('צ׳יפס');
+    expect(foldHebrewKey('צה"ל')).toBe('צה״ל');
+    expect(foldHebrewKey('ארה”ב')).toBe('ארה״ב');
+  });
+
+  it('drops a maqaf at either edge and keeps one inside', () => {
+    expect(foldHebrewKey('כַּלְבֵי־')).toBe('כלבי');
+    expect(foldHebrewKey('בית־ספר')).toBe('בית־ספר');
+  });
+
+  it('keeps final forms on the key and folds them only in the loose key', () => {
+    expect(foldWord('מֶלֶךְ', he)).toBe('מלך');
+    expect(hebrewLooseKey('מלך')).toBe('מלכ');
+    expect(hebrewLooseKey('שולחן')).toBe('שולחנ');
+    expect(hebrewLooseKey('ספר')).toBe('ספר');
+  });
+
+  it('grades a typed answer without niqqud, geresh or final forms', () => {
+    expect(foldForComparison('שָׁלוֹם', he)).toBe(foldForComparison('שלום', he));
+    expect(foldForComparison('צה״ל', he)).toBe(foldForComparison('צהל', he));
+    expect(foldForComparison('מלך', he)).toBe(foldForComparison('מלכ', he));
+    expect(foldForComparison('ספר', he)).not.toBe(foldForComparison('ספרים', he));
   });
 });
 

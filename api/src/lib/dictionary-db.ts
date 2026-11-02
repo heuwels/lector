@@ -7,6 +7,7 @@ import {
   DEFAULT_LANGUAGE,
   foldWord,
   getLanguageConfig,
+  hebrewLooseKey,
   isValidLanguageCode,
   latinLookupVariants,
   stripMarks,
@@ -1093,6 +1094,30 @@ function resolveWord(
     // worse than one that answers nothing.
     if (language === 'ar') {
       const loose = arabicLooseKey(lower);
+      if (loose !== lower) {
+        const looseExact = stmts.selectEntry.get(loose) as EntryRow | undefined;
+        if (looseExact) return buildEntry(looseExact, stmts, lower);
+        const looseInfl = stmts.selectInflectionLemma.get(loose) as
+          | { lemma: string; type: string | null }
+          | undefined;
+        if (looseInfl) {
+          const lemmaRow = stmts.selectEntry.get(looseInfl.lemma) as EntryRow | undefined;
+          if (lemmaRow) {
+            const label =
+              looseInfl.type && looseInfl.type !== 'unpointed'
+                ? `${looseInfl.type.replace(/,/g, ' ')} form of`
+                : 'form of';
+            return buildEntry(lemmaRow, stmts, lower, { stem: lemmaRow.word, label });
+          }
+        }
+      }
+    }
+
+    // Step 3-he: final-form fallback. A typed or peeled form can end in a
+    // medial letter (שולחנ). The build stores hebrewLooseKey of every key as an
+    // alias row (type 'unpointed').
+    if (language === 'he') {
+      const loose = hebrewLooseKey(lower);
       if (loose !== lower) {
         const looseExact = stmts.selectEntry.get(loose) as EntryRow | undefined;
         if (looseExact) return buildEntry(looseExact, stmts, lower);

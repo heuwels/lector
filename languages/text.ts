@@ -45,6 +45,7 @@ export function foldWord(text: string, pack: LanguageConfig): string {
   const cased = pack.script.hasCase ? lowerForPack(normalized, pack) : normalized;
   if (pack.code === 'la') return foldLatinKey(cased);
   if (pack.code === 'ar') return foldArabicKey(cased);
+  if (pack.code === 'he') return foldHebrewKey(cased);
   return cased;
 }
 
@@ -135,6 +136,46 @@ export function arabicLooseKey(key: string): string {
   return key.replace(/\u0629/g, '\u0647').replace(/\u0649/g, '\u064A');
 }
 
+// Cantillation (U+0591–U+05AF) and niqqud. Maqaf (U+05BE), paseq (U+05C0) and
+// sof pasuq (U+05C3) are punctuation and stay.
+const HEBREW_MARKS = /[\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]/g;
+// Keyboards type ' and " for geresh ׳ and gershayim ״ (ג'ירפה, צה"ל). kaikki
+// keys the Hebrew marks.
+const HEBREW_GERESH_VARIANTS = /['‘’`´]/g;
+const HEBREW_GERSHAYIM_VARIANTS = /["“”]/g;
+const HEBREW_EDGE_MAQAF = /^\u05BE+|\u05BE+$/g;
+
+/**
+ * Hebrew vocab key: drop niqqud and cantillation, and spell geresh and
+ * gershayim with the Hebrew marks. Final letter forms stay on the key. They
+ * fold only at lookup, via hebrewLooseKey. kaikki writes a construct form
+ * with a trailing maqaf (כַּלְבֵי־), so an edge maqaf drops.
+ */
+export function foldHebrewKey(text: string): string {
+  return text
+    .replace(HEBREW_MARKS, '')
+    .replace(HEBREW_GERESH_VARIANTS, '\u05F3')
+    .replace(HEBREW_GERSHAYIM_VARIANTS, '\u05F4')
+    .replace(HEBREW_EDGE_MAQAF, '');
+}
+
+const HEBREW_FINAL_FORMS: Record<string, string> = {
+  ך: 'כ',
+  ם: 'מ',
+  ן: 'נ',
+  ף: 'פ',
+  ץ: 'צ',
+};
+
+/**
+ * The lenient Hebrew key: final ך ם ן ף ץ fold onto their medial pairs. A peel
+ * leaves a medial letter at the end of a stem (שולחנך gives שולחנ), and the
+ * build stores this key of every entry as an alias row.
+ */
+export function hebrewLooseKey(key: string): string {
+  return key.replace(/[ךםןףץ]/g, (letter) => HEBREW_FINAL_FORMS[letter] ?? letter);
+}
+
 /** Every apostrophe variant a keyboard, an editor or an EPUB can produce. */
 const APOSTROPHE_VARIANTS = /[‘’ʼʹ`´]/g;
 
@@ -197,5 +238,6 @@ export function stripMarks(text: string): string {
 export function foldForComparison(text: string, pack: LanguageConfig): string {
   if (pack.script.practiceLeniency !== 'fold-marks') return text;
   if (pack.code === 'ar') return foldArabicKey(text);
+  if (pack.code === 'he') return hebrewLooseKey(foldHebrewKey(text).replace(/[\u05F3\u05F4]/g, ''));
   return stripMarks(text);
 }

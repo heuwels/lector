@@ -26,7 +26,13 @@ import { pipeline } from 'stream/promises';
 
 import { stemCandidates } from '../languages/morphology';
 import { LANGUAGES, isValidLanguageCode } from '../languages/registry';
-import { arabicLooseKey, foldArabicKey, stripMarks } from '../languages/text';
+import {
+  arabicLooseKey,
+  foldArabicKey,
+  foldHebrewKey,
+  hebrewLooseKey,
+  stripMarks,
+} from '../languages/text';
 
 // ---------------------------------------------------------------------------
 // Paths & constants
@@ -269,8 +275,16 @@ interface LangProfile {
    *  for the runtime fallback to hit ('arabic': arabicLooseKey, type
    *  'unpointed'). The Arabic sibling of markStrippedAliases, and the same
    *  mechanism: exact keys always win first, so this only answers a word that
-   *  nothing else resolved. */
-  looseAliases?: 'arabic';
+   *  nothing else resolved. 'hebrew' uses hebrewLooseKey. */
+  looseAliases?: 'arabic' | 'hebrew';
+  /** Fold every key with `foldHebrewKey` (he): drop niqqud and cantillation,
+   *  and key geresh and gershayim as the Hebrew marks. Mirrors foldWord. */
+  foldHebrewKeys?: boolean;
+  /** Build the entry reading as `pointed transliteration` from the canonical
+   *  and romanization form rows, and keep every distinct reading the merged
+   *  records offer (he). An unpointed key is often several words: כלב is
+   *  כֶּלֶב kélev and כָּלֵב kalév. */
+  hebrewReadings?: boolean;
 }
 
 const PROFILES: Record<string, LangProfile> = {
@@ -538,6 +552,37 @@ const PROFILES: Record<string, LangProfile> = {
     rootsJsonRel: null,
     coverageCorpusRel: 'scripts/coverage-corpus-fr.txt',
     glossFilter: true,
+  },
+  he: {
+    // Canonical /Hebrew/ URL. 60 MB, 18,182 lines, 18,166 of them glossed.
+    // The dump is Modern Hebrew with some Biblical forms tagged as such.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Hebrew/kaikki.org-dictionary-Hebrew.jsonl'],
+    // Letters, niqqud, cantillation, geresh and gershayim.
+    letterClass:
+      '\\u0591-\\u05BD\\u05BF\\u05C1\\u05C2\\u05C4\\u05C5\\u05C7\\u05D0-\\u05EA\\u05F3\\u05F4',
+    // Hebrew resolves through the pack's `morphology` slice.
+    prefixes: [],
+    suffixes: [],
+    vowels: '\u05D0\u05D4\u05D5\u05D9',
+    rootsJsonRel: null,
+    coverageCorpusRel: 'scripts/coverage-corpus-he.txt',
+    glossFilter: true,
+    foldHebrewKeys: true,
+    looseAliases: 'hebrew',
+    hebrewReadings: true,
+    // A root entry keys ל־מ־ד, which no text spells.
+    skipPos: ['root'],
+    // noun-from-verb maps דיבור onto דיבר, which is a different word. A pausal
+    // form is Biblical.
+    extraSkipFormTags: ['noun-from-verb', 'Biblical-Hebrew', 'pausal'],
+    readingInvariants: {
+      שלום: 'שָׁלוֹם shalóm · שִׁלּוּם shilúm',
+      כלב: 'כֶּלֶב kélev · כָּלֵב kalév',
+      את: 'אֵת et · אַתְּ át · אֹת ot',
+      ילד: 'יֶלֶד yéled · יָלַד yalád',
+      דיבר: 'דִּבֵּר dibér',
+      שולחן: 'שֻׁלְחָן shulkhán',
+    },
   },
   hi: {
     // Canonical /Hindi/ URL (kaikki has no /downloads/hi/ mirror).
@@ -1327,6 +1372,37 @@ function canonicalForm(forms: KaikkiForm[] | undefined): string | undefined {
   return form;
 }
 
+const HE_POINTED_WORD =
+  /^[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4-\u05C7\u05D0-\u05EA\u05F3\u05F4]+$/u;
+const HE_NIQQUD = /[\u05B0-\u05BC\u05C1\u05C2\u05C7]/u;
+// The modern stress-marked scheme (kélev, shulkhán). A second romanization
+// row is often scholarly (kɛ́lɛḇ, ḥibbūr), which a learner cannot read.
+const HE_MODERN_ROMANIZATION = /^[a-zA-Z'ʼáéíóúÁÉÍÓÚ]+(?:-[a-zA-Z'ʼáéíóúÁÉÍÓÚ]+)*$/u;
+
+/** `pointed transliteration` for one Hebrew record, from its form rows (he). */
+function hebrewReading(forms: KaikkiForm[] | undefined): string | undefined {
+  const pointed = forms
+    ?.filter((f) => f.tags?.includes('canonical') && f.form)
+    .map((f) => f.form!.trim().split(/\s+/)[0])
+    .find((form) => HE_POINTED_WORD.test(form) && HE_NIQQUD.test(form));
+  const romanized = forms
+    ?.filter((f) => f.tags?.includes('romanization') && f.form)
+    .map((f) => f.form!.trim())
+    .find((form) => HE_MODERN_ROMANIZATION.test(form));
+  const reading = [pointed, romanized].filter(Boolean).join(' ');
+  return reading || undefined;
+}
+
+/** Most readings one Hebrew key lists. ספר alone has six records. */
+const HE_MAX_READINGS = 4;
+
+function mergeHebrewReading(current: string | undefined, next: string | undefined) {
+  if (!next) return current;
+  const readings = current ? current.split(' · ') : [];
+  if (readings.includes(next) || readings.length >= HE_MAX_READINGS) return current;
+  return [...readings, next].join(' · ');
+}
+
 function pickIpa(sounds: KaikkiSound[] | undefined): string | undefined {
   if (!sounds) return undefined;
   // A romanisation beats the IPA where the profile asks for one (zh: pinyin is
@@ -1414,6 +1490,7 @@ function foldKey(s: string): string {
   // would silently fold the waw and the ya as well, so foldArabicKey names the
   // four alef spellings instead.
   if (PROFILE.foldArabicKeys) return foldArabicKey(stripped);
+  if (PROFILE.foldHebrewKeys) return foldHebrewKey(stripped);
   if (!PROFILE.unfoldLigatures) return stripped;
   return stripped.replace(/æ/g, 'ae').replace(/œ/g, 'oe');
 }
@@ -1488,7 +1565,12 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
     // Simplified forms are one character long.
     const minLength = PROFILE.minInflectionLength ?? 2;
     if (inflected.includes(' ') || inflected.length < minLength) continue;
-    const type = (f.tags || []).join(',') || 'form';
+    // he: a pointed canonical row strips to the defective spelling (שֻׁלְחָן
+    // gives שלחן), which older and pointed texts print.
+    const type =
+      PROFILE.hebrewReadings && f.tags?.includes('canonical')
+        ? 'defective'
+        : (f.tags || []).join(',') || 'form';
     inflections.push({ inflected, type });
   }
 
@@ -1515,9 +1597,11 @@ function extractEntry(raw: KaikkiLine): ExtractedEntry | null {
     // ja: furigana off the `canonical` ruby row, never sounds[].
     ipa: PROFILE.readingFromRuby
       ? rubyReading(raw.word, raw.forms)
-      : PROFILE.readingFromCanonicalForm
-        ? canonicalForm(raw.forms)
-        : ((isSingleChar(word) ? READING_MAP?.[word] : undefined) ?? pickIpa(raw.sounds)),
+      : PROFILE.hebrewReadings
+        ? hebrewReading(raw.forms)
+        : PROFILE.readingFromCanonicalForm
+          ? canonicalForm(raw.forms)
+          : ((isSingleChar(word) ? READING_MAP?.[word] : undefined) ?? pickIpa(raw.sounds)),
     // ar: whether this record is the one leadFormsRel names for its key.
     // Compare against the canonical form, which for this pack IS what `ipa`
     // holds. The named-key test is separate on purpose: a bare equality check
@@ -1581,7 +1665,8 @@ async function parseDump(dumpPath: string): Promise<{
       };
       entries.set(ex.word, merged);
     } else {
-      if (!merged.ipa && ex.ipa) merged.ipa = ex.ipa;
+      if (PROFILE.hebrewReadings) merged.ipa = mergeHebrewReading(merged.ipa, ex.ipa);
+      else if (!merged.ipa && ex.ipa) merged.ipa = ex.ipa;
       if (!merged.etymology && ex.etymology) merged.etymology = ex.etymology;
     }
     if (ex.leads) {
@@ -1941,7 +2026,11 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
     // corpus word has to travel the same road or the gate would measure a
     // spelling the database never stored.
     const cased = lowerForLang(w);
-    const lower = PROFILE.foldArabicKeys ? foldArabicKey(cased) : cased;
+    const lower = PROFILE.foldArabicKeys
+      ? foldArabicKey(cased)
+      : PROFILE.foldHebrewKeys
+        ? foldHebrewKey(cased)
+        : cased;
 
     const hit = exact.get(lower) as { word: string } | undefined;
     if (hit) return hit;
@@ -1982,8 +2071,9 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
 
     // Mirror of the runtime loose-Arabic fallback (dictionary-db.ts step 3-ar):
     // retry with the ة→ه, ى→ي key against the alias rows.
-    if (PROFILE.looseAliases === 'arabic') {
-      const loose = arabicLooseKey(lower);
+    if (PROFILE.looseAliases) {
+      const loose =
+        PROFILE.looseAliases === 'arabic' ? arabicLooseKey(lower) : hebrewLooseKey(lower);
       if (loose !== lower) {
         const looseHit = exact.get(loose) as { word: string } | undefined;
         if (looseHit) return looseHit;
@@ -2272,7 +2362,8 @@ async function main() {
     console.log(`  mark-stripped aliases (${LANG}): ${aliased} keys registered`);
   }
 
-  if (PROFILE.looseAliases === 'arabic') {
+  if (PROFILE.looseAliases) {
+    const foldLoose = PROFILE.looseAliases === 'arabic' ? arabicLooseKey : hebrewLooseKey;
     // The ar sibling of markStrippedAliases (#253). Register arabicLooseKey of
     // every key as an extra inflection row, type 'unpointed', so the runtime
     // fallback has something to hit when a text spells مدرسه for مدرسة or علي
@@ -2288,18 +2379,18 @@ async function main() {
     };
     let aliased = 0;
     for (const word of entries.keys()) {
-      const loose = arabicLooseKey(word);
+      const loose = foldLoose(word);
       if (loose === word || !loose) continue;
       addAlias(loose, `${word}::unpointed`);
       aliased++;
     }
     for (const [inflected, bucket] of [...inflectionMap]) {
-      const loose = arabicLooseKey(inflected);
+      const loose = foldLoose(inflected);
       if (loose === inflected || !loose) continue;
       for (const ref of bucket) addAlias(loose, ref);
       aliased++;
     }
-    console.log(`  loose Arabic aliases (${LANG}): ${aliased} keys registered`);
+    console.log(`  loose ${PROFILE.looseAliases} aliases (${LANG}): ${aliased} keys registered`);
   }
 
   if (PROFILE.glossFilter) {

@@ -266,6 +266,12 @@ export interface MorphologyConfig {
    * بالقلم, which is not a key.
    */
   maxPrefixes?: number;
+  /**
+   * Order candidates by how many peels they take, and at equal depth try the
+   * prefix-only peel first. Hebrew needs both: שאני is ש + אני and not a
+   * clitic peel to שא, and שולחנו is שולחן + ו and not ש + ו + לחנו.
+   */
+  prefixesFirst?: boolean;
 }
 
 export interface LanguageConfig {

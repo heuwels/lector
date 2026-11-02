@@ -198,6 +198,32 @@ describe('maxPrefixes defaults to one pass', () => {
   });
 });
 
+describe('Hebrew prefixes run first', () => {
+  const hebrewMorph = LANGUAGES.he.morphology as MorphologyConfig;
+
+  it('tries a prefix peel before a clitic peel of the same depth', () => {
+    const candidates = stemCandidates('שאתה', hebrewMorph);
+    expect(candidates[0]).toEqual({ key: 'אתה', peeled: ['ש'] });
+    expect(candidates.findIndex((c) => c.key === 'שאת')).toBeGreaterThan(0);
+  });
+
+  it('stacks up to three prefixes', () => {
+    expect(keys('ומהבית', hebrewMorph)).toContain('בית');
+  });
+
+  it('tries one clitic peel before a stack of two prefixes', () => {
+    const candidates = stemCandidates('שולחנו', hebrewMorph);
+    const oneClitic = candidates.findIndex((c) => c.key === 'שולחנ');
+    const twoPrefixes = candidates.findIndex((c) => c.key === 'לחנו');
+    expect(oneClitic).toBeGreaterThanOrEqual(0);
+    expect(twoPrefixes).toBeGreaterThan(oneClitic);
+  });
+
+  it('leaves the default order alone for a pack that never asked', () => {
+    expect(LANGUAGES.ar.morphology?.prefixesFirst).toBeUndefined();
+  });
+});
+
 describe('vocabKeys', () => {
   it('puts the folded surface first, then the peeled stem', () => {
     expect(vocabKeys("l'acqua", LANGUAGES.it)).toEqual(["l'acqua", 'acqua']);

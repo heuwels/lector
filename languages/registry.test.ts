@@ -70,7 +70,7 @@ describe('registry pronunciation conformance', () => {
   // tokenize as two words and then key as one.
   it('Afrikaans, Italian and Ukrainian join and fold the apostrophe; French and Dutch do not', () => {
     const withJoiners = getAllLanguages().filter((lang) => lang.script.extraJoiners);
-    expect(withJoiners.map((lang) => lang.code)).toEqual(['af', 'it', 'uk']);
+    expect(withJoiners.map((lang) => lang.code)).toEqual(['af', 'he', 'it', 'uk']);
     const withFold = getAllLanguages().filter((lang) => lang.script.foldApostrophes);
     expect(withFold.map((lang) => lang.code)).toEqual(['af', 'it', 'uk']);
 
@@ -123,6 +123,24 @@ describe('registry pronunciation conformance', () => {
     expect(LANGUAGES.nb.ttsCode).toBe('nb-NO');
     expect(LANGUAGES.nb.ttsVoice).toBe('nb-NO-Standard-A');
     expect(LANGUAGES.nb.pronunciation.audio).toEqual(['google']);
+  });
+
+  // Hebrew joins on the apostrophe for geresh (ג'ירפה) but keys it as ׳, so it
+  // stays out of foldApostrophes, which maps every variant to ASCII '.
+  it('Modern Hebrew is rtl, joins geresh and gershayim, and names its voice', () => {
+    const pack = LANGUAGES.he;
+    expect(pack.name).toBe('Hebrew');
+    expect(pack.tatoebaCode).toBe('heb');
+    expect(pack.ttsCode).toBe('he-IL');
+    expect(pack.ttsVoice).toBe('he-IL-Standard-A');
+    expect(pack.pronunciation.audio).toEqual(['google']);
+    expect(pack.script.direction).toBe('rtl');
+    expect(pack.script.hasCase).toBe(false);
+    expect(pack.script.practiceLeniency).toBe('fold-marks');
+    expect(pack.script.foldApostrophes).toBeUndefined();
+    for (const mark of ["'", '’', '"', '”', '\u05F3', '\u05F4']) {
+      expect(pack.script.extraJoiners, `he must join ${mark}`).toContain(mark);
+    }
   });
 
   it('Modern Greek reuses the Koine script seams and stays a separate pack', () => {
