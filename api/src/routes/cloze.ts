@@ -199,7 +199,7 @@ const SENTENCE_BANKS: Record<string, () => Promise<{ default: unknown }>> = {
   // the browser's Intl.Segmenter anyway.
   zh: () => import('../lib/sentence-bank-zh.json'),
   // Also ships `tokens`, and segmented by the SAME analyser the reader uses.
-  // See api/scripts/build-cloze-ja.ts for why that matters: the Mandarin bank
+  // See scripts/languages/ja/build-cloze-ja.ts for why that matters: the Mandarin bank
   // was built with a different segmenter than the reader, and the two disagree.
   ja: () => import('../lib/sentence-bank-ja.json'),
   ko: () => import('../lib/sentence-bank-ko.json'),
