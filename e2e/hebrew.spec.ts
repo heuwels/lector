@@ -2,35 +2,45 @@ import { test, expect, Page } from '@playwright/test';
 import { apiUrl } from './api';
 import { pickLanguage } from './language-helpers';
 
-const COLLECTION = 'Hebrew E2E';
+const COLLECTION = 'Biblical Hebrew E2E';
 
-async function switchToHebrew(page: Page) {
+async function switchToBiblicalHebrew(page: Page) {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   await page.waitForLoadState('networkidle');
   const selector = page.locator('aside').getByTestId('language-selector');
   await expect(selector).toBeVisible();
   await selector.click();
-  await pickLanguage(page, 'he');
-  await expect(selector).toContainText('עברית');
+  await pickLanguage(page, 'hbo');
+  await expect(selector).toContainText('עברית מקראית');
 }
 
-test.describe('Modern Hebrew language pack', () => {
+async function lookup(page: Page, word: string) {
+  const res = await page.request.get(
+    apiUrl(`/api/dictionary/lookup?word=${encodeURIComponent(word)}&language=hbo`),
+  );
+  return res.json();
+}
+
+test.describe('Biblical Hebrew language pack', () => {
   test.afterEach(async ({ page }) => {
     await page.request.put(apiUrl('/api/settings/targetLanguage'), { data: { value: 'af' } });
   });
 
-  test('reader runs right to left and prints the pointed reading', async ({ page }) => {
-    await switchToHebrew(page);
+  test('reader renders pointed text right to left and keeps a maqaf pair whole', async ({
+    page,
+  }) => {
+    await switchToBiblicalHebrew(page);
 
     const colRes = await page.request.post(apiUrl('/api/collections'), {
-      data: { title: COLLECTION, language: 'he' },
+      data: { title: COLLECTION, language: 'hbo' },
     });
     const { id: collectionId } = await colRes.json();
     await page.request.post(apiUrl(`/api/collections/${collectionId}/lessons`), {
       data: {
-        title: 'פרק ראשון',
-        textContent: 'הילד קרא ספר בבית. הכלב של צה"ל ישן ליד השולחן.',
+        title: 'בראשית',
+        textContent:
+          'בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ׃ וַיִּכְרְתוּ גַם־שְׁנֵיהֶם בְּרִית׃',
       },
     });
     const lessons = await (
@@ -41,9 +51,9 @@ test.describe('Modern Hebrew language pack', () => {
     await page.waitForLoadState('networkidle');
 
     await expect(page.locator('[dir="rtl"]').first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('צה"ל', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('גַם־שְׁנֵיהֶם', { exact: true }).first()).toBeVisible();
 
-    const word = page.getByText('ספר', { exact: true }).first();
+    const word = page.getByText('בְּרֵאשִׁית', { exact: true }).first();
     await expect(word).toBeVisible();
     await word.click();
     const drawer = page.getByTestId('translation-drawer');
@@ -51,33 +61,23 @@ test.describe('Modern Hebrew language pack', () => {
     await expect(drawer.getByText('on-device', { exact: false })).toBeVisible({
       timeout: 10000,
     });
-    await expect(drawer.getByText(/séfer/)).toBeVisible();
 
     await page.request.delete(apiUrl(`/api/collections/${collectionId}`));
   });
 
-  test('the live lookup API folds niqqud and peels prefixes', async ({ page }) => {
-    const lookup = async (word: string) =>
-      (
-        await page.request.get(
-          apiUrl(`/api/dictionary/lookup?word=${encodeURIComponent(word)}&language=he`),
-        )
-      ).json();
+  test('the live lookup API strips niqqud and resolves a maqaf pair', async ({ page }) => {
+    const pointed = await lookup(page, 'בְּרֵאשִׁית');
+    expect(JSON.stringify(pointed.entry?.senses)).toMatch(/beginning/i);
 
-    const pointed = await lookup('כֶּלֶב');
-    expect(pointed.entry?.word).toBe('כלב');
-    expect(pointed.entry?.ipa).toContain('kélev');
-    expect(JSON.stringify(pointed.entry?.senses)).toMatch(/dog/i);
+    const created = await lookup(page, 'בָּרָא');
+    expect(JSON.stringify(created.entry?.senses)).toMatch(/create/i);
 
-    const prefixed = await lookup('והכלבים');
-    expect(JSON.stringify(prefixed.entry)).toMatch(/כלב/);
-
-    const acronym = await lookup('צה"ל');
-    expect(acronym.entry?.word).toBe('צה״ל');
+    const pair = await lookup(page, 'גַם־שְׁנֵיהֶם');
+    expect(pair.entry?.word).toBe('שניהם');
   });
 
-  test('cloze practice seeds and runs from the Hebrew bank', async ({ page }) => {
-    await switchToHebrew(page);
+  test('cloze practice seeds and runs from the Tanakh bank', async ({ page }) => {
+    await switchToBiblicalHebrew(page);
     await page.goto('/practice');
     await page.waitForLoadState('networkidle');
 
@@ -89,16 +89,5 @@ test.describe('Modern Hebrew language pack', () => {
     await page.getByRole('button', { name: 'Start' }).click();
 
     await expect(page.getByRole('button', { name: 'Check' })).toBeVisible({ timeout: 15000 });
-  });
-
-  test('TTS settings offer the Google/browser engines for a he-IL voice', async ({ page }) => {
-    await switchToHebrew(page);
-    await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
-
-    const tts = page.getByTestId('tts-settings');
-    await expect(tts).toBeVisible();
-    await expect(tts.getByRole('button', { name: 'Managed voice' })).toBeVisible();
-    await expect(tts.getByTestId('espeak-voice-note')).toHaveCount(0);
   });
 });

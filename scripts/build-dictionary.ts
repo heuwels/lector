@@ -30,6 +30,7 @@ import {
   arabicLooseKey,
   foldArabicKey,
   foldHebrewKey,
+  foldModernHebrewKey,
   hebrewLooseKey,
   stripMarks,
 } from '../languages/text';
@@ -272,14 +273,16 @@ interface LangProfile {
    *  later dump. See scripts/ar-lead-forms.json for what belongs in it. */
   leadFormsRel?: string;
   /** Register a leniently-folded variant of every key as an inflection alias,
-   *  for the runtime fallback to hit ('arabic': arabicLooseKey, type
-   *  'unpointed'). The Arabic sibling of markStrippedAliases, and the same
-   *  mechanism: exact keys always win first, so this only answers a word that
-   *  nothing else resolved. 'hebrew' uses hebrewLooseKey. */
+   *  for the runtime fallback to hit ('arabic': arabicLooseKey, 'hebrew':
+   *  hebrewLooseKey, type 'unpointed'). The sibling of markStrippedAliases,
+   *  and the same mechanism: exact keys always win first, so this only answers
+   *  a word that nothing else resolved. */
   looseAliases?: 'arabic' | 'hebrew';
-  /** Fold every key with `foldHebrewKey` (he): drop niqqud and cantillation,
-   *  and key geresh and gershayim as the Hebrew marks. Mirrors foldWord. */
-  foldHebrewKeys?: boolean;
+  /** Fold every key to mirror the runtime foldWord. Final forms stay on the
+   *  key; hebrewLooseKey aliases them. 'biblical' (hbo) is foldHebrewKey: drop
+   *  niqqud and cantillation. 'modern' (he) is foldModernHebrewKey: also key
+   *  geresh and gershayim as the Hebrew marks and drop an edge maqaf. */
+  foldHebrewKeys?: 'biblical' | 'modern';
   /** Build the entry reading as `pointed transliteration` from the canonical
    *  and romanization form rows, and keep every distinct reading the merged
    *  records offer (he). An unpointed key is often several words: כלב is
@@ -567,7 +570,7 @@ const PROFILES: Record<string, LangProfile> = {
     rootsJsonRel: null,
     coverageCorpusRel: 'scripts/coverage-corpus-he.txt',
     glossFilter: true,
-    foldHebrewKeys: true,
+    foldHebrewKeys: 'modern',
     looseAliases: 'hebrew',
     hebrewReadings: true,
     // A root entry keys ל־מ־ד, which no text spells.
@@ -768,6 +771,24 @@ const PROFILES: Record<string, LangProfile> = {
     stripFromKeys: /[\u0304\u0306]/g,
     markStrippedAliases: true,
     supplementalInflectionsRel: 'scripts/morphgnt-inflections-grc.tsv',
+  },
+  hbo: {
+    // kaikki Hebrew mixes Modern and Biblical. Treat it as a supplement.
+    // Frequency and the Tanakh lemmas come from OSHB via dictionary-roots-hbo.json.
+    kaikkiUrls: ['https://kaikki.org/dictionary/Hebrew/kaikki.org-dictionary-Hebrew.jsonl'],
+    // Hebrew block: letters, niqqud, cantillation, geresh/gershayim. Maqaf
+    // is punctuation. The reader joins on it. Keys do not include it.
+    letterClass:
+      '\\u0591-\\u05BD\\u05BF\\u05C1\\u05C2\\u05C4\\u05C5\\u05C7\\u05D0-\\u05EA\\u05F3\\u05F4',
+    prefixes: [],
+    suffixes: [],
+    vowels: 'אהוי',
+    rootsJsonRel: 'scripts/dictionary-roots-hbo.json',
+    coverageCorpusRel: 'scripts/coverage-corpus-hbo.txt',
+    glossFilter: true,
+    foldHebrewKeys: 'biblical',
+    looseAliases: 'hebrew',
+    supplementalInflectionsRel: 'scripts/oshb-inflections-hbo.tsv',
   },
   pt: {
     // Canonical /Portuguese/ URL (kaikki has no /downloads/pt/ mirror).
@@ -1476,6 +1497,9 @@ function lowerForLang(s: string): string {
 // spelling the runtime never produces.
 const APOSTROPHE_VARIANTS = /[‘’ʼʹ`´]/g;
 
+const foldHebrewByProfile = (s: string): string =>
+  PROFILE.foldHebrewKeys === 'modern' ? foldModernHebrewKey(s) : foldHebrewKey(s);
+
 function foldKey(s: string): string {
   const normalized = PROFILE.foldApostrophes
     ? s.normalize('NFC').replace(APOSTROPHE_VARIANTS, "'")
@@ -1490,7 +1514,7 @@ function foldKey(s: string): string {
   // would silently fold the waw and the ya as well, so foldArabicKey names the
   // four alef spellings instead.
   if (PROFILE.foldArabicKeys) return foldArabicKey(stripped);
-  if (PROFILE.foldHebrewKeys) return foldHebrewKey(stripped);
+  if (PROFILE.foldHebrewKeys) return foldHebrewByProfile(stripped);
   if (!PROFILE.unfoldLigatures) return stripped;
   return stripped.replace(/æ/g, 'ae').replace(/œ/g, 'oe');
 }
@@ -2029,7 +2053,7 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
     const lower = PROFILE.foldArabicKeys
       ? foldArabicKey(cased)
       : PROFILE.foldHebrewKeys
-        ? foldHebrewKey(cased)
+        ? foldHebrewByProfile(cased)
         : cased;
 
     const hit = exact.get(lower) as { word: string } | undefined;
@@ -2071,7 +2095,7 @@ function buildLookup(db: Database.Database): (w: string) => LookupShape | undefi
 
     // Mirror of the runtime loose-Arabic fallback (dictionary-db.ts step 3-ar):
     // retry with the ة→ه, ى→ي key against the alias rows.
-    if (PROFILE.looseAliases) {
+    if (PROFILE.looseAliases === 'arabic' || PROFILE.looseAliases === 'hebrew') {
       const loose =
         PROFILE.looseAliases === 'arabic' ? arabicLooseKey(lower) : hebrewLooseKey(lower);
       if (loose !== lower) {
@@ -2362,13 +2386,11 @@ async function main() {
     console.log(`  mark-stripped aliases (${LANG}): ${aliased} keys registered`);
   }
 
-  if (PROFILE.looseAliases) {
+  if (PROFILE.looseAliases === 'arabic' || PROFILE.looseAliases === 'hebrew') {
+    // Register the lenient key of every entry as an extra inflection row, type
+    // 'unpointed', so the runtime fallback has something to hit. Exact keys
+    // always win first.
     const foldLoose = PROFILE.looseAliases === 'arabic' ? arabicLooseKey : hebrewLooseKey;
-    // The ar sibling of markStrippedAliases (#253). Register arabicLooseKey of
-    // every key as an extra inflection row, type 'unpointed', so the runtime
-    // fallback has something to hit when a text spells مدرسه for مدرسة or علي
-    // for على. Exact keys always win first, so a real minimal pair keeps its
-    // own entry and this only answers a word nothing else resolved.
     const addAlias = (alias: string, ref: string) => {
       let bucket = inflectionMap.get(alias);
       if (!bucket) {

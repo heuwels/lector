@@ -2,10 +2,10 @@
 // so this pack takes Tatoeba `heb`, wordfreq and a modern voice.
 //
 // Running text is unpointed and the dictionary prints niqqud, so every key goes
-// through foldHebrewKey. A lookup prints the pointed spelling and a
+// through foldModernHebrewKey. A lookup prints the pointed spelling and a
 // transliteration beside the word, from the dictionary build.
 
-import { foldHebrewKey } from '../text';
+import { foldModernHebrewKey } from '../text';
 
 // Cloze stop-words, as unpointed keys with final forms kept.
 const AVOID_RAW = [
@@ -167,7 +167,7 @@ const AVOID_RAW = [
   'להיות',
 ];
 
-const AVOID_WORDS = new Set(AVOID_RAW.map(foldHebrewKey));
+const AVOID_WORDS = new Set(AVOID_RAW.map(foldModernHebrewKey));
 
 export const he = {
   name: 'Hebrew',
@@ -188,7 +188,7 @@ export const he = {
     kind: 'alpha-spaced' as const,
     hasCase: false,
     // Geresh and gershayim sit inside a word (ג'ירפה, צה"ל), typed as the
-    // Hebrew marks or as ASCII and curly quotes. foldHebrewKey maps each variant.
+    // Hebrew marks or as ASCII and curly quotes. foldModernHebrewKey maps each variant.
     extraJoiners: '\'‘’`´"“”׳״',
     // A learner types unpointed Hebrew. foldForComparison drops niqqud, geresh
     // and gershayim, and folds final forms.

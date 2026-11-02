@@ -2,10 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   arabicLooseKey,
   foldHebrewKey,
-  hebrewLooseKey,
   foldArabicKey,
   foldForComparison,
+  foldModernHebrewKey,
   foldWord,
+  hebrewLooseKey,
   latinLookupVariants,
   normalizeText,
 } from './text';
@@ -293,7 +294,54 @@ describe('arabicLooseKey (#253)', () => {
   });
 });
 
-describe('Hebrew keys', () => {
+const hbo = LANGUAGES.hbo;
+
+describe('Hebrew keys (#255)', () => {
+  it('strips niqqud so a pointed verse and an unpointed key match', () => {
+    expect(foldWord('בְּרֵאשִׁית', hbo)).toBe('בראשית');
+    expect(foldWord('בָּרָא', hbo)).toBe('ברא');
+    expect(foldWord('אֱלֹהִים', hbo)).toBe('אלהים');
+  });
+
+  it('strips cantillation marks', () => {
+    expect(foldWord('בְּרֵאשִׁ֖ית', hbo)).toBe('בראשית');
+    expect(foldWord('אֱלֹהִ֑ים', hbo)).toBe('אלהים');
+  });
+
+  it('keeps final letter forms on the key', () => {
+    expect(foldWord('הַשָּׁמַיִם', hbo)).toBe('השמים');
+    expect(foldWord('אֶרֶץ', hbo)).toBe('ארץ');
+  });
+
+  it('keeps maqaf so a joined token can split at lookup', () => {
+    expect(foldWord('גַם־שְׁנֵיהֶם', hbo)).toBe('גם־שניהם');
+  });
+
+  it('does not lowercase, because Hebrew has no case', () => {
+    expect(hbo.script.hasCase).toBe(false);
+    expect(foldWord('Wi-Fi', hbo)).toBe('Wi-Fi');
+  });
+
+  it('is idempotent', () => {
+    const once = foldHebrewKey('בְּרֵאשִׁית');
+    expect(foldHebrewKey(once)).toBe(once);
+  });
+});
+
+describe('hebrewLooseKey (#255)', () => {
+  it('folds final forms onto their medial pairs', () => {
+    expect(hebrewLooseKey('מלך')).toBe('מלכ');
+    expect(hebrewLooseKey('שמים')).toBe('שמימ');
+    expect(hebrewLooseKey('ארץ')).toBe('ארצ');
+  });
+
+  it('is not applied to the key itself', () => {
+    expect(foldWord('השמים', hbo)).toBe('השמים');
+    expect(foldWord('מלך', hbo)).toBe('מלך');
+  });
+});
+
+describe('Modern Hebrew keys', () => {
   const he = LANGUAGES.he as LanguageConfig;
 
   it('drops niqqud and cantillation', () => {
@@ -303,15 +351,16 @@ describe('Hebrew keys', () => {
   });
 
   it('keys geresh and gershayim as the Hebrew marks', () => {
-    expect(foldHebrewKey("ג'ירפה")).toBe('ג׳ירפה');
-    expect(foldHebrewKey('צ’יפס')).toBe('צ׳יפס');
-    expect(foldHebrewKey('צה"ל')).toBe('צה״ל');
-    expect(foldHebrewKey('ארה”ב')).toBe('ארה״ב');
+    expect(foldModernHebrewKey("ג'ירפה")).toBe('ג׳ירפה');
+    expect(foldModernHebrewKey('צ’יפס')).toBe('צ׳יפס');
+    expect(foldModernHebrewKey('צה"ל')).toBe('צה״ל');
+    expect(foldModernHebrewKey('ארה”ב')).toBe('ארה״ב');
+    expect(foldWord('צה"ל', LANGUAGES.hbo)).toBe('צה"ל');
   });
 
   it('drops a maqaf at either edge and keeps one inside', () => {
-    expect(foldHebrewKey('כַּלְבֵי־')).toBe('כלבי');
-    expect(foldHebrewKey('בית־ספר')).toBe('בית־ספר');
+    expect(foldModernHebrewKey('כַּלְבֵי־')).toBe('כלבי');
+    expect(foldModernHebrewKey('בית־ספר')).toBe('בית־ספר');
   });
 
   it('keeps final forms on the key and folds them only in the loose key', () => {

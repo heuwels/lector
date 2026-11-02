@@ -83,6 +83,10 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation('Ἰουδαίων;')).toEqual(['Ἰουδαίων', ';']);
     expect(splitTrailingPunctuation('λόγος,')).toEqual(['λόγος', ',']);
   });
+
+  it('strips the Hebrew sof pasuq from a pointed word', () => {
+    expect(splitTrailingPunctuation('לֵאמֹֽר׃')).toEqual(['לֵאמֹֽר', '׃']);
+  });
 });
 
 describe('sentenceContainsWord', () => {

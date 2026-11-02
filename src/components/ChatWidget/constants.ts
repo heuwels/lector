@@ -57,6 +57,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What does the aorist tense mean compared to the imperfect?',
     'What\'s the difference between "οὐ" and "μή" for negation?',
   ],
+  hbo: [
+    'How do the prefixes ו, ה, ב, ל, כ, מ and ש attach, and in what order do they stack?',
+    'What is the difference between qal and hiphil for a root like קטל?',
+    'When do I read the ketiv and when do I read the qere?',
+  ],
   he: [
     'How do the prefixes ו, ה, ב, ל, כ, מ and ש attach, and in what order do they stack?',
     'What is the difference between the binyanim פעל, פיעל and התפעל for a root like ל-מ-ד?',

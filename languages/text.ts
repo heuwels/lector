@@ -45,7 +45,8 @@ export function foldWord(text: string, pack: LanguageConfig): string {
   const cased = pack.script.hasCase ? lowerForPack(normalized, pack) : normalized;
   if (pack.code === 'la') return foldLatinKey(cased);
   if (pack.code === 'ar') return foldArabicKey(cased);
-  if (pack.code === 'he') return foldHebrewKey(cased);
+  if (pack.code === 'hbo') return foldHebrewKey(cased);
+  if (pack.code === 'he') return foldModernHebrewKey(cased);
   return cased;
 }
 
@@ -136,9 +137,25 @@ export function arabicLooseKey(key: string): string {
   return key.replace(/\u0629/g, '\u0647').replace(/\u0649/g, '\u064A');
 }
 
-// Cantillation (U+0591–U+05AF) and niqqud. Maqaf (U+05BE), paseq (U+05C0) and
-// sof pasuq (U+05C3) are punctuation and stay.
+// Cantillation (te'amim, U+0591–U+05AF) and niqqud (U+05B0–U+05BD, U+05BF,
+// U+05C1–U+05C2, U+05C4–U+05C5, U+05C7). Maqaf (U+05BE), paseq (U+05C0) and
+// sof pasuq (U+05C3) stay: they are punctuation, not vowel marks. hbo joins
+// on maqaf, so the mark must remain on the key for lookup to split it.
 const HEBREW_MARKS = /[\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]/g;
+
+/**
+ * Biblical Hebrew vocab key (#255): drop cantillation and niqqud.
+ *
+ * A verse prints בְּרֵאשִׁית and the dictionary keys בראשית. Final letter
+ * forms stay on the key. They fold only at lookup, via hebrewLooseKey, so a
+ * genuine headword keeps the final kaf a reader expects.
+ *
+ * Maqaf stays on a joined token (גם־שניהם) so lookup can split the parts.
+ */
+export function foldHebrewKey(text: string): string {
+  return text.replace(HEBREW_MARKS, '');
+}
+
 // Keyboards type ' and " for geresh ׳ and gershayim ״ (ג'ירפה, צה"ל). kaikki
 // keys the Hebrew marks.
 const HEBREW_GERESH_VARIANTS = /['‘’`´]/g;
@@ -146,14 +163,12 @@ const HEBREW_GERSHAYIM_VARIANTS = /["“”]/g;
 const HEBREW_EDGE_MAQAF = /^\u05BE+|\u05BE+$/g;
 
 /**
- * Hebrew vocab key: drop niqqud and cantillation, and spell geresh and
- * gershayim with the Hebrew marks. Final letter forms stay on the key. They
- * fold only at lookup, via hebrewLooseKey. kaikki writes a construct form
- * with a trailing maqaf (כַּלְבֵי־), so an edge maqaf drops.
+ * Modern Hebrew vocab key: foldHebrewKey, then spell geresh and gershayim with
+ * the Hebrew marks. kaikki writes a construct form with a trailing maqaf
+ * (כַּלְבֵי־), so an edge maqaf drops. A maqaf inside a word stays.
  */
-export function foldHebrewKey(text: string): string {
-  return text
-    .replace(HEBREW_MARKS, '')
+export function foldModernHebrewKey(text: string): string {
+  return foldHebrewKey(text)
     .replace(HEBREW_GERESH_VARIANTS, '\u05F3')
     .replace(HEBREW_GERSHAYIM_VARIANTS, '\u05F4')
     .replace(HEBREW_EDGE_MAQAF, '');
@@ -168,9 +183,11 @@ const HEBREW_FINAL_FORMS: Record<string, string> = {
 };
 
 /**
- * The lenient Hebrew key: final ך ם ן ף ץ fold onto their medial pairs. A peel
- * leaves a medial letter at the end of a stem (שולחנך gives שולחנ), and the
- * build stores this key of every entry as an alias row.
+ * The lenient Hebrew key (#255). Final ך ם ן ף ץ fold onto their medial
+ * pairs. Exact keys win first, so מלך keeps its own entry and מלכ reaches it
+ * only after that miss. A Modern Hebrew peel leaves a medial letter at the end
+ * of a stem (שולחנך gives שולחנ), and the build stores this key of every entry
+ * as an alias row.
  */
 export function hebrewLooseKey(key: string): string {
   return key.replace(/[ךםןףץ]/g, (letter) => HEBREW_FINAL_FORMS[letter] ?? letter);
@@ -238,6 +255,8 @@ export function stripMarks(text: string): string {
 export function foldForComparison(text: string, pack: LanguageConfig): string {
   if (pack.script.practiceLeniency !== 'fold-marks') return text;
   if (pack.code === 'ar') return foldArabicKey(text);
-  if (pack.code === 'he') return hebrewLooseKey(foldHebrewKey(text).replace(/[\u05F3\u05F4]/g, ''));
+  if (pack.code === 'hbo') return hebrewLooseKey(foldHebrewKey(text));
+  if (pack.code === 'he')
+    return hebrewLooseKey(foldModernHebrewKey(text).replace(/[\u05F3\u05F4]/g, ''));
   return stripMarks(text);
 }
