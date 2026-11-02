@@ -20,7 +20,7 @@ Prerequisites:
     npx tsx scripts/build-dictionary.ts --lang he
 
 Usage:
-    tmp/starter-venv/bin/python scripts/build-cloze-he.py
+    tmp/starter-venv/bin/python scripts/languages/he/build-cloze-he.py
 
 Downloads are cached in tmp/cloze-he and read compressed. Re-running with the
 same Tatoeba exports, wordfreq data and dictionary produces the same bank.
@@ -45,7 +45,7 @@ from pathlib import Path
 from wordfreq import top_n_list
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 TATOEBA_DOWNLOADS = 'https://downloads.tatoeba.org/exports/per_language'
 LANGUAGE_CODE = 'heb'
 ENGLISH_CODE = 'eng'
@@ -57,7 +57,7 @@ CONTENT_PARTS_OF_SPEECH = {'adj', 'adv', 'intj', 'noun', 'num', 'verb'}
 HEBREW_WORD = re.compile('^[\u05D0-\u05EA][\u05D0-\u05EA\u05F3\u05F4]*$')
 
 # Keep in step with foldHebrewKey in languages/text.ts and fold in
-# scripts/gen-coverage-corpus-he.py.
+# scripts/languages/he/gen-coverage-corpus-he.py.
 HEBREW_MARKS = re.compile('[\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]')
 HEBREW_GERESH = re.compile("['\u2018\u2019`\u00B4]")
 HEBREW_GERSHAYIM = re.compile('["\u201C\u201D]')

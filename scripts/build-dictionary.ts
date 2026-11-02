@@ -568,7 +568,7 @@ const PROFILES: Record<string, LangProfile> = {
     suffixes: [],
     vowels: '\u05D0\u05D4\u05D5\u05D9',
     rootsJsonRel: null,
-    coverageCorpusRel: 'scripts/coverage-corpus-he.txt',
+    coverageCorpusRel: 'scripts/languages/he/coverage-corpus-he.txt',
     glossFilter: true,
     foldHebrewKeys: 'modern',
     looseAliases: 'hebrew',

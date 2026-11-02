@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Generate the build-time coverage corpus for `build-dictionary.ts --lang he`.
 
-Writes scripts/coverage-corpus-he.txt: the top-N most frequent Hebrew tokens,
+Writes scripts/languages/he/coverage-corpus-he.txt: the top-N most frequent Hebrew tokens,
 used by the builder's >=85% coverage gate. The list is folded the way
 foldHebrewKey in languages/text.ts folds a key.
 
     tmp/starter-venv/bin/pip install wordfreq
-    tmp/starter-venv/bin/python scripts/gen-coverage-corpus-he.py [N]   # default N=5000
+    tmp/starter-venv/bin/python scripts/languages/he/gen-coverage-corpus-he.py [N]   # default N=5000
 """
 import os
 import re
