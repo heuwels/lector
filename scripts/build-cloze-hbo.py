@@ -235,15 +235,15 @@ def select_bank(
     bank: list[dict[str, object]] = []
     for candidate in candidates:
         for option in sorted(selected.get(candidate.rank, []), key=lambda item: item.score):
-            text = ' '.join(token.text for token in option.segment.tokens)
-            if not text.endswith('׃'):
-                text = f'{text}׃'
+            words = [token.text for token in option.segment.tokens]
+            if not words[-1].endswith('׃'):
+                words[-1] = f'{words[-1]}׃'
             bank.append(
                 {
                     'id': option.segment.segment_id,
-                    'text': text,
+                    'text': ' '.join(words),
                     'translation': option.segment.translation,
-                    'clozeWord': option.cloze_word,
+                    'clozeWord': words[option.cloze_index],
                     'clozeIndex': option.cloze_index,
                     'wordRank': candidate.rank,
                     'collection': collection_for_rank(candidate.rank),
