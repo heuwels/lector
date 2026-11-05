@@ -355,6 +355,8 @@ put BILLING_EXEMPT_EMAILS billing-exempt-emails
 put LECTOR_ADMIN_EMAILS   admin-emails
 put SENTRY_DSN            sentry-dsn
 put SENTRY_TRACES_SAMPLE_RATE sentry-traces-sample-rate
+put ANALYTICS_FORWARDING_URL analytics-forwarding-url
+put ANALYTICS_WEBSITE_ID analytics-website-id
 # Audio-lesson transcription (#185): worker gate + external OpenAI-compatible
 # ASR endpoint (Groq on hosted boxes — never run Whisper on the instance).
 put TRANSCRIBE_WORKER     transcribe-worker

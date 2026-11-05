@@ -6,32 +6,16 @@ import { lectorMode } from '@/lib/api-base';
 
 const noSubscription = () => () => {};
 
-// Plausible tracks the cloud canary (app.lector.dev) only — self-hosted installs
-// default to lectorMode() === 'selfhost' and never load the third-party script.
-// useSyncExternalStore rather than useState+useEffect: window.__ENV__ doesn't
-// exist during SSR, so the server snapshot is fixed at `false` and the client
-// snapshot (lectorMode()) is only read in the browser — avoiding the hydration
-// mismatch SetupGuard sidesteps by not reading localStorage before mount.
+// Cloud only. Self-host leaves ANALYTICS unset, so this renders nothing.
+// The server snapshot stays false: window.__ENV__ does not exist during SSR.
 export default function Analytics() {
-  const cloud = useSyncExternalStore(
+  const on = useSyncExternalStore(
     noSubscription,
-    () => lectorMode() === 'cloud',
+    () => lectorMode() === 'cloud' && window.__ENV__?.ANALYTICS === '1',
     () => false,
   );
 
-  if (!cloud) return null;
+  if (!on) return null;
 
-  return (
-    <>
-      <Script
-        async
-        src="https://plausible.io/js/pa-xQmf4ajJGkUSy59pCYMJz.js"
-        strategy="afterInteractive"
-      />
-      <Script id="plausible-init" strategy="afterInteractive">
-        {`window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
-plausible.init()`}
-      </Script>
-    </>
-  );
+  return <Script async src="/a/boot.js" strategy="afterInteractive" />;
 }
