@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Book, BookOpen, CheckCircle, Flame } from 'lucide-react';
+import { Book, BookOpen, CheckCircle, Flame, PenLine } from 'lucide-react';
 import Link from 'next/link';
 import {
   getAllDailyStats,
@@ -13,6 +13,7 @@ import {
   getReadingStats,
   getStreak,
   getSetting,
+  getJournalWordStats,
   syncAnkiReviews,
 } from '@/lib/data-layer';
 import { lectorMode } from '@/lib/api-base';
@@ -59,13 +60,15 @@ export default function StatsPage() {
           }
         }
 
-        const [collectionCounts, fluency, reading, streakData, tzSetting] = await Promise.all([
-          getCollectionCounts(),
-          getFluencyStats(),
-          getReadingStats(),
-          getStreak(),
-          getSetting<string>('timezone'),
-        ]);
+        const [collectionCounts, fluency, reading, streakData, tzSetting, journalWords] =
+          await Promise.all([
+            getCollectionCounts(),
+            getFluencyStats(),
+            getReadingStats(),
+            getStreak(),
+            getSetting<string>('timezone'),
+            getJournalWordStats(),
+          ]);
 
         // "Today" is a calendar date in the configured time zone (falling back
         // to this device's zone), not UTC — otherwise the window misses today's
@@ -167,6 +170,7 @@ export default function StatsPage() {
           collectionCounts,
           fluency,
           endDate,
+          journalWords,
         });
       } catch (error) {
         console.error('Failed to load stats:', error);
@@ -249,6 +253,28 @@ export default function StatsPage() {
           sublabel={`Longest: ${stats.longestStreak} days`}
           color="orange"
           icon={<Flame size="24" />}
+        />
+      </div>
+
+      <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3" data-testid="journal-word-stats">
+        <StatCard
+          label="Journal words this month"
+          value={stats.journalWords.month}
+          color="green"
+          icon={<PenLine size="24" />}
+        />
+        <StatCard
+          label="Journal words this year"
+          value={stats.journalWords.year}
+          color="blue"
+          icon={<PenLine size="24" />}
+        />
+        <StatCard
+          label="Journal words all time"
+          value={stats.journalWords.lifetime}
+          sublabel="Finished pages only"
+          color="purple"
+          icon={<PenLine size="24" />}
         />
       </div>
 

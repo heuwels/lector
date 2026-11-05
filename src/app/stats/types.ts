@@ -1,5 +1,5 @@
-import { FluencyStats, ReadingStats } from "@/lib/data-layer";
-import { ClozeCollection, DailyStats, WordState } from "@/types";
+import { FluencyStats, ReadingStats } from '@/lib/data-layer';
+import { ClozeCollection, DailyStats, WordState } from '@/types';
 
 export interface StatsData {
   totalKnown: number;
@@ -24,4 +24,5 @@ export interface StatsData {
   fluency: FluencyStats;
   // Today's date in the user's time zone — the anchor for windowing the series.
   endDate: string;
+  journalWords: { month: number; year: number; lifetime: number };
 }

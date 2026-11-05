@@ -60,7 +60,7 @@ flowchart LR
 | Translation | Word tap, gloss, and In-context action | [translation.md](translation.md) |
 | Vocabulary | Saved entries, word states, and known-word import | [vocabulary.md](vocabulary.md) |
 | Practice | Cloze, dictation, and review | [practice.md](practice.md) |
-| Journal | Draft and correction | [journal.md](journal.md) |
+| Journal | Draft, save, correction, critique, and revision | [journal.md](journal.md) |
 | Tutor | Chat widget and cloze Explain | [tutor.md](tutor.md) |
 | Listen | Speech, podcast audio, and YouTube captions | [listen.md](listen.md) |
 | Anki | Card push and review sync | [anki.md](anki.md) |
@@ -134,8 +134,10 @@ Cloud mode adds Auth, Billing, and Admin. Selfhost skips those three domains. Se
 | Practice word | Practice | [practice.md](practice.md#practice-word) |
 | Dictation | Practice | [practice.md](practice.md#dictation) |
 | Blacklist sentence | Practice | [practice.md](practice.md#blacklist-sentence) |
-| Submit journal for correction | Journal | [journal.md](journal.md#submit-journal-for-correction) |
+| Save a journal entry | Journal | [journal.md](journal.md#save-a-journal-entry) |
 | Save journal draft | Journal | [journal.md](journal.md#save-journal-draft) |
+| Ask for a correction | Journal | [journal.md](journal.md#ask-for-a-correction) |
+| Add a revision | Journal | [journal.md](journal.md#add-a-revision) |
 | Tutor chat | Tutor | [tutor.md](tutor.md#tutor-chat) |
 | Cloze Explain | Tutor | [tutor.md](tutor.md#cloze-explain) |
 | Speak word | Listen | [listen.md](listen.md#speak-word) |
