@@ -531,6 +531,111 @@ describe('OpenAICompatibleProvider', () => {
     });
   });
 
+  describe('rate limits and upstream errors', () => {
+    const rateLimited = () =>
+      new Response(
+        JSON.stringify({ error: { message: 'Provider returned error', code: 429 } }),
+        { status: 429 },
+      );
+    const sseAnswer = (text: string) =>
+      new Response(
+        `data: {"choices":[{"delta":{"content":${JSON.stringify(text)}}}]}\n\ndata: [DONE]\n\n`,
+        { status: 200 },
+      );
+
+    test('retries a 429 on a streamed gloss, and then streams the answer', async () => {
+      let calls = 0;
+      globalThis.fetch = mock(async () => {
+        calls += 1;
+        return calls === 1 ? rateLimited() : sseAnswer('house');
+      }) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({
+        model: 'google/gemini-2.5-flash-lite',
+        retryDelaysMs: [0, 0],
+        usageLogger: () => {},
+      });
+      let text = '';
+      for await (const delta of provider.stream({
+        messages: [{ role: 'user', content: 'gloss' }],
+        maxTokens: 32,
+        task: 'word-gloss',
+      })) {
+        text += delta;
+      }
+      expect(text).toBe('house');
+      expect(calls).toBe(2);
+    });
+
+    test('retries a 5xx on a completion', async () => {
+      let calls = 0;
+      globalThis.fetch = mock(async () => {
+        calls += 1;
+        if (calls < 3) return new Response('bad gateway', { status: 502 });
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+          status: 200,
+        });
+      }) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({
+        model: 'm',
+        retryDelaysMs: [0, 0],
+        usageLogger: () => {},
+      });
+      const result = await provider.complete({
+        messages: [{ role: 'user', content: 'Hi' }],
+        maxTokens: 10,
+      });
+      expect(result).toBe('ok');
+      expect(calls).toBe(3);
+    });
+
+    test('stops after the last retry and reports the provider error', async () => {
+      let calls = 0;
+      globalThis.fetch = mock(async () => {
+        calls += 1;
+        return rateLimited();
+      }) as unknown as typeof fetch;
+
+      const events: Array<{ success: boolean }> = [];
+      const provider = new OpenAICompatibleProvider({
+        model: 'm',
+        retryDelaysMs: [0, 0],
+        usageLogger: (event) => events.push(event),
+      });
+      const read = async () => {
+        for await (const _delta of provider.stream({
+          messages: [{ role: 'user', content: 'gloss' }],
+          maxTokens: 32,
+          task: 'word-gloss',
+        })) {
+          // no text
+        }
+      };
+      await expect(read()).rejects.toThrow('LLM provider error');
+      expect(calls).toBe(3);
+      expect(events).toEqual([expect.objectContaining({ success: false })]);
+    });
+
+    test('does not retry a request that the provider refuses', async () => {
+      let calls = 0;
+      globalThis.fetch = mock(async () => {
+        calls += 1;
+        return new Response('bad request', { status: 400 });
+      }) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({
+        model: 'm',
+        retryDelaysMs: [0, 0],
+        usageLogger: () => {},
+      });
+      await expect(
+        provider.complete({ messages: [{ role: 'user', content: 'Hi' }], maxTokens: 10 }),
+      ).rejects.toThrow('LLM provider error: bad request');
+      expect(calls).toBe(1);
+    });
+  });
+
   describe('healthCheck', () => {
     test('returns ok on 200', async () => {
       globalThis.fetch = mock(async (url: string) => {
