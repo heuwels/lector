@@ -533,10 +533,9 @@ describe('OpenAICompatibleProvider', () => {
 
   describe('rate limits and upstream errors', () => {
     const rateLimited = () =>
-      new Response(
-        JSON.stringify({ error: { message: 'Provider returned error', code: 429 } }),
-        { status: 429 },
-      );
+      new Response(JSON.stringify({ error: { message: 'Provider returned error', code: 429 } }), {
+        status: 429,
+      });
     const sseAnswer = (text: string) =>
       new Response(
         `data: {"choices":[{"delta":{"content":${JSON.stringify(text)}}}]}\n\ndata: [DONE]\n\n`,
