@@ -240,7 +240,7 @@ describe('per-user credential storage and routing', () => {
     saveByokCredential('byok-test-a', 'openrouter', 'sk-user-a', 'openai/gpt-5');
     await getProvider('byok-test-a', { byok: true }).complete({
       messages: [{ role: 'user', content: 'Translate' }],
-      maxTokens: 100,
+      maxTokens: 4096,
       responseFormat: 'json-object',
       task: 'phrase-rich',
     });
@@ -248,13 +248,13 @@ describe('per-user credential storage and routing', () => {
     saveByokCredential('byok-test-b', 'openrouter', 'sk-user-b', 'google/gemini-2.5-flash-lite');
     await getProvider('byok-test-b', { byok: true }).complete({
       messages: [{ role: 'user', content: 'Translate' }],
-      maxTokens: 100,
+      maxTokens: 4096,
       responseFormat: 'json-object',
     });
 
     expect(bodies[0]).toMatchObject({
       model: 'openai/gpt-5',
-      max_completion_tokens: 100,
+      max_completion_tokens: 4096,
       response_format: { type: 'json_object' },
       provider: { require_parameters: true },
       reasoning: { effort: 'minimal' },
@@ -262,7 +262,7 @@ describe('per-user credential storage and routing', () => {
     expect(bodies[0].max_tokens).toBeUndefined();
     expect(bodies[1]).toMatchObject({
       model: 'google/gemini-2.5-flash-lite',
-      max_tokens: 100,
+      max_tokens: 4096,
       response_format: { type: 'json_object' },
       provider: { require_parameters: true },
     });
@@ -285,12 +285,12 @@ describe('per-user credential storage and routing', () => {
 
     await getClassificationProvider().complete({
       messages: [{ role: 'user', content: 'Classify' }],
-      maxTokens: 100,
+      maxTokens: 4096,
       responseFormat: 'json-array',
       task: 'word-classification',
     });
 
-    expect(body).toMatchObject({ model: 'openai/gpt-5', max_completion_tokens: 100 });
+    expect(body).toMatchObject({ model: 'openai/gpt-5', max_completion_tokens: 4096 });
     expect(body?.max_tokens).toBeUndefined();
     expect(body?.response_format).toBeUndefined();
     expect(body?.provider).toBeUndefined();

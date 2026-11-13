@@ -11,7 +11,7 @@ import {
 import type { CompletionOptions, LLMProvider, ProviderAccessOptions } from '../lib/llm';
 import { InMemoryTranslationBurstLimiter } from '../lib/rate-limit';
 import { getSpelreelsContext } from '../lib/spelreels';
-import { makeTranslateRoutes } from './translate';
+import { MAX_GLOSS_CHARS, makeTranslateRoutes } from './translate';
 
 const FREE: PlanLimits = {
   ...NO_STORAGE_LIMITS,
@@ -489,6 +489,25 @@ describe('refunds and burst protection', () => {
     };
     const ok = await post(app, '/gloss', { word: 'huis' });
     expect(await ok.text()).toBe('meaning');
+    expect(engine.getUsage('local', 'wordGlossesPerMonth')).toBe(1);
+  });
+
+  test('limits the visible gloss when a model ignores the short-answer prompt', async () => {
+    const engine = makeEngine({ now: () => new Date('2026-07-15T12:00:00Z') });
+    const provider = new FakeProvider();
+    let pulled = 0;
+    provider.streamImpl = async function* () {
+      for (let index = 0; index < 100; index += 1) {
+        pulled += 1;
+        yield 'a long answer ';
+      }
+    };
+    const { app } = makeApp({ engine, provider });
+
+    const response = await post(app, '/gloss', { word: 'huis' });
+    const text = await response.text();
+    expect(text).toHaveLength(MAX_GLOSS_CHARS);
+    expect(pulled).toBeLessThan(100);
     expect(engine.getUsage('local', 'wordGlossesPerMonth')).toBe(1);
   });
 

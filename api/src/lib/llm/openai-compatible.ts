@@ -4,6 +4,16 @@ import { LLMTruncatedError } from './errors';
 const DEFAULT_URL = 'http://localhost:11434';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+/**
+ * The smallest output budget we send to a model that we did not pin. A
+ * reasoning model (DeepSeek in thinking mode, gpt-oss, Qwen3 and others)
+ * counts its hidden thinking against max_tokens. With the 32-token gloss
+ * budget, the thinking used every token and the answer came back empty
+ * (#628). Only the task models that the deployment pins, which have thinking
+ * off, keep the exact small budget that the Free cost model needs.
+ */
+export const MIN_UNPINNED_OUTPUT_TOKENS = 2048;
+
 export type OpenAICompatibleProfile = 'generic' | 'openrouter';
 
 export interface OpenAICompatibleOptions {
@@ -65,6 +75,12 @@ export class OpenAICompatibleProvider implements LLMProvider {
 
   modelForTask(task?: LLMTask): string {
     return (task && this.taskModels[task]) || this.model;
+  }
+
+  /** The max_tokens value to send. See MIN_UNPINNED_OUTPUT_TOKENS. */
+  private outputBudget(options: CompletionOptions): number {
+    if (options.task && this.taskModels[options.task]) return options.maxTokens;
+    return Math.max(options.maxTokens, MIN_UNPINNED_OUTPUT_TOKENS);
   }
 
   private usesMaxCompletionTokens(model: string): boolean {
@@ -136,7 +152,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
 
   private async requestCompletion(options: CompletionOptions): Promise<string> {
     const startedAt = Date.now();
-    const maxTokens = options.maxTokens;
+    const maxTokens = this.outputBudget(options);
     const selectedModel = this.modelForTask(options.task);
     const body: Record<string, unknown> = { model: selectedModel, messages: options.messages };
     if (this.usesMaxCompletionTokens(selectedModel)) body.max_completion_tokens = maxTokens;
@@ -220,8 +236,9 @@ export class OpenAICompatibleProvider implements LLMProvider {
       messages: options.messages,
       stream: true,
     };
-    if (this.usesMaxCompletionTokens(selectedModel)) body.max_completion_tokens = options.maxTokens;
-    else body.max_tokens = options.maxTokens;
+    const maxTokens = this.outputBudget(options);
+    if (this.usesMaxCompletionTokens(selectedModel)) body.max_completion_tokens = maxTokens;
+    else body.max_tokens = maxTokens;
     if (this.profile === 'openrouter') {
       body.stream_options = { include_usage: true };
     }
@@ -229,6 +246,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     let actualModel = selectedModel;
     let usage: ProviderUsage | undefined;
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let produced = false;
     try {
       const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
         method: 'POST',
@@ -271,10 +289,22 @@ export class OpenAICompatibleProvider implements LLMProvider {
               const detail = json.error.message || json.error.code || 'Unknown provider error';
               throw new Error(`LLM provider error: ${detail}`);
             }
-            const delta = json.choices?.[0]?.delta?.content;
-            if (delta) yield delta as string;
+            const choice = json.choices?.[0];
+            const delta = choice?.delta?.content;
+            if (delta) {
+              produced = true;
+              yield delta as string;
+            }
+            // A reasoning model can use the full budget on its thinking and
+            // send no answer. Report that, and do not end with an empty gloss.
+            if (choice?.finish_reason === 'length' && !produced) {
+              throw new LLMTruncatedError(maxTokens, false);
+            }
           } catch (error) {
-            if (error instanceof Error && error.message.startsWith('LLM provider error:')) {
+            if (
+              error instanceof LLMTruncatedError ||
+              (error instanceof Error && error.message.startsWith('LLM provider error:'))
+            ) {
               throw error;
             }
             // keep-alive ping or non-JSON line — ignore

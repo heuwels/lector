@@ -224,6 +224,9 @@ async function buildWordEntryResponse(
   return stitchWordEntry(entry, word);
 }
 
+/** The longest gloss that the reader shows. The prompt asks for 12 words or fewer. */
+export const MAX_GLOSS_CHARS = 200;
+
 export function makeTranslateRoutes({
   providerForUser,
   engine,
@@ -276,8 +279,13 @@ export function makeTranslateRoutes({
           maxTokens: 32,
           task: 'word-gloss',
         })) {
-          output += delta;
-          await stream.write(delta);
+          // A model that we did not pin gets a larger token budget, so that
+          // its thinking fits (#628). Limit the visible gloss here instead.
+          const room = MAX_GLOSS_CHARS - output.length;
+          const piece = delta.slice(0, room);
+          output += piece;
+          if (piece) await stream.write(piece);
+          if (output.length >= MAX_GLOSS_CHARS) break;
         }
         if (!output.trim()) engine.refund(reservation);
       } catch (error) {

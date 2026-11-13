@@ -1,5 +1,5 @@
 import { describe, test, expect, afterEach, mock } from 'bun:test';
-import { OpenAICompatibleProvider } from './openai-compatible';
+import { MIN_UNPINNED_OUTPUT_TOKENS, OpenAICompatibleProvider } from './openai-compatible';
 import { LLMTruncatedError } from './errors';
 import { completeJson } from './complete-json';
 
@@ -156,7 +156,7 @@ describe('OpenAICompatibleProvider', () => {
         const body = JSON.parse(init?.body as string);
         expect(body.model).toBe('my-model');
         expect(body.messages).toEqual([{ role: 'user', content: 'Hi' }]);
-        expect(body.max_tokens).toBe(50);
+        expect(body.max_tokens).toBe(4096);
         return new Response(JSON.stringify({ choices: [{ message: { content: 'hello back' } }] }), {
           status: 200,
         });
@@ -168,7 +168,7 @@ describe('OpenAICompatibleProvider', () => {
       });
       const result = await provider.complete({
         messages: [{ role: 'user', content: 'Hi' }],
-        maxTokens: 50,
+        maxTokens: 4096,
       });
       expect(result).toBe('hello back');
     });
@@ -179,7 +179,7 @@ describe('OpenAICompatibleProvider', () => {
         expect(body.response_format).toBeUndefined();
         expect(body.provider).toBeUndefined();
         expect(body.reasoning).toBeUndefined();
-        expect(body.max_completion_tokens).toBe(10);
+        expect(body.max_completion_tokens).toBe(4096);
         expect(body.max_tokens).toBeUndefined();
         return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
           status: 200,
@@ -190,7 +190,7 @@ describe('OpenAICompatibleProvider', () => {
         model: 'openai/gpt-5',
         profile: 'openrouter',
       });
-      await provider.complete({ messages: [{ role: 'user', content: 'Hi' }], maxTokens: 10 });
+      await provider.complete({ messages: [{ role: 'user', content: 'Hi' }], maxTokens: 4096 });
     });
 
     // Generic JSON remains prompt-driven: LM Studio rejects json_object and
@@ -200,7 +200,7 @@ describe('OpenAICompatibleProvider', () => {
         const body = JSON.parse(init?.body as string);
         expect(body.response_format).toBeUndefined();
         expect(body.provider).toBeUndefined();
-        expect(body.max_tokens).toBe(10);
+        expect(body.max_tokens).toBe(4096);
         return new Response(
           JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }),
           { status: 200 },
@@ -210,7 +210,7 @@ describe('OpenAICompatibleProvider', () => {
       const provider = new OpenAICompatibleProvider({ model: 'm' });
       const result = await provider.complete({
         messages: [{ role: 'user', content: 'Hi' }],
-        maxTokens: 10,
+        maxTokens: 4096,
         responseFormat: 'json-object',
       });
       expect(result).toBe('{"ok":true}');
@@ -236,7 +236,7 @@ describe('OpenAICompatibleProvider', () => {
       });
       await provider.complete({
         messages: [{ role: 'user', content: 'Hi' }],
-        maxTokens: 10,
+        maxTokens: 4096,
         responseFormat: 'json-object',
         task: 'context-rich',
       });
@@ -248,7 +248,7 @@ describe('OpenAICompatibleProvider', () => {
         expect(body.response_format).toEqual({ type: 'json_object' });
         expect(body.provider).toEqual({ require_parameters: true });
         expect(body.reasoning).toEqual({ effort: 'minimal' });
-        expect(body.max_completion_tokens).toBe(10);
+        expect(body.max_completion_tokens).toBe(4096);
         expect(body.max_tokens).toBeUndefined();
         return new Response(
           JSON.stringify({
@@ -264,7 +264,7 @@ describe('OpenAICompatibleProvider', () => {
       });
       const result = await provider.complete({
         messages: [{ role: 'user', content: 'Hi' }],
-        maxTokens: 10,
+        maxTokens: 4096,
         responseFormat: 'json-object',
         task: 'phrase-rich',
       });
@@ -274,7 +274,7 @@ describe('OpenAICompatibleProvider', () => {
     test('enables JSON mode for a non-GPT OpenRouter model without GPT-5 reasoning', async () => {
       globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
         const body = JSON.parse(init?.body as string);
-        expect(body.max_tokens).toBe(10);
+        expect(body.max_tokens).toBe(4096);
         expect(body.max_completion_tokens).toBeUndefined();
         expect(body.response_format).toEqual({ type: 'json_object' });
         expect(body.provider).toEqual({ require_parameters: true });
@@ -293,7 +293,7 @@ describe('OpenAICompatibleProvider', () => {
       });
       const result = await provider.complete({
         messages: [{ role: 'user', content: 'Hi' }],
-        maxTokens: 10,
+        maxTokens: 4096,
         responseFormat: 'json-object',
         task: 'phrase-rich',
       });
@@ -303,7 +303,7 @@ describe('OpenAICompatibleProvider', () => {
     test('keeps top-level array JSON prompt-driven on OpenRouter', async () => {
       globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
         const body = JSON.parse(init?.body as string);
-        expect(body.max_tokens).toBe(10);
+        expect(body.max_tokens).toBe(4096);
         expect(body.max_completion_tokens).toBeUndefined();
         expect(body.response_format).toBeUndefined();
         expect(body.provider).toBeUndefined();
@@ -320,7 +320,7 @@ describe('OpenAICompatibleProvider', () => {
       });
       const result = await provider.complete({
         messages: [{ role: 'user', content: 'Hi' }],
-        maxTokens: 10,
+        maxTokens: 4096,
         responseFormat: 'json-array',
         task: 'word-classification',
       });
@@ -342,7 +342,7 @@ describe('OpenAICompatibleProvider', () => {
       await expect(
         provider.complete({
           messages: [{ role: 'user', content: 'Hi' }],
-          maxTokens: 10,
+          maxTokens: 4096,
           responseFormat: 'json-object',
         }),
       ).rejects.toBeInstanceOf(LLMTruncatedError);
@@ -375,10 +375,10 @@ describe('OpenAICompatibleProvider', () => {
       await expect(
         completeJson<{ ok: boolean }>(provider, {
           messages: [{ role: 'user', content: 'Hi' }],
-          maxTokens: 10,
+          maxTokens: 4096,
         }),
       ).resolves.toEqual({ ok: true });
-      expect(budgets).toEqual([10, 20]);
+      expect(budgets).toEqual([4096, 8192]);
       expect(attempts).toEqual([1, 2]);
     });
 
@@ -397,7 +397,7 @@ describe('OpenAICompatibleProvider', () => {
       await expect(
         provider.complete({
           messages: [{ role: 'user', content: 'Hi' }],
-          maxTokens: 10,
+          maxTokens: 4096,
         }),
       ).resolves.toBe('partial text');
     });
@@ -423,7 +423,7 @@ describe('OpenAICompatibleProvider', () => {
       await expect(
         provider.complete({
           messages: [{ role: 'user', content: 'Hi' }],
-          maxTokens: 10,
+          maxTokens: 4096,
           responseFormat: 'json-object',
         }),
       ).rejects.toThrow('LLM provider error: upstream provider failed');
@@ -441,7 +441,7 @@ describe('OpenAICompatibleProvider', () => {
       await expect(
         provider.complete({
           messages: [{ role: 'user', content: 'Hi' }],
-          maxTokens: 10,
+          maxTokens: 4096,
           responseFormat: 'json-object',
         }),
       ).rejects.toThrow('LLM provider error: route unavailable');
@@ -454,7 +454,7 @@ describe('OpenAICompatibleProvider', () => {
       const provider = new OpenAICompatibleProvider();
       const result = await provider.complete({
         messages: [{ role: 'user', content: 'Hi' }],
-        maxTokens: 10,
+        maxTokens: 4096,
       });
       expect(result).toBe('');
     });
@@ -465,7 +465,7 @@ describe('OpenAICompatibleProvider', () => {
       ) as unknown as typeof fetch;
       const provider = new OpenAICompatibleProvider();
       await expect(
-        provider.complete({ messages: [{ role: 'user', content: 'Hi' }], maxTokens: 10 }),
+        provider.complete({ messages: [{ role: 'user', content: 'Hi' }], maxTokens: 4096 }),
       ).rejects.toThrow('LLM provider error: Bad request');
     });
   });
@@ -528,6 +528,103 @@ describe('OpenAICompatibleProvider', () => {
         completionTokens: 2,
         totalTokens: 11,
       });
+    });
+  });
+
+  describe('reasoning models (#628)', () => {
+    const encoder = new TextEncoder();
+    const sse = (frames: string[]) =>
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const frame of frames) controller.enqueue(encoder.encode(`data: ${frame}\n\n`));
+          controller.close();
+        },
+      });
+
+    test('gives an unpinned model room to think before a 32-token gloss', async () => {
+      let requestBody: Record<string, unknown> = {};
+      globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+        requestBody = JSON.parse(init?.body as string);
+        return new Response(
+          sse([
+            '{"choices":[{"delta":{"reasoning_content":"The learner clicked a word."}}]}',
+            '{"choices":[{"delta":{"content":"rained off"}}]}',
+            '{"choices":[{"delta":{},"finish_reason":"stop"}]}',
+            '[DONE]',
+          ]),
+          { status: 200 },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({
+        baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-v4-flash',
+        usageLogger: () => {},
+      });
+      let text = '';
+      for await (const delta of provider.stream({
+        messages: [{ role: 'user', content: 'gloss' }],
+        maxTokens: 32,
+        task: 'word-gloss',
+      })) {
+        text += delta;
+      }
+
+      expect(text).toBe('rained off');
+      expect(requestBody.max_tokens).toBe(MIN_UNPINNED_OUTPUT_TOKENS);
+    });
+
+    test('keeps the exact budget for a task model that the deployment pins', async () => {
+      let requestBody: Record<string, unknown> = {};
+      globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+        requestBody = JSON.parse(init?.body as string);
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+          status: 200,
+        });
+      }) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({
+        model: 'base',
+        profile: 'openrouter',
+        taskModels: { 'context-simple': 'google/gemini-2.5-flash-lite' },
+        usageLogger: () => {},
+      });
+      await provider.complete({
+        messages: [{ role: 'user', content: 'Hi' }],
+        maxTokens: 48,
+        task: 'context-simple',
+      });
+      expect(requestBody.max_tokens).toBe(48);
+    });
+
+    test('reports a stream that spends its whole budget on thinking', async () => {
+      globalThis.fetch = mock(
+        async () =>
+          new Response(
+            sse([
+              '{"choices":[{"delta":{"reasoning":"Let me think about this word..."}}]}',
+              '{"choices":[{"delta":{},"finish_reason":"length"}]}',
+              '[DONE]',
+            ]),
+            { status: 200 },
+          ),
+      ) as unknown as typeof fetch;
+
+      const provider = new OpenAICompatibleProvider({
+        baseUrl: 'https://api.groq.com/openai',
+        model: 'openai/gpt-oss-120b',
+        usageLogger: () => {},
+      });
+      const read = async () => {
+        for await (const _delta of provider.stream({
+          messages: [{ role: 'user', content: 'gloss' }],
+          maxTokens: 32,
+          task: 'word-gloss',
+        })) {
+          // no visible text
+        }
+      };
+      await expect(read()).rejects.toBeInstanceOf(LLMTruncatedError);
     });
   });
 
