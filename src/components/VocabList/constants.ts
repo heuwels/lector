@@ -13,6 +13,15 @@ export const stateFilters: { value: WordState | "all" | "learning"; label: strin
         { value: "ignored", label: "Ignored" },
     ];
 
+/** Filter on whether an entry is in Anki (pushedToAnki). */
+export type AnkiFilter = "all" | "in-anki" | "not-in-anki";
+
+export const ankiFilters: { value: AnkiFilter; label: string }[] = [
+    { value: "all", label: "Anki: all" },
+    { value: "in-anki", label: "In Anki" },
+    { value: "not-in-anki", label: "Not in Anki" },
+];
+
 /** Page-size choices offered by the vocab list pagination control. */
 export const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 
