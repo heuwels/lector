@@ -31,6 +31,13 @@ function epubWithBody(body: string): Buffer {
   return zip.toBuffer();
 }
 
+// parseEpub drops a chapter under 10 characters, so text lost from a short
+// chapter would drop the whole chapter and hide the loss. Each body ends with this.
+const PAD = '<p>これは十文字以上ある段落です。</p>';
+const PAD_TEXT = '\n\nこれは十文字以上ある段落です。';
+const chapterMarkdown = (body: string) =>
+  parseEpub(epubWithBody(body + PAD)).chapters.map((chapter) => chapter.markdown);
+
 describe('parseEpub ruby', () => {
   test('keeps the base text and drops the furigana', () => {
     const { chapters } = parseEpub(
@@ -41,5 +48,26 @@ describe('parseEpub ruby', () => {
       ),
     );
     expect(chapters.map((chapter) => chapter.markdown)).toEqual(['試験の文章を毎日読む。']);
+  });
+
+  test('keeps the text after an omitted </rt>', () => {
+    const markdown = chapterMarkdown(
+      '<p><ruby>漢<rt>かん</ruby><ruby>字<rt>じ</ruby>を読む。</p>' +
+        '<p>本文本文。<ruby>本<rt>ほん</rt></ruby>です。</p>',
+    );
+    expect(markdown).toEqual(['漢字を読む。\n\n本文本文。本です。' + PAD_TEXT]);
+  });
+
+  test('keeps the text after a self-closing <rp/>', () => {
+    const markdown = chapterMarkdown(
+      '<p><ruby>漢<rp/><rt>かん</rt><rp/></ruby>字を読む。</p>' +
+        '<p><ruby>本<rp>(</rp><rt>ほん</rt><rp>)</rp></ruby>です。</p>',
+    );
+    expect(markdown).toEqual(['漢字を読む。\n\n本です。' + PAD_TEXT]);
+  });
+
+  test('drops an <rtc> reading', () => {
+    const markdown = chapterMarkdown('<p><ruby>漢字<rtc>かんじ</rtc></ruby>を読む。</p>');
+    expect(markdown).toEqual(['漢字を読む。' + PAD_TEXT]);
   });
 });

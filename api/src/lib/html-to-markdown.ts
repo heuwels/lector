@@ -1,3 +1,4 @@
+import { parseHTML } from 'linkedom';
 import {
   countWords as countWordsForPack,
   normalizeText,
@@ -15,8 +16,7 @@ export function htmlToMarkdown(html: string): string {
 
   markdown = markdown.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
   markdown = markdown.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-  // Ruby text (furigana, pinyin) is a reading of the base text, not more text.
-  markdown = markdown.replace(/<(rt|rp)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+  markdown = stripRubyAnnotations(markdown);
 
   markdown = markdown.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '\n# $1\n');
   markdown = markdown.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n## $1\n');
@@ -78,6 +78,30 @@ export function htmlToMarkdown(html: string): string {
   // Text ingress (#289): NFC + invisible-char stripping so imported content
   // matches the dictionary and vocab keys byte-for-byte.
   return normalizeText(markdown);
+}
+
+// Ruby annotations: the reading (furigana, pinyin), the container of a second
+// reading, and the brackets shown where ruby is not supported. They annotate
+// the base text and are not part of it. Kept, a reading lands inline after its
+// base (試験しけん) and the reader shows it as more words (#540).
+const RUBY_ANNOTATIONS = 'rt, rp, rtc';
+
+/** Removes the ruby annotations from a parsed document, keeping the base text. */
+export function dropRubyAnnotations(document: ReturnType<typeof parseHTML>['document']): void {
+  for (const node of Array.from(document.querySelectorAll(RUBY_ANNOTATIONS))) node.remove();
+}
+
+/**
+ * The markup without its ruby annotations. This parses the markup instead of
+ * matching tags: HTML lets `</rt>` and `</rp>` be left out and XHTML writes
+ * `<rp/>`, so a pattern that pairs the tags can join two unrelated ones and
+ * delete the text between them. Markup with no annotation is returned as is.
+ */
+function stripRubyAnnotations(html: string): string {
+  if (!/<(rt|rp|rtc)\b/i.test(html)) return html;
+  const { document } = parseHTML(`<!DOCTYPE html><html><body>${html}</body></html>`);
+  dropRubyAnnotations(document);
+  return document.body.innerHTML;
 }
 
 function decodeHtmlEntities(text: string): string {

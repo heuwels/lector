@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { isIP } from 'net';
 import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
-import { htmlToMarkdown, countWords } from '../lib/html-to-markdown';
+import { htmlToMarkdown, countWords, dropRubyAnnotations } from '../lib/html-to-markdown';
 import { safeFetch, readBodyCapped, SsrfError } from '../lib/safe-fetch';
 import { config, type TrustedProxy } from '../lib/config';
 import { getCurrentUserId } from '../lib/user';
@@ -138,6 +138,8 @@ export function makeExtractUrlRoutes({
       })();
 
       const { document } = parseHTML(html);
+      // Before Readability, so neither the content nor the excerpt keeps a reading.
+      dropRubyAnnotations(document);
       const reader = new Readability(document as unknown as Document);
       const article = reader.parse();
 
