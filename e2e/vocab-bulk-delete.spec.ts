@@ -113,19 +113,35 @@ test.describe('Vocab bulk delete', () => {
     await expect(deleteButton).toHaveText(/Delete \(1\)/);
   });
 
-  test('select-all spans every filtered row, not just the visible page', async ({ page }) => {
+  test('select-all selects only the rows on the visible page', async ({ page }) => {
+    // 27 more rows make 30, so a 25-row page leaves 5 on page 2. The new
+    // words still contain the prefix, so the search shows them.
+    ids = [...ids, ...(await seedVocab(page, `${prefix}x`, 27))];
     const rows = await showSeededRows(page);
     await page.getByLabel('Rows per page').selectOption('25');
 
-    // The header checkbox is the only one outside a seeded row.
-    await page.getByRole('checkbox').first().check();
+    const selectPage = page.getByLabel('Select all on this page');
+    await selectPage.check();
     const deleteButton = page.getByRole('button', { name: /^Delete \(/ });
-    await expect(deleteButton).toHaveText(/Delete \(3\)/);
+    await expect(deleteButton).toHaveText(/Delete \(25\)/);
+
+    // The selection holds only the visible page. Page 2 starts with
+    // nothing selected, and its header box selects its 5 rows.
+    await page.getByRole('button', { name: /next page/i }).click();
+    await expect(selectPage).not.toBeChecked();
+    await expect(deleteButton).toBeDisabled();
+    await selectPage.check();
+    await expect(deleteButton).toHaveText(/Delete \(5\)/);
+
+    // Back on page 1, select the page again.
+    await page.getByRole('button', { name: /previous page/i }).click();
+    await expect(deleteButton).toBeDisabled();
+    await selectPage.check();
+    await expect(deleteButton).toHaveText(/Delete \(25\)/);
 
     page.once('dialog', (dialog) => dialog.accept());
     await deleteButton.click();
-
-    await expect(page.getByText('Deleted 3 of 3')).toBeVisible();
-    await expect(rows).toHaveCount(0);
+    await expect(page.getByText('Deleted 25 of 25')).toBeVisible();
+    await expect(rows).toHaveCount(5);
   });
 });
