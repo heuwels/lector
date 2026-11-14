@@ -240,4 +240,21 @@ describe('extract URL fetch and readability boundaries', () => {
     expect(body.content).toContain('Readable sentence.');
     expect(body.wordCount).toBeGreaterThan(40);
   });
+
+  test('drops ruby readings from the content and the excerpt', async () => {
+    const app = appWithFetch(
+      async () =>
+        new Response(
+          `<!doctype html><html><head><title>Ruby</title></head><body><article><p><ruby>試験<rt>しけん</rt></ruby>の<ruby>文章<rp>(</rp><rt>ぶんしょう</rt><rp>)</rp></ruby>を毎日読む。${'これは長い文章です。'.repeat(20)}</p></article></body></html>`,
+          { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+        ),
+    );
+
+    const response = await extract(app);
+    const body = (await response.json()) as { content: string; excerpt: string };
+
+    expect(response.status).toBe(200);
+    expect(body.content.slice(0, 11)).toBe('試験の文章を毎日読む。');
+    expect(body.excerpt.slice(0, 11)).toBe('試験の文章を毎日読む。');
+  });
 });
