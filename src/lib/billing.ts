@@ -29,6 +29,8 @@ export interface BillingManagement {
     canChange: boolean;
     /** ISO instant at which the $1 first month ends, or null outside the trial. */
     trialEndsAt?: string | null;
+    /** False when a cancel or a pause is scheduled, so the plan does not renew. */
+    renews?: boolean;
   } | null;
 }
 

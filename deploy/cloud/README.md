@@ -93,6 +93,7 @@ Design notes:
    | `paddle-price-plus-annual`           | String       | `PADDLE_PRICE_PLUS_ANNUAL` (`pri_…` — Plus annual)                                                                                                                                                                                                        |
    | `paddle-price-monthly-trial`         | String       | `PADDLE_PRICE_MONTHLY_TRIAL` (`pri_…` — Cloud monthly with a paid `trial_period`. The first subscription of an account uses it. Requires `paddle-price-monthly`) |
    | `paddle-price-plus-monthly-trial`    | String       | `PADDLE_PRICE_PLUS_MONTHLY_TRIAL` (`pri_…` — Plus monthly with a paid `trial_period`. Requires `paddle-price-plus-monthly`) |
+   | `trial-offer`                        | String       | `LECTOR_TRIAL_OFFER` — set `false` to stop the $1 first month. Do not remove a trial price id to stop it |
    | `paddle-discount-codes`              | String       | `PADDLE_DISCOUNT_CODES` (#516 — JSON map from a campaign code word to a Paddle discount id, e.g. `{"PRODUCTHUNT":"dsc_01k…"}`; unset = coupons off. Create the discount in Paddle first, then add its id here)                                            |
    | `billing-exempt-emails`              | String       | `BILLING_EXEMPT_EMAILS` (comma-separated accounts the gate never locks — operator + test accounts)                                                                                                                                                        |
    | `admin-emails`                       | String       | `LECTOR_ADMIN_EMAILS` (#221 — comma-separated accounts with admin-dashboard access; no spaces; unset = no admins)                                                                                                                                         |
@@ -377,6 +378,15 @@ The API then applies these rules:
   in the last seven days of the trial. Publish that template with
   `node emails/publish.mjs trial-ending-renewal-notice` before you set the
   price ids.
+
+To stop the $1 first month, set `trial-offer` to `false`. Do not remove a trial
+price id. Paddle keeps a subscription on its trial price id after the trial, so
+the API needs that id to find the plan of the subscriber. If you remove the id,
+a Cloud Plus subscriber gets the Cloud limits.
+
+The renewal notice goes only to a subscription on a trial price id. The worker
+does not send it when the customer has a scheduled cancel or a scheduled pause.
+In that case the settings panel shows the date on which access ends.
 
 Paddle sets a minimum charge for each currency. Read the minimum values from
 `GET /currencies` before you add a price override in another currency.

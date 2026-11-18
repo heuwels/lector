@@ -56,6 +56,11 @@ function formatMoney(money: BillingMoney | null): string | null {
   }
 }
 
+/** The trial end date in UTC, so it matches the date in the renewal notice. */
+function trialEndLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'long', timeZone: 'UTC' });
+}
+
 function billingError(error: string): string {
   if (error === 'subscription_past_due') {
     return 'Update your payment method in Paddle before changing plans.';
@@ -382,14 +387,19 @@ export default function CloudPlanSettings() {
             </div>
           )}
 
-          {currentSubscription?.trialEndsAt && (
+          {currentSubscription?.trialEndsAt && currentSubscription.renews !== false && (
             <p className="text-xs" data-testid="cloud-plan-trial">
               Your first month costs $1. The plan renews at its usual price on{' '}
-              {new Date(currentSubscription.trialEndsAt).toLocaleDateString(undefined, {
-                dateStyle: 'long',
-              })}
-              . To stop the renewal, cancel in billing management before that date. You can change
-              plan after the first month.
+              {trialEndLabel(currentSubscription.trialEndsAt)}. To stop the renewal, cancel in
+              billing management before that date. You can change plan after the first month.
+            </p>
+          )}
+
+          {currentSubscription?.trialEndsAt && currentSubscription.renews === false && (
+            <p className="text-xs" data-testid="cloud-plan-trial-ending">
+              Your plan does not renew. Your access ends on{' '}
+              {trialEndLabel(currentSubscription.trialEndsAt)}. To keep the plan, use billing
+              management before that date.
             </p>
           )}
 

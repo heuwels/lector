@@ -18,6 +18,8 @@ import {
   parseFreeTierCutoff,
   parseFreeTierEnabled,
   trialPriceFor,
+  parseTrialOfferEnabled,
+  trialPricesFromEnv,
   parsePaddleEnvironment,
   resolveBillingStatus,
   resolveDiscount,
@@ -54,6 +56,7 @@ function subscriptionEvent(overrides: {
   lectorUserId?: string;
   priceId?: string;
   periodEnd?: string;
+  scheduledAction?: string;
 }) {
   return {
     event_type: 'subscription.updated',
@@ -64,6 +67,7 @@ function subscriptionEvent(overrides: {
       customer_id: overrides.customerId ?? 'ctm_1',
       custom_data: overrides.lectorUserId ? { lectorUserId: overrides.lectorUserId } : null,
       current_billing_period: overrides.periodEnd ? { ends_at: overrides.periodEnd } : null,
+      scheduled_change: overrides.scheduledAction ? { action: overrides.scheduledAction } : null,
       items: [{ price: { id: overrides.priceId ?? 'pri_monthly' } }],
     },
   };
@@ -171,6 +175,28 @@ describe('billing env parsing', () => {
       'pri_cloud_year',
       'pri_plus_month',
       'pri_cloud_trial',
+    ]);
+    expect(trialPriceFor({ ...cfg, trialOfferEnabled: false }, cfg.prices[0], 0)).toBeNull();
+  });
+
+  test('LECTOR_TRIAL_OFFER stops the offer only with the value false', () => {
+    expect(parseTrialOfferEnabled(undefined)).toBe(true);
+    expect(parseTrialOfferEnabled('')).toBe(true);
+    expect(parseTrialOfferEnabled('true')).toBe(true);
+    expect(parseTrialOfferEnabled(' FALSE ')).toBe(false);
+  });
+
+  test('a trial price id stays known without the standard monthly price', () => {
+    const trials = trialPricesFromEnv(
+      {
+        PADDLE_PRICE_MONTHLY_TRIAL: 'pri_cloud_trial',
+        PADDLE_PRICE_PLUS_MONTHLY_TRIAL: 'pri_plus_trial',
+      },
+      [{ id: 'pri_cloud_month', plan: 'cloud', cycle: 'month' }],
+    );
+    expect(trials).toEqual([
+      { id: 'pri_cloud_trial', plan: 'cloud', cycle: 'month' },
+      { id: 'pri_plus_trial', plan: 'plus', cycle: 'month' },
     ]);
   });
 
@@ -693,6 +719,7 @@ describe('billing routes', () => {
     environment: 'production',
     prices: [{ id: 'pri_monthly', plan: 'cloud', cycle: 'month' }],
     trialPrices: [],
+    trialOfferEnabled: true,
     exemptEmails: new Set<string>(),
     discountCodes: new Map<string, string>(),
   };
@@ -822,7 +849,13 @@ describe('billing routes', () => {
     expect(body.status).toBe('active');
     expect(body.management).toEqual({
       customerPortal: true,
-      subscription: { plan: 'cloud', cycle: 'month', canChange: true, trialEndsAt: null },
+      subscription: {
+        plan: 'cloud',
+        cycle: 'month',
+        canChange: true,
+        trialEndsAt: null,
+        renews: true,
+      },
     });
   });
 
@@ -967,8 +1000,88 @@ describe('billing routes', () => {
           cycle: 'month',
           canChange: false,
           trialEndsAt: '2026-12-18T09:00:00Z',
+          renews: true,
         },
       });
+    });
+
+    test('status says that a trial with a scheduled cancel does not renew', async () => {
+      applyPaddleEvent(
+        subscriptionEvent({
+          status: 'trialing',
+          lectorUserId: 'local',
+          priceId: 'pri_cloud_trial',
+          periodEnd: '2026-12-18T09:00:00Z',
+          scheduledAction: 'cancel',
+        }),
+      );
+      const body = (await (await buildApp(trialCfg).request('/api/billing/status')).json()) as {
+        management: { subscription: { trialEndsAt: string | null; renews: boolean } };
+      };
+      expect(body.management.subscription.trialEndsAt).toBe('2026-12-18T09:00:00Z');
+      expect(body.management.subscription.renews).toBe(false);
+    });
+
+    test('a later event without a scheduled change clears the stored one', async () => {
+      applyPaddleEvent(
+        subscriptionEvent({
+          status: 'trialing',
+          lectorUserId: 'local',
+          priceId: 'pri_cloud_trial',
+          scheduledAction: 'cancel',
+        }),
+      );
+      applyPaddleEvent(
+        subscriptionEvent({
+          status: 'trialing',
+          lectorUserId: 'local',
+          priceId: 'pri_cloud_trial',
+          occurredAt: '2026-07-09T00:00:00Z',
+        }),
+      );
+      const body = (await (await buildApp(trialCfg).request('/api/billing/status')).json()) as {
+        management: { subscription: { renews: boolean } };
+      };
+      expect(body.management.subscription.renews).toBe(true);
+    });
+
+    test('status reports no trial end for a trial on a standard price', async () => {
+      applyPaddleEvent(
+        subscriptionEvent({
+          status: 'trialing',
+          lectorUserId: 'local',
+          priceId: 'pri_cloud_month',
+          periodEnd: '2026-12-18T09:00:00Z',
+        }),
+      );
+      const body = (await (await buildApp(trialCfg).request('/api/billing/status')).json()) as {
+        management: { subscription: { trialEndsAt: string | null } };
+      };
+      expect(body.management.subscription.trialEndsAt).toBeNull();
+    });
+
+    test('with the offer off, a trial subscriber keeps the plan and checkout bills the standard price', async () => {
+      const offCfg = { ...trialCfg, trialOfferEnabled: false };
+      const calls: string[] = [];
+      const app = buildApp(offCfg, 'local@example.com', async (args) => {
+        calls.push(args.priceId);
+        return { id: 'txn_std', checkoutUrl: null };
+      });
+      const offered = (await (await app.request('/api/billing/status')).json()) as {
+        checkout: { trialPlans: string[] };
+      };
+      expect(offered.checkout.trialPlans).toEqual([]);
+      const res = await checkout(app, 'pri_plus_month');
+      expect(await res.json()).toMatchObject({ trial: false });
+      expect(calls).toEqual(['pri_plus_month']);
+
+      applyPaddleEvent(
+        subscriptionEvent({ status: 'active', lectorUserId: 'local', priceId: 'pri_plus_trial' }),
+      );
+      const body = (await (await app.request('/api/billing/status')).json()) as {
+        management: { subscription: { plan: string } };
+      };
+      expect(body.management.subscription.plan).toBe('plus');
     });
 
     test('after the trial, the standard price of the same plan is already current', async () => {

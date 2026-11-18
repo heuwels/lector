@@ -6,6 +6,7 @@
 import { Database } from 'bun:sqlite';
 import { db } from '../db';
 import { createdAtMs } from './account-age';
+import { billingConfig, stopsRenewal } from './billing';
 import { config } from './config';
 import { sendEmail, type EmailMessage } from './email';
 import {
@@ -76,6 +77,8 @@ export interface LifecycleDeps {
   cloud: boolean;
   hasResendKey: boolean;
   appUrl: string;
+  /** Paddle price ids that carry the paid trial. Only these get the renewal notice. */
+  trialPriceIds: readonly string[];
 }
 
 export function defaultLifecycleDeps(): LifecycleDeps {
@@ -86,6 +89,7 @@ export function defaultLifecycleDeps(): LifecycleDeps {
     cloud: config.authRequired,
     hasResendKey: Boolean(process.env.RESEND_API_KEY),
     appUrl: process.env.BETTER_AUTH_URL || process.env.APP_URL || 'https://app.lector.dev',
+    trialPriceIds: billingConfig.trialPrices.map((price) => price.id),
   };
 }
 
@@ -322,6 +326,8 @@ interface TrialingRow {
   userId: string | null;
   email: string | null;
   currentPeriodEnd: string;
+  priceId: string | null;
+  scheduledChange: string | null;
 }
 
 /** `2026-12-18T09:00:00Z` → `18 December 2026`, in UTC because Paddle bills in UTC. */
@@ -345,16 +351,21 @@ async function sweepTrialEndingEmails(
   let skipped = 0;
   if (!userTableExists(deps.database)) return { sent, skipped };
   if (!tableExists(deps.database, 'billing_subscriptions')) return { sent, skipped };
+  if (deps.trialPriceIds.length === 0) return { sent, skipped };
   const nowMs = deps.now().getTime();
   const rows = deps.database
     .prepare(
-      `SELECT s.userId, c.email, s.currentPeriodEnd
+      `SELECT s.userId, c.email, s.currentPeriodEnd, s.priceId, s.scheduledChange
          FROM billing_subscriptions s
          LEFT JOIN billing_customers c ON c.paddleCustomerId = s.paddleCustomerId
         WHERE s.status = 'trialing' AND s.currentPeriodEnd IS NOT NULL`,
     )
     .all() as TrialingRow[];
   for (const row of rows) {
+    // Only the $1 first month gets this notice. Another trial has other terms.
+    if (!row.priceId || !deps.trialPriceIds.includes(row.priceId)) continue;
+    // The notice states a renewal. A subscription with a scheduled cancel does not renew.
+    if (stopsRenewal(row.scheduledChange)) continue;
     const endMs = Date.parse(row.currentPeriodEnd);
     if (Number.isNaN(endMs) || endMs <= nowMs || endMs - nowMs > TRIAL_ENDING_WINDOW_MS) continue;
     const user =

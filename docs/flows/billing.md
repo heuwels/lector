@@ -46,7 +46,8 @@ sequenceDiagram
 - When the rollout flag is on, Free plan can enter the app. Checkout is still available.
 - `LECTOR_FREE_TIER_CUTOFF` closes Free to new accounts. `hasFreeAccess` gives Free only to an account created before the cutoff. A later account gets 402 until it subscribes.
 - The first monthly subscription of an account uses a trial price. `trialPriceFor` selects it in `POST /checkout`, and the browser never sends that price id. `status.checkout.trialPlans` tells the page which plans show the $1 first month.
-- A `trialing` subscription is entitled. The lifecycle worker sends one renewal notice in the last seven days of the trial.
+- A `trialing` subscription is entitled. The lifecycle worker sends one renewal notice in the last seven days of the trial. It sends the notice only for a trial price id, and not when a cancel or a pause is scheduled.
+- `LECTOR_TRIAL_OFFER=false` stops the offer. A trial price id stays in the price list, because a subscription keeps that id after the trial.
 - A failed status probe does not lock the UI. The API still returns 402 on gated calls.
 - `apiFetch` treats any 402 as `bounceToSubscribe`.
 - Entitlement waits for the webhook. A success return from Paddle is not enough.

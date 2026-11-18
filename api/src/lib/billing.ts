@@ -287,8 +287,15 @@ function pricesFromEnv(env: NodeJS.ProcessEnv): BillingPrice[] {
  * Trials). Paddle charges the trial price at checkout, holds the subscription
  * in `trialing`, then renews at the base price. A trial price must bill the
  * same base amount as the standard monthly price of its plan.
+ *
+ * Paddle keeps a subscription on its trial price id after the trial. Each id
+ * here therefore maps to a plan for the life of that subscription, and the
+ * list does not depend on the offer. `trialPriceFor` decides the offer.
  */
-function trialPricesFromEnv(env: NodeJS.ProcessEnv, standard: BillingPrice[]): BillingPrice[] {
+export function trialPricesFromEnv(
+  env: NodeJS.ProcessEnv,
+  standard: BillingPrice[],
+): BillingPrice[] {
   const trials: BillingPrice[] = [];
   const add = (key: string, id: string | undefined, plan: BillingPrice['plan']) => {
     if (!id) return;
@@ -296,14 +303,37 @@ function trialPricesFromEnv(env: NodeJS.ProcessEnv, standard: BillingPrice[]): B
       console.warn(`[billing] ${key}="${id}" does not look like a Paddle price id (pri_…).`);
     }
     if (!standard.some((p) => p.plan === plan && p.cycle === 'month')) {
-      console.warn(`[billing] ${key} needs the standard monthly price of the same plan — ignored.`);
-      return;
+      console.warn(
+        `[billing] ${key} has no standard monthly price of the same plan. Checkout does not offer it.`,
+      );
     }
     trials.push({ id, plan, cycle: 'month' });
   };
   add('PADDLE_PRICE_MONTHLY_TRIAL', env.PADDLE_PRICE_MONTHLY_TRIAL, 'cloud');
   add('PADDLE_PRICE_PLUS_MONTHLY_TRIAL', env.PADDLE_PRICE_PLUS_MONTHLY_TRIAL, 'plus');
   return trials;
+}
+
+/**
+ * LECTOR_TRIAL_OFFER. The offer is on unless the value is `false`. Use it to
+ * stop the $1 first month. Do not remove a trial price id for that purpose,
+ * because subscribers that started on it keep that price id.
+ */
+export function parseTrialOfferEnabled(raw: string | undefined): boolean {
+  return raw?.trim().toLowerCase() !== 'false';
+}
+
+/** A scheduled cancel or pause means that Paddle does not renew the subscription. */
+export function stopsRenewal(scheduledChange: string | null | undefined): boolean {
+  return scheduledChange === 'cancel' || scheduledChange === 'pause';
+}
+
+/** True when `priceId` is a configured trial price. */
+export function isTrialPriceId(
+  cfg: { trialPrices?: readonly BillingPrice[] },
+  priceId: string | null | undefined,
+): boolean {
+  return !!priceId && (cfg.trialPrices ?? []).some((p) => p.id === priceId);
 }
 
 /** Every price id a subscription row can hold: the standard prices, then the trial prices. */
@@ -320,10 +350,11 @@ export function knownBillingPrices(cfg: {
  * subscriber cannot buy the first month again.
  */
 export function trialPriceFor(
-  cfg: { trialPrices?: readonly BillingPrice[] },
+  cfg: { trialPrices?: readonly BillingPrice[]; trialOfferEnabled?: boolean },
   standard: BillingPrice,
   priorSubscriptions: number,
 ): BillingPrice | null {
+  if (cfg.trialOfferEnabled === false) return null;
   if (priorSubscriptions > 0 || standard.cycle !== 'month') return null;
   return (cfg.trialPrices ?? []).find((p) => p.plan === standard.plan) ?? null;
 }
@@ -451,6 +482,7 @@ export const billingConfig: {
   readonly environment: PaddleEnvironment;
   readonly prices: BillingPrice[];
   readonly trialPrices: BillingPrice[];
+  readonly trialOfferEnabled: boolean;
   readonly exemptEmails: Set<string>;
   readonly discountCodes: ReadonlyMap<string, string>;
 } = (() => {
@@ -466,6 +498,7 @@ export const billingConfig: {
     environment: parsePaddleEnvironment(process.env.PADDLE_ENV),
     prices,
     trialPrices: trialPricesFromEnv(process.env, prices),
+    trialOfferEnabled: parseTrialOfferEnabled(process.env.LECTOR_TRIAL_OFFER),
     exemptEmails: parseExemptEmails(process.env.BILLING_EXEMPT_EMAILS),
     discountCodes: parseDiscountCodes(process.env.PADDLE_DISCOUNT_CODES),
   } as const;
@@ -559,6 +592,8 @@ export interface BillingSubscriptionRecord {
   status: string;
   priceId: string | null;
   currentPeriodEnd: string | null;
+  /** Paddle `scheduled_change.action` (`cancel`, `pause`, `resume`), or null. */
+  scheduledChange: string | null;
   occurredAt: string;
 }
 
@@ -579,6 +614,7 @@ export function findBillingSubscriptions(
          s.status,
          s.priceId,
          s.currentPeriodEnd,
+         s.scheduledChange,
          s.occurredAt
        FROM billing_subscriptions s
        LEFT JOIN billing_customers c ON c.paddleCustomerId = s.paddleCustomerId
@@ -639,6 +675,7 @@ export interface PaddleEvent {
     customer_id?: string;
     custom_data?: { lectorUserId?: unknown } | null;
     current_billing_period?: { ends_at?: string } | null;
+    scheduled_change?: { action?: string } | null;
     items?: Array<{ price?: { id?: string } | null }> | null;
   };
 }
@@ -684,14 +721,15 @@ export function applyPaddleEvent(evt: PaddleEvent): AppliedEvent {
       .prepare(
         `INSERT INTO billing_subscriptions
            (paddleSubscriptionId, paddleCustomerId, userId, status, priceId,
-            currentPeriodEnd, occurredAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            currentPeriodEnd, scheduledChange, occurredAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(paddleSubscriptionId) DO UPDATE SET
            paddleCustomerId = excluded.paddleCustomerId,
            userId = COALESCE(excluded.userId, billing_subscriptions.userId),
            status = excluded.status,
            priceId = COALESCE(excluded.priceId, billing_subscriptions.priceId),
            currentPeriodEnd = excluded.currentPeriodEnd,
+           scheduledChange = excluded.scheduledChange,
            occurredAt = excluded.occurredAt,
            updatedAt = excluded.updatedAt
          WHERE excluded.occurredAt > billing_subscriptions.occurredAt`,
@@ -703,6 +741,7 @@ export function applyPaddleEvent(evt: PaddleEvent): AppliedEvent {
         data.status,
         data.items?.[0]?.price?.id ?? null,
         data.current_billing_period?.ends_at ?? null,
+        typeof data.scheduled_change?.action === 'string' ? data.scheduled_change.action : null,
         occurredAt,
         now,
       ).changes;

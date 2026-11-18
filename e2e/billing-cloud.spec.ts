@@ -538,5 +538,43 @@ test.describe.serial('billing gate lifecycle', () => {
     // Choosing a plan is what arms the review step.
     await select.selectOption('pri_e2e_plus_annual');
     await expect(panel.getByTestId('billing-change-review')).toBeEnabled();
+
+    // The $1 first month. The panel states the renewal date. When a cancel is
+    // scheduled, it states the date on which access ends, and not a renewal.
+    const trialStatus = (renews: boolean) => ({
+      enforced: true,
+      accessAllowed: true,
+      subscriptionActive: true,
+      freeTierEnabled: false,
+      suspended: false,
+      exempt: false,
+      status: 'trialing',
+      checkout: { prices: [{ id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' }] },
+      management: {
+        customerPortal: true,
+        subscription: {
+          plan: 'cloud',
+          cycle: 'month',
+          canChange: false,
+          trialEndsAt: '2026-12-18T23:30:00Z',
+          renews,
+        },
+      },
+    });
+    for (const renews of [true, false]) {
+      await page.route(`${CLOUD_API}/api/billing/status`, (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify(trialStatus(renews)),
+        }),
+      );
+      await page.goto('/settings');
+      const shown = panel.getByTestId(renews ? 'cloud-plan-trial' : 'cloud-plan-trial-ending');
+      const hidden = panel.getByTestId(renews ? 'cloud-plan-trial-ending' : 'cloud-plan-trial');
+      // The date is in UTC, so it matches the renewal notice in every time zone.
+      await expect(shown).toContainText('18');
+      await expect(shown).toContainText(renews ? 'renews at its usual price' : 'does not renew');
+      await expect(hidden).toHaveCount(0);
+    }
   });
 });

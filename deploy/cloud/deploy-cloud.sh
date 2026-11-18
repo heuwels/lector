@@ -162,6 +162,7 @@ LECTOR_FREE_TIER free-tier-enabled
 LECTOR_FREE_TIER_CUTOFF free-tier-cutoff
 PADDLE_PRICE_MONTHLY_TRIAL paddle-price-monthly-trial
 PADDLE_PRICE_PLUS_MONTHLY_TRIAL paddle-price-plus-monthly-trial
+LECTOR_TRIAL_OFFER trial-offer
 YOUTUBE_RELAY_BASE youtube-relay-base
 YOUTUBE_RELAY_BASIC_AUTH youtube-relay-basic-auth
 SENTRY_DSN sentry-dsn

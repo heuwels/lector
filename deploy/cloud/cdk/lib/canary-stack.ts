@@ -70,6 +70,7 @@ import { Construct } from 'constructs';
  *   /lector/canary/paddle-price-plus-annual String   optional — PADDLE_PRICE_PLUS_ANNUAL (pri_… Plus annual)
  *   /lector/canary/paddle-price-monthly-trial String optional — PADDLE_PRICE_MONTHLY_TRIAL (pri_… Cloud monthly with a paid trial)
  *   /lector/canary/paddle-price-plus-monthly-trial String optional — PADDLE_PRICE_PLUS_MONTHLY_TRIAL (pri_… Plus monthly with a paid trial)
+ *   /lector/canary/trial-offer         String        optional — LECTOR_TRIAL_OFFER (`false` stops the $1 first month; keep the trial price ids set)
  *   /lector/canary/paddle-discount-codes String      optional — PADDLE_DISCOUNT_CODES (#516 — JSON map of campaign code word → dsc_… discount id; unset = coupons off)
  *   /lector/canary/billing-exempt-emails String      optional — BILLING_EXEMPT_EMAILS (comma-separated operator/test accounts)
  *   /lector/canary/admin-emails        String        optional — LECTOR_ADMIN_EMAILS (comma-separated admin-dashboard operators, #221)
@@ -356,6 +357,7 @@ put PADDLE_PRICE_PLUS_MONTHLY paddle-price-plus-monthly
 put PADDLE_PRICE_PLUS_ANNUAL  paddle-price-plus-annual
 put PADDLE_PRICE_MONTHLY_TRIAL paddle-price-monthly-trial
 put PADDLE_PRICE_PLUS_MONTHLY_TRIAL paddle-price-plus-monthly-trial
+put LECTOR_TRIAL_OFFER trial-offer
 put PADDLE_DISCOUNT_CODES paddle-discount-codes
 put BILLING_EXEMPT_EMAILS billing-exempt-emails
 put LECTOR_ADMIN_EMAILS   admin-emails

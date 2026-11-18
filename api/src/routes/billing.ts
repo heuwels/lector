@@ -9,7 +9,9 @@ import {
   getUserEmail,
   hasFreeAccess,
   isEntitledStatus,
+  isTrialPriceId,
   knownBillingPrices,
+  stopsRenewal,
   makePaddleTransactionCreator,
   resolveBillingStatus,
   resolveDiscount,
@@ -175,7 +177,10 @@ export function makeBillingRoutes(
                 cycle: currentPrice.cycle,
                 canChange: subscription.status === 'active',
                 trialEndsAt:
-                  subscription.status === 'trialing' ? subscription.currentPeriodEnd : null,
+                  subscription.status === 'trialing' && isTrialPriceId(cfg, subscription.priceId)
+                    ? subscription.currentPeriodEnd
+                    : null,
+                renews: !stopsRenewal(subscription.scheduledChange),
               }
             : null,
       },

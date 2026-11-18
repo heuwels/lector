@@ -134,6 +134,7 @@ function deps(
     cloud: true,
     hasResendKey: true,
     appUrl: 'https://app.lector.dev',
+    trialPriceIds: ['pri_cloud_trial'],
     ...extra,
   };
 }
@@ -494,21 +495,31 @@ describe('trial ending notice', () => {
         paddleCustomerId TEXT NOT NULL,
         userId TEXT,
         status TEXT NOT NULL,
-        currentPeriodEnd TEXT
+        priceId TEXT,
+        currentPeriodEnd TEXT,
+        scheduledChange TEXT
       );
     `);
   }
 
   function insertSubscription(
     database: Database,
-    opts: { userId?: string | null; status?: string; endsInMs: number; customerId?: string },
+    opts: {
+      userId?: string | null;
+      status?: string;
+      endsInMs: number;
+      customerId?: string;
+      priceId?: string | null;
+      scheduledChange?: string | null;
+    },
   ): string {
     const end = new Date(NOW.getTime() + opts.endsInMs).toISOString();
     database
       .prepare(
         `INSERT INTO billing_subscriptions
-           (paddleSubscriptionId, paddleCustomerId, userId, status, currentPeriodEnd)
-         VALUES (?, ?, ?, ?, ?)`,
+           (paddleSubscriptionId, paddleCustomerId, userId, status, currentPeriodEnd,
+            priceId, scheduledChange)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         `sub_${opts.customerId ?? 'ctm_1'}`,
@@ -516,6 +527,8 @@ describe('trial ending notice', () => {
         opts.userId === undefined ? 'user-1' : opts.userId,
         opts.status ?? 'trialing',
         end,
+        opts.priceId === undefined ? 'pri_cloud_trial' : opts.priceId,
+        opts.scheduledChange ?? null,
       );
     return end;
   }
@@ -559,6 +572,39 @@ describe('trial ending notice', () => {
     insertSubscription(database, { status: 'active', endsInMs: 3 * DAY, customerId: 'ctm_a' });
     insertSubscription(database, { endsInMs: -1 * DAY, customerId: 'ctm_b' });
     await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+  });
+
+  test('sends nothing when a cancel or a pause is scheduled', async () => {
+    const database = createSchema();
+    withBilling(database);
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: new Date(NOW.getTime() - 24 * DAY).toISOString() });
+    insertSubscription(database, {
+      endsInMs: 3 * DAY,
+      scheduledChange: 'cancel',
+      customerId: 'ctm_a',
+    });
+    insertSubscription(database, {
+      endsInMs: 3 * DAY,
+      scheduledChange: 'pause',
+      customerId: 'ctm_b',
+    });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+  });
+
+  test('sends nothing for a trial that is not on a trial price', async () => {
+    const database = createSchema();
+    withBilling(database);
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: new Date(NOW.getTime() - 24 * DAY).toISOString() });
+    insertSubscription(database, { endsInMs: 3 * DAY, priceId: 'pri_other', customerId: 'ctm_a' });
+    insertSubscription(database, { endsInMs: 3 * DAY, priceId: null, customerId: 'ctm_b' });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+
+    await sweepLifecycleEmails(deps(database, inbox, { trialPriceIds: [] }));
     expect(inbox).toHaveLength(0);
   });
 
