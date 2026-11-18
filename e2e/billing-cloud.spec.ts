@@ -340,6 +340,104 @@ test.describe.serial('billing gate lifecycle', () => {
     expect(seen.promo).toBeUndefined();
   });
 
+  /**
+   * The $1 first month. The API decides which plans get it and reports them
+   * in `checkout.trialPlans`, so this stub plays both API answers.
+   */
+  async function stubTrialCheckout(page: Page, seen: { priceId?: string }, applyTrial: boolean) {
+    const CHECKOUT = 'https://lector.test/checkout';
+    await page.route('**/__env.js', (route) =>
+      route.fulfill({
+        contentType: 'application/javascript',
+        body: `window.__ENV__ = ${JSON.stringify({
+          API_URL: CLOUD_API,
+          LECTOR_MODE: 'cloud',
+          CHECKOUT_URL: CHECKOUT,
+        })};`,
+      }),
+    );
+    await page.route(`${CLOUD_API}/api/billing/status`, (route) => {
+      // The page reads status again after a refused trial. That answer has no trial.
+      const offered = applyTrial || seen.priceId === undefined;
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          enforced: true,
+          accessAllowed: false,
+          subscriptionActive: false,
+          freeTierEnabled: false,
+          suspended: false,
+          exempt: false,
+          status: 'none',
+          checkout: {
+            prices: [
+              { id: 'pri_e2e_monthly', plan: 'cloud', cycle: 'month' },
+              { id: 'pri_e2e_annual', plan: 'cloud', cycle: 'year' },
+              { id: 'pri_e2e_plus_monthly', plan: 'plus', cycle: 'month' },
+              { id: 'pri_e2e_plus_annual', plan: 'plus', cycle: 'year' },
+            ],
+            trialPlans: offered ? ['cloud', 'plus'] : [],
+          },
+        }),
+      });
+    });
+    await page.route(`${CLOUD_API}/api/billing/checkout`, async (route) => {
+      seen.priceId = (route.request().postDataJSON() as { priceId: string }).priceId;
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ txnId: 'txn_e2e_trial', discount: 'none', trial: applyTrial }),
+      });
+    });
+    await page.route('https://lector.test/**', (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>checkout</title>' }),
+    );
+  }
+
+  test('a first-time account sees the $1 first month and starts it on the monthly price', async ({
+    page,
+  }) => {
+    const seen: { priceId?: string } = {};
+    await stubTrialCheckout(page, seen, true);
+
+    await signIn(page);
+    await page.waitForURL('**/subscribe');
+    await expect(page.getByText('Try Lector Cloud for $1')).toBeVisible();
+
+    const cloud = page.getByTestId('subscribe-tier-cloud');
+    await expect(cloud.getByTestId('subscribe-trial-cloud')).toContainText(
+      '$1 for the first month, then $5/month',
+    );
+    await expect(page.getByTestId('subscribe-trial-plus')).toContainText('then $12/month');
+    // Monthly is the primary action, and annual stays as the alternative.
+    await expect(cloud.getByTestId('subscribe-price-cloud-month')).toHaveText(
+      'Start your first month for $1',
+    );
+    await expect(cloud.getByTestId('subscribe-price-cloud-year')).toContainText('$50/year');
+
+    await cloud.getByTestId('subscribe-price-cloud-month').click();
+    await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_trial/);
+    // The browser names the standard price. The API selects the trial price.
+    expect(seen.priceId).toBe('pri_e2e_monthly');
+  });
+
+  test('a refused $1 first month holds the reader on the plan picker', async ({ page }) => {
+    const seen: { priceId?: string } = {};
+    await stubTrialCheckout(page, seen, false);
+
+    await signIn(page);
+    await page.waitForURL('**/subscribe');
+    await page.getByTestId('subscribe-price-plus-month').click();
+
+    await expect(page.getByTestId('subscribe-trial-unavailable')).toBeVisible();
+    expect(page.url()).toContain('/subscribe');
+    // The fresh status has no trial, so the tiles return to the usual prices.
+    await expect(page.getByTestId('subscribe-trial-plus')).toHaveCount(0);
+    await expect(page.getByTestId('subscribe-price-plus-year')).toContainText('$120/year');
+
+    await page.getByTestId('subscribe-price-plus-month').click();
+    await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_trial/);
+  });
+
   test('the plan panel states the current cycle and never pre-selects a change', async ({
     page,
     request,

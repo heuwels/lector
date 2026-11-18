@@ -29,11 +29,21 @@ describe('billing actions', () => {
     await expect(startCheckout('pri_annual')).resolves.toEqual({
       txnId: 'txn_test',
       discount: 'none',
+      trial: false,
     });
     expect(apiFetch).toHaveBeenCalledWith('/api/billing/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ priceId: 'pri_annual' }),
+    });
+  });
+
+  it('reports that the API applied the $1 first month', async () => {
+    apiFetch.mockResolvedValue(json({ txnId: 'txn_trial', discount: 'none', trial: true }));
+    await expect(startCheckout('pri_cloud_month')).resolves.toEqual({
+      txnId: 'txn_trial',
+      discount: 'none',
+      trial: true,
     });
   });
 
@@ -43,6 +53,7 @@ describe('billing actions', () => {
     await expect(startCheckout('pri_annual', 'PRODUCTHUNT')).resolves.toEqual({
       txnId: 'txn_promo',
       discount: 'applied',
+      trial: false,
     });
     expect(apiFetch).toHaveBeenCalledWith('/api/billing/checkout', {
       method: 'POST',
@@ -57,6 +68,7 @@ describe('billing actions', () => {
     await expect(startCheckout('pri_annual', 'NOPE')).resolves.toEqual({
       txnId: 'txn_full_price',
       discount: 'unknown',
+      trial: false,
     });
   });
 

@@ -59,6 +59,7 @@ import { Construct } from 'constructs';
  *   /lector/canary/oidc-provider-name  String        optional — OIDC_PROVIDER_NAME (login-button label)
  *   /lector/canary/lector-billing      String        optional — LECTOR_BILLING ("paddle" arms the subscription gate, #224)
  *   /lector/canary/free-tier-enabled   String        optional — LECTOR_FREE_TIER (strict "true" enables derived Free access)
+ *   /lector/canary/free-tier-cutoff    String        optional — LECTOR_FREE_TIER_CUTOFF (ISO instant; accounts created before it keep Free)
  *   /lector/canary/paddle-webhook-secret SecureString optional — PADDLE_WEBHOOK_SECRET (required once billing is armed)
  *   /lector/canary/paddle-api-key      SecureString  optional — PADDLE_API_KEY (server key that creates checkout transactions; required once billing is armed)
  *   /lector/canary/paddle-env          String        optional — PADDLE_ENV (staging sets "sandbox"; production leaves unset)
@@ -67,6 +68,8 @@ import { Construct } from 'constructs';
  *   /lector/canary/paddle-price-annual String        optional — PADDLE_PRICE_ANNUAL (pri_… Cloud annual)
  *   /lector/canary/paddle-price-plus-monthly String  optional — PADDLE_PRICE_PLUS_MONTHLY (pri_… Plus monthly)
  *   /lector/canary/paddle-price-plus-annual String   optional — PADDLE_PRICE_PLUS_ANNUAL (pri_… Plus annual)
+ *   /lector/canary/paddle-price-monthly-trial String optional — PADDLE_PRICE_MONTHLY_TRIAL (pri_… Cloud monthly with a paid trial)
+ *   /lector/canary/paddle-price-plus-monthly-trial String optional — PADDLE_PRICE_PLUS_MONTHLY_TRIAL (pri_… Plus monthly with a paid trial)
  *   /lector/canary/paddle-discount-codes String      optional — PADDLE_DISCOUNT_CODES (#516 — JSON map of campaign code word → dsc_… discount id; unset = coupons off)
  *   /lector/canary/billing-exempt-emails String      optional — BILLING_EXEMPT_EMAILS (comma-separated operator/test accounts)
  *   /lector/canary/admin-emails        String        optional — LECTOR_ADMIN_EMAILS (comma-separated admin-dashboard operators, #221)
@@ -342,6 +345,7 @@ put OIDC_CLIENT_SECRET    oidc-client-secret
 put OIDC_PROVIDER_NAME    oidc-provider-name
 put LECTOR_BILLING        lector-billing
 put LECTOR_FREE_TIER      free-tier-enabled
+put LECTOR_FREE_TIER_CUTOFF free-tier-cutoff
 put PADDLE_WEBHOOK_SECRET paddle-webhook-secret
 put PADDLE_API_KEY        paddle-api-key
 put PADDLE_ENV            paddle-env
@@ -350,6 +354,8 @@ put PADDLE_PRICE_MONTHLY  paddle-price-monthly
 put PADDLE_PRICE_ANNUAL   paddle-price-annual
 put PADDLE_PRICE_PLUS_MONTHLY paddle-price-plus-monthly
 put PADDLE_PRICE_PLUS_ANNUAL  paddle-price-plus-annual
+put PADDLE_PRICE_MONTHLY_TRIAL paddle-price-monthly-trial
+put PADDLE_PRICE_PLUS_MONTHLY_TRIAL paddle-price-plus-monthly-trial
 put PADDLE_DISCOUNT_CODES paddle-discount-codes
 put BILLING_EXEMPT_EMAILS billing-exempt-emails
 put LECTOR_ADMIN_EMAILS   admin-emails

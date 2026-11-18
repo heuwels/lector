@@ -270,6 +270,19 @@ describe('plan resolution', () => {
     expect(flagOff.resolveEntitlements('ent-none').plan).toBe('cloud');
   });
 
+  test('a Free cutoff derives Free only for an account created before it', () => {
+    const cutoff = Date.UTC(2026, 11, 1);
+    const created: Record<string, number> = { 'ent-early': cutoff - 1, 'ent-late': cutoff + 1 };
+    const engine = makeEntitlements(
+      makeDeps({ freeTierCutoffMs: cutoff, resolveCreatedAtMs: (id) => created[id] ?? null }),
+    );
+    expect(engine.resolveEntitlements('ent-early').plan).toBe('free');
+    expect(engine.resolveEntitlements('ent-late').plan).toBe('cloud');
+
+    seedSubscription('ent-late', 'trialing', PLUS_PRICE);
+    expect(engine.resolveEntitlements('ent-late').plan).toBe('plus');
+  });
+
   test('injected Free tables are clamped to finite defaults and managed zeroes', () => {
     const engine = makeEntitlements(
       makeDeps({

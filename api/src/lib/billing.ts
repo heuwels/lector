@@ -24,6 +24,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { createMiddleware } from 'hono/factory';
 import { db } from '../db';
+import { getUserCreatedAtMs } from './account-age';
 import { isBillingExempt } from './account-flags';
 
 export type BillingMode = 'off' | 'paddle';
@@ -71,6 +72,41 @@ export function parseFreeTierEnabled(raw: string | undefined): boolean {
   throw new Error(`Invalid LECTOR_FREE_TIER "${raw}" — expected "true", "false", or unset.`);
 }
 
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * LECTOR_FREE_TIER_CUTOFF as epoch ms, or null when unset. The value must carry
+ * a zone, so the cutoff does not move with the server's local time.
+ */
+export function parseFreeTierCutoff(raw: string | undefined): number | null {
+  const value = (raw ?? '').trim();
+  if (value === '') return null;
+  const ms = ISO_INSTANT.test(value) ? Date.parse(value) : NaN;
+  if (Number.isNaN(ms)) {
+    throw new Error(
+      `Invalid LECTOR_FREE_TIER_CUTOFF "${value}" — expected an ISO 8601 instant with a zone, for example 2026-12-01T00:00:00Z.`,
+    );
+  }
+  return ms;
+}
+
+export interface FreeAccessOptions {
+  freeTierEnabled: boolean;
+  /** Epoch ms. Accounts created before it keep Free. Null or unset gives Free to every account. */
+  freeTierCutoffMs?: number | null;
+  /** Test seam; prod reads the Better Auth `user` table. */
+  resolveCreatedAtMs?: (userId: string) => number | null;
+}
+
+/** An account with an unknown creation time does not get Free once a cutoff is set. */
+export function hasFreeAccess(opts: FreeAccessOptions, userId: string): boolean {
+  if (!opts.freeTierEnabled) return false;
+  const cutoff = opts.freeTierCutoffMs ?? null;
+  if (cutoff === null) return true;
+  const created = (opts.resolveCreatedAtMs ?? getUserCreatedAtMs)(userId);
+  return created !== null && created < cutoff;
+}
+
 /** Parse PADDLE_ENV. Unset/empty → 'production'; only 'sandbox' opts out. */
 export function parsePaddleEnvironment(raw: string | undefined): PaddleEnvironment {
   const value = (raw ?? '').trim();
@@ -98,6 +134,7 @@ export function assertBillingBootable(
   hasApiKey: boolean,
   free: {
     enabled: boolean;
+    cutoffSet?: boolean;
     production: boolean;
     hasTurnstileSecret: boolean;
     hasTurnstileSiteKey: boolean;
@@ -120,6 +157,9 @@ export function assertBillingBootable(
     hasTurnstileSiteKey: false,
   },
 ): void {
+  if (free.cutoffSet && !free.enabled) {
+    throw new Error('LECTOR_FREE_TIER_CUTOFF requires LECTOR_FREE_TIER=true.');
+  }
   if (free.enabled && billing !== 'paddle') {
     throw new Error('LECTOR_FREE_TIER=true requires LECTOR_BILLING=paddle.');
   }
@@ -243,6 +283,52 @@ function pricesFromEnv(env: NodeJS.ProcessEnv): BillingPrice[] {
 }
 
 /**
+ * Paddle prices that carry a paid `trial_period` (developer.paddle.com →
+ * Trials). Paddle charges the trial price at checkout, holds the subscription
+ * in `trialing`, then renews at the base price. A trial price must bill the
+ * same base amount as the standard monthly price of its plan.
+ */
+function trialPricesFromEnv(env: NodeJS.ProcessEnv, standard: BillingPrice[]): BillingPrice[] {
+  const trials: BillingPrice[] = [];
+  const add = (key: string, id: string | undefined, plan: BillingPrice['plan']) => {
+    if (!id) return;
+    if (!id.startsWith('pri_')) {
+      console.warn(`[billing] ${key}="${id}" does not look like a Paddle price id (pri_…).`);
+    }
+    if (!standard.some((p) => p.plan === plan && p.cycle === 'month')) {
+      console.warn(`[billing] ${key} needs the standard monthly price of the same plan — ignored.`);
+      return;
+    }
+    trials.push({ id, plan, cycle: 'month' });
+  };
+  add('PADDLE_PRICE_MONTHLY_TRIAL', env.PADDLE_PRICE_MONTHLY_TRIAL, 'cloud');
+  add('PADDLE_PRICE_PLUS_MONTHLY_TRIAL', env.PADDLE_PRICE_PLUS_MONTHLY_TRIAL, 'plus');
+  return trials;
+}
+
+/** Every price id a subscription row can hold: the standard prices, then the trial prices. */
+export function knownBillingPrices(cfg: {
+  prices: readonly BillingPrice[];
+  trialPrices?: readonly BillingPrice[];
+}): BillingPrice[] {
+  return [...cfg.prices, ...(cfg.trialPrices ?? [])];
+}
+
+/**
+ * The trial price that replaces `standard` at checkout, or null. Only an
+ * account with no subscription row in any status gets one, so a canceled
+ * subscriber cannot buy the first month again.
+ */
+export function trialPriceFor(
+  cfg: { trialPrices?: readonly BillingPrice[] },
+  standard: BillingPrice,
+  priorSubscriptions: number,
+): BillingPrice | null {
+  if (priorSubscriptions > 0 || standard.cycle !== 'month') return null;
+  return (cfg.trialPrices ?? []).find((p) => p.plan === standard.plan) ?? null;
+}
+
+/**
  * Paddle's own rule for a redeemable code: letters and numbers, at most 32
  * characters (developer.paddle.com → Discounts). Matching it here is what
  * makes "the browser cannot send a discount id" structural rather than a
@@ -359,22 +445,27 @@ export const billingConfig: {
   readonly mode: BillingMode;
   readonly enforced: boolean;
   readonly freeTierEnabled: boolean;
+  readonly freeTierCutoffMs: number | null;
   readonly webhookSecret: string | undefined;
   readonly apiKey: string | undefined;
   readonly environment: PaddleEnvironment;
   readonly prices: BillingPrice[];
+  readonly trialPrices: BillingPrice[];
   readonly exemptEmails: Set<string>;
   readonly discountCodes: ReadonlyMap<string, string>;
 } = (() => {
   const mode = parseBillingMode(process.env.LECTOR_BILLING);
+  const prices = pricesFromEnv(process.env);
   return {
     mode,
     enforced: mode === 'paddle',
     freeTierEnabled: parseFreeTierEnabled(process.env.LECTOR_FREE_TIER),
+    freeTierCutoffMs: parseFreeTierCutoff(process.env.LECTOR_FREE_TIER_CUTOFF),
     webhookSecret: process.env.PADDLE_WEBHOOK_SECRET || undefined,
     apiKey: process.env.PADDLE_API_KEY || undefined,
     environment: parsePaddleEnvironment(process.env.PADDLE_ENV),
-    prices: pricesFromEnv(process.env),
+    prices,
+    trialPrices: trialPricesFromEnv(process.env, prices),
     exemptEmails: parseExemptEmails(process.env.BILLING_EXEMPT_EMAILS),
     discountCodes: parseDiscountCodes(process.env.PADDLE_DISCOUNT_CODES),
   } as const;
@@ -663,9 +754,8 @@ export function getUserEmail(userId: string): string | null {
   }
 }
 
-export interface BillingGateOptions {
+export interface BillingGateOptions extends FreeAccessOptions {
   enforced: boolean;
-  freeTierEnabled: boolean;
   exemptEmails: Set<string>;
   /** Test seam; prod uses the `user`-table lookup. */
   resolveEmail?: (userId: string) => string | null;
@@ -722,9 +812,9 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
 
     // Suspension is enforced by the preceding accountStatusMiddleware. Once
     // authentication has resolved a tenant, the Free rollout lets every
-    // non-suspended account reach ordinary routes; plan limits remain the
-    // server-owned cost/product boundary.
-    if (opts.freeTierEnabled) return next();
+    // non-suspended account with Free access reach ordinary routes; plan
+    // limits remain the server-owned cost/product boundary.
+    if (hasFreeAccess(opts, userId)) return next();
 
     // Comped tester (#221): dynamic per-account exemption, checked before the
     // subscription so it works even with no Paddle row at all.
@@ -744,5 +834,6 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
 export const billingMiddleware = makeBillingMiddleware({
   enforced: billingConfig.enforced,
   freeTierEnabled: billingConfig.freeTierEnabled,
+  freeTierCutoffMs: billingConfig.freeTierCutoffMs,
   exemptEmails: billingConfig.exemptEmails,
 });

@@ -13,7 +13,11 @@ import {
   parseBillingMode,
   parseDiscountCodes,
   parseExemptEmails,
+  hasFreeAccess,
+  knownBillingPrices,
+  parseFreeTierCutoff,
   parseFreeTierEnabled,
+  trialPriceFor,
   parsePaddleEnvironment,
   resolveBillingStatus,
   resolveDiscount,
@@ -102,6 +106,72 @@ describe('billing env parsing', () => {
     expect(() => parseFreeTierEnabled('TRUE')).toThrow(/Invalid LECTOR_FREE_TIER/);
     expect(() => parseFreeTierEnabled(' true ')).toThrow(/Invalid LECTOR_FREE_TIER/);
     expect(() => parseFreeTierEnabled('1')).toThrow(/Invalid LECTOR_FREE_TIER/);
+  });
+
+  test('LECTOR_FREE_TIER_CUTOFF needs an ISO instant with a zone', () => {
+    expect(parseFreeTierCutoff(undefined)).toBeNull();
+    expect(parseFreeTierCutoff('  ')).toBeNull();
+    expect(parseFreeTierCutoff('2026-12-01T00:00:00Z')).toBe(Date.UTC(2026, 11, 1));
+    expect(parseFreeTierCutoff('2026-12-01T11:00:00+11:00')).toBe(Date.UTC(2026, 11, 1));
+    expect(() => parseFreeTierCutoff('2026-12-01')).toThrow(/Invalid LECTOR_FREE_TIER_CUTOFF/);
+    expect(() => parseFreeTierCutoff('2026-12-01T00:00:00')).toThrow(
+      /Invalid LECTOR_FREE_TIER_CUTOFF/,
+    );
+    expect(() => parseFreeTierCutoff('soon')).toThrow(/Invalid LECTOR_FREE_TIER_CUTOFF/);
+  });
+
+  test('a cutoff without Free refuses to boot', () => {
+    expect(() =>
+      assertBillingBootable('paddle', true, true, true, {
+        enabled: false,
+        cutoffSet: true,
+        production: false,
+        hasTurnstileSecret: false,
+        hasTurnstileSiteKey: false,
+      }),
+    ).toThrow(/LECTOR_FREE_TIER_CUTOFF requires LECTOR_FREE_TIER=true/);
+  });
+
+  test('Free access: the cutoff keeps earlier accounts and locks later accounts', () => {
+    const cutoff = Date.UTC(2026, 11, 1);
+    const created: Record<string, number | null> = {
+      early: cutoff - 1,
+      onTheDay: cutoff,
+      late: cutoff + 1,
+      unknown: null,
+    };
+    const opts = {
+      freeTierEnabled: true,
+      freeTierCutoffMs: cutoff,
+      resolveCreatedAtMs: (id: string) => created[id] ?? null,
+    };
+    expect(hasFreeAccess(opts, 'early')).toBe(true);
+    expect(hasFreeAccess(opts, 'onTheDay')).toBe(false);
+    expect(hasFreeAccess(opts, 'late')).toBe(false);
+    expect(hasFreeAccess(opts, 'unknown')).toBe(false);
+    expect(hasFreeAccess({ ...opts, freeTierCutoffMs: null }, 'late')).toBe(true);
+    expect(hasFreeAccess({ ...opts, freeTierEnabled: false }, 'early')).toBe(false);
+  });
+
+  test('a trial price replaces only the monthly price of a first-time subscriber', () => {
+    const cfg = {
+      prices: [
+        { id: 'pri_cloud_month', plan: 'cloud', cycle: 'month' },
+        { id: 'pri_cloud_year', plan: 'cloud', cycle: 'year' },
+        { id: 'pri_plus_month', plan: 'plus', cycle: 'month' },
+      ],
+      trialPrices: [{ id: 'pri_cloud_trial', plan: 'cloud', cycle: 'month' }],
+    } as const;
+    expect(trialPriceFor(cfg, cfg.prices[0], 0)?.id).toBe('pri_cloud_trial');
+    expect(trialPriceFor(cfg, cfg.prices[0], 1)).toBeNull();
+    expect(trialPriceFor(cfg, cfg.prices[1], 0)).toBeNull();
+    expect(trialPriceFor(cfg, cfg.prices[2], 0)).toBeNull();
+    expect(knownBillingPrices(cfg).map((p) => p.id)).toEqual([
+      'pri_cloud_month',
+      'pri_cloud_year',
+      'pri_plus_month',
+      'pri_cloud_trial',
+    ]);
   });
 
   test('PADDLE_DISCOUNT_CODES: maps normalized code words to Paddle discount ids', () => {
@@ -438,7 +508,14 @@ describe('billing middleware', () => {
 
   const emails: Record<string, string> = { u1: 'U1@Example.com', boss: 'boss@lector.dev' };
 
-  function buildApp(enforced = true, freeTierEnabled = false) {
+  const CUTOFF = Date.UTC(2026, 11, 1);
+  const createdAt: Record<string, number> = { u1: CUTOFF - 1, u2: CUTOFF + 1 };
+
+  function buildApp(
+    enforced = true,
+    freeTierEnabled = false,
+    freeTierCutoffMs: number | null = null,
+  ) {
     const app = new Hono();
     // Stand-in for the session middleware's tenant resolution.
     app.use('/api/*', async (c, next) => {
@@ -451,6 +528,8 @@ describe('billing middleware', () => {
       makeBillingMiddleware({
         enforced,
         freeTierEnabled,
+        freeTierCutoffMs,
+        resolveCreatedAtMs: (id) => createdAt[id] ?? null,
         exemptEmails: new Set(['boss@lector.dev']),
         resolveEmail: (id) => emails[id] ?? null,
       }),
@@ -471,6 +550,23 @@ describe('billing middleware', () => {
   }
 
   const asUser = (user: string) => ({ headers: { 'X-Test-User': user } });
+
+  test('a Free cutoff lets an earlier account in and locks a later account', async () => {
+    const app = buildApp(true, true, CUTOFF);
+    const early = await app.request('/api/collections', { headers: { 'X-Test-User': 'u1' } });
+    expect(early.status).toBe(200);
+
+    const late = await app.request('/api/collections', { headers: { 'X-Test-User': 'u2' } });
+    expect(late.status).toBe(402);
+    expect(await late.json()).toEqual({ error: 'subscription_required', status: 'none' });
+
+    const takeout = await app.request('/api/data', { headers: { 'X-Test-User': 'u2' } });
+    expect(takeout.status).toBe(200);
+
+    applyPaddleEvent(subscriptionEvent({ status: 'trialing', lectorUserId: 'u2' }));
+    const trialing = await app.request('/api/collections', { headers: { 'X-Test-User': 'u2' } });
+    expect(trialing.status).toBe(200);
+  });
 
   test('no-op when not enforced', async () => {
     const app = buildApp(false);
@@ -591,10 +687,12 @@ describe('billing routes', () => {
     mode: 'paddle',
     enforced: true,
     freeTierEnabled: false,
+    freeTierCutoffMs: null,
     webhookSecret: SECRET,
     apiKey: 'pdl_test_key',
     environment: 'production',
     prices: [{ id: 'pri_monthly', plan: 'cloud', cycle: 'month' }],
+    trialPrices: [],
     exemptEmails: new Set<string>(),
     discountCodes: new Map<string, string>(),
   };
@@ -670,7 +768,7 @@ describe('billing routes', () => {
       suspended: false,
       status: 'none',
       exempt: false,
-      checkout: { prices: [] },
+      checkout: { prices: [], trialPlans: [] },
       management: { customerPortal: false, subscription: null },
     });
   });
@@ -703,6 +801,7 @@ describe('billing routes', () => {
     expect(body.status).toBe('none');
     expect(body.checkout).toEqual({
       prices: [{ id: 'pri_monthly', plan: 'cloud', cycle: 'month' }],
+      trialPlans: [],
     });
     expect(body.management).toEqual({ customerPortal: false, subscription: null });
   });
@@ -723,7 +822,191 @@ describe('billing routes', () => {
     expect(body.status).toBe('active');
     expect(body.management).toEqual({
       customerPortal: true,
-      subscription: { plan: 'cloud', cycle: 'month', canChange: true },
+      subscription: { plan: 'cloud', cycle: 'month', canChange: true, trialEndsAt: null },
+    });
+  });
+
+  describe('Free cutoff', () => {
+    const CUTOFF = Date.UTC(2026, 11, 1);
+    const cutoffCfg: typeof billingConfig = {
+      ...enforcedCfg,
+      freeTierEnabled: true,
+      freeTierCutoffMs: CUTOFF,
+    };
+
+    function appFor(createdAtMs: number) {
+      const app = new Hono();
+      app.route(
+        '/api/billing',
+        makeBillingRoutes(
+          cutoffCfg,
+          () => 'local@example.com',
+          undefined,
+          undefined,
+          undefined,
+          operations(),
+          () => createdAtMs,
+        ),
+      );
+      return app;
+    }
+
+    test('status keeps Free for an account from before the cutoff', async () => {
+      const res = await appFor(CUTOFF - 1).request('/api/billing/status');
+      expect(await res.json()).toMatchObject({
+        accessAllowed: true,
+        subscriptionActive: false,
+        freeTierEnabled: true,
+      });
+    });
+
+    test('status locks an account from after the cutoff', async () => {
+      const res = await appFor(CUTOFF + 1).request('/api/billing/status');
+      expect(await res.json()).toMatchObject({
+        accessAllowed: false,
+        subscriptionActive: false,
+        freeTierEnabled: false,
+      });
+    });
+  });
+
+  describe('paid trial', () => {
+    const trialCfg: typeof billingConfig = {
+      ...managedCfg,
+      trialPrices: [
+        { id: 'pri_cloud_trial', plan: 'cloud', cycle: 'month' },
+        { id: 'pri_plus_trial', plan: 'plus', cycle: 'month' },
+      ],
+    };
+
+    function checkoutApp(calls: string[]) {
+      return buildApp(trialCfg, 'local@example.com', async (args) => {
+        calls.push(args.priceId);
+        return { id: 'txn_trial', checkoutUrl: null };
+      });
+    }
+
+    function checkout(app: Hono, priceId: string) {
+      return app.request('/api/billing/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ priceId }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    test('status offers the trial to an account with no subscription', async () => {
+      const res = await buildApp(trialCfg).request('/api/billing/status');
+      const body = (await res.json()) as { checkout: { prices: unknown[]; trialPlans: string[] } };
+      expect(body.checkout.trialPlans).toEqual(['cloud', 'plus']);
+      expect(body.checkout.prices).toEqual(managedCfg.prices);
+    });
+
+    test('checkout bills the trial price for a first monthly subscription', async () => {
+      const calls: string[] = [];
+      const res = await checkout(checkoutApp(calls), 'pri_plus_month');
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ txnId: 'txn_trial', discount: 'none', trial: true });
+      expect(calls).toEqual(['pri_plus_trial']);
+    });
+
+    test('checkout keeps the annual price, because the trial is monthly only', async () => {
+      const calls: string[] = [];
+      const res = await checkout(checkoutApp(calls), 'pri_cloud_year');
+      expect(await res.json()).toMatchObject({ trial: false });
+      expect(calls).toEqual(['pri_cloud_year']);
+    });
+
+    test('the browser cannot name a trial price', async () => {
+      const calls: string[] = [];
+      const res = await checkout(checkoutApp(calls), 'pri_cloud_trial');
+      expect(res.status).toBe(400);
+      expect(calls).toEqual([]);
+    });
+
+    test('a canceled subscriber gets no second trial', async () => {
+      applyPaddleEvent(
+        subscriptionEvent({
+          status: 'canceled',
+          lectorUserId: 'local',
+          priceId: 'pri_cloud_trial',
+        }),
+      );
+      const calls: string[] = [];
+      const app = checkoutApp(calls);
+
+      const status = (await (await app.request('/api/billing/status')).json()) as {
+        checkout: { trialPlans: string[] };
+      };
+      expect(status.checkout.trialPlans).toEqual([]);
+
+      const res = await checkout(app, 'pri_cloud_month');
+      expect(await res.json()).toMatchObject({ trial: false });
+      expect(calls).toEqual(['pri_cloud_month']);
+    });
+
+    test('status reports the plan and the end of the trial while trialing', async () => {
+      applyPaddleEvent(
+        subscriptionEvent({
+          status: 'trialing',
+          lectorUserId: 'local',
+          priceId: 'pri_plus_trial',
+          periodEnd: '2026-12-18T09:00:00Z',
+        }),
+      );
+      const body = (await (await buildApp(trialCfg).request('/api/billing/status')).json()) as {
+        accessAllowed: boolean;
+        subscriptionActive: boolean;
+        management: unknown;
+      };
+      expect(body.accessAllowed).toBe(true);
+      expect(body.subscriptionActive).toBe(true);
+      expect(body.management).toEqual({
+        customerPortal: true,
+        subscription: {
+          plan: 'plus',
+          cycle: 'month',
+          canChange: false,
+          trialEndsAt: '2026-12-18T09:00:00Z',
+        },
+      });
+    });
+
+    test('after the trial, the standard price of the same plan is already current', async () => {
+      applyPaddleEvent(
+        subscriptionEvent({ status: 'active', lectorUserId: 'local', priceId: 'pri_cloud_trial' }),
+      );
+      const app = buildApp(trialCfg, 'local@example.com', undefined, operations());
+      const res = await app.request('/api/billing/change/preview', {
+        method: 'POST',
+        body: JSON.stringify({ priceId: 'pri_cloud_month' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'plan_already_current' });
+    });
+
+    test('after the trial, a plan change manages the trial price id', async () => {
+      applyPaddleEvent(
+        subscriptionEvent({ status: 'active', lectorUserId: 'local', priceId: 'pri_cloud_trial' }),
+      );
+      const managed: string[][] = [];
+      const app = buildApp(
+        trialCfg,
+        'local@example.com',
+        undefined,
+        operations({
+          applySubscriptionChange: async (args) => {
+            managed.push([...args.managedPriceIds]);
+          },
+        }),
+      );
+      const res = await app.request('/api/billing/change', {
+        method: 'POST',
+        body: JSON.stringify({ priceId: 'pri_plus_month' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect(res.status).toBe(202);
+      expect(managed[0]).toContain('pri_cloud_trial');
     });
   });
 
@@ -823,7 +1106,7 @@ describe('billing routes', () => {
       headers: { 'Content-Type': 'application/json' },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ txnId: 'txn_stub_1', discount: 'none' });
+    expect(await res.json()).toEqual({ txnId: 'txn_stub_1', discount: 'none', trial: false });
     // Tenant stamped server-side; no prior customer for this email yet.
     expect(calls).toEqual([
       { priceId: 'pri_monthly', userId: 'local', customerId: null, discountId: null },
@@ -843,7 +1126,7 @@ describe('billing routes', () => {
       headers: { 'Content-Type': 'application/json' },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ txnId: 'txn_promo', discount: 'applied' });
+    expect(await res.json()).toEqual({ txnId: 'txn_promo', discount: 'applied', trial: false });
     expect(seen).toBe('dsc_01k_producthunt');
   });
 
@@ -860,7 +1143,11 @@ describe('billing routes', () => {
     });
     // 200, not 4xx: a mistyped coupon must not strand a reader who wants to pay.
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ txnId: 'txn_full_price', discount: 'unknown' });
+    expect(await res.json()).toEqual({
+      txnId: 'txn_full_price',
+      discount: 'unknown',
+      trial: false,
+    });
     expect(seen).toBeNull();
   });
 
@@ -876,7 +1163,7 @@ describe('billing routes', () => {
       headers: { 'Content-Type': 'application/json' },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ txnId: 'txn_injected', discount: 'unknown' });
+    expect(await res.json()).toEqual({ txnId: 'txn_injected', discount: 'unknown', trial: false });
     expect(seen).toBeNull();
   });
 

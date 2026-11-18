@@ -5,6 +5,7 @@
  */
 import { Database } from 'bun:sqlite';
 import { db } from '../db';
+import { createdAtMs } from './account-age';
 import { config } from './config';
 import { sendEmail, type EmailMessage } from './email';
 import {
@@ -22,6 +23,7 @@ export const LIFECYCLE_TEMPLATES = {
   day3: 'day-3-registered-no-real-use',
   anki: 'anki-after-10-saved-words',
   glossCap: 'gloss-cap-free-tier-limit-hit',
+  trialEnding: 'trial-ending-renewal-notice',
 } as const;
 
 export type LifecycleAlias = (typeof LIFECYCLE_TEMPLATES)[keyof typeof LIFECYCLE_TEMPLATES];
@@ -42,12 +44,20 @@ const UNSUBSCRIBE_ALIASES = new Set<LifecycleAlias>([
   LIFECYCLE_TEMPLATES.glossCap,
 ]);
 
+/** A renewal notice is a billing message, so a product-mail opt-out does not stop it. */
+const BILLING_NOTICE_ALIASES = new Set<LifecycleAlias>([LIFECYCLE_TEMPLATES.trialEnding]);
+
+/** The notice goes out when the $1 first month ends within this window. */
+export const TRIAL_ENDING_WINDOW_MS = 7 * 24 * HOUR_MS;
+
 const REAL_USE_EVENTS = [
   'lesson.opened',
   'vocab.saved',
   'practice.answer_submitted',
   'onboarding.completed',
 ] as const;
+
+export { createdAtMs };
 
 export type LifecycleSendResult = 'sent' | 'skipped';
 
@@ -83,37 +93,18 @@ function mergeDeps(overrides?: Partial<LifecycleDeps>): LifecycleDeps {
   return { ...defaultLifecycleDeps(), ...overrides };
 }
 
-function userTableExists(database: Database): boolean {
+function tableExists(database: Database, name: string): boolean {
   return Boolean(
-    database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user'").get(),
+    database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(name),
   );
+}
+
+function userTableExists(database: Database): boolean {
+  return tableExists(database, 'user');
 }
 
 function isVerified(value: number | boolean): boolean {
   return value === 1 || value === true;
-}
-
-/** Parse Better Auth `createdAt` (ISO, Date, ms, or unix seconds). Null if unknown. */
-export function createdAtMs(value: unknown): number | null {
-  if (value instanceof Date) {
-    const ms = value.getTime();
-    return Number.isFinite(ms) ? ms : null;
-  }
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value < 1e11 ? value * 1000 : value;
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    if (/^\d+(\.\d+)?$/.test(trimmed)) {
-      const asNumber = Number(trimmed);
-      if (!Number.isFinite(asNumber)) return null;
-      return asNumber < 1e11 ? asNumber * 1000 : asNumber;
-    }
-    const parsed = Date.parse(trimmed);
-    return Number.isNaN(parsed) ? null : parsed;
-  }
-  return null;
 }
 
 /** The user's target language code, or null when it is unset or unknown. */
@@ -226,11 +217,14 @@ async function sendOnce(
   user: LifecycleUser,
   alias: LifecycleAlias,
   deps: LifecycleDeps,
+  extraVariables: Record<string, string> = {},
 ): Promise<LifecycleSendResult> {
   if (!deps.cloud || !deps.hasResendKey) return 'skipped';
   if (!isVerified(user.emailVerified) || !user.email) return 'skipped';
   if (alreadySent(deps.database, user.id, alias)) return 'skipped';
-  if (isUnsubscribed(deps.database, user.email)) return 'skipped';
+  if (!BILLING_NOTICE_ALIASES.has(alias) && isUnsubscribed(deps.database, user.email)) {
+    return 'skipped';
+  }
 
   const sentAt = deps.now().toISOString();
   if (!claimSend(deps.database, user.id, alias, sentAt)) return 'skipped';
@@ -256,6 +250,7 @@ async function sendOnce(
           // the real number is the point: it is evidence that Lector is
           // watching, which is what "a modest word list" failed to be.
           WORD_COUNT: String(savedWordCount(deps.database, user.id)),
+          ...extraVariables,
         },
       },
     });
@@ -323,6 +318,64 @@ export async function notifyGlossCapHit(
   }
 }
 
+interface TrialingRow {
+  userId: string | null;
+  email: string | null;
+  currentPeriodEnd: string;
+}
+
+/** `2026-12-18T09:00:00Z` → `18 December 2026`, in UTC because Paddle bills in UTC. */
+export function renewalDateLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * Tell each trialing subscriber the renewal date before Paddle takes the first
+ * full charge. A trialing row's `currentPeriodEnd` is the end of the trial.
+ */
+async function sweepTrialEndingEmails(
+  deps: LifecycleDeps,
+): Promise<{ sent: number; skipped: number }> {
+  let sent = 0;
+  let skipped = 0;
+  if (!userTableExists(deps.database)) return { sent, skipped };
+  if (!tableExists(deps.database, 'billing_subscriptions')) return { sent, skipped };
+  const nowMs = deps.now().getTime();
+  const rows = deps.database
+    .prepare(
+      `SELECT s.userId, c.email, s.currentPeriodEnd
+         FROM billing_subscriptions s
+         LEFT JOIN billing_customers c ON c.paddleCustomerId = s.paddleCustomerId
+        WHERE s.status = 'trialing' AND s.currentPeriodEnd IS NOT NULL`,
+    )
+    .all() as TrialingRow[];
+  for (const row of rows) {
+    const endMs = Date.parse(row.currentPeriodEnd);
+    if (Number.isNaN(endMs) || endMs <= nowMs || endMs - nowMs > TRIAL_ENDING_WINDOW_MS) continue;
+    const user =
+      (row.userId ? loadUser(deps.database, row.userId) : null) ??
+      (row.email
+        ? ((deps.database
+            .prepare(
+              'SELECT id, email, name, emailVerified, createdAt FROM user WHERE lower(email) = ?',
+            )
+            .get(row.email) as LifecycleUser | undefined) ?? null)
+        : null);
+    if (!user) continue;
+    const result = await sendOnce(user, LIFECYCLE_TEMPLATES.trialEnding, deps, {
+      RENEWAL_DATE: renewalDateLabel(row.currentPeriodEnd),
+    });
+    if (result === 'sent') sent += 1;
+    else skipped += 1;
+  }
+  return { sent, skipped };
+}
+
 export async function sweepLifecycleEmails(
   overrides?: Partial<LifecycleDeps>,
 ): Promise<{ sent: number; skipped: number }> {
@@ -331,6 +384,10 @@ export async function sweepLifecycleEmails(
     let sent = 0;
     let skipped = 0;
     if (!deps.cloud || !deps.hasResendKey) return { sent, skipped };
+
+    const trial = await sweepTrialEndingEmails(deps);
+    sent += trial.sent;
+    skipped += trial.skipped;
 
     const nowMs = deps.now().getTime();
     for (const user of loadVerifiedUsers(deps.database)) {

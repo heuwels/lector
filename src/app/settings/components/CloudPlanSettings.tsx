@@ -382,12 +382,25 @@ export default function CloudPlanSettings() {
             </div>
           )}
 
-          {currentSubscription && !currentSubscription.canChange && (
-            <p className="text-xs">
-              Plan changes are unavailable while Paddle is processing this subscription. Use billing
-              management to update your payment method or review its status.
+          {currentSubscription?.trialEndsAt && (
+            <p className="text-xs" data-testid="cloud-plan-trial">
+              Your first month costs $1. The plan renews at its usual price on{' '}
+              {new Date(currentSubscription.trialEndsAt).toLocaleDateString(undefined, {
+                dateStyle: 'long',
+              })}
+              . To stop the renewal, cancel in billing management before that date. You can change
+              plan after the first month.
             </p>
           )}
+
+          {currentSubscription &&
+            !currentSubscription.canChange &&
+            !currentSubscription.trialEndsAt && (
+              <p className="text-xs">
+                Plan changes are unavailable while Paddle is processing this subscription. Use
+                billing management to update your payment method or review its status.
+              </p>
+            )}
         </div>
       )}
     </section>
