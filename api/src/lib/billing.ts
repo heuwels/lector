@@ -24,6 +24,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { createMiddleware } from 'hono/factory';
 import { db } from '../db';
+import { getUserCreatedAtMs } from './account-age';
 import { isBillingExempt } from './account-flags';
 
 export type BillingMode = 'off' | 'paddle';
@@ -71,6 +72,41 @@ export function parseFreeTierEnabled(raw: string | undefined): boolean {
   throw new Error(`Invalid LECTOR_FREE_TIER "${raw}" — expected "true", "false", or unset.`);
 }
 
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * LECTOR_FREE_TIER_CUTOFF as epoch ms, or null when unset. The value must carry
+ * a zone, so the cutoff does not move with the server's local time.
+ */
+export function parseFreeTierCutoff(raw: string | undefined): number | null {
+  const value = (raw ?? '').trim();
+  if (value === '') return null;
+  const ms = ISO_INSTANT.test(value) ? Date.parse(value) : NaN;
+  if (Number.isNaN(ms)) {
+    throw new Error(
+      `Invalid LECTOR_FREE_TIER_CUTOFF "${value}" — expected an ISO 8601 instant with a zone, for example 2026-12-01T00:00:00Z.`,
+    );
+  }
+  return ms;
+}
+
+export interface FreeAccessOptions {
+  freeTierEnabled: boolean;
+  /** Epoch ms. Accounts created before it keep Free. Null or unset gives Free to every account. */
+  freeTierCutoffMs?: number | null;
+  /** Test seam; prod reads the Better Auth `user` table. */
+  resolveCreatedAtMs?: (userId: string) => number | null;
+}
+
+/** An account with an unknown creation time does not get Free once a cutoff is set. */
+export function hasFreeAccess(opts: FreeAccessOptions, userId: string): boolean {
+  if (!opts.freeTierEnabled) return false;
+  const cutoff = opts.freeTierCutoffMs ?? null;
+  if (cutoff === null) return true;
+  const created = (opts.resolveCreatedAtMs ?? getUserCreatedAtMs)(userId);
+  return created !== null && created < cutoff;
+}
+
 /** Parse PADDLE_ENV. Unset/empty → 'production'; only 'sandbox' opts out. */
 export function parsePaddleEnvironment(raw: string | undefined): PaddleEnvironment {
   const value = (raw ?? '').trim();
@@ -98,6 +134,7 @@ export function assertBillingBootable(
   hasApiKey: boolean,
   free: {
     enabled: boolean;
+    cutoffSet?: boolean;
     production: boolean;
     hasTurnstileSecret: boolean;
     hasTurnstileSiteKey: boolean;
@@ -120,6 +157,9 @@ export function assertBillingBootable(
     hasTurnstileSiteKey: false,
   },
 ): void {
+  if (free.cutoffSet && !free.enabled) {
+    throw new Error('LECTOR_FREE_TIER_CUTOFF requires LECTOR_FREE_TIER=true.');
+  }
   if (free.enabled && billing !== 'paddle') {
     throw new Error('LECTOR_FREE_TIER=true requires LECTOR_BILLING=paddle.');
   }
@@ -243,6 +283,83 @@ function pricesFromEnv(env: NodeJS.ProcessEnv): BillingPrice[] {
 }
 
 /**
+ * Paddle prices that carry a paid `trial_period` (developer.paddle.com →
+ * Trials). Paddle charges the trial price at checkout, holds the subscription
+ * in `trialing`, then renews at the base price. A trial price must bill the
+ * same base amount as the standard monthly price of its plan.
+ *
+ * Paddle keeps a subscription on its trial price id after the trial. Each id
+ * here therefore maps to a plan for the life of that subscription, and the
+ * list does not depend on the offer. `trialPriceFor` decides the offer.
+ */
+export function trialPricesFromEnv(
+  env: NodeJS.ProcessEnv,
+  standard: BillingPrice[],
+): BillingPrice[] {
+  const trials: BillingPrice[] = [];
+  const add = (key: string, id: string | undefined, plan: BillingPrice['plan']) => {
+    if (!id) return;
+    if (!id.startsWith('pri_')) {
+      console.warn(`[billing] ${key}="${id}" does not look like a Paddle price id (pri_…).`);
+    }
+    if (!standard.some((p) => p.plan === plan && p.cycle === 'month')) {
+      console.warn(
+        `[billing] ${key} has no standard monthly price of the same plan. Checkout does not offer it.`,
+      );
+    }
+    trials.push({ id, plan, cycle: 'month' });
+  };
+  add('PADDLE_PRICE_MONTHLY_TRIAL', env.PADDLE_PRICE_MONTHLY_TRIAL, 'cloud');
+  add('PADDLE_PRICE_PLUS_MONTHLY_TRIAL', env.PADDLE_PRICE_PLUS_MONTHLY_TRIAL, 'plus');
+  return trials;
+}
+
+/**
+ * LECTOR_TRIAL_OFFER. The offer is on unless the value is `false`. Use it to
+ * stop the $1 first month. Do not remove a trial price id for that purpose,
+ * because subscribers that started on it keep that price id.
+ */
+export function parseTrialOfferEnabled(raw: string | undefined): boolean {
+  return raw?.trim().toLowerCase() !== 'false';
+}
+
+/** A scheduled cancel or pause means that Paddle does not renew the subscription. */
+export function stopsRenewal(scheduledChange: string | null | undefined): boolean {
+  return scheduledChange === 'cancel' || scheduledChange === 'pause';
+}
+
+/** True when `priceId` is a configured trial price. */
+export function isTrialPriceId(
+  cfg: { trialPrices?: readonly BillingPrice[] },
+  priceId: string | null | undefined,
+): boolean {
+  return !!priceId && (cfg.trialPrices ?? []).some((p) => p.id === priceId);
+}
+
+/** Every price id a subscription row can hold: the standard prices, then the trial prices. */
+export function knownBillingPrices(cfg: {
+  prices: readonly BillingPrice[];
+  trialPrices?: readonly BillingPrice[];
+}): BillingPrice[] {
+  return [...cfg.prices, ...(cfg.trialPrices ?? [])];
+}
+
+/**
+ * The trial price that replaces `standard` at checkout, or null. Only an
+ * account with no subscription row in any status gets one, so a canceled
+ * subscriber cannot buy the first month again.
+ */
+export function trialPriceFor(
+  cfg: { trialPrices?: readonly BillingPrice[]; trialOfferEnabled?: boolean },
+  standard: BillingPrice,
+  priorSubscriptions: number,
+): BillingPrice | null {
+  if (cfg.trialOfferEnabled === false) return null;
+  if (priorSubscriptions > 0 || standard.cycle !== 'month') return null;
+  return (cfg.trialPrices ?? []).find((p) => p.plan === standard.plan) ?? null;
+}
+
+/**
  * Paddle's own rule for a redeemable code: letters and numbers, at most 32
  * characters (developer.paddle.com → Discounts). Matching it here is what
  * makes "the browser cannot send a discount id" structural rather than a
@@ -359,22 +476,29 @@ export const billingConfig: {
   readonly mode: BillingMode;
   readonly enforced: boolean;
   readonly freeTierEnabled: boolean;
+  readonly freeTierCutoffMs: number | null;
   readonly webhookSecret: string | undefined;
   readonly apiKey: string | undefined;
   readonly environment: PaddleEnvironment;
   readonly prices: BillingPrice[];
+  readonly trialPrices: BillingPrice[];
+  readonly trialOfferEnabled: boolean;
   readonly exemptEmails: Set<string>;
   readonly discountCodes: ReadonlyMap<string, string>;
 } = (() => {
   const mode = parseBillingMode(process.env.LECTOR_BILLING);
+  const prices = pricesFromEnv(process.env);
   return {
     mode,
     enforced: mode === 'paddle',
     freeTierEnabled: parseFreeTierEnabled(process.env.LECTOR_FREE_TIER),
+    freeTierCutoffMs: parseFreeTierCutoff(process.env.LECTOR_FREE_TIER_CUTOFF),
     webhookSecret: process.env.PADDLE_WEBHOOK_SECRET || undefined,
     apiKey: process.env.PADDLE_API_KEY || undefined,
     environment: parsePaddleEnvironment(process.env.PADDLE_ENV),
-    prices: pricesFromEnv(process.env),
+    prices,
+    trialPrices: trialPricesFromEnv(process.env, prices),
+    trialOfferEnabled: parseTrialOfferEnabled(process.env.LECTOR_TRIAL_OFFER),
     exemptEmails: parseExemptEmails(process.env.BILLING_EXEMPT_EMAILS),
     discountCodes: parseDiscountCodes(process.env.PADDLE_DISCOUNT_CODES),
   } as const;
@@ -468,6 +592,8 @@ export interface BillingSubscriptionRecord {
   status: string;
   priceId: string | null;
   currentPeriodEnd: string | null;
+  /** Paddle `scheduled_change.action` (`cancel`, `pause`, `resume`), or null. */
+  scheduledChange: string | null;
   occurredAt: string;
 }
 
@@ -488,6 +614,7 @@ export function findBillingSubscriptions(
          s.status,
          s.priceId,
          s.currentPeriodEnd,
+         s.scheduledChange,
          s.occurredAt
        FROM billing_subscriptions s
        LEFT JOIN billing_customers c ON c.paddleCustomerId = s.paddleCustomerId
@@ -548,6 +675,7 @@ export interface PaddleEvent {
     customer_id?: string;
     custom_data?: { lectorUserId?: unknown } | null;
     current_billing_period?: { ends_at?: string } | null;
+    scheduled_change?: { action?: string } | null;
     items?: Array<{ price?: { id?: string } | null }> | null;
   };
 }
@@ -593,14 +721,15 @@ export function applyPaddleEvent(evt: PaddleEvent): AppliedEvent {
       .prepare(
         `INSERT INTO billing_subscriptions
            (paddleSubscriptionId, paddleCustomerId, userId, status, priceId,
-            currentPeriodEnd, occurredAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            currentPeriodEnd, scheduledChange, occurredAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(paddleSubscriptionId) DO UPDATE SET
            paddleCustomerId = excluded.paddleCustomerId,
            userId = COALESCE(excluded.userId, billing_subscriptions.userId),
            status = excluded.status,
            priceId = COALESCE(excluded.priceId, billing_subscriptions.priceId),
            currentPeriodEnd = excluded.currentPeriodEnd,
+           scheduledChange = excluded.scheduledChange,
            occurredAt = excluded.occurredAt,
            updatedAt = excluded.updatedAt
          WHERE excluded.occurredAt > billing_subscriptions.occurredAt`,
@@ -612,6 +741,7 @@ export function applyPaddleEvent(evt: PaddleEvent): AppliedEvent {
         data.status,
         data.items?.[0]?.price?.id ?? null,
         data.current_billing_period?.ends_at ?? null,
+        typeof data.scheduled_change?.action === 'string' ? data.scheduled_change.action : null,
         occurredAt,
         now,
       ).changes;
@@ -663,9 +793,8 @@ export function getUserEmail(userId: string): string | null {
   }
 }
 
-export interface BillingGateOptions {
+export interface BillingGateOptions extends FreeAccessOptions {
   enforced: boolean;
-  freeTierEnabled: boolean;
   exemptEmails: Set<string>;
   /** Test seam; prod uses the `user`-table lookup. */
   resolveEmail?: (userId: string) => string | null;
@@ -722,9 +851,9 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
 
     // Suspension is enforced by the preceding accountStatusMiddleware. Once
     // authentication has resolved a tenant, the Free rollout lets every
-    // non-suspended account reach ordinary routes; plan limits remain the
-    // server-owned cost/product boundary.
-    if (opts.freeTierEnabled) return next();
+    // non-suspended account with Free access reach ordinary routes; plan
+    // limits remain the server-owned cost/product boundary.
+    if (hasFreeAccess(opts, userId)) return next();
 
     // Comped tester (#221): dynamic per-account exemption, checked before the
     // subscription so it works even with no Paddle row at all.
@@ -744,5 +873,6 @@ export function makeBillingMiddleware(opts: BillingGateOptions) {
 export const billingMiddleware = makeBillingMiddleware({
   enforced: billingConfig.enforced,
   freeTierEnabled: billingConfig.freeTierEnabled,
+  freeTierCutoffMs: billingConfig.freeTierCutoffMs,
   exemptEmails: billingConfig.exemptEmails,
 });

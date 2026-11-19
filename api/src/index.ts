@@ -42,6 +42,7 @@ try {
     Boolean(billingConfig.apiKey),
     {
       enabled: billingConfig.freeTierEnabled,
+      cutoffSet: billingConfig.freeTierCutoffMs !== null,
       production: isProductionEnvironment(process.env.NODE_ENV),
       hasTurnstileSecret: Boolean(process.env.TURNSTILE_SECRET_KEY),
       hasTurnstileSiteKey: Boolean(process.env.TURNSTILE_SITE_KEY),

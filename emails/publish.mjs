@@ -93,6 +93,9 @@ const VARIABLES = [
     type: 'string',
     fallback_value: 'https://lector.dev/images/reader.png',
   },
+  // The day Paddle takes the first full charge after the $1 first month.
+  // lifecycle-email.ts formats it from the trialing subscription row.
+  { key: 'RENEWAL_DATE', type: 'string', fallback_value: 'the end of your first month' },
 ];
 
 function link(href, label) {
@@ -381,6 +384,25 @@ const TEMPLATES = [
     ],
     ctaLabel: 'See Cloud plans',
     ctaHref: DOCS.pricing,
+  },
+  {
+    alias: 'trial-ending-renewal-notice',
+    name: 'Trial ending - renewal notice',
+    // A billing notice. It has no stop link, and lifecycle-email.ts sends it
+    // to an address that opted out of product mail.
+    subject: 'Your $1 first month of Lector Cloud ends soon',
+    unsubscribe: false,
+    title: 'Your first month ends soon',
+    preheader: 'Your plan renews at its usual price on {{{RENEWAL_DATE}}}.',
+    paragraphs: [
+      'Hi {{{USER_NAME}}}.',
+      'Your $1 first month of Lector Cloud ends on {{{RENEWAL_DATE}}}. On that date your plan renews at its usual monthly price.',
+      'You do not need to do anything to continue. Your library, your word list and your Practice history stay as they are.',
+      'To stop the renewal, open Settings, then select Manage billing, and cancel before {{{RENEWAL_DATE}}}. You can export your data at any time, and you can self-host Lector at no cost.',
+      'Please reply to this email if you have a question about your plan. I read every reply.',
+    ],
+    ctaLabel: 'Open your plan settings',
+    ctaHref: '{{{APP_URL}}}/settings#plan',
   },
 ];
 

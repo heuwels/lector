@@ -9,6 +9,7 @@ import {
   languageLabel,
   notifyGlossCapHit,
   notifyVocabSaved,
+  renewalDateLabel,
   savedWordCount,
   sendWelcomeEmail,
   startLifecycleEmailWorker,
@@ -133,6 +134,7 @@ function deps(
     cloud: true,
     hasResendKey: true,
     appUrl: 'https://app.lector.dev',
+    trialPriceIds: ['pri_cloud_trial'],
     ...extra,
   };
 }
@@ -479,5 +481,159 @@ describe('starterLine', () => {
 describe('startLifecycleEmailWorker', () => {
   test('does not boot in the selfhost test env', () => {
     expect(startLifecycleEmailWorker()).toBe(false);
+  });
+});
+
+describe('trial ending notice', () => {
+  const DAY = 24 * HOUR;
+
+  function withBilling(database: Database): void {
+    database.exec(`
+      CREATE TABLE billing_customers (paddleCustomerId TEXT PRIMARY KEY, email TEXT NOT NULL);
+      CREATE TABLE billing_subscriptions (
+        paddleSubscriptionId TEXT PRIMARY KEY,
+        paddleCustomerId TEXT NOT NULL,
+        userId TEXT,
+        status TEXT NOT NULL,
+        priceId TEXT,
+        currentPeriodEnd TEXT,
+        scheduledChange TEXT
+      );
+    `);
+  }
+
+  function insertSubscription(
+    database: Database,
+    opts: {
+      userId?: string | null;
+      status?: string;
+      endsInMs: number;
+      customerId?: string;
+      priceId?: string | null;
+      scheduledChange?: string | null;
+    },
+  ): string {
+    const end = new Date(NOW.getTime() + opts.endsInMs).toISOString();
+    database
+      .prepare(
+        `INSERT INTO billing_subscriptions
+           (paddleSubscriptionId, paddleCustomerId, userId, status, currentPeriodEnd,
+            priceId, scheduledChange)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        `sub_${opts.customerId ?? 'ctm_1'}`,
+        opts.customerId ?? 'ctm_1',
+        opts.userId === undefined ? 'user-1' : opts.userId,
+        opts.status ?? 'trialing',
+        end,
+        opts.priceId === undefined ? 'pri_cloud_trial' : opts.priceId,
+        opts.scheduledChange ?? null,
+      );
+    return end;
+  }
+
+  test('sends the renewal date once, inside the last seven days of the trial', async () => {
+    withUnsubSecret();
+    const database = createSchema();
+    withBilling(database);
+    const inbox: EmailMessage[] = [];
+    const userId = insertUser(database, {
+      createdAt: new Date(NOW.getTime() - 24 * DAY).toISOString(),
+    });
+    const end = insertSubscription(database, { endsInMs: 6 * DAY });
+
+    const first = await sweepLifecycleEmails(deps(database, inbox));
+    expect(first.sent).toBe(1);
+    expect(inbox[0].template?.id).toBe(LIFECYCLE_TEMPLATES.trialEnding);
+    expect(inbox[0].template?.variables?.RENEWAL_DATE).toBe(renewalDateLabel(end));
+    expect(inbox[0].headers).toBeUndefined();
+
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(1);
+    expect(sentAliases(database, userId)).toEqual([LIFECYCLE_TEMPLATES.trialEnding]);
+  });
+
+  test('waits while the trial has more than seven days left', async () => {
+    const database = createSchema();
+    withBilling(database);
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: new Date(NOW.getTime() - 10 * DAY).toISOString() });
+    insertSubscription(database, { endsInMs: 20 * DAY });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+  });
+
+  test('sends nothing for an active subscription or an ended trial', async () => {
+    const database = createSchema();
+    withBilling(database);
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: new Date(NOW.getTime() - 40 * DAY).toISOString() });
+    insertSubscription(database, { status: 'active', endsInMs: 3 * DAY, customerId: 'ctm_a' });
+    insertSubscription(database, { endsInMs: -1 * DAY, customerId: 'ctm_b' });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+  });
+
+  test('sends nothing when a cancel or a pause is scheduled', async () => {
+    const database = createSchema();
+    withBilling(database);
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: new Date(NOW.getTime() - 24 * DAY).toISOString() });
+    insertSubscription(database, {
+      endsInMs: 3 * DAY,
+      scheduledChange: 'cancel',
+      customerId: 'ctm_a',
+    });
+    insertSubscription(database, {
+      endsInMs: 3 * DAY,
+      scheduledChange: 'pause',
+      customerId: 'ctm_b',
+    });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+  });
+
+  test('sends nothing for a trial that is not on a trial price', async () => {
+    const database = createSchema();
+    withBilling(database);
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: new Date(NOW.getTime() - 24 * DAY).toISOString() });
+    insertSubscription(database, { endsInMs: 3 * DAY, priceId: 'pri_other', customerId: 'ctm_a' });
+    insertSubscription(database, { endsInMs: 3 * DAY, priceId: null, customerId: 'ctm_b' });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(0);
+
+    await sweepLifecycleEmails(deps(database, inbox, { trialPriceIds: [] }));
+    expect(inbox).toHaveLength(0);
+  });
+
+  test('reaches an address that opted out of product mail', async () => {
+    withUnsubSecret();
+    const database = createSchema();
+    withBilling(database);
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: new Date(NOW.getTime() - 24 * DAY).toISOString() });
+    recordUnsubscribe(database, 'ada@example.com', NOW.toISOString());
+    insertSubscription(database, { endsInMs: 2 * DAY });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox.map((m) => m.template?.id)).toEqual([LIFECYCLE_TEMPLATES.trialEnding]);
+  });
+
+  test('finds the account by the Paddle customer email', async () => {
+    const database = createSchema();
+    withBilling(database);
+    const inbox: EmailMessage[] = [];
+    insertUser(database, { createdAt: new Date(NOW.getTime() - 24 * DAY).toISOString() });
+    database
+      .prepare('INSERT INTO billing_customers (paddleCustomerId, email) VALUES (?, ?)')
+      .run('ctm_1', 'ada@example.com');
+    insertSubscription(database, { userId: null, endsInMs: 2 * DAY });
+    await sweepLifecycleEmails(deps(database, inbox));
+    expect(inbox).toHaveLength(1);
+  });
+
+  test('renewalDateLabel writes the date in UTC', () => {
+    expect(renewalDateLabel('2026-12-18T23:30:00Z')).toBe('18 December 2026');
   });
 });

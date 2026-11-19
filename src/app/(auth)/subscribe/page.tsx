@@ -103,6 +103,7 @@ export default function SubscribePage() {
   // promise about the price.
   const [promo, setPromo] = useState<string | null>(null);
   const [rejectedPromo, setRejectedPromo] = useState<string | null>(null);
+  const [trialWithdrawn, setTrialWithdrawn] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // One-shot activation poll: the webhook usually lands within seconds of
@@ -191,10 +192,20 @@ export default function SubscribePage() {
     if (opening !== null) return;
     setOpening(price.id);
     setRejectedPromo(null);
+    setTrialWithdrawn(false);
     const started = await startCheckout(price.id, promo);
     if (started === null) {
       setOpening(null);
       toast.error("Checkout couldn't be started. Please try again in a moment.");
+      return;
+    }
+    // The screen offered the $1 first month, but the API did not apply it. Stop
+    // before the overlay shows a different total, and load the true offer.
+    if (price.cycle === 'month' && trialPlans.includes(price.plan) && !started.trial) {
+      const fresh = await fetchBillingStatus();
+      if (fresh) setStatus(fresh);
+      setOpening(null);
+      setTrialWithdrawn(true);
       return;
     }
     // A code the API could not map must stop here. Redirecting anyway would
@@ -225,6 +236,8 @@ export default function SubscribePage() {
 
   const lapsed = status !== null && status.status !== 'none';
   const showFree = status?.freeTierEnabled === true && !status.suspended;
+  const trialPlans = status?.checkout.trialPlans ?? [];
+  const trialOffered = phase === 'pick' && trialPlans.length > 0;
   const paidTiers = requestedPlan
     ? [...TIERS].sort((a, b) => Number(b.plan === requestedPlan) - Number(a.plan === requestedPlan))
     : TIERS;
@@ -241,7 +254,9 @@ export default function SubscribePage() {
                 : 'Your subscription has ended'
               : showFree
                 ? 'Choose how you want to learn'
-                : 'Subscribe to Lector Cloud'}
+                : trialOffered
+                  ? 'Try Lector Cloud for $1'
+                  : 'Subscribe to Lector Cloud'}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {status?.suspended
@@ -252,7 +267,9 @@ export default function SubscribePage() {
                 : 'Everything you built is safe and exactly as you left it — renew to pick up where you were.'
               : showFree
                 ? 'Free is a complete, bounded reading loop. Upgrade when you want more managed AI, richer translations, and managed voices.'
-                : 'Lector Cloud is a paid service. Prefer free? Lector is open source and self-hostable.'}
+                : trialOffered
+                  ? 'Your first month costs $1. Then your plan renews at its usual price, and you can cancel at any time. Lector is also open source, so you can self-host it at no cost.'
+                  : 'Lector Cloud is a paid service. Prefer free? Lector is open source and self-hostable.'}
         </p>
       </div>
 
@@ -293,6 +310,16 @@ export default function SubscribePage() {
         >
           The code <span className="font-semibold">{rejectedPromo}</span> isn&apos;t valid or has
           expired. Every plan below is still available at its usual price.
+        </p>
+      )}
+
+      {phase === 'pick' && trialWithdrawn && (
+        <p
+          className="rounded-lg border border-border bg-muted p-3 text-sm text-foreground"
+          data-testid="subscribe-trial-unavailable"
+        >
+          The $1 first month is not available for this account. Every plan below is still available
+          at its usual price.
         </p>
       )}
 
@@ -367,10 +394,14 @@ export default function SubscribePage() {
           // pay for ten months and get twelve. An explicit marketing plan
           // intent still selects/sorts the requested tier; it does not make
           // monthly billing the hidden default inside that tier.
-          const primary = annual ?? monthly!;
+          // The $1 first month exists only on the monthly price, so that price
+          // becomes the primary action while the account can still get it.
+          const trial = monthly !== undefined && trialPlans.includes(tier.plan);
+          const primary = trial ? monthly : (annual ?? monthly!);
           const secondary = primary.cycle === 'year' ? monthly : annual;
-          const primaryCopy =
-            primary.cycle === 'year'
+          const primaryCopy = trial
+            ? 'Start your first month for $1'
+            : primary.cycle === 'year'
               ? requested
                 ? `Continue to checkout — ${tier.annualPrice}/year`
                 : `Subscribe annually — ${tier.annualPrice}/year`
@@ -405,11 +436,21 @@ export default function SubscribePage() {
                   )}
                 </span>
               </div>
-              <p className="mt-1">
-                <span className="text-2xl font-bold text-foreground">{tier.monthlyPrice}</span>
-                <span className="text-sm text-muted-foreground">/month</span>
-              </p>
-              {annual && (
+              {trial ? (
+                <p className="mt-1" data-testid={`subscribe-trial-${tier.plan}`}>
+                  <span className="text-2xl font-bold text-foreground">$1</span>
+                  <span className="text-sm text-muted-foreground">
+                    {' '}
+                    for the first month, then {tier.monthlyPrice}/month
+                  </span>
+                </p>
+              ) : (
+                <p className="mt-1">
+                  <span className="text-2xl font-bold text-foreground">{tier.monthlyPrice}</span>
+                  <span className="text-sm text-muted-foreground">/month</span>
+                </p>
+              )}
+              {annual && !trial && (
                 <p className="mt-1 text-xs font-medium text-primary">
                   {tier.annualPrice}/year — two months free
                 </p>
