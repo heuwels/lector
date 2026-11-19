@@ -46,6 +46,8 @@ declare global {
       OIDC_LOGIN?: string;
       /** Label for the OIDC sign-in button (e.g. "Authentik"); default "SSO". */
       OIDC_PROVIDER_NAME?: string;
+      /** '1' when cloud analytics is configured. The forwarding URL stays on the server. */
+      ANALYTICS?: string;
     };
   }
 }
