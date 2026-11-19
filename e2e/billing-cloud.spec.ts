@@ -241,6 +241,14 @@ test.describe.serial('billing gate lifecycle', () => {
     const requestedTier = page.getByTestId('subscribe-tier-plus');
     await expect(requestedTier).toHaveAttribute('data-requested', 'true');
     await expect(requestedTier.getByText('Selected')).toBeVisible();
+    // No $1 trial in this status, so annual billing is the default cycle.
+    await expect(page.getByTestId('subscribe-cycle-year')).toHaveAttribute('aria-checked', 'true');
+    // The plans keep one order: Cloud, Cloud Plus, Self-host.
+    await expect(page.locator('[data-testid^="subscribe-tier-"]')).toHaveCount(3);
+    await expect(page.getByTestId('subscribe-selfhost-docs')).toHaveAttribute(
+      'href',
+      'https://lector.dev/docs/installation/',
+    );
     await expect(requestedTier.getByTestId('subscribe-price-plus-year')).toContainText('$120/year');
     await requestedTier.getByTestId('subscribe-price-plus-year').click();
     await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_redirect/);
@@ -408,11 +416,23 @@ test.describe.serial('billing gate lifecycle', () => {
       '$1 for the first month, then $5/month',
     );
     await expect(page.getByTestId('subscribe-trial-plus')).toContainText('then $12/month');
-    // Monthly is the primary action, and annual stays as the alternative.
+    // Monthly is the default cycle while the account can get the trial.
+    await expect(page.getByTestId('subscribe-cycle-month')).toHaveAttribute('aria-checked', 'true');
     await expect(cloud.getByTestId('subscribe-price-cloud-month')).toHaveText(
-      'Start your first month for $1',
+      'Start $1 trial — renews at $5/month',
     );
-    await expect(cloud.getByTestId('subscribe-price-cloud-year')).toContainText('$50/year');
+    await expect(page.getByTestId('subscribe-price-plus-month')).toHaveText(
+      'Start $1 trial — renews at $12/month',
+    );
+
+    // Annual billing has no trial. The toggle changes each plan card.
+    await page.getByTestId('subscribe-cycle-year').click();
+    await expect(cloud.getByTestId('subscribe-price-cloud-year')).toHaveText(
+      'Subscribe — $50/year',
+    );
+    await expect(page.getByTestId('subscribe-trial-cloud')).toHaveCount(0);
+    await expect(page.getByTestId('subscribe-cycle-note')).toBeVisible();
+    await page.getByTestId('subscribe-cycle-month').click();
 
     await cloud.getByTestId('subscribe-price-cloud-month').click();
     await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_trial/);
@@ -431,8 +451,11 @@ test.describe.serial('billing gate lifecycle', () => {
     await expect(page.getByTestId('subscribe-trial-unavailable')).toBeVisible();
     expect(page.url()).toContain('/subscribe');
     // The fresh status has no trial, so the tiles return to the usual prices.
+    // The reader stays on monthly billing, the cycle of the click.
     await expect(page.getByTestId('subscribe-trial-plus')).toHaveCount(0);
-    await expect(page.getByTestId('subscribe-price-plus-year')).toContainText('$120/year');
+    await expect(page.getByTestId('subscribe-price-plus-month')).toHaveText(
+      'Subscribe — $12/month',
+    );
 
     await page.getByTestId('subscribe-price-plus-month').click();
     await page.waitForURL(/lector\.test\/checkout\?_ptxn=txn_e2e_trial/);

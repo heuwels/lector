@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useLectorMode } from '@/lib/use-env';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -19,6 +19,8 @@ import { Spinner } from '@/components/ui/spinner';
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const mode = useLectorMode();
+  // The subscribe screen shows the plans side by side, so it needs a wider card.
+  const wide = usePathname() === '/subscribe';
 
   useEffect(() => {
     if (mode === 'selfhost') router.replace('/');
@@ -30,7 +32,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Lector</h1>
         <p className="mt-2 text-sm text-muted-foreground">Read your way to a new language</p>
       </div>
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <div
+        className={`w-full rounded-2xl border border-border bg-card p-6 shadow-sm ${
+          wide ? 'max-w-4xl' : 'max-w-sm'
+        }`}
+      >
         {mode === 'cloud' ? (
           children
         ) : (
