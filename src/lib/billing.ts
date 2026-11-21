@@ -17,6 +17,8 @@ export interface BillingPrice {
 
 export interface BillingCheckout {
   prices: BillingPrice[];
+  /** Plans whose monthly price opens with the $1 first month for this account. */
+  trialPlans?: Array<BillingPrice['plan']>;
 }
 
 export interface BillingManagement {
@@ -25,6 +27,10 @@ export interface BillingManagement {
     plan: BillingPrice['plan'];
     cycle: BillingPrice['cycle'];
     canChange: boolean;
+    /** ISO instant at which the $1 first month ends, or null outside the trial. */
+    trialEndsAt?: string | null;
+    /** False when a cancel or a pause is scheduled, so the plan does not renew. */
+    renews?: boolean;
   } | null;
 }
 
@@ -84,6 +90,8 @@ export interface StartedCheckout {
   /** Paddle transaction id (`txn_…`). */
   txnId: string;
   discount: DiscountOutcome;
+  /** True when the transaction opens with the $1 first month. */
+  trial: boolean;
 }
 
 /**
@@ -110,9 +118,13 @@ export async function startCheckout(
       body: JSON.stringify(promo ? { priceId, promo } : { priceId }),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { txnId?: string; discount?: DiscountOutcome };
+    const body = (await res.json()) as {
+      txnId?: string;
+      discount?: DiscountOutcome;
+      trial?: boolean;
+    };
     if (!body.txnId) return null;
-    return { txnId: body.txnId, discount: body.discount ?? 'none' };
+    return { txnId: body.txnId, discount: body.discount ?? 'none', trial: body.trial === true };
   } catch {
     return null;
   }

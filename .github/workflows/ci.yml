@@ -114,7 +114,7 @@ jobs:
       - run: npm run build
 
   e2e-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build]
     steps:
       - uses: actions/checkout@v6
@@ -152,7 +152,7 @@ jobs:
   # retags that image on merge; it does not build amd64 again. Fork PRs cannot
   # push, so they load the image into the runner instead.
   e2e-docker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build]
     permissions:
       contents: read

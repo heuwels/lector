@@ -56,6 +56,11 @@ function formatMoney(money: BillingMoney | null): string | null {
   }
 }
 
+/** The trial end date in UTC, so it matches the date in the renewal notice. */
+function trialEndLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'long', timeZone: 'UTC' });
+}
+
 function billingError(error: string): string {
   if (error === 'subscription_past_due') {
     return 'Update your payment method in Paddle before changing plans.';
@@ -382,12 +387,30 @@ export default function CloudPlanSettings() {
             </div>
           )}
 
-          {currentSubscription && !currentSubscription.canChange && (
-            <p className="text-xs">
-              Plan changes are unavailable while Paddle is processing this subscription. Use billing
-              management to update your payment method or review its status.
+          {currentSubscription?.trialEndsAt && currentSubscription.renews !== false && (
+            <p className="text-xs" data-testid="cloud-plan-trial">
+              Your first month costs $1. The plan renews at its usual price on{' '}
+              {trialEndLabel(currentSubscription.trialEndsAt)}. To stop the renewal, cancel in
+              billing management before that date. You can change plan after the first month.
             </p>
           )}
+
+          {currentSubscription?.trialEndsAt && currentSubscription.renews === false && (
+            <p className="text-xs" data-testid="cloud-plan-trial-ending">
+              Your plan does not renew. Your access ends on{' '}
+              {trialEndLabel(currentSubscription.trialEndsAt)}. To keep the plan, use billing
+              management before that date.
+            </p>
+          )}
+
+          {currentSubscription &&
+            !currentSubscription.canChange &&
+            !currentSubscription.trialEndsAt && (
+              <p className="text-xs">
+                Plan changes are unavailable while Paddle is processing this subscription. Use
+                billing management to update your payment method or review its status.
+              </p>
+            )}
         </div>
       )}
     </section>

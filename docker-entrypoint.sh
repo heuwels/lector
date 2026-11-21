@@ -60,6 +60,11 @@ case "$BILLING" in
     ;;
 esac
 
+if [ -n "${LECTOR_FREE_TIER_CUTOFF:-}" ] && [ "${LECTOR_FREE_TIER:-}" != "true" ]; then
+  echo "FATAL: LECTOR_FREE_TIER_CUTOFF requires LECTOR_FREE_TIER=true." >&2
+  exit 1
+fi
+
 # Derived Free access is a separate, strict rollout boundary. It only makes
 # sense alongside Paddle + built-in accounts. Production public signup must
 # have both Turnstile halves configured; NODE_ENV=test intentionally skips

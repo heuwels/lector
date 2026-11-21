@@ -92,7 +92,7 @@ jobs:
   # release image is built here rather than promoted, so nothing else has
   # exercised it. This job is the only gate that does.
   e2e-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build-release-amd64]
     permissions:
       contents: read
