@@ -14,6 +14,7 @@
  */
 import { Hono, type Context } from 'hono';
 import { db } from '../db';
+import { createdAtMs } from '../lib/account-age';
 import {
   makeRequireAdmin,
   setSuspended,
@@ -31,6 +32,8 @@ import {
   findBillingSubscriptions,
   findPaddleCustomerId,
   getUserEmail,
+  hasFreeAccess,
+  knownBillingPrices,
 } from '../lib/billing';
 import { buildUserExport } from '../lib/user-export';
 import { recordAdminAction, recentAuditLog, type AdminAction } from '../lib/admin-audit';
@@ -85,6 +88,7 @@ export interface AdminAuthActions {
 
 export interface AdminRouteOptions {
   freeTierEnabled?: boolean;
+  freeTierCutoffMs?: number | null;
   billingExemptEmails?: Set<string>;
   billingResyncEnabled?: boolean;
   billingReader?: PaddleBillingReader;
@@ -108,7 +112,7 @@ const realAuthActions: AdminAuthActions = {
 // account; label it 'cloud' (the base plan).
 function priceToPlan(priceId: string | null): 'cloud' | 'plus' | null {
   if (!priceId) return null;
-  return billingConfig.prices.find((p) => p.id === priceId)?.plan ?? null;
+  return knownBillingPrices(billingConfig).find((p) => p.id === priceId)?.plan ?? null;
 }
 
 const ENTITLED = new Set(['active', 'trialing', 'past_due']);
@@ -380,6 +384,10 @@ export function makeAdminRoutes(
   const app = new Hono();
   const resolveEmail = gate.resolveEmail ?? getUserEmail;
   const freeTierEnabled = options.freeTierEnabled ?? billingConfig.freeTierEnabled;
+  const freeTierCutoffMs =
+    options.freeTierCutoffMs !== undefined
+      ? options.freeTierCutoffMs
+      : billingConfig.freeTierCutoffMs;
   const billingExemptEmails = options.billingExemptEmails ?? billingConfig.exemptEmails;
   const billingResyncEnabled =
     options.billingResyncEnabled ?? (billingConfig.enforced && Boolean(billingConfig.apiKey));
@@ -507,7 +515,16 @@ export function makeAdminRoutes(
       const billingExempt = billingExemptEmails.has(u.email.toLowerCase());
       const plan = entitled
         ? (priceToPlan(sub!.priceId) ?? 'cloud')
-        : freeTierEnabled && compedPlan === null && !billingExempt
+        : compedPlan === null &&
+            !billingExempt &&
+            hasFreeAccess(
+              {
+                freeTierEnabled,
+                freeTierCutoffMs,
+                resolveCreatedAtMs: () => createdAtMs(u.createdAt),
+              },
+              u.id,
+            )
           ? 'free'
           : null;
       return {

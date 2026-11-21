@@ -4,6 +4,21 @@ import { LLMTruncatedError } from './errors';
 const DEFAULT_URL = 'http://localhost:11434';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+/**
+ * The waits before each retry of a rate-limited or failed request. A 429 from
+ * a shared upstream pool (OpenRouter's Google AI Studio pool for Gemini
+ * Flash-Lite, for example) comes back in about half a second, and a second try
+ * a moment later usually works. Retry only before the response starts, so the
+ * reader never sees a partial answer twice.
+ */
+const DEFAULT_RETRY_DELAYS_MS = [300, 800];
+
+function retryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export type OpenAICompatibleProfile = 'generic' | 'openrouter';
 
 export interface OpenAICompatibleOptions {
@@ -17,6 +32,8 @@ export interface OpenAICompatibleOptions {
   taskModels?: Partial<Record<LLMTask, string>>;
   /** Text-free structured-attempt sink. Defaults to console.info. */
   usageLogger?: (event: LLMUsageEvent) => void;
+  /** Waits before each retry of a 429 or 5xx response. [] turns retries off. */
+  retryDelaysMs?: number[];
 }
 
 interface ProviderUsage {
@@ -42,6 +59,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
   private profile: OpenAICompatibleProfile;
   private taskModels: Partial<Record<LLMTask, string>>;
   private usageLogger: (event: LLMUsageEvent) => void;
+  private retryDelaysMs: number[];
 
   constructor(options?: OpenAICompatibleOptions) {
     this.baseUrl = (options?.baseUrl || process.env.OPENAI_COMPAT_URL || DEFAULT_URL).replace(
@@ -55,6 +73,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     this.taskModels = { ...(options?.taskModels ?? {}) };
     this.usageLogger =
       options?.usageLogger ?? ((event) => console.info('[llm-attempt]', JSON.stringify(event)));
+    this.retryDelaysMs = options?.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
   }
 
   private headers(): Record<string, string> {
@@ -134,6 +153,26 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
   }
 
+  /**
+   * POST a chat completion. Retry a 429 or 5xx response after each wait in
+   * retryDelaysMs, and return the last response. A network error or a
+   * timeout is not retried.
+   */
+  private async postCompletion(body: Record<string, unknown>): Promise<Response> {
+    const init: RequestInit = {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify(body),
+    };
+    for (const delay of this.retryDelaysMs) {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, init);
+      if (!retryableStatus(response.status)) return response;
+      await response.body?.cancel().catch(() => {});
+      await sleep(delay);
+    }
+    return this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, init);
+  }
+
   private async requestCompletion(options: CompletionOptions): Promise<string> {
     const startedAt = Date.now();
     const maxTokens = options.maxTokens;
@@ -163,11 +202,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     let actualModel = selectedModel;
     let usage: ProviderUsage | undefined;
     try {
-      const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: this.headers(),
-        body: JSON.stringify(body),
-      });
+      const response = await this.postCompletion(body);
 
       if (!response.ok) {
         const error = await response.text();
@@ -230,11 +265,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     let usage: ProviderUsage | undefined;
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
-      const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: this.headers(),
-        body: JSON.stringify(body),
-      });
+      const response = await this.postCompletion(body);
 
       if (!response.ok || !response.body) {
         const error = response.ok

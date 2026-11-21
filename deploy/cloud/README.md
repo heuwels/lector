@@ -83,6 +83,7 @@ Design notes:
    | `oidc-provider-name`                 | String       | `OIDC_PROVIDER_NAME` (optional login-button label, default "SSO" — rides `window.__ENV__`)                                                                                                                                                                |
    | `lector-billing`                     | String       | `LECTOR_BILLING` (#224 — `paddle` arms the subscription gate; unset = billing off. Requires `paddle-webhook-secret` and `paddle-api-key`, or the container refuses to boot)                                                                               |
    | `free-tier-enabled`                  | String       | `LECTOR_FREE_TIER` — strict `true` enables derived Free access; unset/`false` preserves paid-only access. Requires Paddle billing, cloud proper, and both Turnstile keys in production. Free uses managed Gemini translation quotas and browser TTS only. |
+   | `free-tier-cutoff`                   | String       | `LECTOR_FREE_TIER_CUTOFF` — an ISO 8601 instant with a zone, for example `2026-12-01T00:00:00Z`. An account created before it keeps Free. A later account needs a subscription. Requires `free-tier-enabled` set to `true`. |
    | `paddle-webhook-secret`              | SecureString | `PADDLE_WEBHOOK_SECRET` (the notification destination's secret key, Paddle → Developer tools → Notifications)                                                                                                                                             |
    | `paddle-api-key`                     | SecureString | `PADDLE_API_KEY` (server billing key; required API scopes are listed below)                                                                                                                                                                               |
    | `checkout-url`                       | String       | `CHECKOUT_URL` (the approved-domain checkout page the app redirects to, e.g. `https://lector.dev/checkout`; unset → the subscribe screen shows its "checkout unavailable" fallback)                                                                       |
@@ -90,6 +91,9 @@ Design notes:
    | `paddle-price-annual`                | String       | `PADDLE_PRICE_ANNUAL` (`pri_…` — Cloud annual)                                                                                                                                                                                                            |
    | `paddle-price-plus-monthly`          | String       | `PADDLE_PRICE_PLUS_MONTHLY` (`pri_…` — Plus monthly)                                                                                                                                                                                                      |
    | `paddle-price-plus-annual`           | String       | `PADDLE_PRICE_PLUS_ANNUAL` (`pri_…` — Plus annual)                                                                                                                                                                                                        |
+   | `paddle-price-monthly-trial`         | String       | `PADDLE_PRICE_MONTHLY_TRIAL` (`pri_…` — Cloud monthly with a paid `trial_period`. The first subscription of an account uses it. Requires `paddle-price-monthly`) |
+   | `paddle-price-plus-monthly-trial`    | String       | `PADDLE_PRICE_PLUS_MONTHLY_TRIAL` (`pri_…` — Plus monthly with a paid `trial_period`. Requires `paddle-price-plus-monthly`) |
+   | `trial-offer`                        | String       | `LECTOR_TRIAL_OFFER` — set `false` to stop the $1 first month. Do not remove a trial price id to stop it |
    | `paddle-discount-codes`              | String       | `PADDLE_DISCOUNT_CODES` (#516 — JSON map from a campaign code word to a Paddle discount id, e.g. `{"PRODUCTHUNT":"dsc_01k…"}`; unset = coupons off. Create the discount in Paddle first, then add its id here)                                            |
    | `billing-exempt-emails`              | String       | `BILLING_EXEMPT_EMAILS` (comma-separated accounts the gate never locks — operator + test accounts)                                                                                                                                                        |
    | `admin-emails`                       | String       | `LECTOR_ADMIN_EMAILS` (#221 — comma-separated accounts with admin-dashboard access; no spaces; unset = no admins)                                                                                                                                         |
@@ -334,8 +338,67 @@ advertised BYOK escape hatch cannot silently disappear.
 also requires a dedicated `CLASSIFY_LLM_URL` and `CLASSIFY_LLM_MODEL`; the
 worker may not fall back to the managed interactive translation provider.
 
+### Close Free to new accounts
+
+Set `free-tier-cutoff` to close Free to new accounts. Keep `free-tier-enabled`
+set to `true`.
+
+- An account created before the cutoff keeps Free. A canceled subscription on
+  such an account returns to Free.
+- An account created at or after the cutoff needs a subscription. Before the
+  subscription starts, the account can open only the subscribe screen, the
+  data export, and sign out.
+- The cutoff is an instant, not a date. Use a value with a zone, for example
+  `2026-12-01T00:00:00Z`.
+
+If you set the cutoff while Free is off, the container refuses to boot.
+
+### The $1 first month
+
+Paddle supports a paid trial on a price. Paddle charges the trial price at
+checkout and holds the subscription in `trialing`. At the end of the trial,
+Paddle renews the subscription at the base price of the same price id.
+
+1. In Paddle, create a second monthly price for each plan. Give it the same
+   base amount as the standard monthly price.
+2. On each new price, set a trial period of one month with a trial price of
+   $1.00.
+3. Put the new price ids in `paddle-price-monthly-trial` and
+   `paddle-price-plus-monthly-trial`.
+4. Run `/srv/lector/update.sh` on the host.
+
+The API then applies these rules:
+
+- When the customer selects a monthly plan, the first subscription of an
+  account uses the trial price. An annual plan has no trial.
+- An account with a subscription row in any status gets the standard price.
+  A customer who canceled cannot buy the $1 month again.
+- The browser never sends a trial price id. The API selects it.
+- A `trialing` subscription has full access to its plan. A plan change is
+  available after the first full charge.
+- The lifecycle worker sends the `trial-ending-renewal-notice` template once,
+  in the last seven days of the trial. Publish that template with
+  `node emails/publish.mjs trial-ending-renewal-notice` before you set the
+  price ids.
+
+To stop the $1 first month, set `trial-offer` to `false`. Do not remove a trial
+price id. Paddle keeps a subscription on its trial price id after the trial, so
+the API needs that id to find the plan of the subscriber. If you remove the id,
+a Cloud Plus subscriber gets the Cloud limits.
+
+The renewal notice goes only to a subscription on a trial price id. The worker
+does not send it when the customer has a scheduled cancel or a scheduled pause.
+In that case the settings panel shows the date on which access ends.
+
+Paddle sets a minimum charge for each currency. Read the minimum values from
+`GET /currencies` before you add a price override in another currency.
+
+A campaign code from `paddle-discount-codes` does not reduce the trial price.
+Paddle applies the discount to the first charge after the trial.
+
 Annual checkout is the primary action when both billing cycles are configured
 (ten months' price for twelve months); monthly remains an explicit alternative.
+For an account that can get the $1 first month, monthly is the primary action.
 Active subscribers can preview an allowlisted Cloud/Plus or monthly/annual swap
 in Settings. Paddle calculates tax and proration, the API re-reads the
 subscription before applying, and `on_payment_failure=prevent_change` leaves the

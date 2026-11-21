@@ -7,10 +7,15 @@ import {
   findBillingSubscriptions,
   findPaddleCustomerId,
   getUserEmail,
+  hasFreeAccess,
   isEntitledStatus,
+  isTrialPriceId,
+  knownBillingPrices,
+  stopsRenewal,
   makePaddleTransactionCreator,
   resolveBillingStatus,
   resolveDiscount,
+  trialPriceFor,
   verifyPaddleSignature,
   type BillingPrice,
   type BillingSubscriptionRecord,
@@ -70,8 +75,18 @@ export function makeBillingRoutes(
   engine: EntitlementsEngine = entitlements,
   checkSuspended: (userId: string) => boolean = isSuspended,
   billingOperations: PaddleBillingOperations = makePaddleBillingOperations(cfg),
+  resolveCreatedAtMs?: (userId: string) => number | null,
 ) {
   const app = new Hono();
+  const knownPrices = knownBillingPrices(cfg);
+  const managedPriceIds = knownPrices.map((price) => price.id);
+
+  // The plans whose monthly price opens with the paid trial for this account.
+  function trialPlans(priorSubscriptions: number): Array<BillingPrice['plan']> {
+    return cfg.prices
+      .filter((price) => trialPriceFor(cfg, price, priorSubscriptions) !== null)
+      .map((price) => price.plan);
+  }
 
   // Shared by every authenticated billing action that takes a JSON body:
   // checkout, and the two plan-change routes. Declared before the routes that
@@ -127,7 +142,7 @@ export function makeBillingRoutes(
         suspended,
         status: 'none',
         exempt: false,
-        checkout: { prices: cfg.prices },
+        checkout: { prices: cfg.prices, trialPlans: [] },
         management: { customerPortal: false, subscription: null },
       });
     }
@@ -137,21 +152,22 @@ export function makeBillingRoutes(
       (email !== null && cfg.exemptEmails.has(email.toLowerCase())) || isBillingExempt(userId);
     const status = resolveBillingStatus(userId, email);
     const subscriptionActive = isEntitledStatus(status);
+    const freeAccess = hasFreeAccess({ ...cfg, resolveCreatedAtMs }, userId);
     const rows = findBillingSubscriptions(userId, email);
     const subscription = accountManagementSubscription(rows);
     const currentPrice = subscription
-      ? cfg.prices.find((price) => price.id === subscription.priceId)
+      ? knownPrices.find((price) => price.id === subscription.priceId)
       : undefined;
 
     return c.json({
       enforced: true as const,
-      accessAllowed: !suspended && (cfg.freeTierEnabled || subscriptionActive || exempt),
+      accessAllowed: !suspended && (freeAccess || subscriptionActive || exempt),
       subscriptionActive,
-      freeTierEnabled: cfg.freeTierEnabled,
+      freeTierEnabled: freeAccess,
       suspended,
       exempt,
       status: status ?? 'none',
-      checkout: { prices: cfg.prices },
+      checkout: { prices: cfg.prices, trialPlans: trialPlans(rows.length) },
       management: {
         customerPortal: rows.length > 0,
         subscription:
@@ -160,6 +176,11 @@ export function makeBillingRoutes(
                 plan: currentPrice.plan,
                 cycle: currentPrice.cycle,
                 canChange: subscription.status === 'active',
+                trialEndsAt:
+                  subscription.status === 'trialing' && isTrialPriceId(cfg, subscription.priceId)
+                    ? subscription.currentPeriodEnd
+                    : null,
+                renews: !stopsRenewal(subscription.scheduledChange),
               }
             : null,
       },
@@ -196,7 +217,8 @@ export function makeBillingRoutes(
     // Only a price this deployment actually offers — never forward an
     // arbitrary id to Paddle (nor let a client bill itself for some other
     // catalog price).
-    if (!cfg.prices.some((p) => p.id === priceId)) {
+    const standardPrice = cfg.prices.find((p) => p.id === priceId);
+    if (!standardPrice) {
       return c.json({ error: 'Unknown price' }, 400);
     }
 
@@ -206,17 +228,19 @@ export function makeBillingRoutes(
     const { outcome, discountId } = resolveDiscount(cfg.discountCodes, body.promo);
 
     const email = resolveEmail(userId);
-    if (isEntitledStatus(resolveBillingStatus(userId, email))) {
+    const rows = findBillingSubscriptions(userId, email);
+    if (rows.some((row) => isEntitledStatus(row.status))) {
       return c.json({ error: 'subscription_already_active' }, 409);
     }
+    const trialPrice = trialPriceFor(cfg, standardPrice, rows.length);
     try {
       const txn = await createTransaction({
-        priceId,
+        priceId: (trialPrice ?? standardPrice).id,
         userId,
         customerId: findPaddleCustomerId(email),
         discountId,
       });
-      return c.json({ txnId: txn.id, discount: outcome });
+      return c.json({ txnId: txn.id, discount: outcome, trial: trialPrice !== null });
     } catch (err) {
       // Paddle down / bad key / rejected price — the /subscribe screen turns a
       // non-2xx into its "try again" state; nothing is charged.
@@ -273,9 +297,11 @@ export function makeBillingRoutes(
         status: 409,
       };
     }
-    const current = cfg.prices.find((price) => price.id === subscription.priceId);
+    const current = knownPrices.find((price) => price.id === subscription.priceId);
     if (!current) return { error: 'subscription_price_unmanaged', status: 409 };
-    if (current.id === target.id) return { error: 'plan_already_current', status: 409 };
+    if (current.plan === target.plan && current.cycle === target.cycle) {
+      return { error: 'plan_already_current', status: 409 };
+    }
 
     return {
       subscription,
@@ -304,7 +330,7 @@ export function makeBillingRoutes(
       const preview = await billingOperations.previewSubscriptionChange({
         subscriptionId: context.subscription.paddleSubscriptionId,
         targetPriceId: context.target.id,
-        managedPriceIds: cfg.prices.map((price) => price.id),
+        managedPriceIds,
         prorationBillingMode: context.prorationBillingMode,
       });
       return c.json({
@@ -332,7 +358,7 @@ export function makeBillingRoutes(
       await billingOperations.applySubscriptionChange({
         subscriptionId: context.subscription.paddleSubscriptionId,
         targetPriceId: context.target.id,
-        managedPriceIds: cfg.prices.map((price) => price.id),
+        managedPriceIds,
         prorationBillingMode: context.prorationBillingMode,
       });
       return c.json({ accepted: true, target: context.target }, 202);

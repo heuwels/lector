@@ -41,6 +41,8 @@ function longestFirst(items: string[]): string[] {
 export function stemCandidates(word: string, config: MorphologyConfig): StemCandidate[] {
   const out: StemCandidate[] = [];
   const seen = new Set<string>([word]);
+  // Candidates reached by prefix peels alone, for `prefixesFirst`.
+  const prefixOnly = new Set<StemCandidate>();
 
   const clitics = longestFirst(config.clitics);
   let frontier: StemCandidate[] = [{ key: word, peeled: [] }];
@@ -79,7 +81,8 @@ export function stemCandidates(word: string, config: MorphologyConfig): StemCand
     // Stacking is opt-in, and one pass is what id and it want. Arabic sets 3:
     // وبالقلم needs و, then ب, then ال before it reaches a key.
     const maxPrefixes = config.maxPrefixes ?? 1;
-    let prefixFrontier: StemCandidate[] = [{ key: word, peeled: [] }, ...out];
+    const root: StemCandidate = { key: word, peeled: [] };
+    let prefixFrontier: StemCandidate[] = [root, ...out];
     for (let depth = 0; depth < maxPrefixes; depth++) {
       const next: StemCandidate[] = [];
       for (const base of prefixFrontier) {
@@ -90,6 +93,7 @@ export function stemCandidates(word: string, config: MorphologyConfig): StemCand
           if (seen.has(key)) continue;
           seen.add(key);
           const candidate = { key, peeled: [...base.peeled, prefix] };
+          if (base === root || prefixOnly.has(base)) prefixOnly.add(candidate);
           out.push(candidate);
           next.push(candidate);
         }
@@ -99,6 +103,11 @@ export function stemCandidates(word: string, config: MorphologyConfig): StemCand
     }
   }
 
+  if (config.prefixesFirst) {
+    const rank = (candidate: StemCandidate) =>
+      candidate.peeled.length * 2 + (prefixOnly.has(candidate) ? 0 : 1);
+    return [...out].sort((a, b) => rank(a) - rank(b));
+  }
   return out;
 }
 

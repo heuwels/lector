@@ -21,13 +21,13 @@ Optional local models run through the bundled Ollama service.
 
 Optional cloud models cover rare words and the tutor.
 
-| App | Host | Database | Anki |
-| --- | --- | --- | --- |
-| **Lector** | Lector Cloud, or one Compose file | SQLite | Two-way (beta) |
-| [LingQ](https://lector.dev/vs/lingq/) | Hosted only | Cloud | File export |
-| [Clozemaster](https://lector.dev/vs/clozemaster/) | Hosted only | Cloud | No documented export |
-| [Lute](https://lector.dev/vs/lute/) | pip, Docker, or source | Local files | One-way AnkiConnect |
-| [LinguaCafe](https://lector.dev/vs/linguacafe/) | Four Compose services | MySQL | One-way AnkiConnect |
+| App                                               | Host                              | Database    | Anki                 |
+| ------------------------------------------------- | --------------------------------- | ----------- | -------------------- |
+| **Lector**                                        | Lector Cloud, or one Compose file | SQLite      | Two-way (beta)       |
+| [LingQ](https://lector.dev/vs/lingq/)             | Hosted only                       | Cloud       | File export          |
+| [Clozemaster](https://lector.dev/vs/clozemaster/) | Hosted only                       | Cloud       | No documented export |
+| [Lute](https://lector.dev/vs/lute/)               | pip, Docker, or source            | Local files | One-way AnkiConnect  |
+| [LinguaCafe](https://lector.dev/vs/linguacafe/)   | Four Compose services             | MySQL       | One-way AnkiConnect  |
 
 Full pages live at [lector.dev/vs](https://lector.dev/vs/).
 
@@ -90,6 +90,7 @@ Language packs ship for:
 
 - Afrikaans
 - Bengali
+- Biblical Hebrew
 - Czech
 - Dutch
 - Esperanto
@@ -97,6 +98,7 @@ Language packs ship for:
 - French
 - German
 - Greek
+- Hebrew
 - Hindi
 - Hungarian
 - Indonesian
@@ -116,6 +118,8 @@ Language packs ship for:
 - Ukrainian
 
 A pack includes a dictionary, frequency data, and cloze sentences. Japanese and Korean have a dictionary. They do not have a cloze bank yet. The reader still works for a language with no pack. Depth is lower without a pack.
+
+Hebrew text usually has no vowel points, which Hebrew calls niqqud. When you look up a Hebrew word, Lector shows the word with its vowel points and a transliteration. A word with no vowel points can be two or more words. For such a word, Lector shows each pronunciation.
 
 The language picker lists only the languages that you study. Open the picker and select **Add a language** to start another one. Open Settings, then Languages, to add a language or to remove one from the list. A language that you remove keeps its words, texts, and cards.
 
@@ -145,18 +149,18 @@ Two transports exist. Open Settings, then Anki Integration, then Connection.
 
 If you want a file, copy `.env.example` to `.env`. Compose also reads the process environment.
 
-| Variable | Purpose |
-| --- | --- |
-| `ANTHROPIC_API_KEY` | Cloud translation and tutor. Optional. The local dictionary covers common words. |
-| `API_URL` | Browser-facing API origin. Required when the browser is not on the server. |
-| `LECTOR_MODE` | `selfhost` (default, one user, no login) or `cloud` (accounts). |
-| `LLM_PROVIDER` | `anthropic` (default) or an OpenAI-compatible backend. |
-| `OPENAI_COMPAT_URL` | Local model endpoint. The bundled Ollama service is `http://ollama:11434`. |
-| `CLASSIFY_WORKER` | Set to `1` to fill the fluency radar. Compose sets this for you. |
-| `DICT_LANGS` | Dictionaries to download at start. Use `all` for every language. Unset downloads only what you add in the picker. |
-| `DICT_FETCH` | Set to `0` to never download a dictionary. Use it with the `:full` image. |
-| `DICT_DIR` | Where the dictionaries live. The default is the `lector-dict` volume. |
-| `TRANSCRIBE_WORKER` | Set to `1` to transcribe podcast uploads. Needs a Whisper endpoint. See [`deploy/README.md`](deploy/README.md). |
+| Variable            | Purpose                                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | Cloud translation and tutor. Optional. The local dictionary covers common words.                                  |
+| `API_URL`           | Browser-facing API origin. Required when the browser is not on the server.                                        |
+| `LECTOR_MODE`       | `selfhost` (default, one user, no login) or `cloud` (accounts).                                                   |
+| `LLM_PROVIDER`      | `anthropic` (default) or an OpenAI-compatible backend.                                                            |
+| `OPENAI_COMPAT_URL` | Local model endpoint. The bundled Ollama service is `http://ollama:11434`.                                        |
+| `CLASSIFY_WORKER`   | Set to `1` to fill the fluency radar. Compose sets this for you.                                                  |
+| `DICT_LANGS`        | Dictionaries to download at start. Use `all` for every language. Unset downloads only what you add in the picker. |
+| `DICT_FETCH`        | Set to `0` to never download a dictionary. Use it with the `:full` image.                                         |
+| `DICT_DIR`          | Where the dictionaries live. The default is the `lector-dict` volume.                                             |
+| `TRANSCRIBE_WORKER` | Set to `1` to transcribe podcast uploads. Needs a Whisper endpoint. See [`deploy/README.md`](deploy/README.md).   |
 
 The app runs with no API keys. Claude is only required for rare words, phrase translation, and the tutor.
 

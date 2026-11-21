@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { apiUrl, checkoutUrl } from '@/lib/api-base';
 import { authClient } from '@/lib/auth-client';
@@ -91,6 +91,16 @@ const FREE_FEATURES = [
   'Export your learner data at any time',
 ];
 
+const SELF_HOST_FEATURES = [
+  'Every feature, with no limits',
+  'Your data stays on your hardware',
+  'Use your own AI keys, or a local model',
+];
+
+const INSTALL_GUIDE_URL = 'https://lector.dev/docs/installation/';
+
+type Cycle = BillingPrice['cycle'];
+
 type Phase = 'loading' | 'pick' | 'activating' | 'slow' | 'unavailable' | 'suspended';
 
 export default function SubscribePage() {
@@ -103,6 +113,9 @@ export default function SubscribePage() {
   // promise about the price.
   const [promo, setPromo] = useState<string | null>(null);
   const [rejectedPromo, setRejectedPromo] = useState<string | null>(null);
+  const [trialWithdrawn, setTrialWithdrawn] = useState(false);
+  // The billing cycle the reader selected. Null means the default cycle.
+  const [chosenCycle, setChosenCycle] = useState<Cycle | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // One-shot activation poll: the webhook usually lands within seconds of
@@ -190,11 +203,23 @@ export default function SubscribePage() {
   async function openCheckout(price: BillingPrice) {
     if (opening !== null) return;
     setOpening(price.id);
+    // Keep the cycle of the click. A fresh status can change the default cycle.
+    setChosenCycle(price.cycle);
     setRejectedPromo(null);
+    setTrialWithdrawn(false);
     const started = await startCheckout(price.id, promo);
     if (started === null) {
       setOpening(null);
       toast.error("Checkout couldn't be started. Please try again in a moment.");
+      return;
+    }
+    // The screen offered the $1 first month, but the API did not apply it. Stop
+    // before the overlay shows a different total, and load the true offer.
+    if (price.cycle === 'month' && trialPlans.includes(price.plan) && !started.trial) {
+      const fresh = await fetchBillingStatus();
+      if (fresh) setStatus(fresh);
+      setOpening(null);
+      setTrialWithdrawn(true);
       return;
     }
     // A code the API could not map must stop here. Redirecting anyway would
@@ -225,9 +250,16 @@ export default function SubscribePage() {
 
   const lapsed = status !== null && status.status !== 'none';
   const showFree = status?.freeTierEnabled === true && !status.suspended;
-  const paidTiers = requestedPlan
-    ? [...TIERS].sort((a, b) => Number(b.plan === requestedPlan) - Number(a.plan === requestedPlan))
-    : TIERS;
+  const trialPlans = status?.checkout.trialPlans ?? [];
+  const trialOffered = phase === 'pick' && trialPlans.length > 0;
+  const prices = status?.checkout.prices ?? [];
+  const hasMonthly = prices.some((p) => p.cycle === 'month');
+  const hasAnnual = prices.some((p) => p.cycle === 'year');
+  // The $1 first month exists only on a monthly price, so monthly is the default
+  // while the account can get it. If not, annual is the default: ten months of
+  // price for twelve months.
+  const defaultCycle: Cycle = trialPlans.length > 0 || !hasAnnual ? 'month' : 'year';
+  const cycle: Cycle = chosenCycle ?? defaultCycle;
 
   return (
     <div className="space-y-4" data-testid="subscribe-panel">
@@ -241,7 +273,9 @@ export default function SubscribePage() {
                 : 'Your subscription has ended'
               : showFree
                 ? 'Choose how you want to learn'
-                : 'Subscribe to Lector Cloud'}
+                : trialOffered
+                  ? 'Try Lector Cloud for $1'
+                  : 'Subscribe to Lector Cloud'}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {status?.suspended
@@ -252,7 +286,9 @@ export default function SubscribePage() {
                 : 'Everything you built is safe and exactly as you left it — renew to pick up where you were.'
               : showFree
                 ? 'Free is a complete, bounded reading loop. Upgrade when you want more managed AI, richer translations, and managed voices.'
-                : 'Lector Cloud is a paid service. Prefer free? Lector is open source and self-hostable.'}
+                : trialOffered
+                  ? 'Your first month costs $1. Then your plan renews at its usual price, and you can cancel at any time. Lector is also open source, so you can self-host it at no cost.'
+                  : 'Lector Cloud is a paid service. Prefer free? Lector is open source and self-hostable.'}
         </p>
       </div>
 
@@ -293,6 +329,16 @@ export default function SubscribePage() {
         >
           The code <span className="font-semibold">{rejectedPromo}</span> isn&apos;t valid or has
           expired. Every plan below is still available at its usual price.
+        </p>
+      )}
+
+      {phase === 'pick' && trialWithdrawn && (
+        <p
+          className="rounded-lg border border-border bg-muted p-3 text-sm text-foreground"
+          data-testid="subscribe-trial-unavailable"
+        >
+          The $1 first month is not available for this account. Every plan below is still available
+          at its usual price.
         </p>
       )}
 
@@ -352,113 +398,179 @@ export default function SubscribePage() {
         </div>
       )}
 
-      {phase === 'pick' &&
-        status !== null &&
-        paidTiers.map((tier) => {
-          const monthly = status.checkout.prices.find(
-            (p) => p.plan === tier.plan && p.cycle === 'month',
-          );
-          const annual = status.checkout.prices.find(
-            (p) => p.plan === tier.plan && p.cycle === 'year',
-          );
-          if (!monthly && !annual) return null;
-          const requested = tier.plan === requestedPlan;
-          // Annual is the recommended/default action when both cycles exist:
-          // pay for ten months and get twelve. An explicit marketing plan
-          // intent still selects/sorts the requested tier; it does not make
-          // monthly billing the hidden default inside that tier.
-          const primary = annual ?? monthly!;
-          const secondary = primary.cycle === 'year' ? monthly : annual;
-          const primaryCopy =
-            primary.cycle === 'year'
-              ? requested
-                ? `Continue to checkout — ${tier.annualPrice}/year`
-                : `Subscribe annually — ${tier.annualPrice}/year`
-              : requested
-                ? `Continue to checkout — ${tier.monthlyPrice}/month`
-                : `Subscribe — ${tier.monthlyPrice}/month`;
-          const secondaryCopy =
-            secondary?.cycle === 'month'
-              ? `or ${tier.monthlyPrice}/month`
-              : `or ${tier.annualPrice}/year — two months free`;
-          return (
-            <div
-              key={tier.plan}
-              className={`rounded-xl border p-4 ${
-                tier.featured || requested ? 'border-primary' : 'border-border'
-              }`}
-              data-testid={`subscribe-tier-${tier.plan}`}
-              data-requested={requested || undefined}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-foreground">{tier.name}</span>
-                <span className="flex items-center gap-1.5">
-                  {requested && (
-                    <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                      Selected
-                    </span>
-                  )}
-                  {tier.badge && (
-                    <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-medium text-primary">
-                      {tier.badge}
-                    </span>
-                  )}
-                </span>
-              </div>
-              <p className="mt-1">
-                <span className="text-2xl font-bold text-foreground">{tier.monthlyPrice}</span>
-                <span className="text-sm text-muted-foreground">/month</span>
-              </p>
-              {annual && (
-                <p className="mt-1 text-xs font-medium text-primary">
-                  {tier.annualPrice}/year — two months free
-                </p>
-              )}
-              <p className="mt-1 text-xs text-muted-foreground">{tier.tagline}</p>
-              <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-                {tier.features.map((feature) => (
-                  <li key={feature} className="flex gap-2">
-                    <span aria-hidden="true" className="text-primary">
-                      ✓
-                    </span>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button
+      {phase === 'pick' && hasMonthly && hasAnnual && (
+        <div className="flex flex-col items-center gap-2">
+          <div
+            role="radiogroup"
+            aria-label="Billing cycle"
+            className="inline-flex rounded-full border border-border bg-muted p-1 text-sm"
+            data-testid="subscribe-cycle"
+          >
+            {(
+              [
+                ['month', 'Monthly'],
+                ['year', 'Annually (2 months free)'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
                 type="button"
-                className="mt-4 w-full cursor-pointer"
+                role="radio"
+                aria-checked={cycle === value}
+                className={`cursor-pointer rounded-full px-4 py-1.5 font-medium transition-colors ${
+                  cycle === value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
                 disabled={opening !== null}
-                onClick={() => openCheckout(primary)}
-                data-testid={`subscribe-price-${primary.plan}-${primary.cycle}`}
+                onClick={() => setChosenCycle(value)}
+                data-testid={`subscribe-cycle-${value}`}
               >
-                {opening === primary.id ? (
-                  <>
-                    <Spinner
-                      tone="current"
-                      label="Opening checkout"
-                      data-testid="subscribe-price-opening"
-                    />
-                    Opening checkout…
-                  </>
+                {label}
+              </button>
+            ))}
+          </div>
+          {cycle === 'year' && trialPlans.length > 0 && (
+            <p className="text-xs text-muted-foreground" data-testid="subscribe-cycle-note">
+              The $1 trial is available with monthly billing only.
+            </p>
+          )}
+        </div>
+      )}
+
+      {phase === 'pick' && status !== null && (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {TIERS.map((tier) => {
+            const monthly = prices.find((p) => p.plan === tier.plan && p.cycle === 'month');
+            const annual = prices.find((p) => p.plan === tier.plan && p.cycle === 'year');
+            // A tier with one configured cycle shows that cycle for each selection.
+            const price = cycle === 'year' ? (annual ?? monthly) : (monthly ?? annual);
+            if (!price) return null;
+            const requested = tier.plan === requestedPlan;
+            const trial = price.cycle === 'month' && trialPlans.includes(tier.plan);
+            const buttonCopy = trial
+              ? `Start $1 trial — renews at ${tier.monthlyPrice}/month`
+              : price.cycle === 'year'
+                ? `Subscribe — ${tier.annualPrice}/year`
+                : `Subscribe — ${tier.monthlyPrice}/month`;
+            return (
+              <div
+                key={tier.plan}
+                className={`flex flex-col rounded-xl border p-4 ${
+                  tier.featured || requested ? 'border-primary' : 'border-border'
+                }`}
+                data-testid={`subscribe-tier-${tier.plan}`}
+                data-requested={requested || undefined}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-foreground">{tier.name}</span>
+                  <span className="flex items-center gap-1.5">
+                    {requested && (
+                      <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+                        Selected
+                      </span>
+                    )}
+                    {tier.badge && (
+                      <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-medium text-primary">
+                        {tier.badge}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                {trial ? (
+                  <p className="mt-1" data-testid={`subscribe-trial-${tier.plan}`}>
+                    <span className="text-2xl font-bold text-foreground">$1</span>
+                    <span className="text-sm text-muted-foreground">
+                      {' '}
+                      for the first month,{' '}
+                      <span className="whitespace-nowrap">then {tier.monthlyPrice}/month</span>
+                    </span>
+                  </p>
+                ) : price.cycle === 'year' ? (
+                  <p className="mt-1">
+                    <span className="text-2xl font-bold text-foreground">{tier.annualPrice}</span>
+                    <span className="text-sm text-muted-foreground">/year — two months free</span>
+                  </p>
                 ) : (
-                  primaryCopy
+                  <p className="mt-1">
+                    <span className="text-2xl font-bold text-foreground">{tier.monthlyPrice}</span>
+                    <span className="text-sm text-muted-foreground">/month</span>
+                  </p>
                 )}
-              </Button>
-              {secondary && (
-                <button
+                <p className="mt-1 text-xs text-muted-foreground">{tier.tagline}</p>
+                <ul className="mt-3 mb-4 space-y-1 text-xs text-muted-foreground">
+                  {tier.features.map((feature) => (
+                    <li key={feature} className="flex gap-2">
+                      <span aria-hidden="true" className="text-primary">
+                        ✓
+                      </span>
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <Button
                   type="button"
-                  className="mt-2 w-full cursor-pointer text-center text-xs font-medium text-primary hover:underline disabled:cursor-default disabled:opacity-70"
+                  className="mt-auto h-auto w-full cursor-pointer py-2 whitespace-normal"
                   disabled={opening !== null}
-                  onClick={() => openCheckout(secondary)}
-                  data-testid={`subscribe-price-${secondary.plan}-${secondary.cycle}`}
+                  onClick={() => openCheckout(price)}
+                  data-testid={`subscribe-price-${price.plan}-${price.cycle}`}
                 >
-                  {opening === secondary.id ? 'Opening checkout…' : secondaryCopy}
-                </button>
-              )}
+                  {opening === price.id ? (
+                    <>
+                      <Spinner
+                        tone="current"
+                        label="Opening checkout"
+                        data-testid="subscribe-price-opening"
+                      />
+                      Opening checkout…
+                    </>
+                  ) : (
+                    buttonCopy
+                  )}
+                </Button>
+              </div>
+            );
+          })}
+
+          <div
+            className="flex flex-col rounded-xl border border-border p-4"
+            data-testid="subscribe-tier-selfhost"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-foreground">Self-host</span>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                Open source
+              </span>
             </div>
-          );
-        })}
+            <p className="mt-1">
+              <span className="text-2xl font-bold text-foreground">$0</span>
+              <span className="text-sm text-muted-foreground"> forever</span>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Run Lector on your own computer or server. You do not need an account.
+            </p>
+            <ul className="mt-3 mb-4 space-y-1 text-xs text-muted-foreground">
+              {SELF_HOST_FEATURES.map((feature) => (
+                <li key={feature} className="flex gap-2">
+                  <span aria-hidden="true" className="text-primary">
+                    ✓
+                  </span>
+                  {feature}
+                </li>
+              ))}
+            </ul>
+            <a
+              href={INSTALL_GUIDE_URL}
+              target="_blank"
+              rel="noopener"
+              className={buttonVariants({ variant: 'outline', className: 'mt-auto w-full' })}
+              data-testid="subscribe-selfhost-docs"
+            >
+              Read the install guide
+            </a>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between border-t border-border pt-4 text-sm">
         <a

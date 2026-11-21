@@ -53,7 +53,7 @@ export function ankiCardToState(type: number, interval: number): WordState | nul
  */
 export function splitTrailingPunctuation(word: string): [string, string] {
   const noLead = word.replace(/^[„“”"«»‹›(\[{¿¡]+/u, '');
-  const match = noLead.match(/^(.+?)([.,!?;:'"„“”«»‹›)\]}…]+)$/u);
+  const match = noLead.match(/^(.+?)([.,!?;:·،؛؟׃'"„“”«»‹›)\]}…]+)$/u);
   if (match) return [match[1], match[2]];
   return [noLead, ''];
 }

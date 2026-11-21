@@ -264,6 +264,7 @@ function getDb(): Database {
       status TEXT NOT NULL,
       priceId TEXT,
       currentPeriodEnd TEXT,
+      scheduledChange TEXT,
       occurredAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     );
@@ -478,6 +479,15 @@ function getDb(): Database {
   const cols = _db.prepare('PRAGMA table_info(dailyStats)').all() as { name: string }[];
   if (!cols.some((c) => c.name === 'sessionStartedAt')) {
     _db.exec('ALTER TABLE dailyStats ADD COLUMN sessionStartedAt TEXT');
+  }
+
+  // The Paddle mirror records a scheduled cancel or pause, so the trial
+  // renewal notice does not go to a subscription that does not renew.
+  const billingSubCols = _db.prepare('PRAGMA table_info(billing_subscriptions)').all() as {
+    name: string;
+  }[];
+  if (!billingSubCols.some((c) => c.name === 'scheduledChange')) {
+    _db.exec('ALTER TABLE billing_subscriptions ADD COLUMN scheduledChange TEXT');
   }
 
   const clozeCols = _db.prepare('PRAGMA table_info(clozeSentences)').all() as { name: string }[];

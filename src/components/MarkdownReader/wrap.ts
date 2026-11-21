@@ -16,5 +16,8 @@ import type { LanguageConfig } from '@/lib/languages';
  * `keep-all` would give them one unbreakable line.
  */
 export function readerWrapClass(pack: LanguageConfig): string {
-  return pack.script.kind === 'hangul' ? 'break-keep' : '';
+  // Biblical Hebrew writes maqaf, a Unicode break opportunity. keep-all
+  // holds גַם־שְׁנֵיהֶם on one line and still wraps at the real spaces.
+  if (pack.script.kind === 'hangul' || pack.code === 'hbo') return 'break-keep';
+  return '';
 }
