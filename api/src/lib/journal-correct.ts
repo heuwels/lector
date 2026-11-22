@@ -30,13 +30,14 @@ ${body}
 """
 
 Respond with ONLY a JSON object in this exact format (no markdown, no code blocks):
-{"correctedBody": "the full corrected text in ${langName}", "corrections": [{"original": "the incorrect word or phrase", "corrected": "the correct version", "explanation": "brief English explanation of why this is wrong and the rule", "type": "grammar|spelling|word_choice|word_order|missing_word|extra_word"}]}
+{"correctedBody": "the full corrected text in ${langName}", "corrections": [{"original": "the incorrect word or phrase", "corrected": "the correct version", "explanation": "brief English explanation of why this is wrong and the rule", "type": "grammar|spelling|word_choice|word_order|missing_word|extra_word"}], "critique": {"strengths": ["one strength of the writing"], "weaknesses": ["one weak point to practise"]}}
 
 If the text is perfect, return an empty corrections array.
+Give 1 to 3 strengths and 1 to 3 weak points in English. Be specific to this entry.
 Focus on: spelling errors, grammar (verb conjugation, tense, word order), word choice, missing or extra words, and idiomatic corrections.
 Keep explanations concise (1-2 sentences) and educational.`,
       },
     ],
-    maxTokens: 2048,
+    maxTokens: 3072,
   });
 }

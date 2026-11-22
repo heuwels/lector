@@ -190,10 +190,11 @@ test.describe.serial('plan limits (#222)', () => {
     await page.goto('/journal');
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: 'New Entry' }).click();
+    // Drafts autosave three seconds after typing stops. The refused create
+    // surfaces the upsell toast.
     await page.getByPlaceholder(/journal entry in/i).fill(words(6));
-    await page.getByRole('button', { name: 'Save Draft' }).click();
 
-    await expect(page.getByText('Monthly journal limit reached')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Monthly journal limit reached')).toBeVisible({ timeout: 10000 });
     expect(page.url()).toContain('/journal');
 
     // Still within-allowance actions keep working after the refusal.

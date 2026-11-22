@@ -411,6 +411,18 @@ export const schemas: Record<string, JsonSchema> = {
         description: 'The corrections. Null before a correction runs.',
         items: { $ref: '#/components/schemas/Correction' },
       },
+      revision: {
+        ...NULLABLE_STRING,
+        description: 'The learner revision after a correction. No model call.',
+      },
+      critique: {
+        type: ['object', 'null'],
+        description: 'Strengths and weak points from the correction pass.',
+        properties: {
+          strengths: { type: 'array', items: { type: 'string' } },
+          weaknesses: { type: 'array', items: { type: 'string' } },
+        },
+      },
       status: { type: 'string', enum: ['draft', 'submitted'] },
       wordCount: { type: 'integer' },
       language: { type: 'string' },
@@ -552,6 +564,11 @@ export const schemas: Record<string, JsonSchema> = {
       corrections: {
         ...NULLABLE_STRING,
         description: 'The corrections, as a JSON string.',
+      },
+      revision: NULLABLE_STRING,
+      critique: {
+        ...NULLABLE_STRING,
+        description: 'The critique, as a JSON string.',
       },
       status: { type: 'string', enum: ['draft', 'submitted'] },
       wordCount: { type: 'integer' },
@@ -1794,6 +1811,25 @@ const journalOps: Record<string, OperationDoc> = {
     ],
     responses: { '200': { description: 'Matching entries.', schema: arrayOf('JournalEntry') } },
   },
+  'GET /api/journal/stats': {
+    summary: 'Count words in saved journal entries',
+    tag: 'Journal',
+    sharedParams: LANG,
+    responses: {
+      '200': {
+        description: 'Word counts for submitted entries in the open language.',
+        schema: {
+          type: 'object',
+          properties: {
+            month: { type: 'integer' },
+            year: { type: 'integer' },
+            lifetime: { type: 'integer' },
+          },
+          required: ['month', 'year', 'lifetime'],
+        },
+      },
+    },
+  },
   'POST /api/journal': {
     summary: 'Create a journal entry',
     tag: 'Journal',
@@ -1835,12 +1871,19 @@ const journalOps: Record<string, OperationDoc> = {
     pathParams: { id: 'Entry identifier.' },
     requestBody: {
       required: true,
-      schema: { type: 'object', properties: { body: { type: 'string' } }, required: ['body'] },
+      schema: {
+        type: 'object',
+        properties: {
+          body: { type: 'string' },
+          status: { type: 'string', enum: ['draft', 'submitted'] },
+          revision: { type: 'string' },
+        },
+      },
     },
     responses: {
       '200': { description: 'The entry is updated.', schema: ref('Success') },
       '400': {
-        description: 'The entry is already submitted, so the text is locked.',
+        description: 'The body is locked, or the revision is not allowed yet.',
         schema: ref('Error'),
       },
     },
@@ -1857,7 +1900,7 @@ const journalOps: Record<string, OperationDoc> = {
     notFound: true,
     summary: 'Correct a journal entry',
     description:
-      'Runs the language model over the entry, stores the corrected text, and sets the status to `submitted`.',
+      'Runs the language model over the entry. Stores the corrected text and a critique. Sets the status to `submitted`.',
     tag: 'Journal',
     sharedParams: LANG,
     pathParams: { id: 'Entry identifier.' },
@@ -1869,6 +1912,13 @@ const journalOps: Record<string, OperationDoc> = {
           properties: {
             correctedBody: NULLABLE_STRING,
             corrections: { type: 'array', items: ref('Correction') },
+            critique: {
+              type: ['object', 'null'],
+              properties: {
+                strengths: { type: 'array', items: { type: 'string' } },
+                weaknesses: { type: 'array', items: { type: 'string' } },
+              },
+            },
           },
         },
       },
