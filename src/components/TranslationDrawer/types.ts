@@ -1,4 +1,5 @@
 import { VocabEntry, WordState } from '@/types';
+import type { WordAnchor } from '@/components/MarkdownReader/types';
 
 /**
  * Shape returned by /api/dictionary/lookup. Mirror of the server-side type — kept in
@@ -21,6 +22,9 @@ export interface TranslationDrawerProps {
   isOpen: boolean;
   word: string;
   sentence: string;
+  /** Viewport position of the clicked word (non-docked popup only). Null docks
+      the drawer to the side panel layout instead of anchoring it. */
+  anchor?: WordAnchor | null;
 
   /** Rich definition from local dictionary. Null while loading or when not found. */
   entry?: ExpandedDictionaryEntry | null;

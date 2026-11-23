@@ -48,7 +48,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WordPanelState } from '../types';
 import { useActiveLanguage } from '@/utils/hooks';
 import { patchWordState } from '@/components/MarkdownReader/optimistic-word-state';
-import type { WordSource } from '@/components/MarkdownReader/types';
+import type { WordAnchor, WordSource } from '@/components/MarkdownReader/types';
 import {
   encounteredOnboardingTerms,
   getOnboardingSnapshot,
@@ -95,6 +95,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
     isOpen: false,
     word: '',
     sentence: '',
+    anchor: null,
     translation: null,
     partOfSpeech: null,
     dictEntry: null,
@@ -321,7 +322,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
 
   // Handle word click from reader
   const handleWordClick = useCallback(
-    async (word: string, sentence: string, source?: WordSource) => {
+    async (word: string, sentence: string, anchor?: WordAnchor, source?: WordSource) => {
       // Remember (or clear) the transcript segment this word came from so a
       // subsequent Anki mine can attach the timestamped source link.
       currentWordSourceRef.current = source ?? null;
@@ -350,6 +351,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         isOpen: true,
         word,
         sentence,
+        anchor: anchor ?? null,
         translation: null,
         partOfSpeech: isPhrase ? 'phrase' : null,
         dictEntry: null,
@@ -489,9 +491,9 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
   // on the underlying word records where it was encountered.
   const handleNestedLookup = useCallback(
     (nestedWord: string) => {
-      void handleWordClick(nestedWord, wordPanel.sentence);
+      void handleWordClick(nestedWord, wordPanel.sentence, wordPanel.anchor ?? undefined);
     },
-    [handleWordClick, wordPanel.sentence],
+    [handleWordClick, wordPanel.sentence, wordPanel.anchor],
   );
 
   const requestContextTranslation = useCallback(async () => {
@@ -1149,6 +1151,10 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
         e.preventDefault();
         e.stopPropagation();
         setWordLevel(parseInt(e.key) as 1 | 2 | 3 | 4);
+        // Mirror the popup's own level buttons (TranslationDrawer's
+        // actAndClose): the color shows immediately, close shortly after so
+        // it's visible for a beat instead of vanishing in the same paint.
+        setTimeout(closeWordPanel, 180);
       }
     };
 
@@ -1318,6 +1324,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string 
           isOpen={wordPanel.isOpen}
           word={wordPanel.word}
           sentence={wordPanel.sentence}
+          anchor={wordPanel.anchor}
           // WordPanelState field names differ from TranslationDrawerProps; map them
           // explicitly. A spread silently dropped these (all props optional, so tsc
           // stayed green) and the drawer rendered "No definition found" for every word.

@@ -12,9 +12,21 @@ export interface WordSource {
   endMs: number;
 }
 
+/** Viewport-relative position of the clicked word, snapshotted from
+ *  `getBoundingClientRect()` at click time. Anchors the translation popup
+ *  next to the word instead of a fixed side panel. */
+export interface WordAnchor {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+  width: number;
+  height: number;
+}
+
 export interface MarkdownReaderProps {
   lesson: Lesson;
-  onWordClick: (word: string, sentence: string, source?: WordSource) => void;
+  onWordClick: (word: string, sentence: string, anchor?: WordAnchor, source?: WordSource) => void;
   /** Whether the word/phrase drawer this reader feeds is open. When it closes
    *  (Esc, the X, clicking away) the reader clears its word/phrase highlight. */
   wordPanelOpen?: boolean;

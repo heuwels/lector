@@ -2,6 +2,7 @@ import type { LanguageConfig, WordSegmentation } from '@/lib/languages';
 import type { WordState } from '@/types';
 import type { AnnotationMode } from '../annotation';
 import type { ProseStyle } from '@/lib/prose-style';
+import type { WordAnchor } from '../types';
 
 /** The word the reader has focus on, addressed by its position in the article. */
 export interface ActiveReaderWord {
@@ -20,7 +21,7 @@ export interface ReaderArticleProps {
   annotationMode: AnnotationMode;
   highlightedPhrase: string[];
   activeWord: ActiveReaderWord | null;
-  onWordClick: (word: string, sentence: string) => void;
+  onWordClick: (word: string, sentence: string, anchor?: WordAnchor) => void;
   onActivateWord: (word: ActiveReaderWord) => void;
   onClearPhrase: () => void;
 }
