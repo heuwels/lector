@@ -46,7 +46,20 @@ function legacyWords(text: string): string[] {
 const CORPUS: Record<
   Exclude<
     LanguageCode,
-    'ar' | 'bn' | 'el' | 'he' | 'ru' | 'grc' | 'hbo' | 'hi' | 'tr' | 'uk' | 'ko' | 'zh' | 'ja'
+    | 'ar'
+    | 'bn'
+    | 'el'
+    | 'gd'
+    | 'he'
+    | 'ru'
+    | 'grc'
+    | 'hbo'
+    | 'hi'
+    | 'tr'
+    | 'uk'
+    | 'ko'
+    | 'zh'
+    | 'ja'
   >,
   string[]
 > = {
@@ -171,7 +184,7 @@ describe('tokenize — byte-identical with the legacy reader for shipped languag
   for (const [code, texts] of Object.entries(CORPUS) as [
     Exclude<
       LanguageCode,
-      'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'hbo' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'
+      'ar' | 'bn' | 'el' | 'ru' | 'grc' | 'gd' | 'hbo' | 'hi' | 'tr' | 'uk' | 'zh' | 'ja'
     >,
     string[],
   ][]) {
@@ -1431,6 +1444,86 @@ describe('Ukrainian pack (real manifest)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Scottish Gaelic pack goldens — the apostrophe is part of the spelling
+// ---------------------------------------------------------------------------
+
+const gd = LANGUAGES.gd;
+
+const GD_CORPUS = [
+  'Ciamar a tha thu?',
+  "Tha a' bhean anns an taigh.",
+  "Tha 's e latha math a th' ann.",
+  'Chunnaic mi an cù air an t-slighe.',
+];
+
+describe('Scottish Gaelic pack (real manifest)', () => {
+  it('reassembles Gaelic text byte-for-byte with correct offsets', () => {
+    for (const text of GD_CORPUS) {
+      const tokens = tokenize(text, gd);
+      expect(tokens.map((t) => t.text).join('')).toBe(text);
+      for (const t of tokens) {
+        expect(text.slice(t.start, t.end)).toBe(t.text);
+      }
+    }
+  });
+
+  it('keeps grave vowels inside word tokens', () => {
+    expect(tokenizeWords('màthair, cù, pòg, sùil, fèin.', gd).map((t) => t.text)).toEqual([
+      'màthair',
+      'cù',
+      'pòg',
+      'sùil',
+      'fèin',
+    ]);
+  });
+
+  it('keeps an apostrophe word whole, in every variant spelling', () => {
+    for (const apostrophe of ["'", '’', 'ʼ']) {
+      const text = `Tha a${apostrophe} bhean anns an taigh`;
+      expect(tokenizeWords(text, gd).map((t) => t.text)).toEqual([
+        'Tha',
+        `a${apostrophe}`,
+        'bhean',
+        'anns',
+        'an',
+        'taigh',
+      ]);
+    }
+  });
+
+  it("keeps 's and th'ann whole", () => {
+    expect(tokenizeWords("Tha 's e latha math a th' ann.", gd).map((t) => t.text)).toEqual([
+      'Tha',
+      "'s",
+      'e',
+      'latha',
+      'math',
+      'a',
+      "th'",
+      'ann',
+    ]);
+    expect(tokenizeWords("th'ann", gd).map((t) => t.text)).toEqual(["th'ann"]);
+    // d'fhàg puts the apostrophe between two letter runs, so the joiner
+    // keeps one token. The a' pattern must not steal the d'.
+    expect(tokenizeWords("d'fhàg e", gd).map((t) => t.text)).toEqual(["d'fhàg", 'e']);
+  });
+
+  it('folds every apostrophe variant onto one dictionary key', () => {
+    expect(foldWord("a'", gd)).toBe("a'");
+    expect(foldWord('a’', gd)).toBe("a'");
+    expect(foldWord('aʼ', gd)).toBe("a'");
+  });
+
+  it('leaves an apostrophe used as a quote outside the token', () => {
+    expect(tokenizeWords("'Halò' thuirt e", gd).map((t) => t.text)).toEqual([
+      'Halò',
+      'thuirt',
+      'e',
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Italian pack goldens — an elision apostrophe joins, it does not split
 // ---------------------------------------------------------------------------
 
@@ -1792,6 +1885,7 @@ describe('clozeTokens', () => {
     ['fi', 'Tämä on suomalainen päivä.'],
     ['hu', 'Ez egy jó könyv.'],
     ['nb', 'Dette er en norsk dag.'],
+    ['gd', "Tha a' bhean anns an taigh."],
   ] as Array<[LanguageCode, string]>)(
     'keeps the whitespace split for %s so stored indices cannot move',
     (code, sentence) => {

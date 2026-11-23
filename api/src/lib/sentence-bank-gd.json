@@ -1,0 +1,6779 @@
+[
+{
+"id": 1526243,
+"text": "Bha e sgoinneil. Chaidh mi a Kyoto.",
+"translation": "It was great. I went to Kyoto.",
+"clozeWord": "Chaidh",
+"clozeIndex": 3,
+"wordRank": 1,
+"collection": "top500"
+},
+{
+"id": 5884634,
+"text": "Rach do thaigh Thòmais.",
+"translation": "Go to Tom's house.",
+"clozeWord": "Rach",
+"clozeIndex": 0,
+"wordRank": 1,
+"collection": "top500"
+},
+{
+"id": 5884132,
+"text": "Cha robh duine am bu coma le Tòmas.",
+"translation": "Nobody disliked Tom.",
+"clozeWord": "duine",
+"clozeIndex": 2,
+"wordRank": 3,
+"collection": "top500"
+},
+{
+"id": 5884738,
+"text": "Nach shaoileadh duine gur e Tòmas a rinn e?",
+"translation": "Wouldn't one suppose that Tom did it?",
+"clozeWord": "duine",
+"clozeIndex": 2,
+"wordRank": 3,
+"collection": "top500"
+},
+{
+"id": 1516599,
+"text": "Halò, a h-uile duine.",
+"translation": "Hello everyone!",
+"clozeWord": "duine.",
+"clozeIndex": 3,
+"wordRank": 3,
+"collection": "top500"
+},
+{
+"id": 847774,
+"text": "Chan eil sinn a' fuireach ann an Alba fhathast.",
+"translation": "We don't live in Scotland yet.",
+"clozeWord": "fuireach",
+"clozeIndex": 4,
+"wordRank": 5,
+"collection": "top500"
+},
+{
+"id": 4224168,
+"text": "Càit a bheil thu a’ fuireach?",
+"translation": "Where do you live?",
+"clozeWord": "fuireach?",
+"clozeIndex": 5,
+"wordRank": 5,
+"collection": "top500"
+},
+{
+"id": 5751902,
+"text": "A Thàmais, fuirich san t-sèithear!",
+"translation": "Tom, stay in your seat!",
+"clozeWord": "fuirich",
+"clozeIndex": 2,
+"wordRank": 5,
+"collection": "top500"
+},
+{
+"id": 882029,
+"text": "Càite bheil Iain a' fuireach?",
+"translation": "Where does John live?",
+"clozeWord": "fuireach?",
+"clozeIndex": 4,
+"wordRank": 5,
+"collection": "top500"
+},
+{
+"id": 878809,
+"text": "Tha dà bhrathair aige. Tha fear dhiubh a' fuireach ann an Osaka agus am fear eile ann an Kobe.",
+"translation": "He has two brothers, one lives in Osaka and the other in Kobe.",
+"clozeWord": "fuireach",
+"clozeIndex": 8,
+"wordRank": 5,
+"collection": "top500"
+},
+{
+"id": 3383651,
+"text": "Bha an taigh-òsta seo glè fhaisg air an loch.",
+"translation": "This hotel was very near the lake.",
+"clozeWord": "loch.",
+"clozeIndex": 8,
+"wordRank": 8,
+"collection": "top500"
+},
+{
+"id": 3383652,
+"text": "Tha an taigh-òsta sin glè fhaisg air an loch.",
+"translation": "That hotel is very near the lake.",
+"clozeWord": "loch.",
+"clozeIndex": 8,
+"wordRank": 8,
+"collection": "top500"
+},
+{
+"id": 3383653,
+"text": "Tha an taigh-òsta seo glè fhaisg air an loch.",
+"translation": "This hotel is very near the lake.",
+"clozeWord": "loch.",
+"clozeIndex": 8,
+"wordRank": 8,
+"collection": "top500"
+},
+{
+"id": 5884692,
+"text": "\"An robh sibh nur stiùiriche am buidheann-carthannachd sin?\" \"Bha.\"",
+"translation": "\"Were you the director of that charity?\" \"Yes.\"",
+"clozeWord": "robh",
+"clozeIndex": 1,
+"wordRank": 9,
+"collection": "top500"
+},
+{
+"id": 4224112,
+"text": "Càit' an robh i a' dol?",
+"translation": "Where was she going?",
+"clozeWord": "robh",
+"clozeIndex": 2,
+"wordRank": 9,
+"collection": "top500"
+},
+{
+"id": 2801290,
+"text": "An robh thu ann?",
+"translation": "Were you there?",
+"clozeWord": "robh",
+"clozeIndex": 1,
+"wordRank": 9,
+"collection": "top500"
+},
+{
+"id": 2801293,
+"text": "An robh sibh ann?",
+"translation": "Were you there?",
+"clozeWord": "robh",
+"clozeIndex": 1,
+"wordRank": 9,
+"collection": "top500"
+},
+{
+"id": 3095223,
+"text": "An robh thu sgìth?",
+"translation": "Were you tired?",
+"clozeWord": "robh",
+"clozeIndex": 1,
+"wordRank": 9,
+"collection": "top500"
+},
+{
+"id": 883328,
+"text": "Cha bu chòir dhuibh dol a-mach.",
+"translation": "You ought not to go out.",
+"clozeWord": "a-mach.",
+"clozeIndex": 5,
+"wordRank": 10,
+"collection": "top500"
+},
+{
+"id": 1516539,
+"text": "Cha bu chòir dhut dol a-mach.",
+"translation": "You ought not to go out.",
+"clozeWord": "a-mach.",
+"clozeIndex": 5,
+"wordRank": 10,
+"collection": "top500"
+},
+{
+"id": 6393762,
+"text": "'S e Ricardo an t-ainm a th' orm.",
+"translation": "My name's Ricardo.",
+"clozeWord": "t-ainm",
+"clozeIndex": 4,
+"wordRank": 11,
+"collection": "top500"
+},
+{
+"id": 878977,
+"text": "'S e ainm fìona a th' ann am \"Madeira\".",
+"translation": "Madeira is the name of a wine.",
+"clozeWord": "ainm",
+"clozeIndex": 2,
+"wordRank": 11,
+"collection": "top500"
+},
+{
+"id": 773172,
+"text": "Dè an t-ainm a th' ort?",
+"translation": "What is your name?",
+"clozeWord": "t-ainm",
+"clozeIndex": 2,
+"wordRank": 11,
+"collection": "top500"
+},
+{
+"id": 773174,
+"text": "Dè an t-ainm a th' oirre?",
+"translation": "What's her name?",
+"clozeWord": "t-ainm",
+"clozeIndex": 2,
+"wordRank": 11,
+"collection": "top500"
+},
+{
+"id": 5765417,
+"text": "Bu toil leam gun cuiridh sibh m' ainm dhan stòr-data agaibh airson na cùrsa.",
+"translation": "I would like you to add my name to your mailing list for the course.",
+"clozeWord": "ainm",
+"clozeIndex": 7,
+"wordRank": 11,
+"collection": "top500"
+},
+{
+"id": 5882317,
+"text": "Carson nach mhàir Fraingis anns an dùthaich seo?",
+"translation": "Why didn't French last in this country?",
+"clozeWord": "dùthaich",
+"clozeIndex": 6,
+"wordRank": 13,
+"collection": "top500"
+},
+{
+"id": 5884224,
+"text": "'S dòcha leam gu bheil gràdh agad oirre.",
+"translation": "I suppose you like her.",
+"clozeWord": "bheil",
+"clozeIndex": 4,
+"wordRank": 15,
+"collection": "top500"
+},
+{
+"id": 5884227,
+"text": "'S dòcha leam gu bheil gràdh agad air.",
+"translation": "I suppose you like him.",
+"clozeWord": "bheil",
+"clozeIndex": 4,
+"wordRank": 15,
+"collection": "top500"
+},
+{
+"id": 9295530,
+"text": "A bheil thu tighinn chun a' phartaidh?",
+"translation": "Are you coming to the party?",
+"clozeWord": "bheil",
+"clozeIndex": 1,
+"wordRank": 15,
+"collection": "top500"
+},
+{
+"id": 847771,
+"text": "A bheil Beurla agus Gàidhlig agad?",
+"translation": "Do you speak English and Scottish Gaelic?",
+"clozeWord": "bheil",
+"clozeIndex": 1,
+"wordRank": 15,
+"collection": "top500"
+},
+{
+"id": 5749912,
+"text": "A bheil Gàidhlig na h-Èireann agad?",
+"translation": "Do you speak Irish?",
+"clozeWord": "bheil",
+"clozeIndex": 1,
+"wordRank": 15,
+"collection": "top500"
+},
+{
+"id": 5749913,
+"text": "A bheil Gàidhlig na h-Èireann agaibh?",
+"translation": "Do you speak Irish?",
+"clozeWord": "bheil",
+"clozeIndex": 1,
+"wordRank": 15,
+"collection": "top500"
+},
+{
+"id": 879554,
+"text": "Stad e ri taobh cathair Thòmais.",
+"translation": "He stopped by Tom's chair.",
+"clozeWord": "taobh",
+"clozeIndex": 3,
+"wordRank": 16,
+"collection": "top500"
+},
+{
+"id": 9276418,
+"text": "Tha dà thaobh air.",
+"translation": "There are two sides to it.",
+"clozeWord": "thaobh",
+"clozeIndex": 2,
+"wordRank": 16,
+"collection": "top500"
+},
+{
+"id": 5885760,
+"text": "\"An tèid thu dhan Eilean Sgiathanach san Lùnastal?\" \"Thèid.\"",
+"translation": "\"Are you going to the Isle of Skye in August?\" \"Yes.\"",
+"clozeWord": "Eilean",
+"clozeIndex": 4,
+"wordRank": 17,
+"collection": "top500"
+},
+{
+"id": 5885762,
+"text": "\"An tèid sibh dhan Eilean Sgiathanach anns an Lùnastal?\" \"Thèid.\"",
+"translation": "\"Are you going to the Isle of Skye in August?\" \"Yes.\"",
+"clozeWord": "Eilean",
+"clozeIndex": 4,
+"wordRank": 17,
+"collection": "top500"
+},
+{
+"id": 5881701,
+"text": "Is leamsa an eilean ud.",
+"translation": "I own that island.",
+"clozeWord": "eilean",
+"clozeIndex": 3,
+"wordRank": 17,
+"collection": "top500"
+},
+{
+"id": 885830,
+"text": "Tha mo phiuthar ainmeil.",
+"translation": "My sister is famous.",
+"clozeWord": "ainmeil.",
+"clozeIndex": 3,
+"wordRank": 19,
+"collection": "top500"
+},
+{
+"id": 5884406,
+"text": "Chan ann an-dè a rugadh ise.",
+"translation": "She wasn't born yesterday.",
+"clozeWord": "rugadh",
+"clozeIndex": 4,
+"wordRank": 20,
+"collection": "top500"
+},
+{
+"id": 1516347,
+"text": "Rugadh mi ann an Osaka.",
+"translation": "I was born in Osaka.",
+"clozeWord": "Rugadh",
+"clozeIndex": 0,
+"wordRank": 20,
+"collection": "top500"
+},
+{
+"id": 5753161,
+"text": "Rugadh mise ann an Osaka.",
+"translation": "I was born in Osaka.",
+"clozeWord": "Rugadh",
+"clozeIndex": 0,
+"wordRank": 20,
+"collection": "top500"
+},
+{
+"id": 852073,
+"text": "'S e Latha na Sàbaid a bh' ann an-dè.",
+"translation": "It was Sunday yesterday.",
+"clozeWord": "Latha",
+"clozeIndex": 2,
+"wordRank": 21,
+"collection": "top500"
+},
+{
+"id": 8760065,
+"text": "'S e latha na nigheadaireachd a th' ann a-màireach.",
+"translation": "Tomorrow's laundry day.",
+"clozeWord": "latha",
+"clozeIndex": 2,
+"wordRank": 21,
+"collection": "top500"
+},
+{
+"id": 8760067,
+"text": "'S e latha na nigheadaireachd a th' ann an-diugh.",
+"translation": "It's laundry day.",
+"clozeWord": "latha",
+"clozeIndex": 2,
+"wordRank": 21,
+"collection": "top500"
+},
+{
+"id": 4234246,
+"text": "Bha latha math ann.",
+"translation": "It was a good day.",
+"clozeWord": "latha",
+"clozeIndex": 1,
+"wordRank": 21,
+"collection": "top500"
+},
+{
+"id": 8692641,
+"text": "Tha latha snog ann.",
+"translation": "It's a nice day.",
+"clozeWord": "latha",
+"clozeIndex": 1,
+"wordRank": 21,
+"collection": "top500"
+},
+{
+"id": 8692652,
+"text": "Tha latha sgoineill ann.",
+"translation": "It's a great day.",
+"clozeWord": "latha",
+"clozeIndex": 1,
+"wordRank": 21,
+"collection": "top500"
+},
+{
+"id": 5749969,
+"text": "Tha Tàmas nas àirde na Màiri.",
+"translation": "Tom is taller than Mary.",
+"clozeWord": "àirde",
+"clozeIndex": 3,
+"wordRank": 25,
+"collection": "top500"
+},
+{
+"id": 9269221,
+"text": "Dè an àirde a tha e?",
+"translation": "How tall is he?",
+"clozeWord": "àirde",
+"clozeIndex": 2,
+"wordRank": 25,
+"collection": "top500"
+},
+{
+"id": 4192667,
+"text": "Seall far a bheil mise an-diugh!",
+"translation": "Look where I am today.",
+"clozeWord": "far",
+"clozeIndex": 1,
+"wordRank": 26,
+"collection": "top500"
+},
+{
+"id": 5881761,
+"text": "Cò nach eil airson Gàidhlig a bhruidhinn?",
+"translation": "Who wouldn't like to speak Gaelic?",
+"clozeWord": "eil",
+"clozeIndex": 2,
+"wordRank": 30,
+"collection": "top500"
+},
+{
+"id": 5881766,
+"text": "Cò nach eil airson Fraingis a bhruidhinn?",
+"translation": "Who wouldn't like to speak French?",
+"clozeWord": "eil",
+"clozeIndex": 2,
+"wordRank": 30,
+"collection": "top500"
+},
+{
+"id": 5922015,
+"text": "Chan eil mi a' dol leat.",
+"translation": "I don't agree with you.",
+"clozeWord": "eil",
+"clozeIndex": 1,
+"wordRank": 30,
+"collection": "top500"
+},
+{
+"id": 5745673,
+"text": "Chan eil saoigh gun choimheas.",
+"translation": "There is no hero without compare.",
+"clozeWord": "eil",
+"clozeIndex": 1,
+"wordRank": 30,
+"collection": "top500"
+},
+{
+"id": 878982,
+"text": "Chan eil mi ga thuigsinn.",
+"translation": "I don't understand it.",
+"clozeWord": "eil",
+"clozeIndex": 1,
+"wordRank": 30,
+"collection": "top500"
+},
+{
+"id": 5765538,
+"text": "Nach eil Tòmas oirre fhaicinn?",
+"translation": "Hasn't Tom seen her?",
+"clozeWord": "eil",
+"clozeIndex": 1,
+"wordRank": 30,
+"collection": "top500"
+},
+{
+"id": 1526172,
+"text": "B' e Janet a bhuannaich a' chiad duais.",
+"translation": "It was Janet that won first prize.",
+"clozeWord": "chiad",
+"clozeIndex": 6,
+"wordRank": 32,
+"collection": "top500"
+},
+{
+"id": 5881896,
+"text": "Thòisich Tòmas ag ionnsachadh na Fraingis faisg air trì bliadhna air ais.",
+"translation": "Tom has been studying French for about three years.",
+"clozeWord": "faisg",
+"clozeIndex": 6,
+"wordRank": 33,
+"collection": "top500"
+},
+{
+"id": 901371,
+"text": "Tha mòran leabhraichean air eachdraidh aige.",
+"translation": "He has a lot of books on history.",
+"clozeWord": "eachdraidh",
+"clozeIndex": 4,
+"wordRank": 36,
+"collection": "top500"
+},
+{
+"id": 5745690,
+"text": "Air rèir do mheas ort fhèin 's ann a mheasas càch thu.",
+"translation": "As you see yourself so will others see you.",
+"clozeWord": "rèir",
+"clozeIndex": 1,
+"wordRank": 39,
+"collection": "top500"
+},
+{
+"id": 5881682,
+"text": "'S beag air Tòmas an ceannach.",
+"translation": "Tom doesn't like to buy them.",
+"clozeWord": "beag",
+"clozeIndex": 1,
+"wordRank": 46,
+"collection": "top500"
+},
+{
+"id": 5809806,
+"text": "Is beag feum a tha ort.",
+"translation": "You're really useless.",
+"clozeWord": "beag",
+"clozeIndex": 1,
+"wordRank": 46,
+"collection": "top500"
+},
+{
+"id": 3807648,
+"text": "Tha taigh beag againn.",
+"translation": "We have a small house.",
+"clozeWord": "beag",
+"clozeIndex": 2,
+"wordRank": 46,
+"collection": "top500"
+},
+{
+"id": 3752706,
+"text": "Tha an taigh beag.",
+"translation": "It is the toilet.",
+"clozeWord": "beag.",
+"clozeIndex": 3,
+"wordRank": 46,
+"collection": "top500"
+},
+{
+"id": 3807632,
+"text": "Tha an taigh-beag beag.",
+"translation": "The toilet is small.",
+"clozeWord": "beag.",
+"clozeIndex": 3,
+"wordRank": 46,
+"collection": "top500"
+},
+{
+"id": 5918870,
+"text": "\"Dè a fhuair thu?\" \"Fhuair mi dà leabhar Gàidhlig.\"",
+"translation": "\"What did you get?\" \"Two Gaelic books.\"",
+"clozeWord": "fhuair",
+"clozeIndex": 2,
+"wordRank": 51,
+"collection": "top500"
+},
+{
+"id": 851990,
+"text": "Nach robh iad aig a’ mhuir tron oidhche?",
+"translation": "Aren’t they on the sea during the night?",
+"clozeWord": "mhuir",
+"clozeIndex": 5,
+"wordRank": 53,
+"collection": "top500"
+},
+{
+"id": 3663860,
+"text": "Tha eileanan anns a' mhuir.",
+"translation": "There are islands in the sea.",
+"clozeWord": "mhuir.",
+"clozeIndex": 4,
+"wordRank": 53,
+"collection": "top500"
+},
+{
+"id": 7853241,
+"text": "Tha mi gu math, tapadh leibh.",
+"translation": "I'm well, thank you.",
+"clozeWord": "math,",
+"clozeIndex": 3,
+"wordRank": 54,
+"collection": "top500"
+},
+{
+"id": 4189370,
+"text": "'S math a rinn thu!",
+"translation": "Well done!",
+"clozeWord": "math",
+"clozeIndex": 1,
+"wordRank": 54,
+"collection": "top500"
+},
+{
+"id": 4207027,
+"text": "Tha mi gu math!",
+"translation": "I'm well.",
+"clozeWord": "math!",
+"clozeIndex": 3,
+"wordRank": 54,
+"collection": "top500"
+},
+{
+"id": 877939,
+"text": "Bha mi nam oileanach aig an àm sin.",
+"translation": "I was a student at that time.",
+"clozeWord": "àm",
+"clozeIndex": 6,
+"wordRank": 56,
+"collection": "top500"
+},
+{
+"id": 1516373,
+"text": "Cuir stampa air a' phasgan agus chuir anns a' phost e.",
+"translation": "Put a stamp on the parcel and post it.",
+"clozeWord": "Cuir",
+"clozeIndex": 0,
+"wordRank": 58,
+"collection": "top500"
+},
+{
+"id": 5751896,
+"text": "Chan eil feum aig Tàmas falbh.",
+"translation": "Tom doesn't have to go.",
+"clozeWord": "falbh.",
+"clozeIndex": 5,
+"wordRank": 60,
+"collection": "top500"
+},
+{
+"id": 5751894,
+"text": "Chan fheum mi falbh.",
+"translation": "I don't have to go.",
+"clozeWord": "falbh.",
+"clozeIndex": 3,
+"wordRank": 60,
+"collection": "top500"
+},
+{
+"id": 3691878,
+"text": "Faodaidh tu falbh a-nis.",
+"translation": "You can go now.",
+"clozeWord": "falbh",
+"clozeIndex": 2,
+"wordRank": 60,
+"collection": "top500"
+},
+{
+"id": 5881688,
+"text": "Bha Tòmas ri m' thaobh fad an latha.",
+"translation": "Tom was with me all day.",
+"clozeWord": "fad",
+"clozeIndex": 5,
+"wordRank": 61,
+"collection": "top500"
+},
+{
+"id": 773254,
+"text": "Tha e a' leughadh leabhraichean a-mhain fad an latha.",
+"translation": "He does nothing but read books all day long.",
+"clozeWord": "fad",
+"clozeIndex": 6,
+"wordRank": 61,
+"collection": "top500"
+},
+{
+"id": 1516582,
+"text": "Chòrd am pàrtaidh glan le Tòmas",
+"translation": "Tom had lots of fun at the party.",
+"clozeWord": "pàrtaidh",
+"clozeIndex": 2,
+"wordRank": 62,
+"collection": "top500"
+},
+{
+"id": 4189358,
+"text": "co-là breith sona dhut!",
+"translation": "Happy birthday!",
+"clozeWord": "breith",
+"clozeIndex": 1,
+"wordRank": 64,
+"collection": "top500"
+},
+{
+"id": 852111,
+"text": "Cha robh mi ag obair an-dè.",
+"translation": "I was free from work yesterday.",
+"clozeWord": "obair",
+"clozeIndex": 4,
+"wordRank": 66,
+"collection": "top500"
+},
+{
+"id": 3077663,
+"text": "Tha mi ag obair an seo.",
+"translation": "I'm working here.",
+"clozeWord": "obair",
+"clozeIndex": 3,
+"wordRank": 66,
+"collection": "top500"
+},
+{
+"id": 5883829,
+"text": "Tha Tòmas ag obair.",
+"translation": "Tom is working.",
+"clozeWord": "obair.",
+"clozeIndex": 3,
+"wordRank": 66,
+"collection": "top500"
+},
+{
+"id": 5883842,
+"text": "Bidh Tòmas ag obair.",
+"translation": "Tom will work.",
+"clozeWord": "obair.",
+"clozeIndex": 3,
+"wordRank": 66,
+"collection": "top500"
+},
+{
+"id": 5883867,
+"text": "Bha Tòmas ag obair.",
+"translation": "Tom was working.",
+"clozeWord": "obair.",
+"clozeIndex": 3,
+"wordRank": 66,
+"collection": "top500"
+},
+{
+"id": 3077661,
+"text": "Tha mi ag obair.",
+"translation": "I'm working.",
+"clozeWord": "obair.",
+"clozeIndex": 3,
+"wordRank": 66,
+"collection": "top500"
+},
+{
+"id": 5918886,
+"text": "\"Cò a thug dhuinn a' bhideo seo?\" \"Tòmas.\"",
+"translation": "\"Who gave us this video?\" \"Tom did.\"",
+"clozeWord": "thug",
+"clozeIndex": 2,
+"wordRank": 67,
+"collection": "top500"
+},
+{
+"id": 5809808,
+"text": "'S e am feum a thug oirnn falbh.",
+"translation": "Dire necessity forced us to leave.",
+"clozeWord": "thug",
+"clozeIndex": 5,
+"wordRank": 67,
+"collection": "top500"
+},
+{
+"id": 5918875,
+"text": "\"Dè a thug thu dhi am-bliadhna?\" \"Thug dà adhann.\"",
+"translation": "\"What did you give her this year?\" \"Two frying pans.\"",
+"clozeWord": "thug",
+"clozeIndex": 2,
+"wordRank": 67,
+"collection": "top500"
+},
+{
+"id": 5919638,
+"text": "Thug Tòmas cuireadh dha Mhàiri.",
+"translation": "Tom invited Mary.",
+"clozeWord": "Thug",
+"clozeIndex": 0,
+"wordRank": 67,
+"collection": "top500"
+},
+{
+"id": 5918895,
+"text": "\"Am b' e Tòmas cò a thug dhuinn a' bhideo seo?\" \"Cha b' e.\"",
+"translation": "\"Was it Tom who gave us this video?\" \"No, it wasn't.\"",
+"clozeWord": "thug",
+"clozeIndex": 6,
+"wordRank": 67,
+"collection": "top500"
+},
+{
+"id": 5745703,
+"text": "Is buaine na gach ni 'n naire.",
+"translation": "Shame lasts longer than anything.",
+"clozeWord": "gach",
+"clozeIndex": 3,
+"wordRank": 68,
+"collection": "top500"
+},
+{
+"id": 773197,
+"text": "Cò còmhla ris a bhios tu a' tighinn?",
+"translation": "Whom are you going to come with?",
+"clozeWord": "còmhla",
+"clozeIndex": 1,
+"wordRank": 71,
+"collection": "top500"
+},
+{
+"id": 5223814,
+"text": "Feumaidh tu dol còmhla ri Tòmas an-dràsta.",
+"translation": "You need to go with Tom now.",
+"clozeWord": "còmhla",
+"clozeIndex": 3,
+"wordRank": 71,
+"collection": "top500"
+},
+{
+"id": 4224105,
+"text": "Bha iad cho dòigheil còmhla.",
+"translation": "They were so happy together.",
+"clozeWord": "còmhla.",
+"clozeIndex": 4,
+"wordRank": 71,
+"collection": "top500"
+},
+{
+"id": 9295511,
+"text": "Tha leigheas air gach càs ach chan eil leigheas air a' bhàs.",
+"translation": "There is a cure for everything except for death.",
+"clozeWord": "bhàs.",
+"clozeIndex": 11,
+"wordRank": 73,
+"collection": "top500"
+},
+{
+"id": 3092446,
+"text": "Tha am faclair mòr.",
+"translation": "The dictionary is big.",
+"clozeWord": "faclair",
+"clozeIndex": 2,
+"wordRank": 74,
+"collection": "top500"
+},
+{
+"id": 3092449,
+"text": "Tha am faclair beag.",
+"translation": "The dictionary is small.",
+"clozeWord": "faclair",
+"clozeIndex": 2,
+"wordRank": 74,
+"collection": "top500"
+},
+{
+"id": 878387,
+"text": "Chaochail Taro o chionn dà bhliadhna.",
+"translation": "Taro died two years ago.",
+"clozeWord": "Chaochail",
+"clozeIndex": 0,
+"wordRank": 75,
+"collection": "top500"
+},
+{
+"id": 5884274,
+"text": "Chan iongnadh gu bheil fearg mhòr aige.",
+"translation": "No wonder he is so angry.",
+"clozeWord": "mhòr",
+"clozeIndex": 5,
+"wordRank": 77,
+"collection": "top500"
+},
+{
+"id": 852148,
+"text": "Tha mo mhac ag obair gu trang anns an achadh an-dràsda.",
+"translation": "My son is working hard on the field right now.",
+"clozeWord": "mhac",
+"clozeIndex": 2,
+"wordRank": 79,
+"collection": "top500"
+},
+{
+"id": 5745705,
+"text": "Am mac mar an t-athair.",
+"translation": "Son is like father.",
+"clozeWord": "mac",
+"clozeIndex": 1,
+"wordRank": 79,
+"collection": "top500"
+},
+{
+"id": 5885032,
+"text": "Feumaidh sinn seasamh an aghaidh na gràine-chinnidh.",
+"translation": "We have to stand up against racism.",
+"clozeWord": "aghaidh",
+"clozeIndex": 4,
+"wordRank": 80,
+"collection": "top500"
+},
+{
+"id": 5745656,
+"text": "Dèan math an aghaidh 'n uilc.",
+"translation": "Return good for evil.",
+"clozeWord": "aghaidh",
+"clozeIndex": 3,
+"wordRank": 80,
+"collection": "top500"
+},
+{
+"id": 5885044,
+"text": "Seasamaid an aghaidh na gràine-chinnidh.",
+"translation": "Say no to racism.",
+"clozeWord": "aghaidh",
+"clozeIndex": 2,
+"wordRank": 80,
+"collection": "top500"
+},
+{
+"id": 5918946,
+"text": "Tha mi an aghaidh a pheantadh a-rithist a chionn ’s gun deach e a' peantadh dìreach an-uiridh.",
+"translation": "I'm against painting it again because it was painted just last year.",
+"clozeWord": "dìreach",
+"clozeIndex": 15,
+"wordRank": 81,
+"collection": "top500"
+},
+{
+"id": 851901,
+"text": "Nach eil aran ùr anns a’ bhocsa ann?",
+"translation": "Was there fresh bread in the box?",
+"clozeWord": "ùr",
+"clozeIndex": 3,
+"wordRank": 82,
+"collection": "top500"
+},
+{
+"id": 5881888,
+"text": "Tha mòran obair ri dhèanamh.",
+"translation": "There's a lot of work to be done.",
+"clozeWord": "mòran",
+"clozeIndex": 1,
+"wordRank": 84,
+"collection": "top500"
+},
+{
+"id": 5883914,
+"text": "Tha mòran oileanaich aca.",
+"translation": "They have many students.",
+"clozeWord": "mòran",
+"clozeIndex": 1,
+"wordRank": 84,
+"collection": "top500"
+},
+{
+"id": 5897274,
+"text": "Gheibh thu leabhar innteanach ma thig thu do Chomhairle nan Leabhraichean!",
+"translation": "You will get an interesting book if you go to Comhairle nan Leabhraichean.",
+"clozeWord": "Chomhairle",
+"clozeIndex": 8,
+"wordRank": 85,
+"collection": "top500"
+},
+{
+"id": 5884441,
+"text": "'S ann à Boston a thàinig mi.",
+"translation": "I came from Boston.",
+"clozeWord": "thàinig",
+"clozeIndex": 5,
+"wordRank": 88,
+"collection": "top500"
+},
+{
+"id": 5884229,
+"text": "'S dòcha leam gun thig iad.",
+"translation": "I suppose they are coming.",
+"clozeWord": "thig",
+"clozeIndex": 4,
+"wordRank": 88,
+"collection": "top500"
+},
+{
+"id": 5881638,
+"text": "Thig Tòmas a dh'Astràilia an-ath-bhliadhna.",
+"translation": "Tom will come to Australia next year.",
+"clozeWord": "Thig",
+"clozeIndex": 0,
+"wordRank": 88,
+"collection": "top500"
+},
+{
+"id": 11098464,
+"text": "Tha Tom a' fuireach ann an taigh beag nach eil fada bhon abhainn.",
+"translation": "Tom lives in a small house not far from the river.",
+"clozeWord": "abhainn.",
+"clozeIndex": 12,
+"wordRank": 91,
+"collection": "top500"
+},
+{
+"id": 1514060,
+"text": "Nach toir thu dhomh glainne bainne a bharrachd?",
+"translation": "Will you give me another glass of milk?",
+"clozeWord": "bharrachd?",
+"clozeIndex": 7,
+"wordRank": 93,
+"collection": "top500"
+},
+{
+"id": 5754202,
+"text": "Tha mi an dòchas gu bheil fios aig a h-uile duine dé tha seo a' ciallachadh.",
+"translation": "I hope everyone knows what this means.",
+"clozeWord": "ciallachadh.",
+"clozeIndex": 15,
+"wordRank": 95,
+"collection": "top500"
+},
+{
+"id": 3573389,
+"text": "Dè an uair a tha e a’ tighinn?",
+"translation": "At what time will he arrive?",
+"clozeWord": "uair",
+"clozeIndex": 2,
+"wordRank": 96,
+"collection": "top500"
+},
+{
+"id": 1514179,
+"text": "Tha na leabhraichean seo gu math sean.",
+"translation": "These books are very old.",
+"clozeWord": "sean.",
+"clozeIndex": 6,
+"wordRank": 97,
+"collection": "top500"
+},
+{
+"id": 5919081,
+"text": "Dè cho sean 's a tha e?",
+"translation": "How old is he?",
+"clozeWord": "sean",
+"clozeIndex": 2,
+"wordRank": 97,
+"collection": "top500"
+},
+{
+"id": 1515924,
+"text": "Tha Nara cho sean ri Kyoto.",
+"translation": "Nara is as old as Kyoto.",
+"clozeWord": "sean",
+"clozeIndex": 3,
+"wordRank": 97,
+"collection": "top500"
+},
+{
+"id": 773205,
+"text": "Tha mi cinnteach gum bi i a' sein anns an eaglais a-màireach.",
+"translation": "I'm sure she is going to sing at church tomorrow.",
+"clozeWord": "eaglais",
+"clozeIndex": 10,
+"wordRank": 98,
+"collection": "top500"
+},
+{
+"id": 5884621,
+"text": "Chan ann leamsa a tha an taigh seo.",
+"translation": "This house is not mine.",
+"clozeWord": "taigh",
+"clozeIndex": 6,
+"wordRank": 99,
+"collection": "top500"
+},
+{
+"id": 5884617,
+"text": "'S ann leamsa a tha an taigh seo.",
+"translation": "This house is mine.",
+"clozeWord": "taigh",
+"clozeIndex": 6,
+"wordRank": 99,
+"collection": "top500"
+},
+{
+"id": 5884622,
+"text": "Is leamsa a tha an taigh seo.",
+"translation": "This house is mine, not yours.",
+"clozeWord": "taigh",
+"clozeIndex": 5,
+"wordRank": 99,
+"collection": "top500"
+},
+{
+"id": 852107,
+"text": "An robh sibh aig an taigh an-dè?",
+"translation": "Were you at home yesterday?",
+"clozeWord": "taigh",
+"clozeIndex": 5,
+"wordRank": 99,
+"collection": "top500"
+},
+{
+"id": 852108,
+"text": "An robh thu aig an taigh an-dè?",
+"translation": "Were you at home yesterday?",
+"clozeWord": "taigh",
+"clozeIndex": 5,
+"wordRank": 99,
+"collection": "top500"
+},
+{
+"id": 5884643,
+"text": "Cò leis a tha an taigh seo?",
+"translation": "Who owns this house?",
+"clozeWord": "taigh",
+"clozeIndex": 5,
+"wordRank": 99,
+"collection": "top500"
+},
+{
+"id": 773160,
+"text": "Tha Beurla an cànan a tha a' fuireach 'nam chrìdhe.",
+"translation": "English is the language that dwells in my heart.",
+"clozeWord": "cànan",
+"clozeIndex": 3,
+"wordRank": 106,
+"collection": "top500"
+},
+{
+"id": 1514051,
+"text": "Tha iomadh leòmhainn ann an Afraga.",
+"translation": "In Africa there are many lions.",
+"clozeWord": "iomadh",
+"clozeIndex": 1,
+"wordRank": 110,
+"collection": "top500"
+},
+{
+"id": 3077690,
+"text": "Tha mi ag òl uisge anns an cidsin.",
+"translation": "I'm drinking water in the kitchen.",
+"clozeWord": "uisge",
+"clozeIndex": 4,
+"wordRank": 113,
+"collection": "top500"
+},
+{
+"id": 4001336,
+"text": "Tha i ag òl an t-uisge.",
+"translation": "She is drinking the water.",
+"clozeWord": "t-uisge.",
+"clozeIndex": 5,
+"wordRank": 113,
+"collection": "top500"
+},
+{
+"id": 773232,
+"text": "Chan eil an t-uisge ann.",
+"translation": "It is not raining.",
+"clozeWord": "t-uisge",
+"clozeIndex": 3,
+"wordRank": 113,
+"collection": "top500"
+},
+{
+"id": 5745509,
+"text": "Tha an t-uisge ann.",
+"translation": "It's raining.",
+"clozeWord": "t-uisge",
+"clozeIndex": 2,
+"wordRank": 113,
+"collection": "top500"
+},
+{
+"id": 3803724,
+"text": "Chan eil mi ag iarraidh dol dhan sgoil.",
+"translation": "I don't want to go to school.",
+"clozeWord": "sgoil.",
+"clozeIndex": 7,
+"wordRank": 116,
+"collection": "top500"
+},
+{
+"id": 5919383,
+"text": "Chan eil sgoil mhòr aig Tòmas.",
+"translation": "Tom hasn't had much education.",
+"clozeWord": "sgoil",
+"clozeIndex": 2,
+"wordRank": 116,
+"collection": "top500"
+},
+{
+"id": 5919384,
+"text": "Tha sgoil mhòr aig Tòmas.",
+"translation": "Tom is a highly-educated man.",
+"clozeWord": "sgoil",
+"clozeIndex": 1,
+"wordRank": 116,
+"collection": "top500"
+},
+{
+"id": 5768579,
+"text": "An do ghabh Tòmas gaol air Màiri?",
+"translation": "Did Tom fall in love with Mary?",
+"clozeWord": "ghabh",
+"clozeIndex": 2,
+"wordRank": 117,
+"collection": "top500"
+},
+{
+"id": 4217776,
+"text": "An gabh thu sin?",
+"translation": "Will you take that?",
+"clozeWord": "gabh",
+"clozeIndex": 1,
+"wordRank": 117,
+"collection": "top500"
+},
+{
+"id": 4209520,
+"text": "Gabh math an latha.",
+"translation": "Enjoy the day.",
+"clozeWord": "Gabh",
+"clozeIndex": 0,
+"wordRank": 117,
+"collection": "top500"
+},
+{
+"id": 3385310,
+"text": "Chan eil mo charaid a' cleachdadh bainne.",
+"translation": "My friend doesn't use milk.",
+"clozeWord": "cleachdadh",
+"clozeIndex": 5,
+"wordRank": 118,
+"collection": "top500"
+},
+{
+"id": 1516310,
+"text": "Chan eil mi ach air dà no trì deochannan òl.",
+"translation": "I've only had two or three drinks.",
+"clozeWord": "trì",
+"clozeIndex": 7,
+"wordRank": 119,
+"collection": "top500"
+},
+{
+"id": 5884478,
+"text": "Tha lodan uisge ann air sgàth 's gun robh an t-uisge ann an-dè.",
+"translation": "There are puddles because it was raining yesterday.",
+"clozeWord": "sgàth",
+"clozeIndex": 5,
+"wordRank": 120,
+"collection": "top500"
+},
+{
+"id": 5749967,
+"text": "Cha b' urrainn dha nas fheàrr a dhèanamh.",
+"translation": "He couldn't do any better.",
+"clozeWord": "dhèanamh.",
+"clozeIndex": 7,
+"wordRank": 121,
+"collection": "top500"
+},
+{
+"id": 4000323,
+"text": "Tha mi a’ dhèanamh m’ obair-dachaigh.",
+"translation": "I'm doing my homework.",
+"clozeWord": "dhèanamh",
+"clozeIndex": 3,
+"wordRank": 121,
+"collection": "top500"
+},
+{
+"id": 1516071,
+"text": "Dè rinn thu leis an leabhar agam?",
+"translation": "What did you do with my book?",
+"clozeWord": "leabhar",
+"clozeIndex": 5,
+"wordRank": 122,
+"collection": "top500"
+},
+{
+"id": 5882306,
+"text": "\"Cò leis a tha an leabhar?\" \"'S e le Tòmas.\"",
+"translation": "\"Whose is the book?\" \"It's Tom's.\"",
+"clozeWord": "leabhar?\"",
+"clozeIndex": 5,
+"wordRank": 122,
+"collection": "top500"
+},
+{
+"id": 12226459,
+"text": "Ceannaichidh tu an leabhar an-diugh.",
+"translation": "You will buy the book today.",
+"clozeWord": "leabhar",
+"clozeIndex": 3,
+"wordRank": 122,
+"collection": "top500"
+},
+{
+"id": 5881893,
+"text": "Thòisich Tòmas ag ionnsachadh na Fraingis o choinn trì bliadhna.",
+"translation": "Tom has been studying French for three years.",
+"clozeWord": "Thòisich",
+"clozeIndex": 0,
+"wordRank": 126,
+"collection": "top500"
+},
+{
+"id": 5881894,
+"text": "Thòisich Tòmas ag ionnsachadh na Fraingis trì bliadhna air ais.",
+"translation": "Tom has been studying French for three years.",
+"clozeWord": "Thòisich",
+"clozeIndex": 0,
+"wordRank": 126,
+"collection": "top500"
+},
+{
+"id": 4218239,
+"text": "A bheil fada bho thòisich thu san obair an sin?",
+"translation": "Have you been working there for long?",
+"clozeWord": "thòisich",
+"clozeIndex": 4,
+"wordRank": 126,
+"collection": "top500"
+},
+{
+"id": 769993,
+"text": "Chan urrainn dhomh ga faicinn.",
+"translation": "I can't see her.",
+"clozeWord": "urrainn",
+"clozeIndex": 1,
+"wordRank": 128,
+"collection": "top500"
+},
+{
+"id": 1516517,
+"text": "Chaidh e thall thairis bho chionn dà bhliadhna.",
+"translation": "He went abroad two years ago.",
+"clozeWord": "thall",
+"clozeIndex": 2,
+"wordRank": 129,
+"collection": "top500"
+},
+{
+"id": 1527885,
+"text": "Chaidh e thall thairis an-uiridh.",
+"translation": "He went abroad last year.",
+"clozeWord": "thall",
+"clozeIndex": 2,
+"wordRank": 129,
+"collection": "top500"
+},
+{
+"id": 5884410,
+"text": "Rugadh is thogadh mise ann an Astràilia.",
+"translation": "I was born and raised in Australia.",
+"clozeWord": "thogadh",
+"clozeIndex": 2,
+"wordRank": 131,
+"collection": "top500"
+},
+{
+"id": 1526162,
+"text": "Tha e coltach ri athair.",
+"translation": "He looks like his father.",
+"clozeWord": "coltach",
+"clozeIndex": 2,
+"wordRank": 133,
+"collection": "top500"
+},
+{
+"id": 5754189,
+"text": "Càit an deach sin an déidh sin?",
+"translation": "Where will we go afterwards?",
+"clozeWord": "deach",
+"clozeIndex": 2,
+"wordRank": 134,
+"collection": "top500"
+},
+{
+"id": 1182029,
+"text": "Chan eil fhios agam dè seòrsa duine a th' ann.",
+"translation": "I don't know what kind of person he is.",
+"clozeWord": "seòrsa",
+"clozeIndex": 5,
+"wordRank": 135,
+"collection": "top500"
+},
+{
+"id": 5897286,
+"text": "Thèid mi air siubhal a' bhaile ann an uair gu leth. Am bu toigh le duine tiginn cuide rium?",
+"translation": "I'm going to go for a walk around town in an hour and a half. Would anyone like to come with?",
+"clozeWord": "leth.",
+"clozeIndex": 10,
+"wordRank": 136,
+"collection": "top500"
+},
+{
+"id": 773261,
+"text": "Tha mo theaghlach gu math, tapadh leat.",
+"translation": "My family is fine, thanks.",
+"clozeWord": "theaghlach",
+"clozeIndex": 2,
+"wordRank": 139,
+"collection": "top500"
+},
+{
+"id": 852175,
+"text": "Tha mi an dòchas gu bheil an teaghlach agad gu dòigheal, a charaid.",
+"translation": "I hope that your family is fine, my friend.",
+"clozeWord": "teaghlach",
+"clozeIndex": 7,
+"wordRank": 139,
+"collection": "top500"
+},
+{
+"id": 773193,
+"text": "Cuine a bhios tu a' tighinn a dh'Alba?",
+"translation": "When will you be coming to Scotland?",
+"clozeWord": "bhios",
+"clozeIndex": 2,
+"wordRank": 141,
+"collection": "top500"
+},
+{
+"id": 852078,
+"text": "An e Disathairne a bhios ann a-màireach?",
+"translation": "Will it be Saturday tomorrow?",
+"clozeWord": "bhios",
+"clozeIndex": 4,
+"wordRank": 141,
+"collection": "top500"
+},
+{
+"id": 852081,
+"text": "'S e Diluain a tha ann an-diugh agus 's e Dimàirt a bhios ann a-màireach.",
+"translation": "It's Monday today and it will be Tuesday tomorrow.",
+"clozeWord": "bhios",
+"clozeIndex": 12,
+"wordRank": 141,
+"collection": "top500"
+},
+{
+"id": 4189353,
+"text": "dè an saoghal a tha agad?",
+"translation": "How is life treating you?",
+"clozeWord": "saoghal",
+"clozeIndex": 2,
+"wordRank": 142,
+"collection": "top500"
+},
+{
+"id": 5745700,
+"text": "Is buaine bladh nas saoghal.",
+"translation": "Glory lasts longer than life.",
+"clozeWord": "saoghal.",
+"clozeIndex": 4,
+"wordRank": 142,
+"collection": "top500"
+},
+{
+"id": 879035,
+"text": "'S tusa gràdh mo bheatha.",
+"translation": "You're the love of my life.",
+"clozeWord": "bheatha.",
+"clozeIndex": 4,
+"wordRank": 145,
+"collection": "top500"
+},
+{
+"id": 4189365,
+"text": "’S e do bheatha.",
+"translation": "You're welcome.",
+"clozeWord": "bheatha.",
+"clozeIndex": 3,
+"wordRank": 145,
+"collection": "top500"
+},
+{
+"id": 5223655,
+"text": "Do bheatha dhan duthaich!",
+"translation": "Welcome!",
+"clozeWord": "bheatha",
+"clozeIndex": 1,
+"wordRank": 145,
+"collection": "top500"
+},
+{
+"id": 5883920,
+"text": "'S e oileanaich a tha annainn uile.",
+"translation": "We're all students.",
+"clozeWord": "uile.",
+"clozeIndex": 6,
+"wordRank": 146,
+"collection": "top500"
+},
+{
+"id": 5751833,
+"text": "Tha Tàmas agus Màiri a’ bruidhinn ri chèile.",
+"translation": "Tom and Mary are talking to each other.",
+"clozeWord": "chèile.",
+"clozeIndex": 7,
+"wordRank": 152,
+"collection": "top500"
+},
+{
+"id": 5751829,
+"text": "Tha iad a’ bruidhinn ri chèile.",
+"translation": "They are talking to each other.",
+"clozeWord": "chèile.",
+"clozeIndex": 5,
+"wordRank": 152,
+"collection": "top500"
+},
+{
+"id": 880296,
+"text": "Innis dhomh dè ni thu ann an Shounan.",
+"translation": "Tell me what you did in Shounan.",
+"clozeWord": "Innis",
+"clozeIndex": 0,
+"wordRank": 157,
+"collection": "top500"
+},
+{
+"id": 1514061,
+"text": "Innis dhomh an t-ainm a tha air an naoidheamh mìos.",
+"translation": "Tell me the name of the ninth month.",
+"clozeWord": "Innis",
+"clozeIndex": 0,
+"wordRank": 157,
+"collection": "top500"
+},
+{
+"id": 851918,
+"text": "Bha mi air an rathad dhan bhaile.",
+"translation": "I was on the road to the town.",
+"clozeWord": "rathad",
+"clozeIndex": 4,
+"wordRank": 159,
+"collection": "top500"
+},
+{
+"id": 9295519,
+"text": "Bha mise a' dèanamh cho math ri fear an seo.",
+"translation": "I was doing as well as anyone here.",
+"clozeWord": "dèanamh",
+"clozeIndex": 3,
+"wordRank": 162,
+"collection": "top500"
+},
+{
+"id": 770525,
+"text": "Dè tha thu a' dèanamh?",
+"translation": "What are you doing?",
+"clozeWord": "dèanamh?",
+"clozeIndex": 4,
+"wordRank": 162,
+"collection": "top500"
+},
+{
+"id": 852104,
+"text": "Dè tha sibh a' dèanamh?",
+"translation": "What are you doing?",
+"clozeWord": "dèanamh?",
+"clozeIndex": 4,
+"wordRank": 162,
+"collection": "top500"
+},
+{
+"id": 5809803,
+"text": "Cha dèan e feum.",
+"translation": "He won't do.",
+"clozeWord": "dèan",
+"clozeIndex": 1,
+"wordRank": 162,
+"collection": "top500"
+},
+{
+"id": 5919387,
+"text": "Thuirt Tòmas gun do shaoil e gun robh am foghlam cudromach.",
+"translation": "Tom said that he thought that education was important.",
+"clozeWord": "cudromach.",
+"clozeIndex": 10,
+"wordRank": 164,
+"collection": "top500"
+},
+{
+"id": 5745632,
+"text": "Thig an t-acras na 's tric no aon-uair.",
+"translation": "Hunger is the best sauce.",
+"clozeWord": "tric",
+"clozeIndex": 5,
+"wordRank": 168,
+"collection": "top500"
+},
+{
+"id": 5884670,
+"text": "\"Nach ann tric a bhios sibh aig an taigh?\" \"Chan ann.\"",
+"translation": "\"Aren't you often home?\" \"No, I'm not.\"",
+"clozeWord": "tric",
+"clozeIndex": 2,
+"wordRank": 168,
+"collection": "top500"
+},
+{
+"id": 5884686,
+"text": "\"Am faic thu taigh-tasgaidh a-rithist?\" \"Chì.\"",
+"translation": "\"Will you see the museum again?\" \"Yes.\"",
+"clozeWord": "faic",
+"clozeIndex": 1,
+"wordRank": 170,
+"collection": "top500"
+},
+{
+"id": 5884296,
+"text": "Tha fearg aig m' athair orm.",
+"translation": "Father is angry with me.",
+"clozeWord": "athair",
+"clozeIndex": 4,
+"wordRank": 171,
+"collection": "top500"
+},
+{
+"id": 770502,
+"text": "Tha na laithean a' fàs nas fhaide 's nas fhaide.",
+"translation": "The days are getting longer and longer.",
+"clozeWord": "fàs",
+"clozeIndex": 4,
+"wordRank": 174,
+"collection": "top500"
+},
+{
+"id": 5751277,
+"text": "Bha iad a' bruidhinn mu do dhèidhinn.",
+"translation": "They were talking about you.",
+"clozeWord": "bruidhinn",
+"clozeIndex": 3,
+"wordRank": 176,
+"collection": "top500"
+},
+{
+"id": 5745595,
+"text": "An urrainn dhuibh bruidhinn nas maille?",
+"translation": "Can you talk more slowly?",
+"clozeWord": "bruidhinn",
+"clozeIndex": 3,
+"wordRank": 176,
+"collection": "top500"
+},
+{
+"id": 9018961,
+"text": "A bheil thu a’ bruidhinn Gàidhlig?",
+"translation": "Do you speak Scottish Gaelic?",
+"clozeWord": "bruidhinn",
+"clozeIndex": 4,
+"wordRank": 176,
+"collection": "top500"
+},
+{
+"id": 3476009,
+"text": "Tha iad a’ bruidhinn.",
+"translation": "They're talking.",
+"clozeWord": "bruidhinn.",
+"clozeIndex": 3,
+"wordRank": 176,
+"collection": "top500"
+},
+{
+"id": 5919022,
+"text": "Faodaidh sinn am bus fhaighinn às a' bhaile seo.",
+"translation": "We can catch the bus from this town.",
+"clozeWord": "fhaighinn",
+"clozeIndex": 4,
+"wordRank": 179,
+"collection": "top500"
+},
+{
+"id": 5883805,
+"text": "Phòs nighean Thòmais balach Mhàiri.",
+"translation": "Tom's daughter married Mary's son.",
+"clozeWord": "Phòs",
+"clozeIndex": 0,
+"wordRank": 180,
+"collection": "top500"
+},
+{
+"id": 5881714,
+"text": "Bha dùil aig Tòmas Màiri a phòsadh, ach cha robh aice ris a phòsadh agus cha do phòs.",
+"translation": "Tom expected to marry Mary, but she didn't have to marry him and didn't.",
+"clozeWord": "phòs.",
+"clozeIndex": 17,
+"wordRank": 180,
+"collection": "top500"
+},
+{
+"id": 1516379,
+"text": "Chaill e a h-uile rud a bh' aige.",
+"translation": "He lost everything he owned.",
+"clozeWord": "rud",
+"clozeIndex": 4,
+"wordRank": 187,
+"collection": "top500"
+},
+{
+"id": 879032,
+"text": "Ràinig sinn an stèisean aig sia uairean.",
+"translation": "We got to the station at six.",
+"clozeWord": "stèisean",
+"clozeIndex": 3,
+"wordRank": 193,
+"collection": "top500"
+},
+{
+"id": 4209750,
+"text": "Tha thu uabhasach laghach .",
+"translation": "You're very nice.",
+"clozeWord": "uabhasach",
+"clozeIndex": 2,
+"wordRank": 194,
+"collection": "top500"
+},
+{
+"id": 4209734,
+"text": "Tha sin uabhasach math.",
+"translation": "That's very good.",
+"clozeWord": "uabhasach",
+"clozeIndex": 2,
+"wordRank": 194,
+"collection": "top500"
+},
+{
+"id": 5918897,
+"text": "\"An do cheannaich thu an Audi?\" \"Cha do cheannaich, bha e uabhasach daor.\"",
+"translation": "\"Did you buy the Audi?\" \"No, it was so expensive.\"",
+"clozeWord": "uabhasach",
+"clozeIndex": 11,
+"wordRank": 194,
+"collection": "top500"
+},
+{
+"id": 1516515,
+"text": "'S ann agamsa a tha am fear dubh.",
+"translation": "The black one is mine.",
+"clozeWord": "dubh.",
+"clozeIndex": 7,
+"wordRank": 195,
+"collection": "top500"
+},
+{
+"id": 1526225,
+"text": "Tha cat is cù agam. Tha an cat dubh agus tha an cù geal.",
+"translation": "I have a cat and a dog. The cat is black and the dog is white.",
+"clozeWord": "dubh",
+"clozeIndex": 8,
+"wordRank": 195,
+"collection": "top500"
+},
+{
+"id": 852086,
+"text": "Dè an latha a tha ann a-rithist?",
+"translation": "What day is it again?",
+"clozeWord": "a-rithist?",
+"clozeIndex": 6,
+"wordRank": 202,
+"collection": "top500"
+},
+{
+"id": 1514172,
+"text": "Rinn i an aon mearachd a-rithist.",
+"translation": "She made the same mistake again.",
+"clozeWord": "a-rithist.",
+"clozeIndex": 5,
+"wordRank": 202,
+"collection": "top500"
+},
+{
+"id": 4195579,
+"text": "Chì mi a-rithist thu.",
+"translation": "I'll see you later.",
+"clozeWord": "a-rithist",
+"clozeIndex": 2,
+"wordRank": 202,
+"collection": "top500"
+},
+{
+"id": 5881704,
+"text": "Tha Tòmas a' dol suas an staidhre.",
+"translation": "Tom is going upstairs.",
+"clozeWord": "suas",
+"clozeIndex": 4,
+"wordRank": 203,
+"collection": "top500"
+},
+{
+"id": 2989016,
+"text": "Tha am fear àrd.",
+"translation": "The man is tall.",
+"clozeWord": "àrd.",
+"clozeIndex": 3,
+"wordRank": 208,
+"collection": "top500"
+},
+{
+"id": 5919391,
+"text": "Chan eil foghlam tro mheadhann na Fraingis gu feum.",
+"translation": "French-medium education isn't useful.",
+"clozeWord": "foghlam",
+"clozeIndex": 2,
+"wordRank": 209,
+"collection": "top500"
+},
+{
+"id": 5765547,
+"text": "Tha Tòmas ag ràdh gu bheil e oirbh fhaicinn.",
+"translation": "Tom says that he has seen you.",
+"clozeWord": "ràdh",
+"clozeIndex": 3,
+"wordRank": 215,
+"collection": "top500"
+},
+{
+"id": 5751704,
+"text": "Tha gu leòr aig Tàmas ri ràdh.",
+"translation": "Tom has enough to say.",
+"clozeWord": "ràdh.",
+"clozeIndex": 6,
+"wordRank": 215,
+"collection": "top500"
+},
+{
+"id": 1516329,
+"text": "Tha an t-uabhas de dhaoine anns a' phàirc.",
+"translation": "There are a great many people in the park.",
+"clozeWord": "dhaoine",
+"clozeIndex": 4,
+"wordRank": 219,
+"collection": "top500"
+},
+{
+"id": 1514160,
+"text": "Cha toil leam bailtean mòra.",
+"translation": "I don't like big cities.",
+"clozeWord": "mòra.",
+"clozeIndex": 4,
+"wordRank": 227,
+"collection": "top500"
+},
+{
+"id": 4000306,
+"text": "A bheil thu ag èisteachd ri ceòl?",
+"translation": "Are you listening to music?",
+"clozeWord": "ceòl?",
+"clozeIndex": 6,
+"wordRank": 230,
+"collection": "top500"
+},
+{
+"id": 3475977,
+"text": "Bha Eamag ag èisteachd ri ceòl.",
+"translation": "Emily was listening to music.",
+"clozeWord": "ceòl.",
+"clozeIndex": 5,
+"wordRank": 230,
+"collection": "top500"
+},
+{
+"id": 8692598,
+"text": "Is toil leam ceòl.",
+"translation": "I like music.",
+"clozeWord": "ceòl.",
+"clozeIndex": 3,
+"wordRank": 230,
+"collection": "top500"
+},
+{
+"id": 9295539,
+"text": "Chan eil mi cinnteach às is mu dheidhinn idir.",
+"translation": "I'm not sure about it at all.",
+"clozeWord": "idir.",
+"clozeIndex": 8,
+"wordRank": 232,
+"collection": "top500"
+},
+{
+"id": 5919206,
+"text": "Cha robh Tòmas airson fàgail idir.",
+"translation": "Tom didn't want to leave at all.",
+"clozeWord": "idir.",
+"clozeIndex": 5,
+"wordRank": 232,
+"collection": "top500"
+},
+{
+"id": 3561602,
+"text": "Tha mi ag èisteachd air an òran seo.",
+"translation": "I'm listening to this song.",
+"clozeWord": "òran",
+"clozeIndex": 6,
+"wordRank": 248,
+"collection": "top500"
+},
+{
+"id": 768173,
+"text": "Bha mi ag èisteachd ri òran glè bhòidheach an-dè.",
+"translation": "Yesterday I listened to a very beautiful song.",
+"clozeWord": "òran",
+"clozeIndex": 5,
+"wordRank": 248,
+"collection": "top500"
+},
+{
+"id": 772670,
+"text": "Dh'èist mi ri òran glè bhòidheach an-dè.",
+"translation": "I listened to a very beautiful song yesterday.",
+"clozeWord": "òran",
+"clozeIndex": 3,
+"wordRank": 248,
+"collection": "top500"
+},
+{
+"id": 1516525,
+"text": "Chuala mi òran breagha an-dè.",
+"translation": "I heard a beautiful song yesterday.",
+"clozeWord": "òran",
+"clozeIndex": 2,
+"wordRank": 248,
+"collection": "top500"
+},
+{
+"id": 5809799,
+"text": "Chan eil òran na bhràthar.",
+"translation": "His brother can't sing.",
+"clozeWord": "òran",
+"clozeIndex": 2,
+"wordRank": 248,
+"collection": "top500"
+},
+{
+"id": 5881724,
+"text": "B' àbhaist dhomh a dhol a dh'Uibhist as t-samhraidh.",
+"translation": "I used to go to Uist in the summer.",
+"clozeWord": "àbhaist",
+"clozeIndex": 1,
+"wordRank": 249,
+"collection": "top500"
+},
+{
+"id": 5881727,
+"text": "B' àbhaist do Thòmas a dhol a dh'Astràilia as t-samhraidh.",
+"translation": "Tom used to go to Australia in the summer.",
+"clozeWord": "àbhaist",
+"clozeIndex": 1,
+"wordRank": 249,
+"collection": "top500"
+},
+{
+"id": 5745610,
+"text": "B' fheàrr Iùdas làmh rium.",
+"translation": "I'd rather have Judas by my side.",
+"clozeWord": "làmh",
+"clozeIndex": 3,
+"wordRank": 250,
+"collection": "top500"
+},
+{
+"id": 5745654,
+"text": "Tha e a-nis air slighe na fìrinn.",
+"translation": "He is now on the road of truth.",
+"clozeWord": "slighe",
+"clozeIndex": 4,
+"wordRank": 251,
+"collection": "top500"
+},
+{
+"id": 5885768,
+"text": "\"An ann do Ghlaschu slighe Mallaig a thèid thu?\" \"'S ann.\"",
+"translation": "\"Will you go to Glasgow via Mallaig?\" \"Yes, I will.\"",
+"clozeWord": "slighe",
+"clozeIndex": 4,
+"wordRank": 251,
+"collection": "top500"
+},
+{
+"id": 5881884,
+"text": "—An toigh leat bàrdachd a dhèanamh? —'S toigh.",
+"translation": "\"Do you like to write poetry?\" \"Yes.\"",
+"clozeWord": "bàrdachd",
+"clozeIndex": 3,
+"wordRank": 253,
+"collection": "top500"
+},
+{
+"id": 5881881,
+"text": "'S toigh le Tòmas bàrdachd a dhèanamh.",
+"translation": "Tom likes to write poetry.",
+"clozeWord": "bàrdachd",
+"clozeIndex": 4,
+"wordRank": 253,
+"collection": "top500"
+},
+{
+"id": 773199,
+"text": "Chan eil an duine aig a bheil fios a-staigh.",
+"translation": "There is nobody at home who knows that.",
+"clozeWord": "a-staigh.",
+"clozeIndex": 8,
+"wordRank": 258,
+"collection": "top500"
+},
+{
+"id": 9282822,
+"text": "Chì mi feuch a bheil iad a-staigh.",
+"translation": "I'll check whether they are in.",
+"clozeWord": "a-staigh.",
+"clozeIndex": 6,
+"wordRank": 258,
+"collection": "top500"
+},
+{
+"id": 2345916,
+"text": "Am bheil do mhàthair a-staigh?",
+"translation": "Is your mum at home?",
+"clozeWord": "a-staigh?",
+"clozeIndex": 4,
+"wordRank": 258,
+"collection": "top500"
+},
+{
+"id": 5769078,
+"text": "Is neònach leam nach do dh'ionnsaich Tòmas an cànan a tha aig a h-uile duine.",
+"translation": "I think it's silly that Tom didn't learn the language that everyone speaks.",
+"clozeWord": "dh'ionnsaich",
+"clozeIndex": 5,
+"wordRank": 261,
+"collection": "top500"
+},
+{
+"id": 5745721,
+"text": "Is i Gàidhlig an aon chànain am beul nam bàrd ’s nan èisg.",
+"translation": "Gaelic is the only language in the mouths of bards and fish.",
+"clozeWord": "bàrd",
+"clozeIndex": 9,
+"wordRank": 262,
+"collection": "top500"
+},
+{
+"id": 9295516,
+"text": "Chan eil mi a' dèanamh bun no bàrr dheth!",
+"translation": "I can't make head nor tail of it!",
+"clozeWord": "bàrr",
+"clozeIndex": 7,
+"wordRank": 266,
+"collection": "top500"
+},
+{
+"id": 852110,
+"text": "Bha e ag obair anns an oifis a-raoir.",
+"translation": "He was working at the office yesterday evening.",
+"clozeWord": "oifis",
+"clozeIndex": 6,
+"wordRank": 270,
+"collection": "top500"
+},
+{
+"id": 5884269,
+"text": "Chan iongnadh gur lugha le Tòmas sinne.",
+"translation": "No wonder Tom hates us.",
+"clozeWord": "lugha",
+"clozeIndex": 3,
+"wordRank": 273,
+"collection": "top500"
+},
+{
+"id": 5881755,
+"text": "—An lugha ort Tòmas? —Cha lugha idir, tha gràdh agam air!",
+"translation": "\"Do you hate Tom?\" \"Of course not, I am quite fond of him!\"",
+"clozeWord": "lugha",
+"clozeIndex": 1,
+"wordRank": 273,
+"collection": "top500"
+},
+{
+"id": 851926,
+"text": "Tha an taigh ùr faisg air an allt luath.",
+"translation": "The new house is near the fast burn.",
+"clozeWord": "allt",
+"clozeIndex": 7,
+"wordRank": 275,
+"collection": "top500"
+},
+{
+"id": 851975,
+"text": "Chan eil iasg anns an allt ann.",
+"translation": "There is no fish in the burn.",
+"clozeWord": "allt",
+"clozeIndex": 5,
+"wordRank": 275,
+"collection": "top500"
+},
+{
+"id": 5884190,
+"text": "Is miann orm a bhith òg.",
+"translation": "I wish I were young.",
+"clozeWord": "òg.",
+"clozeIndex": 5,
+"wordRank": 277,
+"collection": "top500"
+},
+{
+"id": 9295522,
+"text": "Tha mi cinnteach gum biodh e toilichte.",
+"translation": "I'm certain that he would be happy.",
+"clozeWord": "biodh",
+"clozeIndex": 4,
+"wordRank": 278,
+"collection": "top500"
+},
+{
+"id": 5768352,
+"text": "Cha bhiodh Tòmas gu sunndach.",
+"translation": "Tom would not be in a good mood.",
+"clozeWord": "bhiodh",
+"clozeIndex": 1,
+"wordRank": 278,
+"collection": "top500"
+},
+{
+"id": 5768459,
+"text": "Cha bhiodh Tòmas mì-toilichte oirre.",
+"translation": "Tom wouldn't be unhappy with her.",
+"clozeWord": "bhiodh",
+"clozeIndex": 1,
+"wordRank": 278,
+"collection": "top500"
+},
+{
+"id": 5751668,
+"text": "Biodh gu leòr aig Tàmas.",
+"translation": "Tom would have enough.",
+"clozeWord": "Biodh",
+"clozeIndex": 0,
+"wordRank": 278,
+"collection": "top500"
+},
+{
+"id": 5765415,
+"text": "Tapadh leibh airson am fiosrachadh.",
+"translation": "Thank you for the information.",
+"clozeWord": "fiosrachadh.",
+"clozeIndex": 4,
+"wordRank": 279,
+"collection": "top500"
+},
+{
+"id": 1516657,
+"text": "Nì mi m' obair-dachaigh às dèidh dhomh coimhead air an telebhisean.",
+"translation": "I'll do my homework after I watch television.",
+"clozeWord": "telebhisean.",
+"clozeIndex": 10,
+"wordRank": 280,
+"collection": "top500"
+},
+{
+"id": 5749908,
+"text": "Chan eil ach beagan Gàidhlig na h-Èireann agam.",
+"translation": "I only speak a little Irish.",
+"clozeWord": "beagan",
+"clozeIndex": 3,
+"wordRank": 282,
+"collection": "top500"
+},
+{
+"id": 5745598,
+"text": "Chan eil ach beagan Gàidhlig agam.",
+"translation": "I only speak a little Gaelic.",
+"clozeWord": "beagan",
+"clozeIndex": 3,
+"wordRank": 282,
+"collection": "top500"
+},
+{
+"id": 5749902,
+"text": "Chan eil ach beagan Fraingis agam.",
+"translation": "I only speak a little French.",
+"clozeWord": "beagan",
+"clozeIndex": 3,
+"wordRank": 282,
+"collection": "top500"
+},
+{
+"id": 773140,
+"text": "Tha beagan Beurla aig mo mhàthair.",
+"translation": "My mother speaks little English.",
+"clozeWord": "beagan",
+"clozeIndex": 1,
+"wordRank": 282,
+"collection": "top500"
+},
+{
+"id": 847768,
+"text": "Tha beagan Gàidhlig agam.",
+"translation": "I speak a little Scottish Gaelic.",
+"clozeWord": "beagan",
+"clozeIndex": 1,
+"wordRank": 282,
+"collection": "top500"
+},
+{
+"id": 5884657,
+"text": "\"An e oileanach a tha annad?\" \"'S e.\"",
+"translation": "\"Are you a student?\" \"Yes.\"",
+"clozeWord": "oileanach",
+"clozeIndex": 2,
+"wordRank": 284,
+"collection": "top500"
+},
+{
+"id": 5883944,
+"text": "Cà bheil an t-oileanach?",
+"translation": "Where is the student?",
+"clozeWord": "t-oileanach?",
+"clozeIndex": 3,
+"wordRank": 284,
+"collection": "top500"
+},
+{
+"id": 5881886,
+"text": "A bheil fios aig duine dè thachair?",
+"translation": "Does anyone know what happened?",
+"clozeWord": "thachair?",
+"clozeIndex": 6,
+"wordRank": 286,
+"collection": "top500"
+},
+{
+"id": 1516374,
+"text": "Chunnaic mi reul an-diugh.",
+"translation": "I saw a star today.",
+"clozeWord": "reul",
+"clozeIndex": 2,
+"wordRank": 287,
+"collection": "top500"
+},
+{
+"id": 5918967,
+"text": "An ceann dàichead bliadhna 's a aon deug, dhealasaich Tòmas is Màiri ri chèile.",
+"translation": "At the end of fifty-one years, Tom and Mary divorced.",
+"clozeWord": "deug,",
+"clozeIndex": 7,
+"wordRank": 290,
+"collection": "top500"
+},
+{
+"id": 852143,
+"text": "Tha mi trang an-dràsda, agus chan urrain dhomh a chluich còmhla riut.",
+"translation": "I am busy now and can't play with you.",
+"clozeWord": "chluich",
+"clozeIndex": 9,
+"wordRank": 294,
+"collection": "top500"
+},
+{
+"id": 9256446,
+"text": "Chluich Seumas le claidheamh.",
+"translation": "James played with a sword.",
+"clozeWord": "Chluich",
+"clozeIndex": 0,
+"wordRank": 294,
+"collection": "top500"
+},
+{
+"id": 877972,
+"text": "Feumaidh e dol a Shasainn san t-samhradh.",
+"translation": "He has to go to England in the summer.",
+"clozeWord": "Shasainn",
+"clozeIndex": 4,
+"wordRank": 295,
+"collection": "top500"
+},
+{
+"id": 877984,
+"text": "Feumaidh i dol a Shasainn san t-samhradh.",
+"translation": "She must visit England this summer.",
+"clozeWord": "Shasainn",
+"clozeIndex": 4,
+"wordRank": 295,
+"collection": "top500"
+},
+{
+"id": 5745685,
+"text": "'S fheàrr cinnteach na caillteach.",
+"translation": "Better safe than sorry.",
+"clozeWord": "fheàrr",
+"clozeIndex": 1,
+"wordRank": 297,
+"collection": "top500"
+},
+{
+"id": 4209738,
+"text": "Tha sin nas fheàrr.",
+"translation": "That's better.",
+"clozeWord": "fheàrr.",
+"clozeIndex": 3,
+"wordRank": 297,
+"collection": "top500"
+},
+{
+"id": 880127,
+"text": "Seall air an taigh sin.",
+"translation": "Look at that house.",
+"clozeWord": "Seall",
+"clozeIndex": 0,
+"wordRank": 299,
+"collection": "top500"
+},
+{
+"id": 1516537,
+"text": "Seall air an taigh ud.",
+"translation": "Look at that house.",
+"clozeWord": "Seall",
+"clozeIndex": 0,
+"wordRank": 299,
+"collection": "top500"
+},
+{
+"id": 5745505,
+"text": "Cha do dh'fhàg Tàmas Astràilia.",
+"translation": "Tom hasn't left Australia.",
+"clozeWord": "dh'fhàg",
+"clozeIndex": 2,
+"wordRank": 302,
+"collection": "top500"
+},
+{
+"id": 5745619,
+"text": "Tha trì fichead bliadhna 's a trì on dh'fhàg mi Dùthaich 'IcAoidh.",
+"translation": "It's been sixty-three years since I left Sutherland.",
+"clozeWord": "dh'fhàg",
+"clozeIndex": 8,
+"wordRank": 302,
+"collection": "top500"
+},
+{
+"id": 1514028,
+"text": "Am faod mi faighneachd dè an aois a tha sibh?",
+"translation": "May I ask how old you are?",
+"clozeWord": "aois",
+"clozeIndex": 6,
+"wordRank": 303,
+"collection": "top500"
+},
+{
+"id": 1514030,
+"text": "Am faod mi faighneachd dè an aois a tha thu?",
+"translation": "May I ask how old you are?",
+"clozeWord": "aois",
+"clozeIndex": 6,
+"wordRank": 303,
+"collection": "top500"
+},
+{
+"id": 770497,
+"text": "Dè an aois a tha thu?",
+"translation": "How old are you?",
+"clozeWord": "aois",
+"clozeIndex": 2,
+"wordRank": 303,
+"collection": "top500"
+},
+{
+"id": 773170,
+"text": "Dè an aois a tha e?",
+"translation": "How old is he?",
+"clozeWord": "aois",
+"clozeIndex": 2,
+"wordRank": 303,
+"collection": "top500"
+},
+{
+"id": 5918973,
+"text": "Cha chosg an iris gu lèir ach dà not gus a chur sa phost.",
+"translation": "The magazine only costs two pounds, including shipping.",
+"clozeWord": "lèir",
+"clozeIndex": 5,
+"wordRank": 307,
+"collection": "top500"
+},
+{
+"id": 878957,
+"text": "Cha stad fiù 's aon tacsi.",
+"translation": "Not even one taxi stopped.",
+"clozeWord": "fiù",
+"clozeIndex": 2,
+"wordRank": 310,
+"collection": "top500"
+},
+{
+"id": 773248,
+"text": "Thèid mi dhan taigh-bìdh aig leth-uair an dèidh seachd anns an fheasgar.",
+"translation": "I will go to the restaurant at 7:30 pm.",
+"clozeWord": "seachd",
+"clozeIndex": 8,
+"wordRank": 311,
+"collection": "top500"
+},
+{
+"id": 5745698,
+"text": "Cha shoirbh triubhas a chur air cat.",
+"translation": "It's not easy to put breeches on a cat.",
+"clozeWord": "cat.",
+"clozeIndex": 6,
+"wordRank": 312,
+"collection": "top500"
+},
+{
+"id": 3081383,
+"text": "Tha dà chat agam.",
+"translation": "I have two cats.",
+"clozeWord": "chat",
+"clozeIndex": 2,
+"wordRank": 312,
+"collection": "top500"
+},
+{
+"id": 5745677,
+"text": "Breac à linne, slat à coille ‘s fiadh à fìreach - mèirle às nach do ghabh Gàidheal a-riamh nàire.",
+"translation": "A trout from the river pool, a staff from the wood, and a deer from the moor - \"thefts\" of which no Gael was ever ashamed.",
+"clozeWord": "a-riamh",
+"clozeIndex": 17,
+"wordRank": 314,
+"collection": "top500"
+},
+{
+"id": 5884641,
+"text": "Cò leis a tha am fearann seo?",
+"translation": "Who owns this land?",
+"clozeWord": "fearann",
+"clozeIndex": 5,
+"wordRank": 315,
+"collection": "top500"
+},
+{
+"id": 5883789,
+"text": "Tha dithis bhalaich is triùir nigheanan aig Tòmas.",
+"translation": "Tom has two sons and three daughters.",
+"clozeWord": "dithis",
+"clozeIndex": 1,
+"wordRank": 317,
+"collection": "top500"
+},
+{
+"id": 5883792,
+"text": "Tha balach agus dithis nighean aig Tòmas.",
+"translation": "Tom has one son and two daughters.",
+"clozeWord": "dithis",
+"clozeIndex": 3,
+"wordRank": 317,
+"collection": "top500"
+},
+{
+"id": 5883800,
+"text": "Tha nighean agus dithis bhalach aig Tòmas agus Màiri.",
+"translation": "Tom and Mary have one daughter and two sons.",
+"clozeWord": "dithis",
+"clozeIndex": 3,
+"wordRank": 317,
+"collection": "top500"
+},
+{
+"id": 5883939,
+"text": "'S e oileanaich a tha ann an dithis dhinn.",
+"translation": "We're both students.",
+"clozeWord": "dithis",
+"clozeIndex": 7,
+"wordRank": 317,
+"collection": "top500"
+},
+{
+"id": 5883822,
+"text": "Tha dithis chloinne aig Tòmas.",
+"translation": "Tom has two children.",
+"clozeWord": "dithis",
+"clozeIndex": 1,
+"wordRank": 317,
+"collection": "top500"
+},
+{
+"id": 852000,
+"text": "Nach robh iad ùine fhada anns a’ bhaile?",
+"translation": "Weren’t they a long time in the town?",
+"clozeWord": "ùine",
+"clozeIndex": 3,
+"wordRank": 320,
+"collection": "top500"
+},
+{
+"id": 773178,
+"text": "Dè tha thu a' deànamh an-diugh?",
+"translation": "What are you going to do today?",
+"clozeWord": "Dè",
+"clozeIndex": 0,
+"wordRank": 321,
+"collection": "top500"
+},
+{
+"id": 773180,
+"text": "Dè bha iad a' deànamh an-dè?",
+"translation": "What were they doing yesterday?",
+"clozeWord": "Dè",
+"clozeIndex": 0,
+"wordRank": 321,
+"collection": "top500"
+},
+{
+"id": 5919635,
+"text": "Dè fon ghrèin a tha sin?",
+"translation": "What on Earth is that?",
+"clozeWord": "Dè",
+"clozeIndex": 0,
+"wordRank": 321,
+"collection": "top500"
+},
+{
+"id": 8697110,
+"text": "Dè na cur-seachadan a th’ agad?",
+"translation": "What are your hobbies?",
+"clozeWord": "Dè",
+"clozeIndex": 0,
+"wordRank": 321,
+"collection": "top500"
+},
+{
+"id": 9269225,
+"text": "Dè am pian a tha ann?",
+"translation": "How painful is it?",
+"clozeWord": "Dè",
+"clozeIndex": 0,
+"wordRank": 321,
+"collection": "top500"
+},
+{
+"id": 5881646,
+"text": "Dè a dh'òl Tòmas?",
+"translation": "What did Tom drink?",
+"clozeWord": "Dè",
+"clozeIndex": 0,
+"wordRank": 321,
+"collection": "top500"
+},
+{
+"id": 879552,
+"text": "Stad e faisg air cathair Thòmais.",
+"translation": "He stopped by Tom's chair.",
+"clozeWord": "cathair",
+"clozeIndex": 4,
+"wordRank": 333,
+"collection": "top500"
+},
+{
+"id": 8095995,
+"text": "Tha Tom a’ fuireach anns a’ Chuimrigh.",
+"translation": "Tom lives in Wales.",
+"clozeWord": "Tom",
+"clozeIndex": 1,
+"wordRank": 336,
+"collection": "top500"
+},
+{
+"id": 5919390,
+"text": "Bha sgoil mhòr agus tòrr chànanan aig Tòmas.",
+"translation": "Tom was highly educated and spoke several languages fluently.",
+"clozeWord": "tòrr",
+"clozeIndex": 4,
+"wordRank": 338,
+"collection": "top500"
+},
+{
+"id": 5768318,
+"text": "Nach robh aice ach còig notaichen?",
+"translation": "Didn't she only have five quid?",
+"clozeWord": "còig",
+"clozeIndex": 4,
+"wordRank": 341,
+"collection": "top500"
+},
+{
+"id": 852144,
+"text": "Tha sinn ag obair gu trang anns an achadh an-diugh.",
+"translation": "We are working hard on the field today.",
+"clozeWord": "achadh",
+"clozeIndex": 8,
+"wordRank": 344,
+"collection": "top500"
+},
+{
+"id": 852146,
+"text": "Bidh iad ag obair gu trang anns an achadh an-màireach.",
+"translation": "They will be working hard on the field tomorrow.",
+"clozeWord": "achadh",
+"clozeIndex": 8,
+"wordRank": 344,
+"collection": "top500"
+},
+{
+"id": 852147,
+"text": "Bha e ag obair gu trang anns an achadh a-raoir.",
+"translation": "He was working hard on the field last night.",
+"clozeWord": "achadh",
+"clozeIndex": 8,
+"wordRank": 344,
+"collection": "top500"
+},
+{
+"id": 852145,
+"text": "Bha am fear ag obair gu trang anns an achadh an-dè.",
+"translation": "The man was working hard on the field yesterday.",
+"clozeWord": "achadh",
+"clozeIndex": 9,
+"wordRank": 344,
+"collection": "top500"
+},
+{
+"id": 5918953,
+"text": "An ceann trì bliadhna, ràinig mi fileantachd.",
+"translation": "At the end of three years, I became fluent.",
+"clozeWord": "ràinig",
+"clozeIndex": 4,
+"wordRank": 350,
+"collection": "top500"
+},
+{
+"id": 9282879,
+"text": "An cuir thu am bainne anns a' chupa?",
+"translation": "Will you put the milk in the cup?",
+"clozeWord": "chupa?",
+"clozeIndex": 7,
+"wordRank": 352,
+"collection": "top500"
+},
+{
+"id": 5881706,
+"text": "Tha Tòmas a' dol sìos an staidhre.",
+"translation": "Tom is going downstairs.",
+"clozeWord": "sìos",
+"clozeIndex": 4,
+"wordRank": 356,
+"collection": "top500"
+},
+{
+"id": 5768376,
+"text": "Tha an leabhar aice dearg.",
+"translation": "Her book is red.",
+"clozeWord": "dearg.",
+"clozeIndex": 4,
+"wordRank": 359,
+"collection": "top500"
+},
+{
+"id": 5768335,
+"text": "Òlaidh ise fìon dearg.",
+"translation": "She will drink red wine.",
+"clozeWord": "dearg.",
+"clozeIndex": 3,
+"wordRank": 359,
+"collection": "top500"
+},
+{
+"id": 773219,
+"text": "Tha mi a' gabhail biadh uabhasach blasta dhachaidh.",
+"translation": "I'm having a very delicious meal at home.",
+"clozeWord": "biadh",
+"clozeIndex": 4,
+"wordRank": 360,
+"collection": "top500"
+},
+{
+"id": 878426,
+"text": "Cò leis a tha am biadh seo?",
+"translation": "Whose is this food?",
+"clozeWord": "biadh",
+"clozeIndex": 5,
+"wordRank": 360,
+"collection": "top500"
+},
+{
+"id": 9295531,
+"text": "Tha mi a’ smaoineachadh gu bheil clann aca.",
+"translation": "I think that they have children.",
+"clozeWord": "clann",
+"clozeIndex": 6,
+"wordRank": 361,
+"collection": "top500"
+},
+{
+"id": 9282866,
+"text": "Chuir am buidsear a' chlann fo gheasaibh.",
+"translation": "The sorcerer put a spell on the children.",
+"clozeWord": "chlann",
+"clozeIndex": 4,
+"wordRank": 361,
+"collection": "top500"
+},
+{
+"id": 5883810,
+"text": "Tha clann aig Tòmas.",
+"translation": "Tom has children.",
+"clozeWord": "clann",
+"clozeIndex": 1,
+"wordRank": 361,
+"collection": "top500"
+},
+{
+"id": 1525328,
+"text": "Tha a mhac aig a' cholaiste a-nis.",
+"translation": "His son is in college now.",
+"clozeWord": "cholaiste",
+"clozeIndex": 5,
+"wordRank": 364,
+"collection": "top500"
+},
+{
+"id": 851894,
+"text": "Chan eil uisge ann anns an t-sruth.",
+"translation": "There is no water in the stream.",
+"clozeWord": "t-sruth.",
+"clozeIndex": 6,
+"wordRank": 365,
+"collection": "top500"
+},
+{
+"id": 851905,
+"text": "Tha taigh ann thairis air an t-sruth.",
+"translation": "There is a house across the stream.",
+"clozeWord": "t-sruth.",
+"clozeIndex": 6,
+"wordRank": 365,
+"collection": "top500"
+},
+{
+"id": 5884680,
+"text": "\"Am faca sibh am film sin?\" \"Chunnaic.\"",
+"translation": "\"Did you see that movie?\" \"Yes.\"",
+"clozeWord": "film",
+"clozeIndex": 4,
+"wordRank": 366,
+"collection": "top500"
+},
+{
+"id": 5884715,
+"text": "\"An ann a-nochd a chì sibh am film?\" \"Chan ann.\"",
+"translation": "\"Will you see the film tonight?\" \"No.\"",
+"clozeWord": "film?\"",
+"clozeIndex": 7,
+"wordRank": 366,
+"collection": "top500"
+},
+{
+"id": 852106,
+"text": "Tha mi a’ leughadh leabhar mun chànain.",
+"translation": "I'm reading a book about languages.",
+"clozeWord": "leughadh",
+"clozeIndex": 3,
+"wordRank": 369,
+"collection": "top500"
+},
+{
+"id": 4192647,
+"text": "An do leugh thu seo fhathast?",
+"translation": "Have you read this yet?",
+"clozeWord": "leugh",
+"clozeIndex": 2,
+"wordRank": 369,
+"collection": "top500"
+},
+{
+"id": 3475953,
+"text": "Tha mi a' leughadh leabhar.",
+"translation": "I'm reading a book.",
+"clozeWord": "leughadh",
+"clozeIndex": 3,
+"wordRank": 369,
+"collection": "top500"
+},
+{
+"id": 9256381,
+"text": "Tha mi a’ leughadh.",
+"translation": "I am reading.",
+"clozeWord": "leughadh.",
+"clozeIndex": 3,
+"wordRank": 369,
+"collection": "top500"
+},
+{
+"id": 3117166,
+"text": "Tha i a' leughadh.",
+"translation": "She's reading.",
+"clozeWord": "leughadh.",
+"clozeIndex": 3,
+"wordRank": 369,
+"collection": "top500"
+},
+{
+"id": 851988,
+"text": "Tha an litir seo dhan chaillich.",
+"translation": "This letter is to the old woman.",
+"clozeWord": "litir",
+"clozeIndex": 2,
+"wordRank": 371,
+"collection": "top500"
+},
+{
+"id": 9295526,
+"text": "Chuir mi litir gu mo phàrantan.",
+"translation": "I sent a letter to my parents.",
+"clozeWord": "litir",
+"clozeIndex": 2,
+"wordRank": 371,
+"collection": "top500"
+},
+{
+"id": 5884314,
+"text": "Chuir an litir aige fearg oirre.",
+"translation": "His letter made her angry.",
+"clozeWord": "litir",
+"clozeIndex": 2,
+"wordRank": 371,
+"collection": "top500"
+},
+{
+"id": 5768363,
+"text": "Chuir ise litir dhomh.",
+"translation": "She sent me a letter.",
+"clozeWord": "litir",
+"clozeIndex": 2,
+"wordRank": 371,
+"collection": "top500"
+},
+{
+"id": 9282885,
+"text": "Chuir e litir thuca.",
+"translation": "He sent them a letter.",
+"clozeWord": "litir",
+"clozeIndex": 2,
+"wordRank": 371,
+"collection": "top500"
+},
+{
+"id": 851996,
+"text": "Bha sgeulachd inntinneach anns an litir dhan bhalach.",
+"translation": "There was an interesting story in the letter to the boy.",
+"clozeWord": "sgeulachd",
+"clozeIndex": 1,
+"wordRank": 378,
+"collection": "top500"
+},
+{
+"id": 4224120,
+"text": "Cuiridh mise fòn thuice a-nochd fhèin.",
+"translation": "I'll phone her tonight.",
+"clozeWord": "fòn",
+"clozeIndex": 2,
+"wordRank": 379,
+"collection": "top500"
+},
+{
+"id": 5768562,
+"text": "An do thuit Tòmas a-bhàn air Màiri?",
+"translation": "Did Tom fall in love with Mary?",
+"clozeWord": "thuit",
+"clozeIndex": 2,
+"wordRank": 385,
+"collection": "top500"
+},
+{
+"id": 5768570,
+"text": "An do thuit Tòmas ann an gaol le Màiri?",
+"translation": "Did Tom fall in love with Mary?",
+"clozeWord": "thuit",
+"clozeIndex": 2,
+"wordRank": 385,
+"collection": "top500"
+},
+{
+"id": 851904,
+"text": "Bha an duine, leis a’ chù, cho mall air a’ chnoc.",
+"translation": "The person with the dog was so slow on the hill.",
+"clozeWord": "chnoc.",
+"clozeIndex": 10,
+"wordRank": 388,
+"collection": "top500"
+},
+{
+"id": 852101,
+"text": "Tha mi an dòchas gum bi, oir tha am bion làn.",
+"translation": "I hope it'll come, because the trash can is full.",
+"clozeWord": "làn.",
+"clozeIndex": 10,
+"wordRank": 390,
+"collection": "top500"
+},
+{
+"id": 4189383,
+"text": "Tha mi làn misneachd an-diugh.",
+"translation": "I'm full of confidence today.",
+"clozeWord": "làn",
+"clozeIndex": 2,
+"wordRank": 390,
+"collection": "top500"
+},
+{
+"id": 5749979,
+"text": "'S e saor a th' annam.",
+"translation": "I am a carpenter.",
+"clozeWord": "saor",
+"clozeIndex": 2,
+"wordRank": 391,
+"collection": "top500"
+},
+{
+"id": 1516056,
+"text": "Tha e na dheagh shaor.",
+"translation": "He is a good carpenter.",
+"clozeWord": "shaor.",
+"clozeIndex": 4,
+"wordRank": 391,
+"collection": "top500"
+},
+{
+"id": 5749180,
+"text": "Tha esan na dheagh shaor.",
+"translation": "He is a good carpenter.",
+"clozeWord": "shaor.",
+"clozeIndex": 4,
+"wordRank": 391,
+"collection": "top500"
+},
+{
+"id": 5749977,
+"text": "Tha mi nam shaor.",
+"translation": "I am a carpenter.",
+"clozeWord": "shaor.",
+"clozeIndex": 3,
+"wordRank": 391,
+"collection": "top500"
+},
+{
+"id": 13568618,
+"text": "Tha falt a’ falbh aiste.",
+"translation": "She is losing her hair.",
+"clozeWord": "aiste.",
+"clozeIndex": 4,
+"wordRank": 396,
+"collection": "top500"
+},
+{
+"id": 5897277,
+"text": "Thàinig sinn air adhart nuair a chaidh sinn dhan cùrsa Fraingis sin.",
+"translation": "We made a lot of progress when we went to that French class.",
+"clozeWord": "adhart",
+"clozeIndex": 3,
+"wordRank": 403,
+"collection": "top500"
+},
+{
+"id": 1677625,
+"text": "'S beag orm an coltas sin!",
+"translation": "I hate that look!",
+"clozeWord": "coltas",
+"clozeIndex": 4,
+"wordRank": 406,
+"collection": "top500"
+},
+{
+"id": 770500,
+"text": "Bha brògan geala oirre.",
+"translation": "She had white shoes on.",
+"clozeWord": "geala",
+"clozeIndex": 2,
+"wordRank": 412,
+"collection": "top500"
+},
+{
+"id": 1515504,
+"text": "Tha cat geal aice.",
+"translation": "She has a white cat.",
+"clozeWord": "geal",
+"clozeIndex": 2,
+"wordRank": 412,
+"collection": "top500"
+},
+{
+"id": 3836361,
+"text": "Dè an diofar a tha eadar Calum agus Màiri?",
+"translation": "What is the difference between Malcolm and Mairy?",
+"clozeWord": "diofar",
+"clozeIndex": 2,
+"wordRank": 414,
+"collection": "top500"
+},
+{
+"id": 773267,
+"text": "'S oidhche mhath 's inntineach a bh' innte.",
+"translation": "It was a good and interesting night.",
+"clozeWord": "oidhche",
+"clozeIndex": 1,
+"wordRank": 417,
+"collection": "top500"
+},
+{
+"id": 882027,
+"text": "Tha i a' teagaisg na Fraingis dhuinn.",
+"translation": "She's teaching us French.",
+"clozeWord": "teagaisg",
+"clozeIndex": 3,
+"wordRank": 426,
+"collection": "top500"
+},
+{
+"id": 773246,
+"text": "Chan eil no mise ag iarraidh seo fhaicinn cuideachd.",
+"translation": "I don't want to see this either.",
+"clozeWord": "iarraidh",
+"clozeIndex": 5,
+"wordRank": 427,
+"collection": "top500"
+},
+{
+"id": 3254450,
+"text": "Tha mi ag iarraidh dol do Lunnainn.",
+"translation": "I want to go to London.",
+"clozeWord": "iarraidh",
+"clozeIndex": 3,
+"wordRank": 427,
+"collection": "top500"
+},
+{
+"id": 3254444,
+"text": "Tha mi ag iarraidh don t-Suain.",
+"translation": "I want to go to Sweden.",
+"clozeWord": "iarraidh",
+"clozeIndex": 3,
+"wordRank": 427,
+"collection": "top500"
+},
+{
+"id": 5919026,
+"text": "Feumaidh tu a dhol a-nìos neo feumaidh mise a dhol sìos, tha mi coma co-dhiù.",
+"translation": "Either you have to come up or I have to go down, I don't care either way.",
+"clozeWord": "co-dhiù.",
+"clozeIndex": 14,
+"wordRank": 428,
+"collection": "top500"
+},
+{
+"id": 5884464,
+"text": "Bidh mi a' dol tràth dhan leabaidh air sgàth 's gum feumaidh mi dùsgadh tràth.",
+"translation": "I go to bed early because I have to wake up early.",
+"clozeWord": "tràth",
+"clozeIndex": 4,
+"wordRank": 441,
+"collection": "top500"
+},
+{
+"id": 770518,
+"text": "Bha na cloinn a' cluich anns a' phàirc.",
+"translation": "The children were playing in the park.",
+"clozeWord": "phàirc.",
+"clozeIndex": 7,
+"wordRank": 442,
+"collection": "top500"
+},
+{
+"id": 11491730,
+"text": "Cho-dhùin i gluasad dhan Bheilg.",
+"translation": "She decided to move to Belgium.",
+"clozeWord": "gluasad",
+"clozeIndex": 2,
+"wordRank": 444,
+"collection": "top500"
+},
+{
+"id": 4209737,
+"text": "Tha sin math gu leòr.",
+"translation": "That's good enough.",
+"clozeWord": "leòr.",
+"clozeIndex": 4,
+"wordRank": 445,
+"collection": "top500"
+},
+{
+"id": 5751666,
+"text": "Bidh gu leòr aice.",
+"translation": "She will have enough.",
+"clozeWord": "leòr",
+"clozeIndex": 2,
+"wordRank": 445,
+"collection": "top500"
+},
+{
+"id": 5751663,
+"text": "Tha gu leòr agam.",
+"translation": "I have enough.",
+"clozeWord": "leòr",
+"clozeIndex": 2,
+"wordRank": 445,
+"collection": "top500"
+},
+{
+"id": 5751664,
+"text": "Bha gu leòr agaibh.",
+"translation": "You had enough.",
+"clozeWord": "leòr",
+"clozeIndex": 2,
+"wordRank": 445,
+"collection": "top500"
+},
+{
+"id": 5751695,
+"text": "Chunnaic Tàmas gu leòr.",
+"translation": "Tom saw enough.",
+"clozeWord": "leòr.",
+"clozeIndex": 3,
+"wordRank": 445,
+"collection": "top500"
+},
+{
+"id": 3476011,
+"text": "Dùin an doras sin.",
+"translation": "Close that door.",
+"clozeWord": "Dùin",
+"clozeIndex": 0,
+"wordRank": 446,
+"collection": "top500"
+},
+{
+"id": 5881857,
+"text": "—Dè ur cor? —Droch chor. —Nach bochd sin.",
+"translation": "\"How are you?\" \"Not well.\" \"That's unfortunate.\"",
+"clozeWord": "—Droch",
+"clozeIndex": 3,
+"wordRank": 448,
+"collection": "top500"
+},
+{
+"id": 4189004,
+"text": "Tha droch shìde ann",
+"translation": "The weather is bad.",
+"clozeWord": "droch",
+"clozeIndex": 1,
+"wordRank": 448,
+"collection": "top500"
+},
+{
+"id": 5217659,
+"text": "'S e Burj Khalifa an togalach as airde san t-saoghal.",
+"translation": "Burj Khalifa is currently the tallest building in the world.",
+"clozeWord": "togalach",
+"clozeIndex": 5,
+"wordRank": 454,
+"collection": "top500"
+},
+{
+"id": 879064,
+"text": "'S e bean uasal a th' innte.",
+"translation": "She is a woman of noble birth.",
+"clozeWord": "bean",
+"clozeIndex": 2,
+"wordRank": 459,
+"collection": "top500"
+},
+{
+"id": 773210,
+"text": "Tha mi a' smaoineachadh gur e deagh spòrs a bh' ann, gu dearbh!",
+"translation": "I think that it was a lot of fun, indeed!",
+"clozeWord": "spòrs",
+"clozeIndex": 7,
+"wordRank": 468,
+"collection": "top500"
+},
+{
+"id": 844423,
+"text": "Tha fios agam nach eil fhios agam.",
+"translation": "I know that I do not know.",
+"clozeWord": "fios",
+"clozeIndex": 1,
+"wordRank": 480,
+"collection": "top500"
+},
+{
+"id": 844408,
+"text": "Tha fios agam gum bheil fios agad gum bheil fios agam.",
+"translation": "I know that you know that I know.",
+"clozeWord": "fios",
+"clozeIndex": 1,
+"wordRank": 480,
+"collection": "top500"
+},
+{
+"id": 4209756,
+"text": "A bheil naidheachd agad dhomh?",
+"translation": "Do you have any news for me?",
+"clozeWord": "naidheachd",
+"clozeIndex": 2,
+"wordRank": 485,
+"collection": "top500"
+},
+{
+"id": 8050295,
+"text": "Bha sin air an naidheachdan.",
+"translation": "That was on the news.",
+"clozeWord": "naidheachdan.",
+"clozeIndex": 4,
+"wordRank": 485,
+"collection": "top500"
+},
+{
+"id": 1516364,
+"text": "Chan eil airgead sam bith agad.",
+"translation": "You haven't any money.",
+"clozeWord": "airgead",
+"clozeIndex": 2,
+"wordRank": 487,
+"collection": "top500"
+},
+{
+"id": 5881652,
+"text": "'S ann dà mhìos air ais a thòisich Tòmas ag ionnsachadh an Fhraingis.",
+"translation": "Two months ago, Tom began to learn French.",
+"clozeWord": "mhìos",
+"clozeIndex": 3,
+"wordRank": 491,
+"collection": "top500"
+},
+{
+"id": 770012,
+"text": "Tha e a' bruidhinn gu luath.",
+"translation": "He is speaking quickly.",
+"clozeWord": "luath.",
+"clozeIndex": 5,
+"wordRank": 494,
+"collection": "top500"
+},
+{
+"id": 770008,
+"text": "Tha e glè luath.",
+"translation": "It is very fast.",
+"clozeWord": "luath.",
+"clozeIndex": 3,
+"wordRank": 494,
+"collection": "top500"
+},
+{
+"id": 1182014,
+"text": "Chan eil e math air seinn.",
+"translation": "He doesn't sing well.",
+"clozeWord": "seinn.",
+"clozeIndex": 5,
+"wordRank": 497,
+"collection": "top500"
+},
+{
+"id": 5809797,
+"text": "\"Tha seinn annam,\" thuirt Tòmas.",
+"translation": "\"I can sing,\" said Tom.",
+"clozeWord": "seinn",
+"clozeIndex": 1,
+"wordRank": 497,
+"collection": "top500"
+},
+{
+"id": 3092444,
+"text": "Chan eil mi a' seinn.",
+"translation": "I'm not singing.",
+"clozeWord": "seinn.",
+"clozeIndex": 4,
+"wordRank": 497,
+"collection": "top500"
+},
+{
+"id": 9295550,
+"text": "Thàinig mi na lùib.",
+"translation": "I came across him.",
+"clozeWord": "lùib.",
+"clozeIndex": 3,
+"wordRank": 521,
+"collection": "top1000"
+},
+{
+"id": 5918988,
+"text": "Feuch a bheil cùrsa Fraingis air astar aca.",
+"translation": "Let's see if they have a distance-learning French course.",
+"clozeWord": "astar",
+"clozeIndex": 6,
+"wordRank": 526,
+"collection": "top1000"
+},
+{
+"id": 5883796,
+"text": "Tha triùir bhalaich agus nighean aig Tòmas.",
+"translation": "Tom has three sons and one daughter.",
+"clozeWord": "triùir",
+"clozeIndex": 1,
+"wordRank": 529,
+"collection": "top1000"
+},
+{
+"id": 5883802,
+"text": "Tha nighean agus triùir bhalaich aig Tòmas agus Màiri.",
+"translation": "Tom and Mary have three sons and a daughter.",
+"clozeWord": "triùir",
+"clozeIndex": 3,
+"wordRank": 529,
+"collection": "top1000"
+},
+{
+"id": 5883819,
+"text": "Tha triùir chloinne aig Tòmas.",
+"translation": "Tom has three children.",
+"clozeWord": "triùir",
+"clozeIndex": 1,
+"wordRank": 529,
+"collection": "top1000"
+},
+{
+"id": 5745515,
+"text": "B' urrainn dhomh cuir Spànntis air an dàn sin.",
+"translation": "I could translate that poem to Spanish.",
+"clozeWord": "dàn",
+"clozeIndex": 7,
+"wordRank": 531,
+"collection": "top1000"
+},
+{
+"id": 851906,
+"text": "Bha an cù anns a’ bhocsa fon bhòrd.",
+"translation": "The dog was in the box under the table.",
+"clozeWord": "bhòrd.",
+"clozeIndex": 7,
+"wordRank": 539,
+"collection": "top1000"
+},
+{
+"id": 5884704,
+"text": "\"Am b' ann fon bhòrd a bha an cù?\" \"B' ann.\"",
+"translation": "\"Was the dog under the table?\" \"Yes.\"",
+"clozeWord": "bhòrd",
+"clozeIndex": 4,
+"wordRank": 539,
+"collection": "top1000"
+},
+{
+"id": 9295558,
+"text": "Tha iad cinnteach asta fhèin.",
+"translation": "They are confident of themselves.",
+"clozeWord": "cinnteach",
+"clozeIndex": 2,
+"wordRank": 540,
+"collection": "top1000"
+},
+{
+"id": 1516303,
+"text": "Cò tha a' chailleach ud?",
+"translation": "Who is that old woman?",
+"clozeWord": "ud?",
+"clozeIndex": 4,
+"wordRank": 551,
+"collection": "top1000"
+},
+{
+"id": 851896,
+"text": "Tha teine math teth ann bhon ghual seo.",
+"translation": "There is good fire from this coal.",
+"clozeWord": "teine",
+"clozeIndex": 1,
+"wordRank": 552,
+"collection": "top1000"
+},
+{
+"id": 2843283,
+"text": "Tha an teine teth.",
+"translation": "The fire is hot.",
+"clozeWord": "teine",
+"clozeIndex": 2,
+"wordRank": 552,
+"collection": "top1000"
+},
+{
+"id": 5919024,
+"text": "Chan fheum mise a dhol, ach feumaidh tusa.",
+"translation": "I don't have to go, but you do.",
+"clozeWord": "fheum",
+"clozeIndex": 1,
+"wordRank": 553,
+"collection": "top1000"
+},
+{
+"id": 773166,
+"text": "Tha feum agam air do chuideachadh.",
+"translation": "I need you to help me.",
+"clozeWord": "feum",
+"clozeIndex": 1,
+"wordRank": 553,
+"collection": "top1000"
+},
+{
+"id": 1514154,
+"text": "Tha feum agam air stampa.",
+"translation": "I need a stamp.",
+"clozeWord": "feum",
+"clozeIndex": 1,
+"wordRank": 553,
+"collection": "top1000"
+},
+{
+"id": 877999,
+"text": "Tha feum agaibh air.",
+"translation": "You need it.",
+"clozeWord": "feum",
+"clozeIndex": 1,
+"wordRank": 553,
+"collection": "top1000"
+},
+{
+"id": 5809805,
+"text": "Chan eil feum annad.",
+"translation": "You're useless.",
+"clozeWord": "feum",
+"clozeIndex": 2,
+"wordRank": 553,
+"collection": "top1000"
+},
+{
+"id": 5745662,
+"text": "Nach gorm na cnuic a tha fada bhuainn.",
+"translation": "The grass is greener on the other side of the fence.",
+"clozeWord": "gorm",
+"clozeIndex": 1,
+"wordRank": 554,
+"collection": "top1000"
+},
+{
+"id": 5882435,
+"text": "\"An tigeadh tu a dh'Astràilia?\" \"Thigeadh gu dearbh.\"",
+"translation": "\"Would you come to Australia?\" \"Yes indeed.\"",
+"clozeWord": "dearbh.\"",
+"clozeIndex": 7,
+"wordRank": 556,
+"collection": "top1000"
+},
+{
+"id": 3836270,
+"text": "Dè an dath as fheàrr leibh?",
+"translation": "Which color do you prefer?",
+"clozeWord": "dath",
+"clozeIndex": 2,
+"wordRank": 558,
+"collection": "top1000"
+},
+{
+"id": 9269203,
+"text": "Ciamar a tha cùisean?",
+"translation": "How are things?",
+"clozeWord": "cùisean?",
+"clozeIndex": 3,
+"wordRank": 562,
+"collection": "top1000"
+},
+{
+"id": 5881743,
+"text": "—Am bu chòir dhomh sin a dhèanamh? —Cha bu choir.",
+"translation": "\"Should I do that?\" \"No.\"",
+"clozeWord": "chòir",
+"clozeIndex": 2,
+"wordRank": 563,
+"collection": "top1000"
+},
+{
+"id": 12838554,
+"text": "Chan eil mi gu tur cinnteach cò ris a bu chòir dhomh bruidhinn.",
+"translation": "I'm not quite sure who I should talk to.",
+"clozeWord": "chòir",
+"clozeIndex": 10,
+"wordRank": 563,
+"collection": "top1000"
+},
+{
+"id": 5884435,
+"text": "\"Am faod sinn a dhol ann?\" \"Faodaidh air chòir 's gum bi sibh modhail.\"",
+"translation": "\"Can we come?\" \"You may as long as you are polite.\"",
+"clozeWord": "chòir",
+"clozeIndex": 8,
+"wordRank": 563,
+"collection": "top1000"
+},
+{
+"id": 851924,
+"text": "Tha feuch grom ann anns an achadh.",
+"translation": "There is green grass on the field.",
+"clozeWord": "feuch",
+"clozeIndex": 1,
+"wordRank": 569,
+"collection": "top1000"
+},
+{
+"id": 773168,
+"text": "Tha mi duilich, ach feumaidh mi dol dhachaigh an-dràsta.",
+"translation": "I'm sorry, but I'll have to go home now.",
+"clozeWord": "dhachaigh",
+"clozeIndex": 7,
+"wordRank": 572,
+"collection": "top1000"
+},
+{
+"id": 5745718,
+"text": "’S cha tèid a glòir air chall, dh’aindeoin gò is mì-run mòr nan Gall.",
+"translation": "Her glory will not be lost, despite the deceit and great malice of the Lowlanders.",
+"clozeWord": "Gall.",
+"clozeIndex": 13,
+"wordRank": 573,
+"collection": "top1000"
+},
+{
+"id": 5884233,
+"text": "'S dòcha leam gu bheil thu ceart.",
+"translation": "I suppose you are right.",
+"clozeWord": "ceart.",
+"clozeIndex": 6,
+"wordRank": 574,
+"collection": "top1000"
+},
+{
+"id": 5882389,
+"text": "\"Nach can tusa gun robh mi ceart gu leòr?\" \"Canaidh.\"",
+"translation": "\"Won't you say that I was right?\" \"I will.\"",
+"clozeWord": "ceart",
+"clozeIndex": 6,
+"wordRank": 574,
+"collection": "top1000"
+},
+{
+"id": 4201831,
+"text": "Tha e ceart agad.",
+"translation": "You've got it in one. That's right.",
+"clozeWord": "ceart",
+"clozeIndex": 2,
+"wordRank": 574,
+"collection": "top1000"
+},
+{
+"id": 1516301,
+"text": "Tha am boirreanach ceart.",
+"translation": "The woman is right.",
+"clozeWord": "ceart.",
+"clozeIndex": 3,
+"wordRank": 574,
+"collection": "top1000"
+},
+{
+"id": 4209749,
+"text": "Chan eil e ceart.",
+"translation": "It's not right.",
+"clozeWord": "ceart.",
+"clozeIndex": 3,
+"wordRank": 574,
+"collection": "top1000"
+},
+{
+"id": 1525323,
+"text": "Feumaidh mi mo mhàthair a chuideachadh.",
+"translation": "I have to help my mother.",
+"clozeWord": "mhàthair",
+"clozeIndex": 3,
+"wordRank": 575,
+"collection": "top1000"
+},
+{
+"id": 5884378,
+"text": "Canaidh e gur ise a mhàthair.",
+"translation": "He'll say that she's his mother.",
+"clozeWord": "mhàthair.",
+"clozeIndex": 5,
+"wordRank": 575,
+"collection": "top1000"
+},
+{
+"id": 5810595,
+"text": "Chan eil òran ann am bràthair Thòmais.",
+"translation": "Tom can't sing.",
+"clozeWord": "bràthair",
+"clozeIndex": 5,
+"wordRank": 579,
+"collection": "top1000"
+},
+{
+"id": 1516381,
+"text": "Càite an do cheannaich thu na brogan seo?",
+"translation": "Where did you buy these shoes?",
+"clozeWord": "cheannaich",
+"clozeIndex": 3,
+"wordRank": 580,
+"collection": "top1000"
+},
+{
+"id": 1529508,
+"text": "Cheannaich mi carbaid ann an Doire an-dè.",
+"translation": "I bought a car in Derry yesterday.",
+"clozeWord": "Cheannaich",
+"clozeIndex": 0,
+"wordRank": 580,
+"collection": "top1000"
+},
+{
+"id": 1607588,
+"text": "Tha agam ri fear a cheannaich a-màireach.",
+"translation": "I have to buy one tomorrow.",
+"clozeWord": "cheannaich",
+"clozeIndex": 5,
+"wordRank": 580,
+"collection": "top1000"
+},
+{
+"id": 5748831,
+"text": "Cha do cheannaich mi an leabhar seo.",
+"translation": "I didn't buy this book.",
+"clozeWord": "cheannaich",
+"clozeIndex": 2,
+"wordRank": 580,
+"collection": "top1000"
+},
+{
+"id": 878423,
+"text": "'S ann an-dè a cheannaich mi carbaid ann an Doire.",
+"translation": "I bought a car in Derry yesterday.",
+"clozeWord": "cheannaich",
+"clozeIndex": 4,
+"wordRank": 580,
+"collection": "top1000"
+},
+{
+"id": 5754212,
+"text": "Cheannaich mi leabhar an-dé.",
+"translation": "Yesterday I bought a book.",
+"clozeWord": "Cheannaich",
+"clozeIndex": 0,
+"wordRank": 580,
+"collection": "top1000"
+},
+{
+"id": 5745682,
+"text": "Cha bhi 'm bochd soghail, saibhir.",
+"translation": "The extravagant poor will never be wealthy.",
+"clozeWord": "bochd",
+"clozeIndex": 3,
+"wordRank": 599,
+"collection": "top1000"
+},
+{
+"id": 880294,
+"text": "Bha e cho bochd nach b' urrainn dha aran a cheannach.",
+"translation": "He was so poor that he couldn't buy bread.",
+"clozeWord": "bochd",
+"clozeIndex": 3,
+"wordRank": 599,
+"collection": "top1000"
+},
+{
+"id": 5751670,
+"text": "Bithidh do thoil ri dhèanamh.",
+"translation": "You'll have enough to do.",
+"clozeWord": "Bithidh",
+"clozeIndex": 0,
+"wordRank": 609,
+"collection": "top1000"
+},
+{
+"id": 1516397,
+"text": "Aon latha, thachair i le madadh-allaidh anns a' choille.",
+"translation": "One day she met a wolf in the woods.",
+"clozeWord": "choille.",
+"clozeIndex": 8,
+"wordRank": 610,
+"collection": "top1000"
+},
+{
+"id": 773150,
+"text": "Is toigh leam a bhith a' sgrìobhadh an-seo.",
+"translation": "I like to write here.",
+"clozeWord": "sgrìobhadh",
+"clozeIndex": 6,
+"wordRank": 611,
+"collection": "top1000"
+},
+{
+"id": 5918975,
+"text": "Cha tèid agam air deagh Fhraingis a sgrìobhadh.",
+"translation": "I can't write good French.",
+"clozeWord": "sgrìobhadh.",
+"clozeIndex": 7,
+"wordRank": 611,
+"collection": "top1000"
+},
+{
+"id": 5918977,
+"text": "Cha tèid aig Tòmas air deagh Fhraingis a sgrìobhadh.",
+"translation": "Tom can't write good French.",
+"clozeWord": "sgrìobhadh.",
+"clozeIndex": 8,
+"wordRank": 611,
+"collection": "top1000"
+},
+{
+"id": 770512,
+"text": "A bheil thu deich bliadhna a dh'aois?",
+"translation": "Are you ten years old?",
+"clozeWord": "deich",
+"clozeIndex": 3,
+"wordRank": 613,
+"collection": "top1000"
+},
+{
+"id": 9295524,
+"text": "Fanaidh mi gu ochd uairean.",
+"translation": "I’ll wait until eight o’clock.",
+"clozeWord": "ochd",
+"clozeIndex": 3,
+"wordRank": 614,
+"collection": "top1000"
+},
+{
+"id": 5919756,
+"text": "Thèid prògram telebhisein seo leth riumsa, co-dhiù.",
+"translation": "This TV show is growing on me, anyway.",
+"clozeWord": "prògram",
+"clozeIndex": 1,
+"wordRank": 619,
+"collection": "top1000"
+},
+{
+"id": 5751677,
+"text": "Mo ghaoil air do dhà shùil.",
+"translation": "I love your eyes.",
+"clozeWord": "shùil.",
+"clozeIndex": 5,
+"wordRank": 621,
+"collection": "top1000"
+},
+{
+"id": 8760068,
+"text": "Càite a bheil ur sùilean?",
+"translation": "Where are your eyes?",
+"clozeWord": "sùilean?",
+"clozeIndex": 4,
+"wordRank": 621,
+"collection": "top1000"
+},
+{
+"id": 5751731,
+"text": "Bha Tàmas an dùil gun robh Màiri gu sunndach.",
+"translation": "Tom expected Mary to be in good spirits.",
+"clozeWord": "dùil",
+"clozeIndex": 3,
+"wordRank": 626,
+"collection": "top1000"
+},
+{
+"id": 1515904,
+"text": "Tha mi an dùil a thighinn.",
+"translation": "I expect to come.",
+"clozeWord": "dùil",
+"clozeIndex": 3,
+"wordRank": 626,
+"collection": "top1000"
+},
+{
+"id": 5751710,
+"text": "Tha Tàmas 'n dùil gur e.",
+"translation": "Tom expects so.",
+"clozeWord": "dùil",
+"clozeIndex": 3,
+"wordRank": 626,
+"collection": "top1000"
+},
+{
+"id": 5881710,
+"text": "Tha dùil aig Tòmas mo phòsadh, ach chan eil agam ris a phòsadh.",
+"translation": "Tom expects to marry me, but I don't have to marry him.",
+"clozeWord": "dùil",
+"clozeIndex": 1,
+"wordRank": 626,
+"collection": "top1000"
+},
+{
+"id": 3587359,
+"text": "Tha e a' nighe a' char.",
+"translation": "He washes the car.",
+"clozeWord": "char.",
+"clozeIndex": 5,
+"wordRank": 627,
+"collection": "top1000"
+},
+{
+"id": 5223275,
+"text": "Carson nach urrainn dhut mìneachadh dé tha thu a' déanamh?",
+"translation": "Why can't you explain what you're doing?",
+"clozeWord": "mìneachadh",
+"clozeIndex": 4,
+"wordRank": 628,
+"collection": "top1000"
+},
+{
+"id": 851992,
+"text": "Bha sgeul mun chaileig sin anns an naidheachd.",
+"translation": "The story about the girl was in the news.",
+"clozeWord": "sgeul",
+"clozeIndex": 1,
+"wordRank": 634,
+"collection": "top1000"
+},
+{
+"id": 877929,
+"text": "Tha an sgeul seo fada nas inntinniche na am fear ud.",
+"translation": "This story is far more interesting than that one.",
+"clozeWord": "sgeul",
+"clozeIndex": 2,
+"wordRank": 634,
+"collection": "top1000"
+},
+{
+"id": 1515927,
+"text": "A bheil fios agad càite bheil tùr Tokyo?",
+"translation": "Do you know where Tokyo Tower is?",
+"clozeWord": "tùr",
+"clozeIndex": 6,
+"wordRank": 635,
+"collection": "top1000"
+},
+{
+"id": 5884661,
+"text": "\"An robh thu nad chòcaire air a' bhàta sin?\" \"Cha robh.\"",
+"translation": "\"Were you a cook on that boat?\" \"No, I wasn't.\"",
+"clozeWord": "bhàta",
+"clozeIndex": 7,
+"wordRank": 645,
+"collection": "top1000"
+},
+{
+"id": 851983,
+"text": "Bha am bàta fo sheòl.",
+"translation": "The boat was under sail.",
+"clozeWord": "bàta",
+"clozeIndex": 2,
+"wordRank": 645,
+"collection": "top1000"
+},
+{
+"id": 768196,
+"text": "Chan fhaca mo mhàthair am ballach air an t-sràid.",
+"translation": "My mother didn't see the boy on the street.",
+"clozeWord": "t-sràid.",
+"clozeIndex": 8,
+"wordRank": 655,
+"collection": "top1000"
+},
+{
+"id": 852099,
+"text": "Cha bhi an làraidh a’ tighinn a-màireach, ma-thà.",
+"translation": "The bin lorry will not be coming tomorrow, then.",
+"clozeWord": "bhi",
+"clozeIndex": 1,
+"wordRank": 657,
+"collection": "top1000"
+},
+{
+"id": 5765540,
+"text": "Cha bhi Tòmas oirnn fhaicinn.",
+"translation": "Tom won't have seen us.",
+"clozeWord": "bhi",
+"clozeIndex": 1,
+"wordRank": 657,
+"collection": "top1000"
+},
+{
+"id": 9276363,
+"text": "Cha bhi mi ga tachairt.",
+"translation": "I won't be meeting her.",
+"clozeWord": "bhi",
+"clozeIndex": 1,
+"wordRank": 657,
+"collection": "top1000"
+},
+{
+"id": 9276427,
+"text": "Cha bhi fadal ann.",
+"translation": "There will be no delay.",
+"clozeWord": "bhi",
+"clozeIndex": 1,
+"wordRank": 657,
+"collection": "top1000"
+},
+{
+"id": 5768338,
+"text": "Cha bhi Tòmas sgìth.",
+"translation": "Tom won't be tired.",
+"clozeWord": "bhi",
+"clozeIndex": 1,
+"wordRank": 657,
+"collection": "top1000"
+},
+{
+"id": 851891,
+"text": "Bha ròn ann air a’ chladach.",
+"translation": "There was a seal on the shore.",
+"clozeWord": "chladach.",
+"clozeIndex": 5,
+"wordRank": 661,
+"collection": "top1000"
+},
+{
+"id": 851985,
+"text": "Bha ròn ann anns an uisge, agus air a’ chladach.",
+"translation": "There was a seal in the water and another on the shore.",
+"clozeWord": "chladach.",
+"clozeIndex": 9,
+"wordRank": 661,
+"collection": "top1000"
+},
+{
+"id": 5768367,
+"text": "Bha an fhianais nam aghaidh.",
+"translation": "The evidence was against me.",
+"clozeWord": "fhianais",
+"clozeIndex": 2,
+"wordRank": 664,
+"collection": "top1000"
+},
+{
+"id": 5751678,
+"text": "'S ann do Dhia a bhuineas slàinte.",
+"translation": "Salvation is God's affair.",
+"clozeWord": "slàinte.",
+"clozeIndex": 6,
+"wordRank": 667,
+"collection": "top1000"
+},
+{
+"id": 773242,
+"text": "Na dèan cadal trom.",
+"translation": "Don't sleep too deeply.",
+"clozeWord": "trom.",
+"clozeIndex": 3,
+"wordRank": 677,
+"collection": "top1000"
+},
+{
+"id": 5768343,
+"text": "Am bi Tòmas a' dol dhan clas Fraingis?",
+"translation": "Will Tom be going to French class?",
+"clozeWord": "clas",
+"clozeIndex": 6,
+"wordRank": 678,
+"collection": "top1000"
+},
+{
+"id": 5768431,
+"text": "Is e clas soirbh a bidh ann? Chan e, is e clas as doirbh a tha ann!",
+"translation": "Will it be an easy class? No, it is the hardest class!",
+"clozeWord": "clas",
+"clozeIndex": 2,
+"wordRank": 678,
+"collection": "top1000"
+},
+{
+"id": 5884723,
+"text": "\"Nach saoil thu gur ann an-dè a chunnaic sinn an aiseag?\" \"Saoilidh.\"",
+"translation": "\"Don't you think we saw the ferry yesterday?\" \"Yeah.\"",
+"clozeWord": "aiseag?\"",
+"clozeIndex": 10,
+"wordRank": 679,
+"collection": "top1000"
+},
+{
+"id": 3475991,
+"text": "Chan eil iad a’ cuideachadh.",
+"translation": "They're not helping.",
+"clozeWord": "cuideachadh.",
+"clozeIndex": 4,
+"wordRank": 689,
+"collection": "top1000"
+},
+{
+"id": 5881722,
+"text": "Bhithinn toilichte ur cuideachadh.",
+"translation": "I would be happy to help you.",
+"clozeWord": "cuideachadh.",
+"clozeIndex": 3,
+"wordRank": 689,
+"collection": "top1000"
+},
+{
+"id": 770522,
+"text": "Tha mo bràithair anns an Astràilia an-dràsta.",
+"translation": "My brother is now in Australia.",
+"clozeWord": "an-dràsta.",
+"clozeIndex": 6,
+"wordRank": 695,
+"collection": "top1000"
+},
+{
+"id": 5768377,
+"text": "Tha mi ann an Hong Kong an-dràsta.",
+"translation": "I'm in Hong Kong right now.",
+"clozeWord": "an-dràsta.",
+"clozeIndex": 6,
+"wordRank": 695,
+"collection": "top1000"
+},
+{
+"id": 9282924,
+"text": "Thig an stòiridh gu ceann car obann.",
+"translation": "The story came to an end somewhat abruptly.",
+"clozeWord": "car",
+"clozeIndex": 5,
+"wordRank": 696,
+"collection": "top1000"
+},
+{
+"id": 5919015,
+"text": "Saoil an tùras gu Astràilia caran daor?",
+"translation": "Isn't the trip to Australia quite expensive?",
+"clozeWord": "caran",
+"clozeIndex": 5,
+"wordRank": 696,
+"collection": "top1000"
+},
+{
+"id": 5754301,
+"text": "Thoir dhomh an iris, mas e do thoil e.",
+"translation": "Give me the magazine, please.",
+"clozeWord": "Thoir",
+"clozeIndex": 0,
+"wordRank": 699,
+"collection": "top1000"
+},
+{
+"id": 851920,
+"text": "Tha an latha air a’ mhonadh math dhut.",
+"translation": "A day on the road is good for you.",
+"clozeWord": "mhonadh",
+"clozeIndex": 5,
+"wordRank": 704,
+"collection": "top1000"
+},
+{
+"id": 851888,
+"text": "An robh sibh air a’ mhonadh an-dè?",
+"translation": "Were you in the moor yesterday?",
+"clozeWord": "mhonadh",
+"clozeIndex": 5,
+"wordRank": 704,
+"collection": "top1000"
+},
+{
+"id": 851978,
+"text": "Tha mi a' smaoineachadh gum bheil uisge ann fon bhòrd.",
+"translation": "I think that there is water under the table.",
+"clozeWord": "smaoineachadh",
+"clozeIndex": 3,
+"wordRank": 715,
+"collection": "top1000"
+},
+{
+"id": 852009,
+"text": "Bha a’ ghrian blàth anns a’ mhadainn, ach tha i fuar an-dràsda.",
+"translation": "The sun was warm in the morning, but it's cold at this moment.",
+"clozeWord": "ghrian",
+"clozeIndex": 2,
+"wordRank": 716,
+"collection": "top1000"
+},
+{
+"id": 852013,
+"text": "Tha an nighean ris an uinneig oir tha a’ ghrian glè bhlàth an-diugh.",
+"translation": "The lass is at the window, because the sun is very hot today.",
+"clozeWord": "ghrian",
+"clozeIndex": 9,
+"wordRank": 716,
+"collection": "top1000"
+},
+{
+"id": 1515910,
+"text": "Cha chreid mi gu bheil i ag obair.",
+"translation": "I don't think that she is working.",
+"clozeWord": "chreid",
+"clozeIndex": 1,
+"wordRank": 717,
+"collection": "top1000"
+},
+{
+"id": 880114,
+"text": "Cha chreid mi gu bheil Fraingis aice.",
+"translation": "I don't think she can speak French.",
+"clozeWord": "chreid",
+"clozeIndex": 1,
+"wordRank": 717,
+"collection": "top1000"
+},
+{
+"id": 1515906,
+"text": "Cha chreid mi gun obraich e.",
+"translation": "I don't think it will work.",
+"clozeWord": "chreid",
+"clozeIndex": 1,
+"wordRank": 717,
+"collection": "top1000"
+},
+{
+"id": 5749915,
+"text": "Cha chreid mi mo chluasan.",
+"translation": "I couldn't believe my ears.",
+"clozeWord": "chreid",
+"clozeIndex": 1,
+"wordRank": 717,
+"collection": "top1000"
+},
+{
+"id": 851898,
+"text": "Bha sìth ann tron t-saoghal.",
+"translation": "There was peace all over the world.",
+"clozeWord": "sìth",
+"clozeIndex": 1,
+"wordRank": 725,
+"collection": "top1000"
+},
+{
+"id": 1793439,
+"text": "Tha mi ag iarraidh rudeigin òl.",
+"translation": "I want to drink something.",
+"clozeWord": "rudeigin",
+"clozeIndex": 4,
+"wordRank": 739,
+"collection": "top1000"
+},
+{
+"id": 9256480,
+"text": "'S e sin rudeigin eile.",
+"translation": "That's something else.",
+"clozeWord": "rudeigin",
+"clozeIndex": 3,
+"wordRank": 739,
+"collection": "top1000"
+},
+{
+"id": 4189009,
+"text": "Ciamar a tha an t-sìde ?",
+"translation": "How's the weather?",
+"clozeWord": "Ciamar",
+"clozeIndex": 0,
+"wordRank": 748,
+"collection": "top1000"
+},
+{
+"id": 877976,
+"text": "Ciamar a tha thu?",
+"translation": "How are you?",
+"clozeWord": "Ciamar",
+"clozeIndex": 0,
+"wordRank": 748,
+"collection": "top1000"
+},
+{
+"id": 9269200,
+"text": "Ciamar a bha sin?",
+"translation": "How was that?",
+"clozeWord": "Ciamar",
+"clozeIndex": 0,
+"wordRank": 748,
+"collection": "top1000"
+},
+{
+"id": 6486913,
+"text": "Làmh fhada is cead a sìneadh.",
+"translation": "It is certainly a tasty delicacy. To all of you I say \"bon appetit.\"",
+"clozeWord": "cead",
+"clozeIndex": 3,
+"wordRank": 750,
+"collection": "top1000"
+},
+{
+"id": 5765341,
+"text": "Bheir Tòmas rium, \"Chan fhaca Ailis Màiri a-bhòin-dè.\"",
+"translation": "Tom will tell me, \"Alice didn't see Mary the day before yesterday.\"",
+"clozeWord": "Bheir",
+"clozeIndex": 0,
+"wordRank": 756,
+"collection": "top1000"
+},
+{
+"id": 5881642,
+"text": "Bheir Tòmas do Mhàiri a-màireach e.",
+"translation": "Tom will give it to Mary tomorrow.",
+"clozeWord": "Bheir",
+"clozeIndex": 0,
+"wordRank": 756,
+"collection": "top1000"
+},
+{
+"id": 5881640,
+"text": "Bheir Tòmas dhuinn a-màireach e.",
+"translation": "Tom will give it to us tomorrow.",
+"clozeWord": "Bheir",
+"clozeIndex": 0,
+"wordRank": 756,
+"collection": "top1000"
+},
+{
+"id": 12838555,
+"text": "Bha fhios aice gun robh gaol agam air.",
+"translation": "She knew that I loved him.",
+"clozeWord": "gaol",
+"clozeIndex": 5,
+"wordRank": 765,
+"collection": "top1000"
+},
+{
+"id": 12838556,
+"text": "Bha fhios aige gun robh gaol agam air.",
+"translation": "He knew that I loved him.",
+"clozeWord": "gaol",
+"clozeIndex": 5,
+"wordRank": 765,
+"collection": "top1000"
+},
+{
+"id": 5884230,
+"text": "'S dòcha leam gu bheil gaol agad air.",
+"translation": "I suppose you love him.",
+"clozeWord": "gaol",
+"clozeIndex": 5,
+"wordRank": 765,
+"collection": "top1000"
+},
+{
+"id": 5884231,
+"text": "'S dòcha leam gu bheil gaol agad oirre.",
+"translation": "I suppose you love her.",
+"clozeWord": "gaol",
+"clozeIndex": 5,
+"wordRank": 765,
+"collection": "top1000"
+},
+{
+"id": 773096,
+"text": "Tha gaol agam ort.",
+"translation": "I love you.",
+"clozeWord": "gaol",
+"clozeIndex": 1,
+"wordRank": 765,
+"collection": "top1000"
+},
+{
+"id": 1515921,
+"text": "Tha iad ag ithe nan ùbhlan aca.",
+"translation": "They are eating their apples.",
+"clozeWord": "ithe",
+"clozeIndex": 3,
+"wordRank": 768,
+"collection": "top1000"
+},
+{
+"id": 767936,
+"text": "Tha am ballach ag ithe aran.",
+"translation": "The boy is eating bread.",
+"clozeWord": "ithe",
+"clozeIndex": 4,
+"wordRank": 768,
+"collection": "top1000"
+},
+{
+"id": 3077674,
+"text": "Tha mi ag ithe an seo.",
+"translation": "I'm eating here.",
+"clozeWord": "ithe",
+"clozeIndex": 3,
+"wordRank": 768,
+"collection": "top1000"
+},
+{
+"id": 3456316,
+"text": "'S toigh leam ithe.",
+"translation": "I like eating.",
+"clozeWord": "ithe.",
+"clozeIndex": 3,
+"wordRank": 768,
+"collection": "top1000"
+},
+{
+"id": 3077667,
+"text": "Tha mi ag ithe.",
+"translation": "I'm eating.",
+"clozeWord": "ithe.",
+"clozeIndex": 3,
+"wordRank": 768,
+"collection": "top1000"
+},
+{
+"id": 9295556,
+"text": "Bha sinn cinnteach às an toradh.",
+"translation": "We were sure of the result.",
+"clozeWord": "toradh.",
+"clozeIndex": 5,
+"wordRank": 772,
+"collection": "top1000"
+},
+{
+"id": 851998,
+"text": "Bha slat fhada ùr ann anns a’ bhùth.",
+"translation": "There’s a new long fishing rod in the shop.",
+"clozeWord": "bhùth.",
+"clozeIndex": 7,
+"wordRank": 773,
+"collection": "top1000"
+},
+{
+"id": 770513,
+"text": "Tha mi a' dol dhan bhùth.",
+"translation": "I am going to the shop.",
+"clozeWord": "bhùth.",
+"clozeIndex": 5,
+"wordRank": 773,
+"collection": "top1000"
+},
+{
+"id": 1516395,
+"text": "Nach robh fhios agad gun do shiubhail e bho chionn mu dà bhliadhna?",
+"translation": "Didn't you know that he passed away about two years ago?",
+"clozeWord": "shiubhail",
+"clozeIndex": 6,
+"wordRank": 774,
+"collection": "top1000"
+},
+{
+"id": 1527808,
+"text": "Nach robh fhios agaibh gun do shiubhail e bho chionn mu dà bhliadhna?",
+"translation": "Didn't you know that he passed away about two years ago?",
+"clozeWord": "shiubhail",
+"clozeIndex": 6,
+"wordRank": 774,
+"collection": "top1000"
+},
+{
+"id": 1514038,
+"text": "Am bi thu daonnan trang?",
+"translation": "Are you always busy?",
+"clozeWord": "daonnan",
+"clozeIndex": 3,
+"wordRank": 778,
+"collection": "top1000"
+},
+{
+"id": 1514039,
+"text": "Am bi sibh daonnan trang?",
+"translation": "Are you always busy?",
+"clozeWord": "daonnan",
+"clozeIndex": 3,
+"wordRank": 778,
+"collection": "top1000"
+},
+{
+"id": 5884185,
+"text": "Gura math a thèid leat!",
+"translation": "I wish you good luck.",
+"clozeWord": "thèid",
+"clozeIndex": 3,
+"wordRank": 790,
+"collection": "top1000"
+},
+{
+"id": 5884186,
+"text": "Gura math a thèid leibh.",
+"translation": "I wish you good luck.",
+"clozeWord": "thèid",
+"clozeIndex": 3,
+"wordRank": 790,
+"collection": "top1000"
+},
+{
+"id": 851887,
+"text": "Tha an cù donn beag ann fon bhòrd sin.",
+"translation": "There is a small brown dog under that table.",
+"clozeWord": "donn",
+"clozeIndex": 3,
+"wordRank": 792,
+"collection": "top1000"
+},
+{
+"id": 851917,
+"text": "A bheil thu a' smaointinn gum bheil falt donn glè bhòidheach?",
+"translation": "Do you think that brown hair is very beautiful?",
+"clozeWord": "donn",
+"clozeIndex": 8,
+"wordRank": 792,
+"collection": "top1000"
+},
+{
+"id": 5745537,
+"text": "Chan eil guth ri ràdh.",
+"translation": "There is nothing to be said.",
+"clozeWord": "guth",
+"clozeIndex": 2,
+"wordRank": 800,
+"collection": "top1000"
+},
+{
+"id": 1515507,
+"text": "Na dèan cadal leis an t-solas air.",
+"translation": "Don't go to sleep with the light on.",
+"clozeWord": "t-solas",
+"clozeIndex": 5,
+"wordRank": 803,
+"collection": "top1000"
+},
+{
+"id": 1514143,
+"text": "Tha mi ag obair ann am banca.",
+"translation": "I work in a bank.",
+"clozeWord": "banca.",
+"clozeIndex": 6,
+"wordRank": 814,
+"collection": "top1000"
+},
+{
+"id": 4218261,
+"text": "Bheil an obair a' còrdadh riut?",
+"translation": "Do you enjoy the work?",
+"clozeWord": "còrdadh",
+"clozeIndex": 4,
+"wordRank": 817,
+"collection": "top1000"
+},
+{
+"id": 879158,
+"text": "Chan eil càil fhios agam air dè a thachair.",
+"translation": "I have no idea what happened.",
+"clozeWord": "càil",
+"clozeIndex": 2,
+"wordRank": 828,
+"collection": "top1000"
+},
+{
+"id": 5768332,
+"text": "Chan òl mise càil.",
+"translation": "I won't drink anything.",
+"clozeWord": "càil.",
+"clozeIndex": 3,
+"wordRank": 828,
+"collection": "top1000"
+},
+{
+"id": 851886,
+"text": "Tha caileag bhòidheach anns a’ phàipear ann.",
+"translation": "There is a beautiful girl on the paper.",
+"clozeWord": "phàipear",
+"clozeIndex": 5,
+"wordRank": 848,
+"collection": "top1000"
+},
+{
+"id": 1514062,
+"text": "Innisibh dhomh an t-ainm a tha air an naoidheamh mìos.",
+"translation": "Tell me the name of the ninth month.",
+"clozeWord": "naoidheamh",
+"clozeIndex": 8,
+"wordRank": 850,
+"collection": "top1000"
+},
+{
+"id": 5748839,
+"text": "Tha mi eòlach air na h-oileanaich a tha seo.",
+"translation": "I know these students.",
+"clozeWord": "eòlach",
+"clozeIndex": 2,
+"wordRank": 851,
+"collection": "top1000"
+},
+{
+"id": 9295553,
+"text": "Bha Seumas cinnteach gun robh an trèan a' tighinn.",
+"translation": "James was certain that the train was coming.",
+"clozeWord": "trèan",
+"clozeIndex": 6,
+"wordRank": 852,
+"collection": "top1000"
+},
+{
+"id": 5881647,
+"text": "'S ann tioram a bha an latha.",
+"translation": "It was a dry day.",
+"clozeWord": "tioram",
+"clozeIndex": 2,
+"wordRank": 859,
+"collection": "top1000"
+},
+{
+"id": 8692621,
+"text": "Tha e glè thioram.",
+"translation": "It's very dry.",
+"clozeWord": "thioram.",
+"clozeIndex": 3,
+"wordRank": 859,
+"collection": "top1000"
+},
+{
+"id": 1186098,
+"text": "Cia mheud truinnseir a th' againn?",
+"translation": "How many plates do we have?",
+"clozeWord": "mheud",
+"clozeIndex": 1,
+"wordRank": 866,
+"collection": "top1000"
+},
+{
+"id": 9269248,
+"text": "Co mheud duine a bha ann?",
+"translation": "How many people were there?",
+"clozeWord": "mheud",
+"clozeIndex": 1,
+"wordRank": 866,
+"collection": "top1000"
+},
+{
+"id": 9282858,
+"text": "Chì mi dè nì mi.",
+"translation": "I'll see what I'll do.",
+"clozeWord": "nì",
+"clozeIndex": 3,
+"wordRank": 870,
+"collection": "top1000"
+},
+{
+"id": 5881644,
+"text": "Cò a nì seo?",
+"translation": "Who's going to do it?",
+"clozeWord": "nì",
+"clozeIndex": 2,
+"wordRank": 870,
+"collection": "top1000"
+},
+{
+"id": 9295518,
+"text": "Tha a' chathair seo air a dèanamh à fiodh.",
+"translation": "This chair is made of wood.",
+"clozeWord": "fiodh.",
+"clozeIndex": 8,
+"wordRank": 873,
+"collection": "top1000"
+},
+{
+"id": 3095086,
+"text": "Tha e glè fhuar an-diugh.",
+"translation": "It's very cold today.",
+"clozeWord": "fhuar",
+"clozeIndex": 3,
+"wordRank": 874,
+"collection": "top1000"
+},
+{
+"id": 2843278,
+"text": "Tha an latha fuar.",
+"translation": "The day is cold.",
+"clozeWord": "fuar.",
+"clozeIndex": 3,
+"wordRank": 874,
+"collection": "top1000"
+},
+{
+"id": 1535618,
+"text": "Tha e fuar an-diugh!",
+"translation": "It's cold today!",
+"clozeWord": "fuar",
+"clozeIndex": 2,
+"wordRank": 874,
+"collection": "top1000"
+},
+{
+"id": 5919020,
+"text": "Tha seo nas fhurasta na bha Tòmas an dùil.",
+"translation": "This is easier than Tom expected.",
+"clozeWord": "fhurasta",
+"clozeIndex": 3,
+"wordRank": 892,
+"collection": "top1000"
+},
+{
+"id": 877946,
+"text": "Taro, tha an dìnnear deiseil.",
+"translation": "Taro, dinner is ready.",
+"clozeWord": "deiseil.",
+"clozeIndex": 4,
+"wordRank": 897,
+"collection": "top1000"
+},
+{
+"id": 1514187,
+"text": "Cha b' urrainn dhomh cadal air sgàth na fuaim.",
+"translation": "I could not sleep because of the noise.",
+"clozeWord": "fuaim.",
+"clozeIndex": 8,
+"wordRank": 898,
+"collection": "top1000"
+},
+{
+"id": 773214,
+"text": "Bha an t-iasg a' snàmh anns an uisge.",
+"translation": "The fish was swimming in the water.",
+"clozeWord": "t-iasg",
+"clozeIndex": 2,
+"wordRank": 901,
+"collection": "top1000"
+},
+{
+"id": 4224776,
+"text": "Tha iasg math dhut.",
+"translation": "Fish is good for you.",
+"clozeWord": "iasg",
+"clozeIndex": 1,
+"wordRank": 901,
+"collection": "top1000"
+},
+{
+"id": 9295548,
+"text": "Bhuail tarbh nam aghaidh.",
+"translation": "I came face to face with a bull.",
+"clozeWord": "Bhuail",
+"clozeIndex": 0,
+"wordRank": 904,
+"collection": "top1000"
+},
+{
+"id": 877771,
+"text": "Tha an aimsir cho math sa ghabhas.",
+"translation": "The weather is as fine as can be.",
+"clozeWord": "aimsir",
+"clozeIndex": 2,
+"wordRank": 908,
+"collection": "top1000"
+},
+{
+"id": 5897271,
+"text": "\"An gabh thu tì no cofaidh?\" \"Cha ghabh idir.\"",
+"translation": "\"Would you like tea or coffee?\" \"Neither.\"",
+"clozeWord": "tì",
+"clozeIndex": 3,
+"wordRank": 910,
+"collection": "top1000"
+},
+{
+"id": 1514032,
+"text": "Chaidh cron mòr a dhèanamh air a' chàr agam san tubaist.",
+"translation": "My car was badly damaged in the accident.",
+"clozeWord": "cron",
+"clozeIndex": 1,
+"wordRank": 925,
+"collection": "top1000"
+},
+{
+"id": 5751261,
+"text": "Choinnich Tàmas ri Màiri ann an 1972.",
+"translation": "Tom met Mary in 1972.",
+"clozeWord": "Choinnich",
+"clozeIndex": 0,
+"wordRank": 927,
+"collection": "top1000"
+},
+{
+"id": 5752894,
+"text": "Tha mi toilichte ur coinneachadh, a Thàmais.",
+"translation": "Pleased to meet you, Tom.",
+"clozeWord": "coinneachadh,",
+"clozeIndex": 4,
+"wordRank": 927,
+"collection": "top1000"
+},
+{
+"id": 3577547,
+"text": "Aire air an rathad!",
+"translation": "Pay attention on the road.",
+"clozeWord": "Aire",
+"clozeIndex": 0,
+"wordRank": 930,
+"collection": "top1000"
+},
+{
+"id": 9282789,
+"text": "Tha falt glas air mo sheanmhair.",
+"translation": "My grandmother has grey hair.",
+"clozeWord": "glas",
+"clozeIndex": 2,
+"wordRank": 932,
+"collection": "top1000"
+},
+{
+"id": 5765543,
+"text": "An robh Tòmas ort fhaicinn an t-seachdain a chaidh?",
+"translation": "Had Tom seen you last week?",
+"clozeWord": "t-seachdain",
+"clozeIndex": 6,
+"wordRank": 935,
+"collection": "top1000"
+},
+{
+"id": 12923494,
+"text": "Sgrìobhaidh i leabhar air bith-eòlas.",
+"translation": "She'll write a book on biology.",
+"clozeWord": "bith-eòlas.",
+"clozeIndex": 4,
+"wordRank": 940,
+"collection": "top1000"
+},
+{
+"id": 852012,
+"text": "Tha a’ Ghàidhlig glè inntinneach, nach eil?",
+"translation": "Scottish Gaelic is very interesting, isn’t it?",
+"clozeWord": "inntinneach,",
+"clozeIndex": 4,
+"wordRank": 942,
+"collection": "top1000"
+},
+{
+"id": 1515919,
+"text": "Tha mi ag iarraidh fuireach an-seo.",
+"translation": "I want to stay here.",
+"clozeWord": "an-seo.",
+"clozeIndex": 5,
+"wordRank": 947,
+"collection": "top1000"
+},
+{
+"id": 1607597,
+"text": "Tha feum agam air rothair ùir.",
+"translation": "I need a new bicycle.",
+"clozeWord": "ùir.",
+"clozeIndex": 5,
+"wordRank": 955,
+"collection": "top1000"
+},
+{
+"id": 5881866,
+"text": "Bidh àite-fuirich a' dhìth air Tòmas.",
+"translation": "Tom will need a place to stay.",
+"clozeWord": "dhìth",
+"clozeIndex": 3,
+"wordRank": 970,
+"collection": "top1000"
+},
+{
+"id": 5881890,
+"text": "\"Am faod thu an doras a dhùnadh?\" \"Faodaidh tusa.\"",
+"translation": "\"Could you close the door?\" \"You could.\"",
+"clozeWord": "doras",
+"clozeIndex": 4,
+"wordRank": 971,
+"collection": "top1000"
+},
+{
+"id": 878421,
+"text": "Tha fear aig an doras a tha ag iarraidh bruidhinn riut.",
+"translation": "There's a man at the door who wants to talk to you.",
+"clozeWord": "doras",
+"clozeIndex": 4,
+"wordRank": 971,
+"collection": "top1000"
+},
+{
+"id": 5751815,
+"text": "Fàilte romhad chun dùthaich.",
+"translation": "Welcome!",
+"clozeWord": "Fàilte",
+"clozeIndex": 0,
+"wordRank": 977,
+"collection": "top1000"
+},
+{
+"id": 5751824,
+"text": "Fàilte romhaibh chun dùthaich.",
+"translation": "Welcome!",
+"clozeWord": "Fàilte",
+"clozeIndex": 0,
+"wordRank": 977,
+"collection": "top1000"
+},
+{
+"id": 773218,
+"text": "Tha i glè bhrèagha an-diugh.",
+"translation": "It's lovely weather today.",
+"clozeWord": "bhrèagha",
+"clozeIndex": 3,
+"wordRank": 982,
+"collection": "top1000"
+},
+{
+"id": 3077659,
+"text": "Tha an là brèagha.",
+"translation": "The day is beautiful.",
+"clozeWord": "brèagha.",
+"clozeIndex": 3,
+"wordRank": 982,
+"collection": "top1000"
+},
+{
+"id": 4189002,
+"text": "Tha là brèagha ann.",
+"translation": "It's a beautiful day.",
+"clozeWord": "brèagha",
+"clozeIndex": 2,
+"wordRank": 982,
+"collection": "top1000"
+},
+{
+"id": 8692640,
+"text": "Tha latha brèagha ann.",
+"translation": "It's a fine day.",
+"clozeWord": "brèagha",
+"clozeIndex": 2,
+"wordRank": 982,
+"collection": "top1000"
+},
+{
+"id": 3573509,
+"text": "B’fheàrr leam a bhith a’ siubhal ‘nam aonar.",
+"translation": "I prefer walking by myself.",
+"clozeWord": "aonar.",
+"clozeIndex": 7,
+"wordRank": 984,
+"collection": "top1000"
+},
+{
+"id": 878970,
+"text": "Carson a tha thu nad aonar?",
+"translation": "Why are you alone?",
+"clozeWord": "aonar?",
+"clozeIndex": 5,
+"wordRank": 984,
+"collection": "top1000"
+},
+{
+"id": 5881716,
+"text": "Am bu toil le Tòmas Màiri a phòsadh?",
+"translation": "Would Tom like to marry Mary?",
+"clozeWord": "toil",
+"clozeIndex": 2,
+"wordRank": 994,
+"collection": "top1000"
+},
+{
+"id": 773102,
+"text": "Duin an dòras, mas e do thoil e.",
+"translation": "Close the door, please.",
+"clozeWord": "thoil",
+"clozeIndex": 6,
+"wordRank": 994,
+"collection": "top1000"
+},
+{
+"id": 5881735,
+"text": "—Am bu toil leat Màiri a phòsadh? —Bu toil.",
+"translation": "\"Would you like to marry Mary?\" \"I would.\"",
+"clozeWord": "toil",
+"clozeIndex": 2,
+"wordRank": 994,
+"collection": "top1000"
+},
+{
+"id": 5881698,
+"text": "Am bu toil leibh ar faicinn an-diugh?",
+"translation": "Would you like to see us today?",
+"clozeWord": "toil",
+"clozeIndex": 2,
+"wordRank": 994,
+"collection": "top1000"
+},
+{
+"id": 9295528,
+"text": "Is toil leis a bhith a' dol gu partaidhean.",
+"translation": "He likes going to parties.",
+"clozeWord": "toil",
+"clozeIndex": 1,
+"wordRank": 994,
+"collection": "top1000"
+},
+{
+"id": 5881790,
+"text": "Cà bhithinn a' dol? Chan innsidh mi dhut!",
+"translation": "Where would I be going? I won't tell you!",
+"clozeWord": "Chan",
+"clozeIndex": 4,
+"wordRank": 997,
+"collection": "top1000"
+},
+{
+"id": 5884651,
+"text": "\"An leatsa an taigh?\" \"Chan e.\"",
+"translation": "\"Do you own the house?\" \"No.\"",
+"clozeWord": "\"Chan",
+"clozeIndex": 4,
+"wordRank": 997,
+"collection": "top1000"
+},
+{
+"id": 5749904,
+"text": "Chan eil Fraingis agam.",
+"translation": "I don't speak French.",
+"clozeWord": "Chan",
+"clozeIndex": 0,
+"wordRank": 997,
+"collection": "top1000"
+},
+{
+"id": 9295533,
+"text": "Chan eil ticeadan aca.",
+"translation": "They don't have tickets.",
+"clozeWord": "Chan",
+"clozeIndex": 0,
+"wordRank": 997,
+"collection": "top1000"
+},
+{
+"id": 9295537,
+"text": "Chan eil mi leat.",
+"translation": "I don't understand you.",
+"clozeWord": "Chan",
+"clozeIndex": 0,
+"wordRank": 997,
+"collection": "top1000"
+},
+{
+"id": 5810637,
+"text": "Chan eil casan ann.",
+"translation": "It's not possible.",
+"clozeWord": "Chan",
+"clozeIndex": 0,
+"wordRank": 997,
+"collection": "top1000"
+},
+{
+"id": 4217735,
+"text": "Tha mi ag iarraidh dotair fhaicinn.",
+"translation": "I'd like to see a doctor.",
+"clozeWord": "dotair",
+"clozeIndex": 4,
+"wordRank": 1000,
+"collection": "top1000"
+},
+{
+"id": 4195567,
+"text": "Tha mi an dòchas gum bi e math.",
+"translation": "I hope it will be good.",
+"clozeWord": "dòchas",
+"clozeIndex": 3,
+"wordRank": 1008,
+"collection": "top2000"
+},
+{
+"id": 901225,
+"text": "Bha a chainnt iomchaidh san t-suidheachadh.",
+"translation": "His speech was suitable for the occasion.",
+"clozeWord": "chainnt",
+"clozeIndex": 2,
+"wordRank": 1010,
+"collection": "top2000"
+},
+{
+"id": 4001445,
+"text": "’S urrainn dhomh leum.",
+"translation": "I can jump.",
+"clozeWord": "leum.",
+"clozeIndex": 3,
+"wordRank": 1014,
+"collection": "top2000"
+},
+{
+"id": 770475,
+"text": "Am bheil thu a' coinneamh le duine an-seo?",
+"translation": "Are you meeting someone here?",
+"clozeWord": "coinneamh",
+"clozeIndex": 4,
+"wordRank": 1020,
+"collection": "top2000"
+},
+{
+"id": 5919652,
+"text": "\"Am bi an deuchainn doirbh?\" \"Bidh nas doirbhe na fear sa chaidh.\"",
+"translation": "\"Will the exam be difficult?\" \"It will be more difficult than the last one.\"",
+"clozeWord": "deuchainn",
+"clozeIndex": 3,
+"wordRank": 1027,
+"collection": "top2000"
+},
+{
+"id": 1525534,
+"text": "Dè rinn thu leis a' chàr ud?",
+"translation": "What did you do with that car?",
+"clozeWord": "chàr",
+"clozeIndex": 5,
+"wordRank": 1036,
+"collection": "top2000"
+},
+{
+"id": 5748832,
+"text": "Chan eil an càr aca math.",
+"translation": "Their car is not good.",
+"clozeWord": "càr",
+"clozeIndex": 3,
+"wordRank": 1036,
+"collection": "top2000"
+},
+{
+"id": 8760070,
+"text": "A bheil càr agad?",
+"translation": "Do you have a car?",
+"clozeWord": "càr",
+"clozeIndex": 2,
+"wordRank": 1036,
+"collection": "top2000"
+},
+{
+"id": 851977,
+"text": "Tha am bòrd anns an t-seòmar sin glè shnog.",
+"translation": "The table in that room is very nice.",
+"clozeWord": "t-seòmar",
+"clozeIndex": 5,
+"wordRank": 1045,
+"collection": "top2000"
+},
+{
+"id": 1516300,
+"text": "Tha e glè fhuar san t-seòmar seo, nach eil?",
+"translation": "It's very cold in this room, isn't it?",
+"clozeWord": "t-seòmar",
+"clozeIndex": 5,
+"wordRank": 1045,
+"collection": "top2000"
+},
+{
+"id": 3807675,
+"text": "Tha e mar chù a’ mùin air an t-sneachd.",
+"translation": "He is running around like a headless chicken.",
+"clozeWord": "chù",
+"clozeIndex": 3,
+"wordRank": 1048,
+"collection": "top2000"
+},
+{
+"id": 1515918,
+"text": "\"Dè tha thu ag iarraidh?\" \"Tha mi ag iarraidh cù.\"",
+"translation": "\"What do you want?\" \"I want a dog.\"",
+"clozeWord": "cù.\"",
+"clozeIndex": 9,
+"wordRank": 1048,
+"collection": "top2000"
+},
+{
+"id": 5751674,
+"text": "Tha mise cho sgìth ri cù!",
+"translation": "I am as tired as a dog.",
+"clozeWord": "cù!",
+"clozeIndex": 5,
+"wordRank": 1048,
+"collection": "top2000"
+},
+{
+"id": 851897,
+"text": "An robh e luath leis an t-seòl?",
+"translation": "Was he quick with the sail?",
+"clozeWord": "t-seòl?",
+"clozeIndex": 6,
+"wordRank": 1060,
+"collection": "top2000"
+},
+{
+"id": 851923,
+"text": "Bha an làr fliuch le uisge.",
+"translation": "The floor was wet with water.",
+"clozeWord": "làr",
+"clozeIndex": 2,
+"wordRank": 1063,
+"collection": "top2000"
+},
+{
+"id": 5884118,
+"text": "Bu chuimhne leam far an do thogadh mi.",
+"translation": "I remembered where I was born.",
+"clozeWord": "chuimhne",
+"clozeIndex": 1,
+"wordRank": 1065,
+"collection": "top2000"
+},
+{
+"id": 8692650,
+"text": "Tha an latha àlainn ann.",
+"translation": "It's a lovely day.",
+"clozeWord": "àlainn",
+"clozeIndex": 3,
+"wordRank": 1066,
+"collection": "top2000"
+},
+{
+"id": 768242,
+"text": "Chan urrainn dha phiuthar ruit a bhruidhinn an-diugh.",
+"translation": "Your sister can't talk to you today.",
+"clozeWord": "phiuthar",
+"clozeIndex": 3,
+"wordRank": 1067,
+"collection": "top2000"
+},
+{
+"id": 5884177,
+"text": "Is cuimhne leam an duine sin.",
+"translation": "I remember that guy.",
+"clozeWord": "cuimhne",
+"clozeIndex": 1,
+"wordRank": 1073,
+"collection": "top2000"
+},
+{
+"id": 5884140,
+"text": "Tha cuimhne mhath agam air.",
+"translation": "I remember him well.",
+"clozeWord": "cuimhne",
+"clozeIndex": 1,
+"wordRank": 1073,
+"collection": "top2000"
+},
+{
+"id": 5884148,
+"text": "A bheil cuimhne agad oirnn?",
+"translation": "Do you remember us?",
+"clozeWord": "cuimhne",
+"clozeIndex": 2,
+"wordRank": 1073,
+"collection": "top2000"
+},
+{
+"id": 5884174,
+"text": "Is cuimhne leam mòran rudan.",
+"translation": "I remember many things.",
+"clozeWord": "cuimhne",
+"clozeIndex": 1,
+"wordRank": 1073,
+"collection": "top2000"
+},
+{
+"id": 773208,
+"text": "Tha mi a' saoilsinn gu bheil fear ann an-sin.",
+"translation": "I think that there is a man there.",
+"clozeWord": "an-sin.",
+"clozeIndex": 8,
+"wordRank": 1080,
+"collection": "top2000"
+},
+{
+"id": 5884125,
+"text": "Is coma leam uighean.",
+"translation": "I dislike eggs.",
+"clozeWord": "uighean.",
+"clozeIndex": 3,
+"wordRank": 1091,
+"collection": "top2000"
+},
+{
+"id": 851907,
+"text": "Tha gual ann anns an t-sruth.",
+"translation": "There is some coal in the stream.",
+"clozeWord": "gual",
+"clozeIndex": 1,
+"wordRank": 1095,
+"collection": "top2000"
+},
+{
+"id": 3872513,
+"text": "Tha còig bhò anns a’ bhaile bheag.",
+"translation": "There are five cows in the little village.",
+"clozeWord": "bhò",
+"clozeIndex": 2,
+"wordRank": 1111,
+"collection": "top2000"
+},
+{
+"id": 8692646,
+"text": "Tha an t-sìde dona.",
+"translation": "The weather is bad.",
+"clozeWord": "dona.",
+"clozeIndex": 3,
+"wordRank": 1112,
+"collection": "top2000"
+},
+{
+"id": 5884647,
+"text": "'S le Tòmas an sealbh seo.",
+"translation": "Tom owns this property.",
+"clozeWord": "sealbh",
+"clozeIndex": 4,
+"wordRank": 1114,
+"collection": "top2000"
+},
+{
+"id": 852119,
+"text": "Am bi thu ag obair aig an taigh-osda a-màireach anns a' mhadainn?",
+"translation": "Are you going to work in the hotel tomorrow morning?",
+"clozeWord": "mhadainn?",
+"clozeIndex": 11,
+"wordRank": 1115,
+"collection": "top2000"
+},
+{
+"id": 852116,
+"text": "Am bi sibh ag obair aig an taigh-osda a-màireach anns a' mhadainn?",
+"translation": "Will you be working at the hotel tomorrow in the morning?",
+"clozeWord": "mhadainn?",
+"clozeIndex": 11,
+"wordRank": 1115,
+"collection": "top2000"
+},
+{
+"id": 880117,
+"text": "Carson nach eil thu ag èisteachd rium?",
+"translation": "Why aren't you listening to me?",
+"clozeWord": "Carson",
+"clozeIndex": 0,
+"wordRank": 1120,
+"collection": "top2000"
+},
+{
+"id": 1516655,
+"text": "Carson a thèid daoine don taigh-dealbh?",
+"translation": "Why do people go to the cinema?",
+"clozeWord": "Carson",
+"clozeIndex": 0,
+"wordRank": 1120,
+"collection": "top2000"
+},
+{
+"id": 5882353,
+"text": "Carson a thuirt thu gum bu choir dhomh Fraingis ionnsachadh?",
+"translation": "Why did you say that I should learn French?",
+"clozeWord": "Carson",
+"clozeIndex": 0,
+"wordRank": 1120,
+"collection": "top2000"
+},
+{
+"id": 5753121,
+"text": "Carson nach eil sibh ag éisteachd?",
+"translation": "Why aren't you listening?",
+"clozeWord": "Carson",
+"clozeIndex": 0,
+"wordRank": 1120,
+"collection": "top2000"
+},
+{
+"id": 5881738,
+"text": "—An aithne dhut Tòmas? —Chan aithne.",
+"translation": "\"Do you know Tom?\" \"No.\"",
+"clozeWord": "aithne",
+"clozeIndex": 1,
+"wordRank": 1125,
+"collection": "top2000"
+},
+{
+"id": 5881740,
+"text": "—An aithne dhuibh Tòmas? —Chan aithne.",
+"translation": "\"Do you know Tom?\" \"No.\"",
+"clozeWord": "aithne",
+"clozeIndex": 1,
+"wordRank": 1125,
+"collection": "top2000"
+},
+{
+"id": 5881700,
+"text": "'S aithne dhomh Tòmas.",
+"translation": "I know Tom.",
+"clozeWord": "aithne",
+"clozeIndex": 1,
+"wordRank": 1125,
+"collection": "top2000"
+},
+{
+"id": 5745616,
+"text": "Mo mhallachd aig na caoraich mhòr.",
+"translation": "My curses on the big sheep.",
+"clozeWord": "caoraich",
+"clozeIndex": 4,
+"wordRank": 1135,
+"collection": "top2000"
+},
+{
+"id": 5223277,
+"text": "Bha mi trang a' còcaireachd.",
+"translation": "I was busy cooking.",
+"clozeWord": "còcaireachd.",
+"clozeIndex": 4,
+"wordRank": 1142,
+"collection": "top2000"
+},
+{
+"id": 1516057,
+"text": "Rinn i an obair gun dragh sam bith.",
+"translation": "She did the work without any difficulty.",
+"clozeWord": "dragh",
+"clozeIndex": 5,
+"wordRank": 1155,
+"collection": "top2000"
+},
+{
+"id": 2784766,
+"text": "Rinn e an obair gun dragh sam bith.",
+"translation": "He did the work without any difficulty.",
+"clozeWord": "dragh",
+"clozeIndex": 5,
+"wordRank": 1155,
+"collection": "top2000"
+},
+{
+"id": 5881780,
+"text": "Cuin nach robh Tòmas sàbhailte?",
+"translation": "When was Tom in danger?",
+"clozeWord": "sàbhailte?",
+"clozeIndex": 4,
+"wordRank": 1157,
+"collection": "top2000"
+},
+{
+"id": 3838490,
+"text": "Chaidh e a-null thairis.",
+"translation": "He went abroad.",
+"clozeWord": "a-null",
+"clozeIndex": 2,
+"wordRank": 1170,
+"collection": "top2000"
+},
+{
+"id": 5918880,
+"text": "\"An gabh thu uisge-beatha neo fìon?\" \"Cha gabh idir, tapadh leat.\"",
+"translation": "\"Would you like whiskey or wine?\" \"I'll pass, thank you.\"",
+"clozeWord": "uisge-beatha",
+"clozeIndex": 3,
+"wordRank": 1175,
+"collection": "top2000"
+},
+{
+"id": 10508853,
+"text": "Tha mi ag iarraidh uisge-beatha.",
+"translation": "I want whisky.",
+"clozeWord": "uisge-beatha.",
+"clozeIndex": 4,
+"wordRank": 1175,
+"collection": "top2000"
+},
+{
+"id": 852164,
+"text": "Tha mi toilichte a' cluinntinn gu bheil fìos agaibh, dè an t-ainm a th' oirre.",
+"translation": "I am glad to hear that you know how she is called.",
+"clozeWord": "cluinntinn",
+"clozeIndex": 4,
+"wordRank": 1188,
+"collection": "top2000"
+},
+{
+"id": 852162,
+"text": "Tha mi uabhasach toilichte a' cluinntinn gu bheil thu ag iarraidh fuireach ann an Alba.",
+"translation": "I am really glad to hear that you want to live in Scotland.",
+"clozeWord": "cluinntinn",
+"clozeIndex": 5,
+"wordRank": 1188,
+"collection": "top2000"
+},
+{
+"id": 1514054,
+"text": "Chan e mise as coireach.",
+"translation": "It wasn't my fault.",
+"clozeWord": "coireach.",
+"clozeIndex": 4,
+"wordRank": 1190,
+"collection": "top2000"
+},
+{
+"id": 773123,
+"text": "Tha an cu mòr a' cur eagal orra.",
+"translation": "The big dog is frightening them.",
+"clozeWord": "eagal",
+"clozeIndex": 6,
+"wordRank": 1192,
+"collection": "top2000"
+},
+{
+"id": 5745644,
+"text": "Triùir a thig gun iarraidh, gaol, èud agus eagal.",
+"translation": "Three things that come unwanted: love, jealousy, and fear.",
+"clozeWord": "eagal.",
+"clozeIndex": 8,
+"wordRank": 1192,
+"collection": "top2000"
+},
+{
+"id": 773121,
+"text": "Chan eil an t-eagal orm idir.",
+"translation": "I'm not afraid at all.",
+"clozeWord": "t-eagal",
+"clozeIndex": 3,
+"wordRank": 1192,
+"collection": "top2000"
+},
+{
+"id": 1516311,
+"text": "An e balach no nighean a th' ann?",
+"translation": "Is it a boy or a girl?",
+"clozeWord": "balach",
+"clozeIndex": 2,
+"wordRank": 1198,
+"collection": "top2000"
+},
+{
+"id": 5883803,
+"text": "Tha nighean agus balach aig Tòmas agus Màiri.",
+"translation": "Tom and Mary have a daughter and a son.",
+"clozeWord": "balach",
+"clozeIndex": 3,
+"wordRank": 1198,
+"collection": "top2000"
+},
+{
+"id": 5883794,
+"text": "Tha balach agus nighean aig Tòmas.",
+"translation": "Tom has a son and a daughter.",
+"clozeWord": "balach",
+"clozeIndex": 1,
+"wordRank": 1198,
+"collection": "top2000"
+},
+{
+"id": 1514151,
+"text": "Chan eil gràdh orm aig a' bhalach is tha gaol agam air.",
+"translation": "The boy I love doesn't love me.",
+"clozeWord": "bhalach",
+"clozeIndex": 6,
+"wordRank": 1198,
+"collection": "top2000"
+},
+{
+"id": 5918878,
+"text": "\"Dè a ghabhas sibh?\" \"Gabhaidh trì cupannan cofaidh.\"",
+"translation": "\"What would you like?\" \"I'd like three cups of coffee, please.\"",
+"clozeWord": "cofaidh.\"",
+"clozeIndex": 7,
+"wordRank": 1201,
+"collection": "top2000"
+},
+{
+"id": 4000294,
+"text": "A bheil e ag òl cofaidh?",
+"translation": "Is he drinking coffee?",
+"clozeWord": "cofaidh?",
+"clozeIndex": 5,
+"wordRank": 1201,
+"collection": "top2000"
+},
+{
+"id": 4001333,
+"text": "Tha mi ag òl an cofaidh.",
+"translation": "I'm drinking the coffee.",
+"clozeWord": "cofaidh.",
+"clozeIndex": 5,
+"wordRank": 1201,
+"collection": "top2000"
+},
+{
+"id": 3838421,
+"text": "’S fheàrr leam cofaidh.",
+"translation": "I prefer coffee.",
+"clozeWord": "cofaidh.",
+"clozeIndex": 3,
+"wordRank": 1201,
+"collection": "top2000"
+},
+{
+"id": 5884124,
+"text": "Is coma leam cofaidh.",
+"translation": "I dislike coffee.",
+"clozeWord": "cofaidh.",
+"clozeIndex": 3,
+"wordRank": 1201,
+"collection": "top2000"
+},
+{
+"id": 8760082,
+"text": "'S e tidsear a th' annam.",
+"translation": "I am a teacher.",
+"clozeWord": "tidsear",
+"clozeIndex": 2,
+"wordRank": 1202,
+"collection": "top2000"
+},
+{
+"id": 5881855,
+"text": "—Dè do chor? —Deagh chor. —'S math sin.",
+"translation": "\"How are you?\" \"Quite well.\" \"That's good.\"",
+"clozeWord": "chor?",
+"clozeIndex": 2,
+"wordRank": 1212,
+"collection": "top2000"
+},
+{
+"id": 5881853,
+"text": "—Dè do chor? —Cor math.",
+"translation": "\"How are you?\" \"Good.\"",
+"clozeWord": "chor?",
+"clozeIndex": 2,
+"wordRank": 1212,
+"collection": "top2000"
+},
+{
+"id": 5882408,
+"text": "Feuchaidh mi an ceist seo fhreagairt ma dh'fhaodas mi.",
+"translation": "I'll try to answer this question if I may.",
+"clozeWord": "ceist",
+"clozeIndex": 3,
+"wordRank": 1215,
+"collection": "top2000"
+},
+{
+"id": 5765330,
+"text": "Chuir Tòmas ceist orm, \"Am faca Ailis Màiri a-bhòin-dè?\"",
+"translation": "Tom asked me, \"Did Alice see Mary the day before yesterday?\"",
+"clozeWord": "ceist",
+"clozeIndex": 2,
+"wordRank": 1215,
+"collection": "top2000"
+},
+{
+"id": 5765333,
+"text": "Chuir Tòmas ceist orm, \"Nach fhaca Ailis Màiri a-bhòin-dè?\"",
+"translation": "Thomas asked me, \"Didn't Alice see Mary the day before yesterday?\"",
+"clozeWord": "ceist",
+"clozeIndex": 2,
+"wordRank": 1215,
+"collection": "top2000"
+},
+{
+"id": 5765336,
+"text": "Tha Tòmas a' cur ceist orm, \"Carson a chunnaic Ailis Màiri a-bhòin-dè?\"",
+"translation": "Tom is asking me, \"Why did Alice see Mary the day before yesterday?\"",
+"clozeWord": "ceist",
+"clozeIndex": 4,
+"wordRank": 1215,
+"collection": "top2000"
+},
+{
+"id": 5765338,
+"text": "Bidh Tòmas a' cur ceist orm, \"Càite a fhaca Ailis Màiri a-bhòin-dè?\"",
+"translation": "Tom will ask me, \"Where did Alice see Mary the day before yesterday?\"",
+"clozeWord": "ceist",
+"clozeIndex": 4,
+"wordRank": 1215,
+"collection": "top2000"
+},
+{
+"id": 880115,
+"text": "Shuidh e sìos ri ùr-sgeul a leughadh.",
+"translation": "He sat down to read a novel.",
+"clozeWord": "ùr-sgeul",
+"clozeIndex": 4,
+"wordRank": 1216,
+"collection": "top2000"
+},
+{
+"id": 5918981,
+"text": "B' fheudar dhuinn lann an claidheamh a pheantadh airson dath ùr a chur air.",
+"translation": "We'd have to paint the blade of the sword in order to change the color.",
+"clozeWord": "lann",
+"clozeIndex": 3,
+"wordRank": 1225,
+"collection": "top2000"
+},
+{
+"id": 5918969,
+"text": "Nach tèid thu dhan taigh cèilidh a-nochd?",
+"translation": "Won't you go to the cèilidh tonight?",
+"clozeWord": "cèilidh",
+"clozeIndex": 5,
+"wordRank": 1234,
+"collection": "top2000"
+},
+{
+"id": 851929,
+"text": "Nach eil iad a’ dol dhan chèilidh anns a’ bhaile?",
+"translation": "Aren’t they going to the ceilidh in the town?",
+"clozeWord": "chèilidh",
+"clozeIndex": 6,
+"wordRank": 1234,
+"collection": "top2000"
+},
+{
+"id": 8759751,
+"text": "Càite a bheil an t-aran?",
+"translation": "Where's the bread?",
+"clozeWord": "t-aran?",
+"clozeIndex": 4,
+"wordRank": 1243,
+"collection": "top2000"
+},
+{
+"id": 8759752,
+"text": "Càit' a bheil an t-aran?",
+"translation": "Where's the bread?",
+"clozeWord": "t-aran?",
+"clozeIndex": 4,
+"wordRank": 1243,
+"collection": "top2000"
+},
+{
+"id": 770438,
+"text": "Dh'ithe am fear aran.",
+"translation": "The man ate bread.",
+"clozeWord": "aran.",
+"clozeIndex": 3,
+"wordRank": 1243,
+"collection": "top2000"
+},
+{
+"id": 5782606,
+"text": "Càite bheil an t-aran?",
+"translation": "Where's the bread?",
+"clozeWord": "t-aran?",
+"clozeIndex": 3,
+"wordRank": 1243,
+"collection": "top2000"
+},
+{
+"id": 3077685,
+"text": "Tha mi ag òl.",
+"translation": "I'm drinking.",
+"clozeWord": "òl.",
+"clozeIndex": 3,
+"wordRank": 1245,
+"collection": "top2000"
+},
+{
+"id": 5881731,
+"text": "—Am faod dhomh an leabhar seo a cheannach? —Faodaidh.",
+"translation": "\"Could I buy this book?\" \"Yes.\"",
+"clozeWord": "cheannach?",
+"clozeIndex": 7,
+"wordRank": 1280,
+"collection": "top2000"
+},
+{
+"id": 1514139,
+"text": "Tha agam ri stampaichean a cheannach.",
+"translation": "I need to buy stamps.",
+"clozeWord": "cheannach.",
+"clozeIndex": 5,
+"wordRank": 1280,
+"collection": "top2000"
+},
+{
+"id": 5918979,
+"text": "\"Tha mòran Fraingis agad.\" \"Chan eil mi cho fileanta riut.\"",
+"translation": "\"You speak French well.\" \"I'm not as fluent as you are.\"",
+"clozeWord": "fileanta",
+"clozeIndex": 8,
+"wordRank": 1281,
+"collection": "top2000"
+},
+{
+"id": 5919017,
+"text": "Dà cheud not 's a h-ochd an duine agus ceud dà fhichead not ’s a trì deug airson oileanaich.",
+"translation": "Two hundred eight pounds per person and a hundred fifty three for students.",
+"clozeWord": "cheud",
+"clozeIndex": 1,
+"wordRank": 1297,
+"collection": "top2000"
+},
+{
+"id": 9295545,
+"text": "A bheil e air a chall buileach?",
+"translation": "Has he lost it altogether?",
+"clozeWord": "buileach?",
+"clozeIndex": 6,
+"wordRank": 1298,
+"collection": "top2000"
+},
+{
+"id": 9295541,
+"text": "Chan eil sin buileach fìor.",
+"translation": "That's not completely true.",
+"clozeWord": "buileach",
+"clozeIndex": 3,
+"wordRank": 1298,
+"collection": "top2000"
+},
+{
+"id": 5884205,
+"text": "Chan eil ach aon mhiann agam.",
+"translation": "I have but one wish.",
+"clozeWord": "mhiann",
+"clozeIndex": 4,
+"wordRank": 1303,
+"collection": "top2000"
+},
+{
+"id": 5881784,
+"text": "Càite a bhithinn a' dol? Chan innsidh mi dhut!",
+"translation": "Where would I be going? I won't tell you!",
+"clozeWord": "Càite",
+"clozeIndex": 0,
+"wordRank": 1323,
+"collection": "top2000"
+},
+{
+"id": 1516337,
+"text": "Càite am bi sinn a' dol a-nochd?",
+"translation": "Where are we going tonight?",
+"clozeWord": "Càite",
+"clozeIndex": 0,
+"wordRank": 1323,
+"collection": "top2000"
+},
+{
+"id": 4218007,
+"text": "Càite a bheil thu fhèin ag obair?",
+"translation": "Where do you work?",
+"clozeWord": "Càite",
+"clozeIndex": 0,
+"wordRank": 1323,
+"collection": "top2000"
+},
+{
+"id": 5745477,
+"text": "Càite a bheil do ghùnan sìod?",
+"translation": "Where are your silk gowns?",
+"clozeWord": "Càite",
+"clozeIndex": 0,
+"wordRank": 1323,
+"collection": "top2000"
+},
+{
+"id": 3254452,
+"text": "Càite bheil a' Chòrn?",
+"translation": "Where is Cornwall?",
+"clozeWord": "Càite",
+"clozeIndex": 0,
+"wordRank": 1323,
+"collection": "top2000"
+},
+{
+"id": 5881709,
+"text": "Tha Tòmas a' dol a-nuas an staidhre.",
+"translation": "Tom is going downstairs.",
+"clozeWord": "a-nuas",
+"clozeIndex": 4,
+"wordRank": 1325,
+"collection": "top2000"
+},
+{
+"id": 2890669,
+"text": "'S toil leam sneachd.",
+"translation": "I like snow.",
+"clozeWord": "sneachd.",
+"clozeIndex": 3,
+"wordRank": 1328,
+"collection": "top2000"
+},
+{
+"id": 5884216,
+"text": "'S dòcha leam gu bheil an t-acras ort.",
+"translation": "I suppose you're hungry.",
+"clozeWord": "t-acras",
+"clozeIndex": 6,
+"wordRank": 1333,
+"collection": "top2000"
+},
+{
+"id": 5884390,
+"text": "B' ann orra a bha an t-acras.",
+"translation": "They were the ones who were hungry.",
+"clozeWord": "t-acras.",
+"clozeIndex": 6,
+"wordRank": 1333,
+"collection": "top2000"
+},
+{
+"id": 5884385,
+"text": "'S ann ormsa a tha an t-acras.",
+"translation": "I'm the one who's hungry.",
+"clozeWord": "t-acras.",
+"clozeIndex": 6,
+"wordRank": 1333,
+"collection": "top2000"
+},
+{
+"id": 773097,
+"text": "Tha an t-acras orm.",
+"translation": "I'm hungry!",
+"clozeWord": "t-acras",
+"clozeIndex": 2,
+"wordRank": 1333,
+"collection": "top2000"
+},
+{
+"id": 9276389,
+"text": "Cha robh an t-uisge blàth.",
+"translation": "The water was not warm.",
+"clozeWord": "blàth.",
+"clozeIndex": 4,
+"wordRank": 1335,
+"collection": "top2000"
+},
+{
+"id": 877831,
+"text": "Tha fear dhuinn ceàrr.",
+"translation": "One of us is wrong.",
+"clozeWord": "ceàrr.",
+"clozeIndex": 3,
+"wordRank": 1340,
+"collection": "top2000"
+},
+{
+"id": 1182021,
+"text": "Dè tha ceàrr leis?",
+"translation": "What is wrong with him?",
+"clozeWord": "ceàrr",
+"clozeIndex": 2,
+"wordRank": 1340,
+"collection": "top2000"
+},
+{
+"id": 773191,
+"text": "Tha mi uabhasach duilich seo a chluinntinn.",
+"translation": "I am really sorry to hear that.",
+"clozeWord": "duilich",
+"clozeIndex": 3,
+"wordRank": 1348,
+"collection": "top2000"
+},
+{
+"id": 5919644,
+"text": "Cha tèid agam air tighinn ann, duilich.",
+"translation": "I can't come, sorry.",
+"clozeWord": "duilich.",
+"clozeIndex": 6,
+"wordRank": 1348,
+"collection": "top2000"
+},
+{
+"id": 5919642,
+"text": "An tèid aig Tòmas air tighinn ann? Nach tèid? Uill, tha sin duilich.",
+"translation": "Can Tom make it? He can't? Well, that's unfortunate.",
+"clozeWord": "duilich.",
+"clozeIndex": 12,
+"wordRank": 1348,
+"collection": "top2000"
+},
+{
+"id": 5732675,
+"text": "A bheil thu ag iarraidh leann?",
+"translation": "Do you want a beer?",
+"clozeWord": "leann?",
+"clozeIndex": 5,
+"wordRank": 1350,
+"collection": "top2000"
+},
+{
+"id": 879067,
+"text": "B' àbhaist dhomh leann òl.",
+"translation": "I used to drink beer.",
+"clozeWord": "leann",
+"clozeIndex": 3,
+"wordRank": 1350,
+"collection": "top2000"
+},
+{
+"id": 1516532,
+"text": "B' àbhaist dha leann òl.",
+"translation": "He used to drink beer.",
+"clozeWord": "leann",
+"clozeIndex": 3,
+"wordRank": 1350,
+"collection": "top2000"
+},
+{
+"id": 1516533,
+"text": "B' àbhaist dhi leann òl.",
+"translation": "She used to drink beer.",
+"clozeWord": "leann",
+"clozeIndex": 3,
+"wordRank": 1350,
+"collection": "top2000"
+},
+{
+"id": 5897288,
+"text": "Thachair mi ri poileas ach cha do thug e toighe dhomhsa idir.",
+"translation": "I ran into a policeman but he didn't notice me at all.",
+"clozeWord": "poileas",
+"clozeIndex": 3,
+"wordRank": 1353,
+"collection": "top2000"
+},
+{
+"id": 13568617,
+"text": "Tha falt a’ falbh às.",
+"translation": "He is losing his hair.",
+"clozeWord": "falt",
+"clozeIndex": 1,
+"wordRank": 1361,
+"collection": "top2000"
+},
+{
+"id": 1516396,
+"text": "Tha a falt fada.",
+"translation": "Her hair is long.",
+"clozeWord": "falt",
+"clozeIndex": 2,
+"wordRank": 1361,
+"collection": "top2000"
+},
+{
+"id": 1527883,
+"text": "Tha falt fada oirre.",
+"translation": "She has long hair.",
+"clozeWord": "falt",
+"clozeIndex": 1,
+"wordRank": 1361,
+"collection": "top2000"
+},
+{
+"id": 8692620,
+"text": "Tha e glè fhliuch.",
+"translation": "It is very wet.",
+"clozeWord": "fhliuch.",
+"clozeIndex": 3,
+"wordRank": 1371,
+"collection": "top2000"
+},
+{
+"id": 5745597,
+"text": "Cha do thuig mi sin.",
+"translation": "I don't understand.",
+"clozeWord": "thuig",
+"clozeIndex": 2,
+"wordRank": 1374,
+"collection": "top2000"
+},
+{
+"id": 5882415,
+"text": "Dh'iarr mi oirbhse sguir dheth.",
+"translation": "I asked you to stop it.",
+"clozeWord": "sguir",
+"clozeIndex": 3,
+"wordRank": 1376,
+"collection": "top2000"
+},
+{
+"id": 5749963,
+"text": "Tha Tàmas math air an t-snàmh.",
+"translation": "Tom is good at swimming.",
+"clozeWord": "t-snàmh.",
+"clozeIndex": 5,
+"wordRank": 1393,
+"collection": "top2000"
+},
+{
+"id": 4001441,
+"text": "’S urrainn dhomh snàmh.",
+"translation": "I can swim.",
+"clozeWord": "snàmh.",
+"clozeIndex": 3,
+"wordRank": 1393,
+"collection": "top2000"
+},
+{
+"id": 4224134,
+"text": "An urrainn dhut snàmh?",
+"translation": "Can you swim?",
+"clozeWord": "snàmh?",
+"clozeIndex": 3,
+"wordRank": 1393,
+"collection": "top2000"
+},
+{
+"id": 4195574,
+"text": "Tha mi ag ionnsachadh na Gàidhlig.",
+"translation": "I am learning Gaelic.",
+"clozeWord": "ionnsachadh",
+"clozeIndex": 3,
+"wordRank": 1410,
+"collection": "top2000"
+},
+{
+"id": 4001342,
+"text": "Tha mi ag ionnsachadh Gàidhlig.",
+"translation": "I'm learning Scottish Gaelic.",
+"clozeWord": "ionnsachadh",
+"clozeIndex": 3,
+"wordRank": 1410,
+"collection": "top2000"
+},
+{
+"id": 5882428,
+"text": "Bha Tòmas air Fraingis ionnsachadh.",
+"translation": "Tom had learned French.",
+"clozeWord": "ionnsachadh.",
+"clozeIndex": 4,
+"wordRank": 1410,
+"collection": "top2000"
+},
+{
+"id": 9256399,
+"text": "Tha i ag ionnsachadh Gàidhlig.",
+"translation": "She is learning Gaelic.",
+"clozeWord": "ionnsachadh",
+"clozeIndex": 3,
+"wordRank": 1410,
+"collection": "top2000"
+},
+{
+"id": 5769068,
+"text": "Is neònach leam gu bheil Tòmas ag ionnsachadh Fraingis.",
+"translation": "I think it's silly that Tom is learning French.",
+"clozeWord": "neònach",
+"clozeIndex": 1,
+"wordRank": 1411,
+"collection": "top2000"
+},
+{
+"id": 1516546,
+"text": "A bheil thu ag iarraidh siùcar?",
+"translation": "Would you like some sugar?",
+"clozeWord": "siùcar?",
+"clozeIndex": 5,
+"wordRank": 1421,
+"collection": "top2000"
+},
+{
+"id": 5751747,
+"text": "Suidh aig ceann a' bhùird.",
+"translation": "Sit at the head of the table.",
+"clozeWord": "Suidh",
+"clozeIndex": 0,
+"wordRank": 1427,
+"collection": "top2000"
+},
+{
+"id": 1525329,
+"text": "Tillidh e ro cheann trì uair a thìde.",
+"translation": "He will return within 3 hours.",
+"clozeWord": "thìde.",
+"clozeIndex": 7,
+"wordRank": 1457,
+"collection": "top2000"
+},
+{
+"id": 5881655,
+"text": "Gheall Tòmas gun tilleadh e a dh'aithghearr.",
+"translation": "Tom promised that he would be back soon.",
+"clozeWord": "Gheall",
+"clozeIndex": 0,
+"wordRank": 1476,
+"collection": "top2000"
+},
+{
+"id": 5881674,
+"text": "Gheall mi gun tillinn a dh'aithghearr.",
+"translation": "I promised that I would return soon.",
+"clozeWord": "Gheall",
+"clozeIndex": 0,
+"wordRank": 1476,
+"collection": "top2000"
+},
+{
+"id": 851900,
+"text": "A bheil am bainne bhon fhiadh sin uabhasach math?",
+"translation": "Is the milk from this deer really good?",
+"clozeWord": "fhiadh",
+"clozeIndex": 5,
+"wordRank": 1482,
+"collection": "top2000"
+},
+{
+"id": 5745659,
+"text": "Ch' an fhuiling an onair chùd.",
+"translation": "Honor cannot be repaired.",
+"clozeWord": "fhuiling",
+"clozeIndex": 2,
+"wordRank": 1484,
+"collection": "top2000"
+},
+{
+"id": 5745604,
+"text": "Dè a' phrìs a tha seo?",
+"translation": "How much does this cost?",
+"clozeWord": "phrìs",
+"clozeIndex": 2,
+"wordRank": 1488,
+"collection": "top2000"
+},
+{
+"id": 5883773,
+"text": "\"An òl thu am fìon?\" \"Chan òl.\"",
+"translation": "\"Will you drink the wine?\" \"No.\"",
+"clozeWord": "fìon?\"",
+"clozeIndex": 4,
+"wordRank": 1496,
+"collection": "top2000"
+},
+{
+"id": 5883769,
+"text": "\"An òl thu fìon?\" \"Òlaidh.\"",
+"translation": "\"Do you drink wine?\" \"Yes.\"",
+"clozeWord": "fìon?\"",
+"clozeIndex": 3,
+"wordRank": 1496,
+"collection": "top2000"
+},
+{
+"id": 3085198,
+"text": "Tha a' chaileag bòidheach.",
+"translation": "The girl is beautiful.",
+"clozeWord": "chaileag",
+"clozeIndex": 2,
+"wordRank": 1508,
+"collection": "top2000"
+},
+{
+"id": 5881869,
+"text": "Tha dìth àite-fuirich air Tòmas.",
+"translation": "Tom needs a place to stay.",
+"clozeWord": "dìth",
+"clozeIndex": 1,
+"wordRank": 1509,
+"collection": "top2000"
+},
+{
+"id": 5884356,
+"text": "'S iongnadh leam cò dh'innlich e.",
+"translation": "I wonder who invented it.",
+"clozeWord": "iongnadh",
+"clozeIndex": 1,
+"wordRank": 1511,
+"collection": "top2000"
+},
+{
+"id": 5884344,
+"text": "'S iongnadh leam cò iad.",
+"translation": "I wonder who they are.",
+"clozeWord": "iongnadh",
+"clozeIndex": 1,
+"wordRank": 1511,
+"collection": "top2000"
+},
+{
+"id": 5884363,
+"text": "'S iongnadh leam cò thàinig.",
+"translation": "I wonder who has come.",
+"clozeWord": "iongnadh",
+"clozeIndex": 1,
+"wordRank": 1511,
+"collection": "top2000"
+},
+{
+"id": 5884366,
+"text": "'S iongnadh leam cò ise.",
+"translation": "I wonder who she is.",
+"clozeWord": "iongnadh",
+"clozeIndex": 1,
+"wordRank": 1511,
+"collection": "top2000"
+},
+{
+"id": 5884374,
+"text": "'S iongnadh leam dè tachraidh.",
+"translation": "I wonder what will happen.",
+"clozeWord": "iongnadh",
+"clozeIndex": 1,
+"wordRank": 1511,
+"collection": "top2000"
+},
+{
+"id": 3475968,
+"text": "Bha iongnadh air Eamag.",
+"translation": "Emily was surprised.",
+"clozeWord": "iongnadh",
+"clozeIndex": 1,
+"wordRank": 1511,
+"collection": "top2000"
+},
+{
+"id": 5748835,
+"text": "Chan eil an t-sìde cho math an-diugh 's a bha e an-dé.",
+"translation": "The weather's not as good today as it was yesterday.",
+"clozeWord": "t-sìde",
+"clozeIndex": 3,
+"wordRank": 1521,
+"collection": "top2000"
+},
+{
+"id": 4189006,
+"text": "Tha deagh shìde ann.",
+"translation": "The weather is good.",
+"clozeWord": "shìde",
+"clozeIndex": 2,
+"wordRank": 1521,
+"collection": "top2000"
+},
+{
+"id": 5745693,
+"text": "Is fheàrr Gàidhlig bhriste na Gàidhlig sa chiste.",
+"translation": "Better broken Gaelic than no Gaelic at all.",
+"clozeWord": "chiste.",
+"clozeIndex": 7,
+"wordRank": 1524,
+"collection": "top2000"
+},
+{
+"id": 852001,
+"text": "Bha an cù dubh air an fheur ris a’ ghrèin.",
+"translation": "The black dog on the grass was exposed to the sun.",
+"clozeWord": "fheur",
+"clozeIndex": 6,
+"wordRank": 1552,
+"collection": "top2000"
+},
+{
+"id": 1514157,
+"text": "Tha mi a' feitheamh air an trèan.",
+"translation": "I'm waiting for the train.",
+"clozeWord": "feitheamh",
+"clozeIndex": 3,
+"wordRank": 1574,
+"collection": "top2000"
+},
+{
+"id": 9282898,
+"text": "Tha thu car fadalach.",
+"translation": "You're somewhat late.",
+"clozeWord": "fadalach.",
+"clozeIndex": 3,
+"wordRank": 1598,
+"collection": "top2000"
+},
+{
+"id": 5919033,
+"text": "’S e an fhìrinn a tha agam.",
+"translation": "It's the truth.",
+"clozeWord": "fhìrinn",
+"clozeIndex": 3,
+"wordRank": 1602,
+"collection": "top2000"
+},
+{
+"id": 3807634,
+"text": "Bhìd an broc an gille.",
+"translation": "The badger bit the boy.",
+"clozeWord": "gille.",
+"clozeIndex": 4,
+"wordRank": 1607,
+"collection": "top2000"
+},
+{
+"id": 4217757,
+"text": "Tha mi ro thrang aig m' obair.",
+"translation": "I'm too busy at work.",
+"clozeWord": "thrang",
+"clozeIndex": 3,
+"wordRank": 1622,
+"collection": "top2000"
+},
+{
+"id": 852126,
+"text": "Tha thu trang an-dràsda, nach eil?",
+"translation": "You are busy now, aren't you?",
+"clozeWord": "trang",
+"clozeIndex": 2,
+"wordRank": 1622,
+"collection": "top2000"
+},
+{
+"id": 852127,
+"text": "Tha sibh trang an-dràsda, nach eil?",
+"translation": "You are busy now, aren't you?",
+"clozeWord": "trang",
+"clozeIndex": 2,
+"wordRank": 1622,
+"collection": "top2000"
+},
+{
+"id": 852131,
+"text": "A bheil thu trang an-dràsda?",
+"translation": "Are you busy now?",
+"clozeWord": "trang",
+"clozeIndex": 3,
+"wordRank": 1622,
+"collection": "top2000"
+},
+{
+"id": 852133,
+"text": "A bheil sibh trang an-dràsda?",
+"translation": "Are you busy now?",
+"clozeWord": "trang",
+"clozeIndex": 3,
+"wordRank": 1622,
+"collection": "top2000"
+},
+{
+"id": 1516375,
+"text": "Cha robh mi trang an-dè.",
+"translation": "I wasn't busy yesterday.",
+"clozeWord": "trang",
+"clozeIndex": 3,
+"wordRank": 1622,
+"collection": "top2000"
+},
+{
+"id": 12228597,
+"text": "Dè tha thu a' cur sa ghàrradh?",
+"translation": "What do you plant in the garden?",
+"clozeWord": "ghàrradh?",
+"clozeIndex": 6,
+"wordRank": 1636,
+"collection": "top2000"
+},
+{
+"id": 4224759,
+"text": "Rinn mi obair anns a' ghàrradh.",
+"translation": "I did some work in the garden.",
+"clozeWord": "ghàrradh.",
+"clozeIndex": 5,
+"wordRank": 1636,
+"collection": "top2000"
+},
+{
+"id": 4192184,
+"text": "Tha mi sa ghàrradh.",
+"translation": "I am in the garden.",
+"clozeWord": "ghàrradh.",
+"clozeIndex": 3,
+"wordRank": 1636,
+"collection": "top2000"
+},
+{
+"id": 852011,
+"text": "Bha i anns an leabaidh tron mhadainn a leughadh leabhar.",
+"translation": "She was in bed during the morning reading a book.",
+"clozeWord": "leabaidh",
+"clozeIndex": 4,
+"wordRank": 1647,
+"collection": "top2000"
+},
+{
+"id": 5884316,
+"text": "Saoilidh mi gun robh fearg aige.",
+"translation": "I think he was angry.",
+"clozeWord": "fearg",
+"clozeIndex": 4,
+"wordRank": 1656,
+"collection": "top2000"
+},
+{
+"id": 773130,
+"text": "Tha sin a' cur fearg oirre.",
+"translation": "This makes her angry.",
+"clozeWord": "fearg",
+"clozeIndex": 4,
+"wordRank": 1656,
+"collection": "top2000"
+},
+{
+"id": 5884291,
+"text": "Tha fearg aig Ciorstag orm.",
+"translation": "Karen is angry with me.",
+"clozeWord": "fearg",
+"clozeIndex": 1,
+"wordRank": 1656,
+"collection": "top2000"
+},
+{
+"id": 773126,
+"text": "Cairson a tha fearg ort?",
+"translation": "Why are you angry?",
+"clozeWord": "fearg",
+"clozeIndex": 3,
+"wordRank": 1656,
+"collection": "top2000"
+},
+{
+"id": 5884303,
+"text": "Chuir mi fearg air.",
+"translation": "I have made him angry.",
+"clozeWord": "fearg",
+"clozeIndex": 2,
+"wordRank": 1656,
+"collection": "top2000"
+},
+{
+"id": 5884278,
+"text": "A bheil fearg agad?",
+"translation": "Are you angry?",
+"clozeWord": "fearg",
+"clozeIndex": 2,
+"wordRank": 1656,
+"collection": "top2000"
+},
+{
+"id": 5919634,
+"text": "Cha robh smùid air Tòmas.",
+"translation": "Tom wasn't drunk.",
+"clozeWord": "smùid",
+"clozeIndex": 2,
+"wordRank": 1664,
+"collection": "top2000"
+},
+{
+"id": 770508,
+"text": "Tha an t-éigh glè thiugh.",
+"translation": "The ice is very thick.",
+"clozeWord": "thiugh.",
+"clozeIndex": 4,
+"wordRank": 1666,
+"collection": "top2000"
+},
+{
+"id": 3573537,
+"text": "Tha am bainne nas fheàrr na am bùrn.",
+"translation": "Milk is better than water.",
+"clozeWord": "bùrn.",
+"clozeIndex": 7,
+"wordRank": 1694,
+"collection": "top2000"
+},
+{
+"id": 1516526,
+"text": "Seo an rothair agam.",
+"translation": "Here is my bicycle.",
+"clozeWord": "rothair",
+"clozeIndex": 2,
+"wordRank": 1720,
+"collection": "top2000"
+},
+{
+"id": 3095233,
+"text": "Bha mi glè sgìth a-raoir.",
+"translation": "I was very tired last night.",
+"clozeWord": "sgìth",
+"clozeIndex": 3,
+"wordRank": 1753,
+"collection": "top2000"
+},
+{
+"id": 3095236,
+"text": "Bha mi glè sgìth an-diugh.",
+"translation": "I was very tired today.",
+"clozeWord": "sgìth",
+"clozeIndex": 3,
+"wordRank": 1753,
+"collection": "top2000"
+},
+{
+"id": 3095232,
+"text": "Bha mi glè sgìth.",
+"translation": "I was very tired.",
+"clozeWord": "sgìth.",
+"clozeIndex": 3,
+"wordRank": 1753,
+"collection": "top2000"
+},
+{
+"id": 3094967,
+"text": "Tha mi glè sgìth.",
+"translation": "I'm very tired.",
+"clozeWord": "sgìth.",
+"clozeIndex": 3,
+"wordRank": 1753,
+"collection": "top2000"
+},
+{
+"id": 3095219,
+"text": "Cha robh thu sgìth.",
+"translation": "You weren't tired.",
+"clozeWord": "sgìth.",
+"clozeIndex": 3,
+"wordRank": 1753,
+"collection": "top2000"
+},
+{
+"id": 3095222,
+"text": "Nach robh thu sgìth?",
+"translation": "Weren't you tired?",
+"clozeWord": "sgìth?",
+"clozeIndex": 3,
+"wordRank": 1753,
+"collection": "top2000"
+},
+{
+"id": 5919028,
+"text": "’S fhiach còig dolaran aon not.",
+"translation": "Five dollars are worth one pound.",
+"clozeWord": "fhiach",
+"clozeIndex": 1,
+"wordRank": 1755,
+"collection": "top2000"
+},
+{
+"id": 1516327,
+"text": "Tha coltas brònach ort.",
+"translation": "You look gloomy.",
+"clozeWord": "brònach",
+"clozeIndex": 2,
+"wordRank": 1796,
+"collection": "top2000"
+},
+{
+"id": 1514146,
+"text": "Dh'fhosgail mi am bogsa. Bha e falamh.",
+"translation": "I opened the box. It was empty.",
+"clozeWord": "bogsa.",
+"clozeIndex": 3,
+"wordRank": 1803,
+"collection": "top2000"
+},
+{
+"id": 5745650,
+"text": "Tionailidh maoin, maoin, agus tionailidh fiachan, fiachan.",
+"translation": "Wealth collects wealth and debt collects debt.",
+"clozeWord": "maoin,",
+"clozeIndex": 1,
+"wordRank": 1814,
+"collection": "top2000"
+},
+{
+"id": 773143,
+"text": "Halò, ciamar a tha thu, a chàraid choir?",
+"translation": "Hi, how are you, my dear friend?",
+"clozeWord": "chàraid",
+"clozeIndex": 6,
+"wordRank": 1816,
+"collection": "top2000"
+},
+{
+"id": 773188,
+"text": "Ann an a-màireach a bhios tu a' falbh air saor-làithean?",
+"translation": "Are you going to be on vacation tomorrow?",
+"clozeWord": "saor-làithean?",
+"clozeIndex": 9,
+"wordRank": 1832,
+"collection": "top2000"
+},
+{
+"id": 5881708,
+"text": "Tha Tòmas a' dol a-nìos an staidhre.",
+"translation": "Tom is going upstairs.",
+"clozeWord": "staidhre.",
+"clozeIndex": 6,
+"wordRank": 1838,
+"collection": "top2000"
+},
+{
+"id": 5751059,
+"text": "Am faca tu mo leannan?",
+"translation": "Did you see my boyfriend?",
+"clozeWord": "leannan?",
+"clozeIndex": 4,
+"wordRank": 1866,
+"collection": "top2000"
+},
+{
+"id": 5745543,
+"text": "Thòisich mi air ionnsachadh dha-rìribh san Dàmhair.",
+"translation": "I started to learn it seriously in October.",
+"clozeWord": "dha-rìribh",
+"clozeIndex": 4,
+"wordRank": 1900,
+"collection": "top2000"
+},
+{
+"id": 851890,
+"text": "Tha an t-ìm air an aran glè mhath.",
+"translation": "The butter on the bread is very good.",
+"clozeWord": "t-ìm",
+"clozeIndex": 2,
+"wordRank": 1910,
+"collection": "top2000"
+},
+{
+"id": 5751746,
+"text": "'S bhòidheach an latha.",
+"translation": "It's a beautiful day.",
+"clozeWord": "bhòidheach",
+"clozeIndex": 1,
+"wordRank": 1912,
+"collection": "top2000"
+},
+{
+"id": 877864,
+"text": "Am faca tu cangarù riamh?",
+"translation": "Have you ever seen a kangaroo?",
+"clozeWord": "faca",
+"clozeIndex": 1,
+"wordRank": 1920,
+"collection": "top2000"
+},
+{
+"id": 877871,
+"text": "Am faca sibh cangarù riamh?",
+"translation": "Have you ever seen a kangaroo?",
+"clozeWord": "faca",
+"clozeIndex": 1,
+"wordRank": 1920,
+"collection": "top2000"
+},
+{
+"id": 4192643,
+"text": "Am faca sibh seo fhathast?",
+"translation": "Have you seen this yet?",
+"clozeWord": "faca",
+"clozeIndex": 1,
+"wordRank": 1920,
+"collection": "top2000"
+},
+{
+"id": 773152,
+"text": "Am toigh leat a bhith a' leughadh Tatoeba?",
+"translation": "Do you like to read Tatoeba?",
+"clozeWord": "toigh",
+"clozeIndex": 1,
+"wordRank": 1921,
+"collection": "top2000"
+},
+{
+"id": 5881671,
+"text": "Bu toigh leotha m' fhaicinn.",
+"translation": "They would like to see me.",
+"clozeWord": "toigh",
+"clozeIndex": 1,
+"wordRank": 1921,
+"collection": "top2000"
+},
+{
+"id": 3077675,
+"text": "Tha mi ag ithe ubhal.",
+"translation": "I'm eating an apple.",
+"clozeWord": "ubhal.",
+"clozeIndex": 4,
+"wordRank": 1942,
+"collection": "top2000"
+},
+{
+"id": 1516535,
+"text": "Carson nach èist thu rium?",
+"translation": "Why don't you listen to me?",
+"clozeWord": "èist",
+"clozeIndex": 2,
+"wordRank": 1961,
+"collection": "top2000"
+},
+{
+"id": 5752904,
+"text": "Tha mi toilichte do choinneachadh, a Thàmais.",
+"translation": "Pleased to meet you, Tom.",
+"clozeWord": "toilichte",
+"clozeIndex": 2,
+"wordRank": 1967,
+"collection": "top2000"
+},
+{
+"id": 5918900,
+"text": "Cha bhithinn toilichte le sin.",
+"translation": "I wouldn't be pleased with that.",
+"clozeWord": "toilichte",
+"clozeIndex": 2,
+"wordRank": 1967,
+"collection": "top2000"
+},
+{
+"id": 5881720,
+"text": "Bhithinn toilichte do chuideachadh.",
+"translation": "I'd be happy to help you.",
+"clozeWord": "toilichte",
+"clozeIndex": 1,
+"wordRank": 1967,
+"collection": "top2000"
+},
+{
+"id": 3095097,
+"text": "Nach eil thu toilichte?",
+"translation": "Aren't you pleased?",
+"clozeWord": "toilichte?",
+"clozeIndex": 3,
+"wordRank": 1967,
+"collection": "top2000"
+},
+{
+"id": 9256334,
+"text": "Chan eil i toilichte.",
+"translation": "She's not happy.",
+"clozeWord": "toilichte.",
+"clozeIndex": 3,
+"wordRank": 1967,
+"collection": "top2000"
+},
+{
+"id": 9276374,
+"text": "An robh thu toilichte?",
+"translation": "Were you happy?",
+"clozeWord": "toilichte?",
+"clozeIndex": 3,
+"wordRank": 1967,
+"collection": "top2000"
+},
+{
+"id": 1516062,
+"text": "Tha thu fortanach gu bheil càirdean cho math agad.",
+"translation": "You are fortunate for having such good friends.",
+"clozeWord": "fortanach",
+"clozeIndex": 2,
+"wordRank": 1970,
+"collection": "top2000"
+},
+{
+"id": 1516064,
+"text": "Tha sibh fortanach gu bheil càirdean cho math agaibh.",
+"translation": "You are fortunate for having such good friends.",
+"clozeWord": "fortanach",
+"clozeIndex": 2,
+"wordRank": 1970,
+"collection": "top2000"
+},
+{
+"id": 3047423,
+"text": "Tha na h-eòin a' seinn.",
+"translation": "The birds are singing.",
+"clozeWord": "h-eòin",
+"clozeIndex": 2,
+"wordRank": 1980,
+"collection": "top2000"
+},
+{
+"id": 851893,
+"text": "Bha e uabhasach stoirmeil anns an fheasgar.",
+"translation": "It was very stormy in the afternoon.",
+"clozeWord": "stoirmeil",
+"clozeIndex": 3,
+"wordRank": 1999,
+"collection": "top2000"
+}
+]

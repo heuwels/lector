@@ -52,6 +52,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'Explain the difference between "être" and "avoir" as auxiliaries',
     "How does elision work (l', d', qu')?",
   ],
+  gd: [
+    'How does lenition work, and when does bean become bhean?',
+    'When do I use tha versus is for "to be"?',
+    "How do the articles an, am and a' choose their form?",
+  ],
   grc: [
     'How does the Greek article work across cases and genders?',
     'What does the aorist tense mean compared to the imperfect?',
