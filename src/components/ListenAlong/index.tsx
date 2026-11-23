@@ -30,6 +30,7 @@ import type { AudioTranscriptSegment, Lesson, WordState } from '@/types';
 import { foldWord, getLanguageConfig, isValidLanguageCode } from '@/lib/languages';
 import { useActiveLanguage } from '@/utils/hooks';
 import { splitWords } from '@/components/MarkdownReader/utils';
+import type { WordAnchor } from '@/components/MarkdownReader/types';
 import WordCell from '@/components/WordCell';
 import { createAudioUnitPlayer, type UnitPlayer } from './drill-player';
 import { activeSegmentIndex, formatClock, nextPlaybackRate } from './utils';
@@ -42,7 +43,7 @@ export interface ListenAlongProps {
   audioUrl: string;
   knownWordsMap: Map<string, WordState>;
   wordPanelOpen?: boolean;
-  onWordClick: (word: string, sentence: string) => void;
+  onWordClick: (word: string, sentence: string, anchor?: WordAnchor) => void;
   /** Back to reading mode. */
   onExit: () => void;
 }
@@ -185,7 +186,7 @@ export default function ListenAlong({
   );
 
   const handleWordTap = useCallback(
-    (segment: AudioTranscriptSegment, wordIndex: number, text: string) => {
+    (segment: AudioTranscriptSegment, wordIndex: number, text: string, element: HTMLElement) => {
       // Interacting with a word always pauses — the whole point is to stop and
       // look it up without losing the playhead.
       unitPlayer()?.stop();
@@ -195,7 +196,7 @@ export default function ListenAlong({
       const scroller = scrollContainerRef.current;
       if (scroller) scroller.scrollTo({ top: scroller.scrollTop, behavior: 'auto' });
       setActiveWord({ segmentIdx: segment.idx, wordIndex });
-      onWordClick(text, segment.text);
+      onWordClick(text, segment.text, element.getBoundingClientRect());
     },
     [onWordClick, unitPlayer],
   );
@@ -236,7 +237,7 @@ export default function ListenAlong({
       </header>
 
       {/* Segments */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto">
+      <div ref={scrollContainerRef} data-reader-content="" className="flex-1 overflow-auto">
         <div
           className="mx-auto max-w-[38em] px-4 py-8 sm:px-8"
           style={{ fontFamily: 'var(--font-literata), Georgia, serif' }}
@@ -278,7 +279,9 @@ export default function ListenAlong({
                         effectiveActiveWord?.segmentIdx === segment.idx &&
                         effectiveActiveWord.wordIndex === partIndex
                       }
-                      onActivate={(text) => handleWordTap(segment, partIndex, text)}
+                      onActivate={(text, element) =>
+                        handleWordTap(segment, partIndex, text, element)
+                      }
                     />
                   ) : (
                     <span key={partIndex}>{part.text}</span>

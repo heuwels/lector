@@ -19,6 +19,7 @@ import { readerWrapClass } from '../wrap';
 import { proseStyleVars } from '@/lib/prose-style';
 import WordCell from '@/components/WordCell';
 import type { ActiveReaderWord, ReaderArticleProps } from './types';
+import type { WordAnchor } from '../types';
 
 export type { ActiveReaderWord } from './types';
 
@@ -42,7 +43,7 @@ export interface ReaderBlockProps {
   annotationMode: AnnotationMode;
   highlightedPhrase: string[];
   activeWord: ActiveReaderWord | null;
-  onWordClick: (word: string, sentence: string) => void;
+  onWordClick: (word: string, sentence: string, anchor?: WordAnchor) => void;
   onActivateWord: (word: ActiveReaderWord) => void;
   onClearPhrase: () => void;
 }
@@ -159,7 +160,7 @@ const ReaderBlock = memo(function ReaderBlock({
             onActivate={(text, element) => {
               onClearPhrase();
               onActivateWord({ blockId, wordIndex });
-              onWordClick(text, findSentence(element, pack));
+              onWordClick(text, findSentence(element, pack), element.getBoundingClientRect());
             }}
           />
         );

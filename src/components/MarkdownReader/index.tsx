@@ -304,7 +304,11 @@ export default function MarkdownReader({
       setActiveWord(null);
       setHighlightedPhrase(words);
 
-      onWordClick(text, wordElement ? findSentence(wordElement) : '');
+      onWordClick(
+        text,
+        wordElement ? findSentence(wordElement) : '',
+        wordElement?.getBoundingClientRect(),
+      );
     },
     [onWordClick, phraseWords, findSentence],
   );
@@ -411,6 +415,7 @@ export default function MarkdownReader({
       {/* Content */}
       <div
         ref={containerRef}
+        data-reader-content=""
         onScroll={handleScroll}
         onMouseUp={handleMouseUp}
         className="flex-1 overflow-auto print:block print:h-auto print:overflow-visible"

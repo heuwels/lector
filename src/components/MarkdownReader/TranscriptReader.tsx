@@ -5,7 +5,7 @@ import { Play } from 'lucide-react';
 import type { LanguageConfig, WordSegmentation } from '@/lib/languages';
 import { foldWord, lookupByVocabKeys } from '@/lib/languages';
 import type { TranscriptSegment, WordState } from '@/types';
-import type { WordSource } from './types';
+import type { WordAnchor, WordSource } from './types';
 import type { ActiveReaderWord } from './ReaderArticle';
 import { collectWords, computePhraseHighlightSet, splitWords } from './utils';
 import { wordReading, type AnnotationMode } from './annotation';
@@ -42,7 +42,7 @@ interface TranscriptReaderProps {
   highlightedPhrase: string[];
   activeWord: ActiveReaderWord | null;
   activeSegmentIndex: number | null;
-  onWordClick: (word: string, sentence: string, source?: WordSource) => void;
+  onWordClick: (word: string, sentence: string, anchor?: WordAnchor, source?: WordSource) => void;
   onActivateWord: (word: ActiveReaderWord) => void;
   onClearPhrase: () => void;
   onSeek: (seconds: number, segmentIndex: number) => void;
@@ -158,10 +158,10 @@ function TranscriptReader({
                     isPhraseHighlighted={phraseSet.has(thisIndex)}
                     reading={wordReading(annotationMode, readings, key, state)}
                     readingOverhangs={overhangs}
-                    onActivate={() => {
+                    onActivate={(text, element) => {
                       onClearPhrase();
                       onActivateWord({ blockId: segmentIndex, wordIndex: thisIndex });
-                      onWordClick(part.text, segment.text, source);
+                      onWordClick(text, segment.text, element.getBoundingClientRect(), source);
                     }}
                   />
                 );

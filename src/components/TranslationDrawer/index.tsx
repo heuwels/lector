@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import type { WordState } from '@/types';
@@ -21,6 +21,7 @@ export default function TranslationDrawer({
   isOpen: rawIsOpen,
   word,
   sentence,
+  anchor,
   entry,
   aiTranslation,
   aiPartOfSpeech,
@@ -75,6 +76,37 @@ export default function TranslationDrawer({
   const isOpen = useMemo(() => docked || rawIsOpen, [docked, rawIsOpen]);
   const idle = docked && !word.trim();
 
+  // Popup mode keeps rendering for one short transition after rawIsOpen goes
+  // false, so the close reads as a fade-out instead of a hard unmount.
+  // Adjusted during render (like prevWord above), not an effect: re-targeting
+  // the popup to a new word while open must not trigger this.
+  const [shouldRenderPopup, setShouldRenderPopup] = useState(rawIsOpen);
+  const [popupClosing, setPopupClosing] = useState(false);
+  const [popupEntering, setPopupEntering] = useState(rawIsOpen);
+  if (rawIsOpen && !shouldRenderPopup) {
+    setShouldRenderPopup(true);
+    setPopupClosing(false);
+    setPopupEntering(true);
+  } else if (!rawIsOpen && shouldRenderPopup && !popupClosing) {
+    setPopupClosing(true);
+  }
+  // One frame at the closed-looking classes, then release to the open ones,
+  // so the transition actually has a "from" state to animate out of instead
+  // of mounting already fully open.
+  useEffect(() => {
+    if (!popupEntering) return;
+    const raf = requestAnimationFrame(() => setPopupEntering(false));
+    return () => cancelAnimationFrame(raf);
+  }, [popupEntering]);
+  useEffect(() => {
+    if (!popupClosing) return;
+    const timer = setTimeout(() => {
+      setShouldRenderPopup(false);
+      setPopupClosing(false);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [popupClosing]);
+
   useEffect(() => {
     if (!isOpen || docked) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -84,13 +116,88 @@ export default function TranslationDrawer({
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen, onClose, docked]);
 
-  // Click-outside-to-close intentionally omitted: it races with the
-  // new-word click handler (mousedown closes the drawer before the click
-  // fires on the new word). Users dismiss with Esc or the close button,
-  // and clicking another word simply switches the drawer to that word.
+  // Popup mode (non-docked): positioned next to the clicked word instead of
+  // sliding in from the side. Recomputed on every content resize (e.g. the
+  // "More details" disclosure opening) via ResizeObserver, not just on open.
+  const popupRef = useRef<HTMLDivElement>(null);
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (docked || !rawIsOpen || !anchor) return;
+    const el = popupRef.current;
+    if (!el) return;
+    const margin = 8;
+    const compute = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const width = el.offsetWidth;
+      const height = el.offsetHeight;
+      const left = Math.min(Math.max(anchor.left, margin), Math.max(margin, vw - width - margin));
+      let top = anchor.bottom + margin;
+      if (top + height > vh - margin) {
+        const above = anchor.top - margin - height;
+        top = above >= margin ? above : Math.max(margin, vh - height - margin);
+      }
+      setPopupPos({ top, left });
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    window.addEventListener('resize', compute);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', compute);
+    };
+  }, [docked, rawIsOpen, anchor, word]);
+
+  // Dismiss the popup on an outside click or a reader scroll. A click on
+  // another word is exempted — the reader's own click handler re-targets the
+  // popup to it, this must not race that by closing first. Reader content
+  // (word clicks, phrase drag-selection) is exempted the same way via
+  // `data-reader-content` on the scroll container.
+  useEffect(() => {
+    if (docked || !rawIsOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (popupRef.current?.contains(target)) return;
+      if (target.closest('[data-reader-content]')) return;
+      onClose();
+    };
+    const handleScroll = (e: Event) => {
+      const target = e.target as Node;
+      if (popupRef.current?.contains(target)) return;
+      onClose();
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [docked, rawIsOpen, onClose]);
 
   const handleSpeakWord = useCallback(() => onSpeak(word), [onSpeak, word]);
   const handleSpeakSentence = useCallback(() => onSpeak(sentence), [onSpeak, sentence]);
+
+  // Popup actions (level/known/ignore): run the action immediately — its
+  // optimistic color shows right away — then close on a short delay so that
+  // color is actually visible for a beat before the popup fades, instead of
+  // both state changes landing in the same paint.
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    },
+    [],
+  );
+  const actAndClose = useCallback(
+    (action: () => void) => {
+      action();
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+      closeTimer.current = setTimeout(onClose, 180);
+    },
+    [onClose],
+  );
 
   // Languages with `pronunciation.audio: 'none'` (#307 §3.2a) have no sensible
   // synthesized voice — the speaker buttons absent themselves entirely.
@@ -116,6 +223,28 @@ export default function TranslationDrawer({
     error,
     hasResult: !!(hasRichEntry || fallbackTranslation || aiContextTranslation || aiPhraseDetails),
   });
+
+  // Popup mode shows one gloss up front; everything else — the rest of the
+  // senses, etymology, related forms, phrase details, sentence, Anki — sits
+  // behind "More details" instead of a scrollable wall of sections.
+  const primaryPartOfSpeech = aiContextTranslation
+    ? aiContextPartOfSpeech
+    : hasRichEntry
+      ? senses[0]?.partOfSpeech
+      : aiPartOfSpeech;
+  const primaryGloss =
+    aiContextTranslation ?? (hasRichEntry ? senses[0]?.gloss : fallbackTranslation);
+  const hasMoreDetails =
+    (hasRichEntry && senses.length > 1) ||
+    !!entry?.etymology ||
+    !!(entry?.relatedForms && entry.relatedForms.length > 0) ||
+    !!aiPhraseDetails ||
+    !!sentence ||
+    !!onRequestContextTranslation ||
+    !!onEnrich ||
+    !!onRetranslate ||
+    !!onAddToAnki ||
+    !!onAddCloze;
 
   const content = (
     <div
@@ -768,7 +897,532 @@ export default function TranslationDrawer({
     </div>
   );
 
+  const popupContent = (
+    <div
+      ref={popupRef}
+      data-testid="translation-drawer"
+      aria-hidden={false}
+      role="dialog"
+      aria-label={`Definition of ${word}`}
+      className={clsx(
+        'fixed z-50 w-80 max-w-[calc(100vw-16px)] origin-top rounded-xl border border-border bg-popover shadow-2xl transition-[opacity,transform] duration-150 ease-in print:hidden',
+        popupClosing || popupEntering
+          ? 'pointer-events-none scale-95 opacity-0'
+          : 'scale-100 opacity-100',
+      )}
+      style={{
+        top: popupPos?.top ?? -9999,
+        left: popupPos?.left ?? -9999,
+        visibility: popupPos ? 'visible' : 'hidden',
+      }}
+    >
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="lookup-announcement"
+      >
+        {announcement}
+      </div>
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2 border-b border-border px-3 py-2.5">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <span
+            className={`h-2 w-2 flex-shrink-0 rounded-full ${stateColors.dot}`}
+            title={wordStateLabels[currentState]}
+          />
+          <h2 className="truncate text-base font-semibold text-foreground">
+            <TargetText>{word}</TargetText>
+          </h2>
+          {speakable && (
+            <button
+              onClick={handleSpeakWord}
+              className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Hear pronunciation"
+              aria-label="Hear pronunciation"
+            >
+              <Volume2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={onClose}
+          className="flex-shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          aria-label="Close"
+          title="Close (Esc)"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Translation — the one thing you came here for */}
+      <div className="px-3 py-2.5">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            Looking up…
+          </div>
+        ) : error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : primaryGloss ? (
+          <div className="text-sm leading-relaxed text-foreground">
+            {primaryPartOfSpeech && (
+              <span className="mr-1.5 inline-block rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+                {primaryPartOfSpeech}
+              </span>
+            )}
+            {primaryGloss}
+            {isStreaming && (
+              <span
+                className="-mb-0.5 ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-primary"
+                aria-hidden="true"
+              />
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">No definition found.</p>
+        )}
+      </div>
+
+      {/* Actions — the point of the popup: judge the word and move on. */}
+      {(onSetLevel || onMarkKnown || onIgnore) && (
+        <div className="space-y-2 border-t border-border bg-muted/50 px-3 py-2.5">
+          {onboardingSaveProgress && (
+            <div
+              className="rounded-lg border border-[var(--gold-lip)] bg-[var(--gold-soft)] p-2"
+              data-testid="onboarding-drawer-progress"
+              role="status"
+            >
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="font-semibold text-foreground">
+                  {onboardingSaveProgress.currentWordSaved
+                    ? 'Added to your first review'
+                    : 'Choose level 1–4 to add this word'}
+                </span>
+                <span className="shrink-0 font-bold text-[var(--gold-strong)]">
+                  {Math.min(onboardingSaveProgress.savedCount, onboardingSaveProgress.target)}/
+                  {onboardingSaveProgress.target}
+                </span>
+              </div>
+            </div>
+          )}
+          {onSetLevel && (
+            <div className="flex gap-1.5">
+              {[1, 2, 3, 4].map((level) => {
+                const stateKey = `level${level}` as WordState;
+                const isActive = currentState === stateKey;
+                const colors = wordStateColors[stateKey];
+                return (
+                  <button
+                    key={level}
+                    onClick={() => actAndClose(() => onSetLevel(level as 1 | 2 | 3 | 4))}
+                    data-testid={`word-level-${level}`}
+                    aria-label={`Save at learning level ${level}`}
+                    className={`h-8 flex-1 cursor-pointer rounded-lg text-sm font-semibold transition-all ${
+                      isActive
+                        ? `${colors.bg} ${colors.text} ring-2 ring-offset-1 ring-offset-popover ${colors.ring}`
+                        : 'bg-muted text-muted-foreground hover:bg-accent'
+                    }`}
+                    title={`Level ${level} (${level})`}
+                  >
+                    {level}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {(onMarkKnown || onIgnore) && (
+            <div className="flex gap-1.5">
+              {onMarkKnown && (
+                <button
+                  onClick={() => actAndClose(onMarkKnown)}
+                  data-testid="mark-word-known"
+                  className={`h-8 flex-1 cursor-pointer rounded-lg px-2.5 text-sm font-medium transition-colors ${
+                    currentState === 'known'
+                      ? 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-1 ring-offset-popover'
+                      : 'bg-muted text-foreground hover:bg-[var(--primary-soft)] hover:text-[var(--primary-text)]'
+                  }`}
+                  title="Mark as known (K)"
+                >
+                  ✓ Known
+                </button>
+              )}
+              {onIgnore && (
+                <button
+                  onClick={() => actAndClose(onIgnore)}
+                  data-testid="ignore-word"
+                  className={`h-8 flex-1 cursor-pointer rounded-lg px-2.5 text-sm font-medium transition-colors ${
+                    currentState === 'ignored'
+                      ? 'bg-muted-foreground text-card ring-2 ring-muted-foreground ring-offset-1 ring-offset-popover'
+                      : 'bg-muted text-foreground hover:bg-accent'
+                  }`}
+                  title="Ignore (X)"
+                >
+                  ✕ Ignore
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Everything else, tucked away by default. */}
+      {hasMoreDetails && (
+        <details key={word} className="group border-t border-border">
+          <summary className="flex cursor-pointer list-none items-center gap-1 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground">
+            <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+            More details
+          </summary>
+          <div className="max-h-72 space-y-3 overflow-y-auto px-3 pb-3">
+            {hasRichEntry && senses.length > 1 && (
+              <ol className="space-y-2">
+                {senses.map((sense, i) => (
+                  <li key={i} className="flex gap-2 text-sm">
+                    <span className="mt-0.5 flex-shrink-0 text-xs font-medium text-muted-foreground tabular-nums">
+                      {i + 1}.
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      {sense.partOfSpeech && (
+                        <span className="mr-2 inline-block rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+                          {sense.partOfSpeech}
+                        </span>
+                      )}
+                      <span className="text-foreground">
+                        <Gloss text={sense.gloss} onLookupWord={onLookupWord} />
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              {!isPhrase &&
+                !isLoading &&
+                !isContextLoading &&
+                onRequestContextTranslation &&
+                wordOccursInSentence && (
+                  <button
+                    onClick={onRequestContextTranslation}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-[var(--clay-soft)] px-2.5 py-1 text-xs font-medium text-[var(--clay)] transition-colors hover:bg-[color-mix(in_srgb,var(--clay)_18%,transparent)]"
+                    title="Translate using AI with sentence context"
+                  >
+                    <Zap className="h-3 w-3" />
+                    In context
+                  </button>
+                )}
+              {isContextLoading && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-[var(--clay)]">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--clay)] border-t-transparent" />
+                  Asking AI…
+                </span>
+              )}
+              {onEnrich &&
+                !isPhrase &&
+                !isLoading &&
+                !isStreaming &&
+                !isContextLoading &&
+                !isEnriching && (
+                  <button
+                    onClick={onEnrich}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    title="Add IPA, etymology, full senses & related forms"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Enrich
+                  </button>
+                )}
+              {isEnriching && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                  Enriching…
+                </span>
+              )}
+            </div>
+
+            {aiPhraseDetails &&
+              (aiPhraseDetails.literalBreakdown ||
+                aiPhraseDetails.idiomaticMeaning ||
+                aiPhraseDetails.usageNotes ||
+                aiPhraseDetails.register) && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  {aiPhraseDetails.idiomaticMeaning && (
+                    <div>
+                      <h3 className="mb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                        Idiomatic meaning
+                      </h3>
+                      <p className="text-sm leading-relaxed text-foreground">
+                        {aiPhraseDetails.idiomaticMeaning}
+                      </p>
+                    </div>
+                  )}
+                  {aiPhraseDetails.literalBreakdown && (
+                    <div>
+                      <h3 className="mb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                        Literally
+                      </h3>
+                      <p className="text-sm leading-relaxed text-foreground italic">
+                        {aiPhraseDetails.literalBreakdown}
+                      </p>
+                    </div>
+                  )}
+                  {aiPhraseDetails.usageNotes && (
+                    <div>
+                      <h3 className="mb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                        Usage
+                      </h3>
+                      <p className="text-sm leading-relaxed text-foreground">
+                        {aiPhraseDetails.usageNotes}
+                      </p>
+                    </div>
+                  )}
+                  {aiPhraseDetails.register && aiPhraseDetails.register !== 'neutral' && (
+                    <div className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground">
+                      {aiPhraseDetails.register}
+                    </div>
+                  )}
+                </div>
+              )}
+
+            {entry?.etymology && (
+              <div className="border-t border-border pt-3">
+                <h3 className="mb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                  Etymology
+                </h3>
+                <p className="text-sm leading-relaxed text-foreground">{entry.etymology}</p>
+              </div>
+            )}
+
+            {entry?.relatedForms &&
+              entry.relatedForms.length > 0 &&
+              (() => {
+                const total = entry.relatedForms.length;
+                const COLLAPSED_COUNT = 3;
+                const shown = relatedExpanded
+                  ? entry.relatedForms
+                  : entry.relatedForms.slice(0, COLLAPSED_COUNT);
+                const hiddenCount = total - shown.length;
+                return (
+                  <div className="border-t border-border pt-3">
+                    <h3 className="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                      Related forms
+                    </h3>
+                    <ul className="space-y-1">
+                      {shown.map((r, i) => (
+                        <li key={i} className="text-sm">
+                          {onLookupWord ? (
+                            <NestedWordButton
+                              word={r.form}
+                              onLookupWord={onLookupWord}
+                              testId="related-form-link"
+                            />
+                          ) : (
+                            <TargetText className="font-medium text-foreground" as="span">
+                              {r.form}
+                            </TargetText>
+                          )}
+                          <span className="ml-2 text-xs text-muted-foreground">{r.relation}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {total > COLLAPSED_COUNT && (
+                      <button
+                        onClick={() => setRelatedExpanded((v) => !v)}
+                        className="mt-2 text-xs font-medium text-primary transition-colors hover:text-[var(--primary-text)]"
+                      >
+                        {relatedExpanded ? 'Show fewer' : `Show all (${total})`}
+                        {!relatedExpanded && hiddenCount > 0 && (
+                          <span className="ml-1 text-muted-foreground">+{hiddenCount}</span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+
+            {sentence && (
+              <div className="flex items-start gap-2 border-t border-border pt-3">
+                <TargetText
+                  className="flex-1 text-sm leading-relaxed text-muted-foreground italic"
+                  as="p"
+                >
+                  {sentence}
+                </TargetText>
+                {speakable && (
+                  <button
+                    onClick={handleSpeakSentence}
+                    className="flex-shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    title="Hear sentence"
+                    aria-label="Hear sentence"
+                  >
+                    <Volume2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {onRetranslate && (
+              <button
+                onClick={onRetranslate}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                title="Force fresh AI lookup (ignores dictionary)"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Re-translate with AI
+              </button>
+            )}
+
+            {!isPhrase && onAddToAnki && (hasRichEntry || fallbackTranslation) && !isLoading && (
+              <button
+                data-testid="add-to-anki-btn"
+                onClick={async () => {
+                  if (ankiStatus === 'loading' || ankiStatus === 'done') return;
+                  setAnkiStatus('loading');
+                  try {
+                    await onAddToAnki();
+                    setAnkiStatus('done');
+                  } catch {
+                    setAnkiStatus('error');
+                  }
+                }}
+                disabled={ankiStatus === 'loading' || ankiStatus === 'done'}
+                className={`flex w-full items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  ankiStatus === 'done'
+                    ? 'cursor-default border-primary/40 bg-primary/10 text-[var(--primary-text)]'
+                    : ankiStatus === 'error'
+                      ? 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20'
+                      : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
+                }`}
+              >
+                {ankiStatus === 'done'
+                  ? '✓ Added to Anki'
+                  : ankiStatus === 'loading'
+                    ? 'Adding…'
+                    : ankiStatus === 'error'
+                      ? 'Anki error — retry'
+                      : 'Add to Anki'}
+              </button>
+            )}
+
+            {isPhrase && onAddCloze && (fallbackTranslation || aiPhraseDetails) && !isLoading && (
+              <div data-testid="add-cloze-section">
+                {!clozePickerOpen ? (
+                  <button
+                    data-testid="add-cloze-btn"
+                    onClick={() => setClozePickerOpen(true)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    Add to Anki as Cloze
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Pick a word to blank:</p>
+                    <div className="flex flex-wrap gap-1" data-testid="cloze-word-chips">
+                      {word
+                        .split(/\s+/)
+                        .filter(Boolean)
+                        .map((w, i) => (
+                          <button
+                            key={i}
+                            data-testid={`cloze-chip-${i}`}
+                            onClick={() => setClozeBlankWord(clozeBlankWord === w ? null : w)}
+                            className={`rounded px-2 py-0.5 text-sm font-medium transition-colors ${
+                              clozeBlankWord === w
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-foreground hover:bg-accent'
+                            }`}
+                          >
+                            {w}
+                          </button>
+                        ))}
+                    </div>
+                    {clozeBlankWord && (
+                      <p
+                        className="font-mono text-xs text-muted-foreground"
+                        data-testid="cloze-preview"
+                      >
+                        {word
+                          .split(/\s+/)
+                          .filter(Boolean)
+                          .map((w, i) => (
+                            <span key={i}>
+                              {i > 0 && ' '}
+                              {w === clozeBlankWord ? (
+                                <span className="font-semibold text-primary">[{w}]</span>
+                              ) : (
+                                w
+                              )}
+                            </span>
+                          ))}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        data-testid="cloze-send-btn"
+                        onClick={async () => {
+                          if (
+                            !clozeBlankWord ||
+                            clozeStatus === 'loading' ||
+                            clozeStatus === 'done'
+                          )
+                            return;
+                          setClozeStatus('loading');
+                          try {
+                            await onAddCloze(clozeBlankWord);
+                            setClozeStatus('done');
+                          } catch {
+                            setClozeStatus('error');
+                          }
+                        }}
+                        disabled={
+                          !clozeBlankWord || clozeStatus === 'loading' || clozeStatus === 'done'
+                        }
+                        className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          !clozeBlankWord || clozeStatus === 'loading'
+                            ? 'cursor-not-allowed border-border text-muted-foreground opacity-50'
+                            : clozeStatus === 'done'
+                              ? 'cursor-default border-primary/40 bg-primary/10 text-[var(--primary-text)]'
+                              : clozeStatus === 'error'
+                                ? 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20'
+                                : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
+                        }`}
+                      >
+                        {clozeStatus === 'done'
+                          ? '✓ Sent to Anki'
+                          : clozeStatus === 'loading'
+                            ? 'Sending…'
+                            : clozeStatus === 'error'
+                              ? 'Error — retry'
+                              : 'Send to Anki'}
+                      </button>
+                      {clozeStatus !== 'done' && (
+                        <button
+                          data-testid="cloze-cancel-btn"
+                          onClick={() => {
+                            setClozePickerOpen(false);
+                            setClozeBlankWord(null);
+                            setClozeStatus('idle');
+                          }}
+                          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+
   if (typeof document === 'undefined') return null;
   if (docked) return content;
-  return createPortal(content, document.body);
+  if (!shouldRenderPopup) return null;
+  return createPortal(popupContent, document.body);
 }

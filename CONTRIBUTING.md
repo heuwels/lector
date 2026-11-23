@@ -37,7 +37,7 @@ Copy `.env.example` to `.env.local` for keys. The app runs with no keys. The loc
 ### Tests
 
 - Unit tests for UI logic: `npm test`
-- Unit tests for the API: `cd api && bun test`
+- Unit tests for the API: `cd api && bun run test`
 - End-to-end tests: `npm run test:e2e`
 
 A new feature needs unit tests for the logic and Playwright coverage for the path that a user takes. See `AGENTS.md`.

@@ -1,10 +1,13 @@
-import { ExpandedDictionaryEntry } from "@/lib/dictionary-client";
-import { VocabEntry } from "@/types";
+import { ExpandedDictionaryEntry } from '@/lib/dictionary-client';
+import { VocabEntry } from '@/types';
+import type { WordAnchor } from '@/components/MarkdownReader/types';
 
 export interface WordPanelState {
   isOpen: boolean;
   word: string;
   sentence: string;
+  /** Viewport position of the clicked word, anchoring the popup next to it. */
+  anchor: WordAnchor | null;
   translation: string | null;
   partOfSpeech: string | null;
   dictEntry: ExpandedDictionaryEntry | null;
