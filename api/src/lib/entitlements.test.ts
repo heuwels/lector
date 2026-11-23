@@ -3,6 +3,7 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import path from 'path';
 import { db } from '../db';
+import { knownBillingPrices, trialPricesFromEnv } from './billing';
 import {
   currentDay,
   currentPeriod,
@@ -268,6 +269,37 @@ describe('plan resolution', () => {
 
     const flagOff = makeEntitlements(makeDeps({ freeTierEnabled: false }));
     expect(flagOff.resolveEntitlements('ent-none').plan).toBe('cloud');
+  });
+
+  test('a subscription on a trial price id keeps its plan through the production price list', () => {
+    const standard = [
+      { id: CLOUD_PRICE, plan: 'cloud', cycle: 'month' },
+      { id: PLUS_PRICE, plan: 'plus', cycle: 'month' },
+    ] as const;
+    const trialPrices = trialPricesFromEnv(
+      { PADDLE_PRICE_PLUS_MONTHLY_TRIAL: 'pri_ent_plus_trial' },
+      [...standard],
+    );
+    const engine = makeEntitlements(
+      makeDeps({ prices: knownBillingPrices({ prices: standard, trialPrices }) }),
+    );
+    seedSubscription('ent-plus-trial', 'trialing', 'pri_ent_plus_trial');
+    expect(engine.resolveEntitlements('ent-plus-trial').plan).toBe('plus');
+    seedSubscription('ent-plus-trial', 'active', 'pri_ent_plus_trial', '2026-07-02T00:00:00Z');
+    expect(engine.resolveEntitlements('ent-plus-trial').plan).toBe('plus');
+  });
+
+  test('a Free cutoff derives Free only for an account created before it', () => {
+    const cutoff = Date.UTC(2026, 11, 1);
+    const created: Record<string, number> = { 'ent-early': cutoff - 1, 'ent-late': cutoff + 1 };
+    const engine = makeEntitlements(
+      makeDeps({ freeTierCutoffMs: cutoff, resolveCreatedAtMs: (id) => created[id] ?? null }),
+    );
+    expect(engine.resolveEntitlements('ent-early').plan).toBe('free');
+    expect(engine.resolveEntitlements('ent-late').plan).toBe('cloud');
+
+    seedSubscription('ent-late', 'trialing', PLUS_PRICE);
+    expect(engine.resolveEntitlements('ent-late').plan).toBe('plus');
   });
 
   test('injected Free tables are clamped to finite defaults and managed zeroes', () => {

@@ -7,7 +7,14 @@ import { getPageCount, clampPage, paginate } from '@/lib/pagination';
 import { SETTINGS_KEYS } from '@/app/settings/constants';
 import VocabRow from './components/VocabRow';
 import PaginationControls from './components/PaginationControls';
-import { stateFilters, stateOrder, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from './constants';
+import {
+  ankiFilters,
+  stateFilters,
+  stateOrder,
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZE_OPTIONS,
+  type AnkiFilter,
+} from './constants';
 import { AnkiCardType, SortDirection, SortField, VocabListProps } from './types';
 import { useActiveLanguage } from '@/utils/hooks';
 import { Button, buttonVariants } from '../ui/button';
@@ -29,6 +36,7 @@ export default function VocabList({
   // Filter state
   const [stateFilter, setStateFilter] = useState<WordState | 'all' | 'learning'>('all');
   const [bookFilter, setBookFilter] = useState<string>('all');
+  const [ankiFilter, setAnkiFilter] = useState<AnkiFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Sort state
@@ -100,6 +108,12 @@ export default function VocabList({
       result = result.filter((e) => e.bookId === bookFilter);
     }
 
+    // Apply Anki sync filter
+    if (ankiFilter !== 'all') {
+      const wanted = ankiFilter === 'in-anki';
+      result = result.filter((e) => e.pushedToAnki === wanted);
+    }
+
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
@@ -140,6 +154,7 @@ export default function VocabList({
     entries,
     stateFilter,
     bookFilter,
+    ankiFilter,
     searchQuery,
     sortField,
     sortDirection,
@@ -158,7 +173,7 @@ export default function VocabList({
   // filter). Sorting deliberately keeps the page — it's the same set reordered.
   useEffect(() => {
     setCurrentPage(1);
-  }, [stateFilter, bookFilter, searchQuery]);
+  }, [stateFilter, bookFilter, ankiFilter, searchQuery]);
 
   // Keep the current page valid when the page count shrinks (entries deleted,
   // page size raised) so the user is never stranded on an empty page.
@@ -187,18 +202,23 @@ export default function VocabList({
     });
   }, []);
 
-  // Select-all spans every matching entry across all pages (not just the
-  // visible page) — the bulk Anki/known actions operate on the whole filtered
-  // set, and the action buttons show the selected count.
+  // The selection holds only rows on the visible page. A bulk action must
+  // never touch a row that the user cannot see, so a new page, page size,
+  // filter, search or sort drops the rows that left the page.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const visible = new Set(paginatedEntries.map((e) => e.id));
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [paginatedEntries]);
+
+  // The header checkbox selects or clears every row on the visible page.
   const handleSelectAll = useCallback(
     (selected: boolean) => {
-      if (selected) {
-        setSelectedIds(new Set(filteredEntries.map((e) => e.id)));
-      } else {
-        setSelectedIds(new Set());
-      }
+      setSelectedIds(selected ? new Set(paginatedEntries.map((e) => e.id)) : new Set());
     },
-    [filteredEntries],
+    [paginatedEntries],
   );
 
   // Handle sort column click
@@ -280,7 +300,8 @@ export default function VocabList({
   };
 
   const allSelected =
-    filteredEntries.length > 0 && filteredEntries.every((e) => selectedIds.has(e.id));
+    paginatedEntries.length > 0 && paginatedEntries.every((e) => selectedIds.has(e.id));
+  const pagePartlySelected = !allSelected && paginatedEntries.some((e) => selectedIds.has(e.id));
   const someSelected = selectedIds.size > 0;
 
   return (
@@ -321,6 +342,20 @@ export default function VocabList({
           {collections.map((c) => (
             <option key={c.id} value={c.id}>
               {c.title}
+            </option>
+          ))}
+        </select>
+
+        {/* Anki sync filter */}
+        <select
+          value={ankiFilter}
+          onChange={(e) => setAnkiFilter(e.target.value as AnkiFilter)}
+          aria-label="Anki sync status"
+          className="rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
+        >
+          {ankiFilters.map((filter) => (
+            <option key={filter.value} value={filter.value}>
+              {filter.label}
             </option>
           ))}
         </select>
@@ -428,7 +463,11 @@ export default function VocabList({
                 <input
                   type="checkbox"
                   checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = pagePartlySelected;
+                  }}
                   onChange={(e) => handleSelectAll(e.target.checked)}
+                  aria-label="Select all on this page"
                   className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                 />
               </th>

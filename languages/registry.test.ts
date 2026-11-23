@@ -70,7 +70,7 @@ describe('registry pronunciation conformance', () => {
   // tokenize as two words and then key as one.
   it('Afrikaans, Italian, Ukrainian and Scottish Gaelic join and fold the apostrophe; French and Dutch do not', () => {
     const withJoiners = getAllLanguages().filter((lang) => lang.script.extraJoiners);
-    expect(withJoiners.map((lang) => lang.code)).toEqual(['af', 'gd', 'it', 'uk']);
+    expect(withJoiners.map((lang) => lang.code)).toEqual(['af', 'gd', 'hbo', 'he', 'it', 'uk']);
     const withFold = getAllLanguages().filter((lang) => lang.script.foldApostrophes);
     expect(withFold.map((lang) => lang.code)).toEqual(['af', 'gd', 'it', 'uk']);
 
@@ -97,6 +97,7 @@ describe('registry pronunciation conformance', () => {
     ['cs', 'ces'],
     ['id', 'ind'],
     ['sv', 'swe'],
+    ['nb', 'nob'],
     ['fi', 'fin'],
     ['hu', 'hun'],
   ] as const)('%s declares no fold locale and no apostrophe seam', (code, tatoebaCode) => {
@@ -112,13 +113,55 @@ describe('registry pronunciation conformance', () => {
     expect(pack.script.kind).toBe('alpha-spaced');
   });
 
-  it('Finnish and Hungarian keep the Polish control-case seams and name their voices', () => {
+  it('Finnish, Hungarian and Norwegian keep the Polish control-case seams and name their voices', () => {
     expect(LANGUAGES.fi.ttsCode).toBe('fi-FI');
     expect(LANGUAGES.fi.ttsVoice).toBe('fi-FI-Standard-B');
     expect(LANGUAGES.fi.pronunciation.audio).toEqual(['google']);
     expect(LANGUAGES.hu.ttsCode).toBe('hu-HU');
     expect(LANGUAGES.hu.ttsVoice).toBe('hu-HU-Standard-B');
     expect(LANGUAGES.hu.pronunciation.audio).toEqual(['google']);
+    expect(LANGUAGES.nb.ttsCode).toBe('nb-NO');
+    expect(LANGUAGES.nb.ttsVoice).toBe('nb-NO-Standard-A');
+    expect(LANGUAGES.nb.pronunciation.audio).toEqual(['google']);
+  });
+
+  it('Biblical Hebrew is audio-none RTL with niqqud folding and no voice fields', () => {
+    const hbo = LANGUAGES.hbo;
+    expect(hbo.name).toBe('Biblical Hebrew');
+    expect(hbo.code).toBe('hbo');
+    expect(hbo.flag).toBe('\u{1F4DC}');
+    expect(hbo.pronunciation.audio).toBe('none');
+    expect(hbo.ttsCode).toBeUndefined();
+    expect(hbo.ttsVoice).toBeUndefined();
+    expect(hbo.tatoebaCode).toBe('hbo');
+    expect(hbo.script.bcp47).toBe('hbo');
+    expect(hbo.script.direction).toBe('rtl');
+    expect(hbo.script.kind).toBe('alpha-spaced');
+    expect(hbo.script.hasCase).toBe(false);
+    expect(hbo.script.practiceLeniency).toBe('fold-marks');
+    expect(hbo.script.sentenceTerminators).toBe('.!?׃');
+    expect(hbo.script.extraJoiners).toBe('\u05BE');
+    expect(hbo.morphology?.prefixes).toEqual(['ו', 'ה', 'ב', 'ל', 'כ', 'מ', 'ש']);
+    expect(hbo.morphology?.maxPrefixes).toBe(3);
+    expect(hbo.morphology?.minStem).toBe(2);
+  });
+
+  // Hebrew joins on the apostrophe for geresh (ג'ירפה) but keys it as ׳, so it
+  // stays out of foldApostrophes, which maps every variant to ASCII '.
+  it('Modern Hebrew is rtl, joins geresh and gershayim, and names its voice', () => {
+    const pack = LANGUAGES.he;
+    expect(pack.name).toBe('Hebrew');
+    expect(pack.tatoebaCode).toBe('heb');
+    expect(pack.ttsCode).toBe('he-IL');
+    expect(pack.ttsVoice).toBe('he-IL-Standard-A');
+    expect(pack.pronunciation.audio).toEqual(['google']);
+    expect(pack.script.direction).toBe('rtl');
+    expect(pack.script.hasCase).toBe(false);
+    expect(pack.script.practiceLeniency).toBe('fold-marks');
+    expect(pack.script.foldApostrophes).toBeUndefined();
+    for (const mark of ["'", '’', '"', '”', '\u05F3', '\u05F4']) {
+      expect(pack.script.extraJoiners, `he must join ${mark}`).toContain(mark);
+    }
   });
 
   it('Modern Greek reuses the Koine script seams and stays a separate pack', () => {

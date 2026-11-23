@@ -62,6 +62,16 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'What does the aorist tense mean compared to the imperfect?',
     'What\'s the difference between "οὐ" and "μή" for negation?',
   ],
+  hbo: [
+    'How do the prefixes ו, ה, ב, ל, כ, מ and ש attach, and in what order do they stack?',
+    'What is the difference between qal and hiphil for a root like קטל?',
+    'When do I read the ketiv and when do I read the qere?',
+  ],
+  he: [
+    'How do the prefixes ו, ה, ב, ל, כ, מ and ש attach, and in what order do they stack?',
+    'What is the difference between the binyanim פעל, פיעל and התפעל for a root like ל-מ-ד?',
+    'When do I write ktiv male (full spelling) and when do I see ktiv haser?',
+  ],
   hi: [
     'When do I use ने after the subject, and what does it do to the verb?',
     'What is the difference between है, हैं, था and थी?',
@@ -96,6 +106,11 @@ export const EXAMPLE_PROMPTS: Record<LanguageCode, string[]> = {
     'How do the five Latin noun declensions work?',
     'What is the difference between the imperfect and the perfect?',
     'When do I use the ablative versus the accusative?',
+  ],
+  nb: [
+    'How does the definite suffix work, as in "hus" → "huset" → "husene"?',
+    'When do I use "en", "ei", and "et"?',
+    'What is the difference between "er" and "blir"?',
   ],
   nl: [
     'When do I use "de" vs "het" as a noun\'s article?',

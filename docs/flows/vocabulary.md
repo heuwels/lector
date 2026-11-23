@@ -69,11 +69,13 @@ Tests: `e2e/vocab-edit.spec.ts`, `e2e/vocab-pagination.spec.ts`.
 
 Settings, Import Known Words. A plain list writes `knownWords` only. A LingQ CSV also writes `vocab`.
 
+A LingQ CSV can use the LingQ export columns: `term`, `phrase`, and `meaning1` to `meaningN`. It can also use the columns `term`, `hint`, `status`, and `sentence`. The `phrase` column or the `sentence` column gives the sentence. A row without `status` gets `level1`. If the word is already in `vocab`, the import fills only an empty translation or sentence. It does not lower the state.
+
 | Role | Path | Function |
 | --- | --- | --- |
 | UI | `src/app/settings/components/KnownWordsImport/index.tsx` | `importKnownWords`, `importLingQWords` |
-| Parse | `src/app/settings/components/KnownWordsImport/utils.ts` | `parseCSVLine`, `lingqStatusToState` |
-| Client | `src/lib/data-layer.ts` | `bulkUpdateWordStates`, `saveVocab` |
+| Parse | `src/app/settings/components/KnownWordsImport/utils.ts` | `parseCSV`, `parseLingQExport`, `lingqStatusToState` |
+| Client | `src/lib/data-layer.ts` | `bulkUpdateWordStates`, `saveVocab`, `updateVocabEntry` |
 | API | `api/src/routes/known-words.ts` | `POST /` |
 
 New rows have `domain IS NULL` until the classifier runs. See [stats.md](stats.md).

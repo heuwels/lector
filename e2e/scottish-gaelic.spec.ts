@@ -73,7 +73,9 @@ test.describe('Scottish Gaelic language pack', () => {
     const dhuine = await (
       await page.request.get(apiUrl('/api/dictionary/lookup?word=dhuine&language=gd'))
     ).json();
-    expect(dhuine.entry?.word).toBe('duine');
+    expect(dhuine.entry?.word).toBe('dhuine');
+    expect(dhuine.entry?.lemmaInfo).toEqual({ stem: 'duine', label: 'dh form of' });
+    expect(JSON.stringify(dhuine.entry?.senses)).toContain('person');
   });
 
   test('cloze practice seeds and runs from the Gaelic bank', async ({ page }) => {

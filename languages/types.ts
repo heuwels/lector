@@ -267,6 +267,12 @@ export interface MorphologyConfig {
    */
   maxPrefixes?: number;
   /**
+   * Order candidates by how many peels they take, and at equal depth try the
+   * prefix-only peel first. Hebrew needs both: שאני is ש + אני and not a
+   * clitic peel to שא, and שולחנו is שולחן + ו and not ש + ו + לחנו.
+   */
+  prefixesFirst?: boolean;
+  /**
    * Initial mutations: a substitution at the front of the word, not a peel.
    * Welsh, Irish and Scottish Gaelic change the first letter for grammar.
    * Scottish Gaelic turns `bean` into `bhean`. A prefix rule would strip `bh`

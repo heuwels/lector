@@ -23,6 +23,8 @@ import { fi } from './fi/manifest';
 import { fr } from './fr/manifest';
 import { gd } from './gd/manifest';
 import { grc } from './grc/manifest';
+import { hbo } from './hbo/manifest';
+import { he } from './he/manifest';
 import { hi } from './hi/manifest';
 import { hu } from './hu/manifest';
 import { id } from './id/manifest';
@@ -30,6 +32,7 @@ import { it } from './it/manifest';
 import { ja } from './ja/manifest';
 import { ko } from './ko/manifest';
 import { la } from './la/manifest';
+import { nb } from './nb/manifest';
 import { nl } from './nl/manifest';
 import { pl } from './pl/manifest';
 import { pt } from './pt/manifest';
@@ -56,6 +59,8 @@ const MANIFESTS = {
   fr,
   gd,
   grc,
+  hbo,
+  he,
   hi,
   hu,
   id,
@@ -63,6 +68,7 @@ const MANIFESTS = {
   ja,
   ko,
   la,
+  nb,
   nl,
   pl,
   pt,

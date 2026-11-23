@@ -83,6 +83,10 @@ describe('splitTrailingPunctuation', () => {
     expect(splitTrailingPunctuation('Ἰουδαίων;')).toEqual(['Ἰουδαίων', ';']);
     expect(splitTrailingPunctuation('λόγος,')).toEqual(['λόγος', ',']);
   });
+
+  it('strips the Hebrew sof pasuq from a pointed word', () => {
+    expect(splitTrailingPunctuation('לֵאמֹֽר׃')).toEqual(['לֵאמֹֽר', '׃']);
+  });
 });
 
 describe('sentenceContainsWord', () => {
@@ -238,6 +242,14 @@ describe('sentenceContainsWord', () => {
     expect(sentenceContainsWord('Här är en röd björn.', 'björn', sv)).toBe(true);
     expect(sentenceContainsWord('Hon läste tidningen.', 'tidningen', sv)).toBe(true);
     expect(sentenceContainsWord('Jag köpte en ny bok.', 'bo', sv)).toBe(false);
+  });
+
+  it('matches Norwegian tokens through the default case fold', () => {
+    const norwegian = LANGUAGES.nb;
+    expect(sentenceContainsWord('Jeg kjøpte en ny bok.', 'bok', norwegian)).toBe(true);
+    expect(sentenceContainsWord('Her er en rød bjørn.', 'bjørn', norwegian)).toBe(true);
+    expect(sentenceContainsWord('Hun leste avisen.', 'avisen', norwegian)).toBe(true);
+    expect(sentenceContainsWord('Jeg kjøpte en ny bok.', 'bo', norwegian)).toBe(false);
   });
 
   it('matches Finnish tokens through the default case fold', () => {

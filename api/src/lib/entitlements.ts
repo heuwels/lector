@@ -30,7 +30,14 @@
 import { createMiddleware } from 'hono/factory';
 import type { Context } from 'hono';
 import { db } from '../db';
-import { billingConfig, getUserEmail, isEntitledStatus } from './billing';
+import {
+  billingConfig,
+  getUserEmail,
+  knownBillingPrices,
+  hasFreeAccess,
+  isEntitledStatus,
+  type FreeAccessOptions,
+} from './billing';
 import { getCompedPlan } from './account-flags';
 import { hasByokCredential } from './byok';
 
@@ -564,11 +571,10 @@ export type ReservationVerdict =
   | { allowed: true; reservation: UsageReservation }
   | Exclude<LimitVerdict, { allowed: true }>;
 
-export interface EntitlementsDeps {
+export interface EntitlementsDeps extends FreeAccessOptions {
   enforced: boolean;
-  freeTierEnabled: boolean;
   exemptEmails: Set<string>;
-  /** priceId → plan mapping, from billingConfig.prices. */
+  /** priceId → plan mapping, from knownBillingPrices(billingConfig). */
   prices: ReadonlyArray<{ id: string; plan: PaidPlanId }>;
   planLimits: Record<PlanId, PlanLimits>;
   resolveEmail: (userId: string) => string | null;
@@ -675,7 +681,7 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
     // Free is derived, never mirrored as a Paddle product. With the rollout
     // flag off, retain the old Cloud fallback because billing middleware locks
     // this state before limited routes run.
-    return best ?? (deps.freeTierEnabled ? 'free' : 'cloud');
+    return best ?? (hasFreeAccess(deps, userId) ? 'free' : 'cloud');
   }
 
   function resolveEntitlements(userId: string): ResolvedEntitlements {
@@ -1044,8 +1050,9 @@ export function makeEntitlements(deps: EntitlementsDeps): EntitlementsEngine {
 let active: EntitlementsEngine = makeEntitlements({
   enforced: billingConfig.enforced,
   freeTierEnabled: billingConfig.freeTierEnabled,
+  freeTierCutoffMs: billingConfig.freeTierCutoffMs,
   exemptEmails: billingConfig.exemptEmails,
-  prices: billingConfig.prices,
+  prices: knownBillingPrices(billingConfig),
   planLimits: parsePlanLimitOverrides(process.env.LECTOR_PLAN_LIMITS),
   resolveEmail: getUserEmail,
   isByok: hasByokCredential,

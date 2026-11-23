@@ -4,12 +4,13 @@ import {
   getActivePack,
   getVocabByText,
   saveVocab,
-  updateVocabState,
+  updateVocabEntry,
+  VocabEntry,
   WordState,
 } from '@/lib/data-layer';
 import { foldWord } from '@/lib/languages';
 import { useRef, useState } from 'react';
-import { lingqStatusToState, parseCSVLine } from './utils';
+import { isLingQHeader, LingQImport, parseCSV, parseLingQExport } from './utils';
 import { toast } from 'sonner';
 
 export default function KnownWordsImport() {
@@ -49,9 +50,7 @@ export default function KnownWordsImport() {
   };
 
   // Import LingQ words with their states and translations
-  const importLingQWords = async (
-    imports: { word: string; state: WordState; translation?: string }[],
-  ) => {
+  const importLingQWords = async (imports: LingQImport[]) => {
     for (const item of imports) {
       // Check if word already exists
       const existing = await getVocabByText(item.word);
@@ -67,17 +66,21 @@ export default function KnownWordsImport() {
           known: 5,
           ignored: -1,
         };
-        if (stateRank[item.state] > stateRank[existing.state]) {
-          await updateVocabState(existing.id, item.state);
+        const updates: Partial<Pick<VocabEntry, 'state' | 'translation' | 'sentence'>> = {};
+        if (stateRank[item.state] > stateRank[existing.state]) updates.state = item.state;
+        if (!existing.translation && item.translation) updates.translation = item.translation;
+        if (!existing.sentence && item.sentence) updates.sentence = item.sentence;
+        if (Object.keys(updates).length > 0) {
+          await updateVocabEntry(existing.id, updates);
         }
       } else {
         // Create new entry
         await saveVocab({
           id: crypto.randomUUID(),
           text: item.word,
-          type: 'word',
-          sentence: '',
-          translation: item.translation || '',
+          type: item.type,
+          sentence: item.sentence,
+          translation: item.translation,
           state: item.state,
           stateUpdatedAt: new Date(),
           reviewCount: 0,
@@ -99,52 +102,20 @@ export default function KnownWordsImport() {
 
     try {
       const text = await file.text();
-      const lines = text
-        .split(/[\r\n]+/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
+      const rows = parseCSV(text);
 
-      if (lines.length === 0) {
+      if (rows.length === 0) {
         toast.info('No data found in file.');
         return;
       }
 
-      // Check if this looks like a LingQ export (has header row)
-      const firstLine = lines[0].toLowerCase();
-      const isLingQFormat =
-        firstLine.includes('term') || firstLine.includes('hint') || firstLine.includes('status');
-
-      if (isLingQFormat) {
-        // LingQ CSV format: term, hint (translation), status, etc.
-        const header = parseCSVLine(lines[0].toLowerCase());
-        const termIdx = header.findIndex((h) => h === 'term' || h === 'word');
-        const hintIdx = header.findIndex((h) => h === 'hint' || h === 'translation');
-        const statusIdx = header.findIndex((h) => h === 'status');
-
-        if (termIdx === -1) {
+      if (isLingQHeader(rows[0])) {
+        const imports = parseLingQExport(rows, (word) => foldWord(word, getActivePack()));
+        if (!imports) {
           toast.error("Could not find 'term' column in LingQ export.");
           return;
         }
 
-        const imports: { word: string; state: WordState; translation?: string }[] = [];
-
-        for (let i = 1; i < lines.length; i++) {
-          const fields = parseCSVLine(lines[i]);
-          const rawTerm = fields[termIdx]?.trim();
-          const word = rawTerm ? foldWord(rawTerm, getActivePack()) : rawTerm;
-          if (!word) continue;
-
-          const status = statusIdx >= 0 ? fields[statusIdx] : 'K';
-          const translation = hintIdx >= 0 ? fields[hintIdx] : undefined;
-
-          imports.push({
-            word,
-            state: lingqStatusToState(status),
-            translation,
-          });
-        }
-
-        // Import with states and translations
         await importLingQWords(imports);
         const knownCount = imports.filter((i) => i.state === 'known').length;
         const learningCount = imports.length - knownCount;
@@ -153,11 +124,8 @@ export default function KnownWordsImport() {
         );
       } else {
         // Simple format: one word per line or first CSV column
-        const words = lines
-          .map((line) => {
-            const parts = line.split(',');
-            return foldWord(parts[0].trim(), getActivePack());
-          })
+        const words = rows
+          .map((fields) => foldWord(fields[0] ?? '', getActivePack()))
           .filter((w) => w.length > 0);
 
         await importKnownWords(words);
@@ -177,9 +145,7 @@ export default function KnownWordsImport() {
 
   return (
     <section className="panel p-6">
-      <h2 className="mb-4 text-lg font-semibold text-foreground">
-        Import Known Words
-      </h2>
+      <h2 className="mb-4 text-lg font-semibold text-foreground">Import Known Words</h2>
       <p className="mb-4 text-sm text-muted-foreground">
         Import words you already know. Supports <strong>LingQ exports</strong> (with status levels
         and translations) or simple word lists.
@@ -190,15 +156,14 @@ export default function KnownWordsImport() {
 
       {/* CSV Upload */}
       <div className="mb-4">
-        <label className="mb-2 block text-sm font-medium text-foreground">
-          Upload CSV File
-        </label>
+        <label className="mb-2 block text-sm font-medium text-foreground">Upload CSV File</label>
         <input
           ref={fileInputRef}
+          data-testid="known-words-import-file"
           type="file"
           accept=".csv,.txt"
           onChange={handleFileUpload}
-          className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-[var(--primary-soft)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-[var(--primary-soft)] dark:text-muted-foreground  "
+          className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-[var(--primary-soft)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-[var(--primary-soft)] dark:text-muted-foreground"
         />
         <p className="mt-1 text-xs text-muted-foreground">
           CSV with words in the first column, or a plain text file
@@ -215,7 +180,7 @@ export default function KnownWordsImport() {
           onChange={(e) => setImportText(e.target.value)}
           placeholder="die&#10;en&#10;is&#10;van&#10;..."
           rows={6}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none  "
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
         />
       </div>
 

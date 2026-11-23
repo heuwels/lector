@@ -24,7 +24,10 @@ export function splitTrailingPunctuation(word: string): [string, string] {
   // typed the word was marked wrong. 195 of the 7,126 Arabic bank rows end in
   // one of these. They cannot collide with another script — no Latin, Cyrillic
   // or Greek text writes them.
-  const match = noLead.match(/^(.+?)([.,!?;:·،؛؟'"„“”«»‹›)\]}…]+)$/u);
+  //
+  // Hebrew ends a verse with the sof pasuq ׃ (#255). The cloze bank keeps it
+  // on the last word of a verse, so it needs the same strip.
+  const match = noLead.match(/^(.+?)([.,!?;:·،؛؟׃'"„“”«»‹›)\]}…]+)$/u);
   if (match) return [match[1], match[2]];
   return [noLead, ''];
 }
